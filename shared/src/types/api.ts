@@ -254,3 +254,32 @@ export interface InsightsResponse {
     date_range: string;
   };
 }
+
+// Subscription/billing types
+export type PlanTier = "free" | "starter" | "growth";
+
+export interface Subscription {
+  id: string;
+  user_id: string;
+  plan: PlanTier;
+  status: "active" | "canceled" | "past_due" | "trialing";
+  current_period_start: string;
+  current_period_end: string;
+  cancel_at_period_end: boolean;
+  polar_subscription_id: string | null;
+  polar_customer_id: string | null;
+}
+
+export interface CheckoutSession {
+  url: string;
+}
+
+export interface PlanInfo {
+  tier: PlanTier;
+  name: string;
+  price: number;
+  events_per_month: number;
+  sites: number;
+  features: string[];
+  checkout_url: string | null;
+}

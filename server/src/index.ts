@@ -12,6 +12,9 @@ import { analyticsRoutes } from "./routes/analytics";
 import { aiInsightsRoutes } from "./routes/ai-insights";
 import { integrationRoutes } from "./routes/integrations";
 import { webhookRoutes } from "./routes/webhooks";
+import { billingRoutes } from "./routes/billing";
+import { teamRoutes } from "./routes/team";
+import { docsRoutes } from "./routes/docs";
 import { hashPassword, generateId, generateApiKey, hashToken } from "./utils";
 
 type Bindings = { DB: D1Database };
@@ -39,6 +42,7 @@ app.use(cors());
 
 app.get("/", (c) => c.json({ message: "klikapa", version: "0.7.0", success: true }));
 app.get("/health", (c) => c.json({ status: "ok", success: true }));
+app.route("/docs", docsRoutes);
 
 app.use(async (c, next) => {
   try {
@@ -96,6 +100,57 @@ app.use("/integrations/*", authMiddleware);
 app.route("/integrations", integrationRoutes);
 
 app.route("/webhooks", webhookRoutes);
+
+// Billing webhook (no auth — Polar calls this)
+app.post("/billing/webhook", async (c) => {
+  const d1 = c.env.DB;
+  if (!d1) return c.json({ error: "DB unavailable" }, 503);
+  const db = createDb(d1);
+  const body = await c.req.text();
+  const signature = c.req.header("X-Polar-Signature") || "";
+  const secret = (c.env as any).POLAR_WEBHOOK_SECRET || "";
+  if (secret && signature) {
+    const enc = new TextEncoder();
+    const key = await crypto.subtle.importKey("raw", enc.encode(secret), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
+    const sig = await crypto.subtle.sign("HMAC", key, enc.encode(body));
+    const computed = btoa(String.fromCharCode(...new Uint8Array(sig)));
+    const sigClean = signature.replace(/^sha256=/, "");
+    if (computed.length !== sigClean.length) return c.json({ error: "Invalid signature" }, 401);
+    let r = 0;
+    for (let i = 0; i < computed.length; i++) r |= computed.charCodeAt(i) ^ sigClean.charCodeAt(i);
+    if (r !== 0) return c.json({ error: "Invalid signature" }, 401);
+  }
+  try {
+    const event = JSON.parse(body);
+    const userId = event.metadata?.user_id || event.data?.metadata?.user_id;
+    const plan = event.metadata?.plan || event.data?.metadata?.plan;
+    if (!userId) return c.json({ error: "Missing user_id" }, 400);
+    if (event.type === "subscription.created" || event.type === "subscription.updated") {
+      const s = event.data;
+      await db.insertInto("subscriptions").values({
+        id: generateId(), user_id: userId, plan: plan || "starter",
+        status: s?.status || "active",
+        current_period_start: s?.current_period_start || new Date().toISOString(),
+        current_period_end: s?.current_period_end || new Date(Date.now() + 30 * 86400000).toISOString(),
+        cancel_at_period_end: 0, polar_subscription_id: s?.id || null, polar_customer_id: s?.customer_id || null,
+        created_at: new Date().toISOString(), updated_at: new Date().toISOString(),
+      }).onConflict((oc) => oc.column("user_id").doUpdateSet({
+        plan: plan || "starter", status: s?.status || "active",
+        current_period_end: s?.current_period_end || undefined,
+        polar_subscription_id: s?.id || undefined, updated_at: new Date().toISOString(),
+      })).execute();
+    } else if (event.type === "subscription.canceled") {
+      await db.updateTable("subscriptions").set({ cancel_at_period_end: 1, status: "canceled", updated_at: new Date().toISOString() }).where("user_id", "=", userId).execute();
+    }
+    return c.json({ success: true });
+  } catch (err: any) { return c.json({ error: err.message }, 500); }
+});
+
+app.use("/billing/*", authMiddleware);
+app.route("/billing", billingRoutes);
+
+app.use("/team/*", authMiddleware);
+app.route("/team", teamRoutes);
 
 app.onError((err, c) => {
   console.error("Server error:", err);

@@ -13,6 +13,26 @@ interface WebhookPayload {
   [key: string]: unknown;
 }
 
+function timingSafeEqual(a: string, b: string): boolean {
+  if (a.length !== b.length) return false;
+  let result = 0;
+  for (let i = 0; i < a.length; i++) {
+    result |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  }
+  return result === 0;
+}
+
+async function validateHmac(body: string, secret: string, signature: string): Promise<boolean> {
+  const encoder = new TextEncoder();
+  const key = await crypto.subtle.importKey(
+    "raw", encoder.encode(secret),
+    { name: "HMAC", hash: "SHA-256" }, false, ["sign"]
+  );
+  const sig = await crypto.subtle.sign("HMAC", key, encoder.encode(body));
+  const computed = btoa(String.fromCharCode(...new Uint8Array(sig)));
+  return timingSafeEqual(computed, signature);
+}
+
 async function findIntegration(db: Kysely<KlikapaDatabase>, siteId: string, type: string) {
   return db.selectFrom("integrations")
     .select(["id", "site_id", "type", "config"])
@@ -45,7 +65,6 @@ async function logWebhookEvent(
 }
 
 async function processWebhookEvent(db: Kysely<KlikapaDatabase>, siteId: string, email: string, eventType: string) {
-  // Look up visitor by email
   const visitor = await db.selectFrom("visitor_profiles")
     .select(["id", "visitor_id"])
     .where("site_id", "=", siteId)
@@ -53,9 +72,7 @@ async function processWebhookEvent(db: Kysely<KlikapaDatabase>, siteId: string, 
     .executeTakeFirst();
 
   if (visitor) {
-    // Create a custom event linking the external event to the visitor
     const sessionId = generateId();
-    // Create a session for this webhook event if we want to track it
     await db.insertInto("sessions").values({
       id: sessionId,
       site_id: siteId,
@@ -118,18 +135,17 @@ webhookRoutes.post("/mailchimp", async (c) => {
   if (!integration) return c.json({ error: "No active Mailchimp integration found", success: false }, 404);
 
   const config = JSON.parse((integration.config as string) || "{}");
+  const rawBody = await c.req.text();
 
-  // Validate webhook secret if configured
   const webhookSecret = config.webhook_secret;
   if (webhookSecret) {
-    const providedSecret = c.req.header("X-Mailchimp-Signature") || c.req.query("secret");
-    if (providedSecret !== webhookSecret) {
+    const signature = c.req.header("X-Mailchimp-Signature") || "";
+    if (!signature || !await validateHmac(rawBody, webhookSecret, signature)) {
       return c.json({ error: "Invalid webhook signature", success: false }, 401);
     }
   }
 
-  const body = await c.req.json<Record<string, unknown>>();
-  const payloadStr = JSON.stringify(body);
+  const body = JSON.parse(rawBody) as Record<string, unknown>;
 
   try {
     const email = (body.data as Record<string, string>)?.email || (body.email as string) || "";
@@ -139,9 +155,9 @@ webhookRoutes.post("/mailchimp", async (c) => {
       await processWebhookEvent(db, siteId, email, `mailchimp_${eventType}`);
     }
 
-    await logWebhookEvent(db, siteId, integration.id, `mailchimp_${eventType}`, payloadStr, "processed");
+    await logWebhookEvent(db, siteId, integration.id, `mailchimp_${eventType}`, rawBody, "processed");
   } catch (err) {
-    await logWebhookEvent(db, siteId, integration.id, "mailchimp_error", payloadStr, "failed");
+    await logWebhookEvent(db, siteId, integration.id, "mailchimp_error", rawBody, "failed");
   }
 
   return c.json({ success: true });
@@ -159,9 +175,8 @@ webhookRoutes.post("/convertkit", async (c) => {
   const config = JSON.parse((integration.config as string) || "{}");
   const apiKey = config.api_key;
 
-  // Validate via API key in header or query
-  const providedKey = c.req.header("X-ConvertKit-Api-Key") || c.req.query("api_key");
-  if (apiKey && providedKey !== apiKey) {
+  const providedKey = c.req.header("X-ConvertKit-Api-Key") || c.req.query("api_key") || "";
+  if (apiKey && !timingSafeEqual(providedKey, apiKey)) {
     return c.json({ error: "Invalid API key", success: false }, 401);
   }
 
@@ -187,7 +202,7 @@ webhookRoutes.post("/convertkit", async (c) => {
   return c.json({ success: true });
 });
 
-// POST /kit - Handle Kit webhooks (alias for convertkit)
+// POST /kit - Handle Kit webhooks
 webhookRoutes.post("/kit", async (c) => {
   const db = c.get("db");
   const siteId = c.req.query("site_id");
@@ -199,9 +214,8 @@ webhookRoutes.post("/kit", async (c) => {
   const config = JSON.parse((integration.config as string) || "{}");
   const apiKey = config.api_key;
 
-  // Validate via API key or signature
-  const providedKey = c.req.header("X-Kit-Api-Key") || c.req.query("api_key");
-  if (apiKey && providedKey !== apiKey) {
+  const providedKey = c.req.header("X-Kit-Api-Key") || c.req.query("api_key") || "";
+  if (apiKey && !timingSafeEqual(providedKey, apiKey)) {
     return c.json({ error: "Invalid API key", success: false }, 401);
   }
 
@@ -239,16 +253,15 @@ webhookRoutes.post("/beehiiv", async (c) => {
   const config = JSON.parse((integration.config as string) || "{}");
   const secret = config.webhook_secret;
 
-  // Validate webhook signature if configured
+  const rawBody = await c.req.text();
   if (secret) {
-    const signature = c.req.header("X-Beehiiv-Signature") || c.req.query("secret");
-    if (signature !== secret) {
+    const signature = c.req.header("X-Beehiiv-Signature") || "";
+    if (!signature || !await validateHmac(rawBody, secret, signature)) {
       return c.json({ error: "Invalid webhook signature", success: false }, 401);
     }
   }
 
-  const body = await c.req.json<Record<string, unknown>>();
-  const payloadStr = JSON.stringify(body);
+  const body = JSON.parse(rawBody) as Record<string, unknown>;
 
   try {
     const email = (body.data as Record<string, string>)?.email
@@ -260,9 +273,9 @@ webhookRoutes.post("/beehiiv", async (c) => {
       await processWebhookEvent(db, siteId, email, `beehiiv_${eventType}`);
     }
 
-    await logWebhookEvent(db, siteId, integration.id, `beehiiv_${eventType}`, payloadStr, "processed");
+    await logWebhookEvent(db, siteId, integration.id, `beehiiv_${eventType}`, rawBody, "processed");
   } catch (err) {
-    await logWebhookEvent(db, siteId, integration.id, "beehiiv_error", payloadStr, "failed");
+    await logWebhookEvent(db, siteId, integration.id, "beehiiv_error", rawBody, "failed");
   }
 
   return c.json({ success: true });

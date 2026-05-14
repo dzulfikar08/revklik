@@ -1,4 +1,4 @@
-import type { SiteWithStats, AuthResponse, Site, CreateSitePayload, CreateUserPayload, LoginPayload, SiteDashboard, VisitorProfile, ScrollFunnel, Integration, CreateIntegrationPayload, WebhookEventLog, InsightsResponse, HeatmapData, RecordingSummary, RecordingDetail } from "shared";
+import type { SiteWithStats, AuthResponse, Site, CreateSitePayload, CreateUserPayload, LoginPayload, SiteDashboard, VisitorProfile, ScrollFunnel, Integration, CreateIntegrationPayload, WebhookEventLog, InsightsResponse, HeatmapData, RecordingSummary, RecordingDetail, Subscription, PlanInfo } from "shared";
 import { toast } from "@/components/toast";
 
 const API_BASE = import.meta.env.DEV ? "http://localhost:3000/api" : "/api";
@@ -93,3 +93,76 @@ export const fetchRecordings = (siteId: string, range?: string) => {
   return apiFetch<RecordingSummary[]>(`/analytics/recordings?${p}`);
 };
 export const fetchRecording = (id: string) => apiFetch<RecordingDetail>(`/analytics/recordings/${id}`);
+
+// SSE real-time connection
+export function connectSSE(
+  siteId: string,
+  onEvent: (event: { type: string; data: unknown }) => void,
+): () => void {
+  const token = getToken();
+  if (!token) return () => {};
+
+  const base = import.meta.env.DEV ? "http://localhost:3000/api" : "/api";
+  let aborted = false;
+  let reconnectTimer: ReturnType<typeof setTimeout>;
+
+  const connect = async () => {
+    if (aborted) return;
+    try {
+      const res = await fetch(`${base}/analytics/stream?site_id=${siteId}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok || !res.body) { scheduleReconnect(); return; }
+
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+
+      while (!aborted) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        buffer = lines.pop() || "";
+
+        let eventType = "";
+        for (const line of lines) {
+          if (line.startsWith("event: ")) eventType = line.slice(7);
+          else if (line.startsWith("data: ")) {
+            try { onEvent({ type: eventType, data: JSON.parse(line.slice(6)) }); } catch {}
+            eventType = "";
+          }
+        }
+      }
+    } catch { /* ignore */ }
+    if (!aborted) scheduleReconnect();
+  };
+
+  const scheduleReconnect = () => { reconnectTimer = setTimeout(connect, 3000); };
+
+  connect();
+  return () => { aborted = true; clearTimeout(reconnectTimer); };
+}
+
+// Data export
+export async function exportData(siteId: string, type: string, format: string, range: string): Promise<void> {
+  const base = import.meta.env.DEV ? "http://localhost:3000/api" : "/api";
+  const res = await fetch(`${base}/analytics/export?site_id=${siteId}&type=${type}&format=${format}&range=${range}`, {
+    headers: authHeaders(),
+  });
+  if (!res.ok) throw new Error("Export failed");
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  const cd = res.headers.get("Content-Disposition");
+  a.download = cd?.match(/filename="(.+)"/)?.[1] || `export-${type}.${format}`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+// Billing
+export const fetchSubscription = () => apiFetch<Subscription>("/billing/subscription");
+export const fetchPlans = () => apiFetch<PlanInfo[]>("/billing/plans");
+export const createCheckout = (plan: string) => apiFetch<{ url: string }>("/billing/checkout", { method: "POST", body: JSON.stringify({ plan }) });
+export const cancelSubscription = () => apiFetch<void>("/billing/cancel", { method: "POST" });

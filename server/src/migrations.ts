@@ -206,5 +206,43 @@ export async function migrateDatabase(d1: D1Database): Promise<void> {
     ]);
   } catch { /* table may already exist */ }
 
+  // Subscriptions
+  try {
+    await d1.prepare(`CREATE TABLE IF NOT EXISTS subscriptions (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      plan TEXT NOT NULL DEFAULT 'free',
+      status TEXT NOT NULL DEFAULT 'active',
+      current_period_start TEXT NOT NULL DEFAULT (datetime('now')),
+      current_period_end TEXT NOT NULL DEFAULT (datetime('now', '+30 days')),
+      cancel_at_period_end INTEGER NOT NULL DEFAULT 0,
+      polar_subscription_id TEXT,
+      polar_customer_id TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )`).run();
+    await d1.batch([
+      d1.prepare("CREATE UNIQUE INDEX IF NOT EXISTS idx_sub_user ON subscriptions(user_id)"),
+      d1.prepare("CREATE INDEX IF NOT EXISTS idx_sub_polar ON subscriptions(polar_subscription_id)"),
+    ]);
+  } catch { /* table may already exist */ }
+
+  // Team members
+  try {
+    await d1.prepare(`CREATE TABLE IF NOT EXISTS team_members (
+      id TEXT PRIMARY KEY,
+      site_id TEXT NOT NULL,
+      user_id TEXT NOT NULL,
+      role TEXT NOT NULL DEFAULT 'viewer',
+      invited_by TEXT NOT NULL,
+      invited_at TEXT NOT NULL DEFAULT (datetime('now')),
+      accepted_at TEXT
+    )`).run();
+    await d1.batch([
+      d1.prepare("CREATE UNIQUE INDEX IF NOT EXISTS idx_tm_site_user ON team_members(site_id, user_id)"),
+      d1.prepare("CREATE INDEX IF NOT EXISTS idx_tm_user ON team_members(user_id)"),
+    ]);
+  } catch { /* table may already exist */ }
+
   migrationRan = true;
 }

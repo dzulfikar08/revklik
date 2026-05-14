@@ -111,6 +111,8 @@ export interface KlikapaDatabase {
   integrations: IntegrationTable;
   webhook_events: WebhookEventTable;
   ai_insights: AiInsightTable;
+  subscriptions: SubscriptionTable;
+  team_members: TeamMemberTable;
 }
 
 export interface HeatmapClickTable {
@@ -200,4 +202,28 @@ export interface AiInsightTable {
   confidence: number;
   created_at: string;
   expires_at: string;
+}
+
+export interface SubscriptionTable {
+  id: string;
+  user_id: string;
+  plan: string;
+  status: string;
+  current_period_start: string;
+  current_period_end: string;
+  cancel_at_period_end: number;
+  polar_subscription_id: string | null;
+  polar_customer_id: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface TeamMemberTable {
+  id: string;
+  site_id: string;
+  user_id: string;
+  role: string;
+  invited_by: string;
+  invited_at: string;
+  accepted_at: string | null;
 }

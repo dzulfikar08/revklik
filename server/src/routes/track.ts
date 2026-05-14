@@ -9,7 +9,31 @@ type Env = { req: Request };
 
 export const trackRoutes = new Hono<{ Variables: Variables }>();
 
+// In-memory rate limiter (per-isolate, resets on Worker recycle)
+const rlMap = new Map<string, { count: number; resetAt: number }>();
+let lastCleanup = Date.now();
+
+function rateLimit(key: string, limit: number, windowMs: number): boolean {
+  const now = Date.now();
+  if (now - lastCleanup > 120_000) {
+    for (const [k, v] of rlMap) { if (now > v.resetAt) rlMap.delete(k); }
+    lastCleanup = now;
+  }
+  const entry = rlMap.get(key);
+  if (!entry || now > entry.resetAt) {
+    rlMap.set(key, { count: 1, resetAt: now + windowMs });
+    return true;
+  }
+  entry.count++;
+  return entry.count <= limit;
+}
+
 trackRoutes.post("/track", async (c) => {
+  const ip = c.req.header("cf-connecting-ip") || "unknown";
+  if (!rateLimit(ip, 120, 60_000)) {
+    return c.json({ error: "Rate limit exceeded", success: false }, 429);
+  }
+
   const db = c.get("db");
   const raw = await c.req.json();
 
@@ -52,8 +76,12 @@ trackRoutes.post("/track", async (c) => {
     }
   }
 
+  const seenSids = new Set<string>();
   for (const payload of payloads) {
     if (payload.s !== siteId) continue;
+    const isNewSession = !seenSids.has(payload.sid);
+    seenSids.add(payload.sid);
+    const sessionInc = isNewSession ? 1 : 0;
 
     const ts = payload.ts ? new Date(payload.ts).toISOString() : new Date().toISOString();
     const eventType = payload.t === "p" ? "pageview" : payload.t === "c" ? "conversion" : "custom";
@@ -99,6 +127,7 @@ trackRoutes.post("/track", async (c) => {
       browser: browser ?? undefined,
       os: os ?? undefined,
       total_pageviews: sql`total_pageviews + ${pvInc}`,
+      total_sessions: sessionInc > 0 ? sql`total_sessions + ${sessionInc}` : undefined,
       total_revenue: rvInc > 0 ? sql`total_revenue + ${rvInc}` : undefined,
     })).execute();
   }
@@ -134,6 +163,11 @@ trackRoutes.post("/identify", async (c) => {
 
 // Heatmap tracking endpoint
 trackRoutes.post("/track/heatmap", async (c) => {
+  const ip = c.req.header("cf-connecting-ip") || "unknown";
+  if (!rateLimit(`hm:${ip}`, 60, 60_000)) {
+    return c.json({ error: "Rate limit exceeded", success: false }, 429);
+  }
+
   const db = c.get("db");
   const body = await c.req.json();
   const siteId = body.s;
@@ -180,6 +214,11 @@ trackRoutes.post("/track/heatmap", async (c) => {
 
 // Session recording endpoint
 trackRoutes.post("/track/recording", async (c) => {
+  const ip = c.req.header("cf-connecting-ip") || "unknown";
+  if (!rateLimit(`rec:${ip}`, 30, 60_000)) {
+    return c.json({ error: "Rate limit exceeded", success: false }, 429);
+  }
+
   const db = c.get("db");
   const body = await c.req.json();
   const siteId = body.s;

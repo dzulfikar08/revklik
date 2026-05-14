@@ -1,8 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
-import { fetchDashboard, fetchFunnel, fetchGeo, getActiveSiteId, updateVisitor } from "@/lib/api";
+import { fetchDashboard, fetchFunnel, fetchGeo, getActiveSiteId, updateVisitor, connectSSE, exportData } from "@/lib/api";
 import type { VisitorJourney, FunnelStep } from "shared";
 import { Globe, geoToMarkers } from "@/components/globe";
 import { AiInsightsCard } from "@/components/ai-insights-card";
@@ -527,8 +527,11 @@ function GlobeMarkerPopup({ city, journeys, onClose }: { city: string; journeys:
   );
 }
 
+const RANGE_PRESETS = [{ key: "24h", label: "24h" }, { key: "7d", label: "7d" }, { key: "30d", label: "30d" }, { key: "90d", label: "90d" }];
+
 function SiteDetailPage() {
   const siteId = getActiveSiteId() ?? "";
+  const queryClient = useQueryClient();
   const [range, setRange] = useState("7d");
   const [customStart, setCustomStart] = useState("");
   const [customEnd, setCustomEnd] = useState("");
@@ -543,22 +546,35 @@ function SiteDetailPage() {
     queryKey: ["dashboard", siteId, effectiveRange],
     queryFn: () => fetchDashboard(siteId, showCustom && customStart && customEnd ? undefined : range, showCustom ? customStart : undefined, showCustom ? customEnd : undefined),
     enabled: !!siteId,
-    refetchInterval: 15000,
+    refetchInterval: 60000,
   });
 
   const { data: funnelData } = useQuery({
     queryKey: ["funnel", siteId, effectiveRange],
     queryFn: () => fetchFunnel(siteId, showCustom && customStart && customEnd ? undefined : range),
     enabled: !!siteId,
-    refetchInterval: 15000,
+    refetchInterval: 60000,
   });
 
   const { data: geoData } = useQuery({
     queryKey: ["geo", siteId, effectiveRange],
     queryFn: () => fetchGeo(siteId, showCustom && customStart && customEnd ? undefined : range),
     enabled: !!siteId,
-    refetchInterval: 15000,
+    refetchInterval: 60000,
   });
+
+  // SSE for real-time updates — refetch dashboard on new events
+  useEffect(() => {
+    if (!siteId) return;
+    const disconnect = connectSSE(siteId, (ev) => {
+      if (ev.type === "visitor" || ev.type === "stats") {
+        queryClient.invalidateQueries({ queryKey: ["dashboard", siteId] });
+        queryClient.invalidateQueries({ queryKey: ["funnel", siteId] });
+        queryClient.invalidateQueries({ queryKey: ["geo", siteId] });
+      }
+    });
+    return disconnect;
+  }, [siteId, queryClient]);
 
   if (!siteId) {
     return <div className="empty-state" style={{ flex: 1 }}><p>{t("sites.select_site")}</p></div>;
@@ -571,7 +587,6 @@ function SiteDetailPage() {
   const sources = data?.sources ?? [];
   const timeseries = data?.timeseries ?? [];
 
-  const presets = [{ key: "24h", label: "24h" }, { key: "7d", label: "7d" }, { key: "30d", label: "30d" }, { key: "90d", label: "90d" }];
   const globeMarkers = useMemo(() => geoToMarkers(geoData ?? []), [geoData]);
 
   if (hasNoData) return <EmptyState siteId={siteId} />;
@@ -579,7 +594,7 @@ function SiteDetailPage() {
   return (
     <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
       <div className="range-bar">
-        {presets.map((r) => (
+        {RANGE_PRESETS.map((r) => (
           <button key={r.key} className={`btn-pill ${!showCustom && range === r.key ? "active" : ""}`}
             onClick={() => { setRange(r.key); setShowCustom(false); }}>{r.label}</button>
         ))}
@@ -596,6 +611,7 @@ function SiteDetailPage() {
           </>
         )}
         <div style={{ flex: 1 }} />
+        <button className="btn-pill" onClick={() => exportData(siteId, "events", "csv", range)} title="Export CSV">↓ CSV</button>
         <div className="location-tabs">
           <button className={`location-tab ${locationView === "cards" ? "active" : ""}`} onClick={() => { setLocationView("cards"); setSelectedGlobeCity(null); }}>Cards</button>
           <button className={`location-tab ${locationView === "globe" ? "active" : ""}`} onClick={() => { setLocationView("globe"); setSelectedGlobeCity(null); }}>Globe</button>

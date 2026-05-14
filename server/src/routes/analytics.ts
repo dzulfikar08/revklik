@@ -1,15 +1,23 @@
 import { Hono } from "hono";
 import type { KlikapaDatabase, SiteDashboard, StatsResponse, TimeSeriesPoint, TopPage, SourceEntry, VisitorJourney, VisitorProfile, HeatmapData, RecordingSummary, RecordingDetail } from "shared";
 import type { Kysely } from "kysely";
-import { sql } from "../db";
+import { sql, createDb } from "../db";
 import { getDateRange } from "../utils";
 
 type Variables = { db: Kysely<KlikapaDatabase>; userId: string };
+type AnalyticsEnv = { Variables: Variables; Bindings: { DB: D1Database } };
 
-export const analyticsRoutes = new Hono<{ Variables: Variables }>();
+export const analyticsRoutes = new Hono<AnalyticsEnv>();
 
 function validateSite(db: Kysely<KlikapaDatabase>, userId: string, siteId: string) {
-  return db.selectFrom("sites").select(["id"]).where("id", "=", siteId).where("user_id", "=", userId).executeTakeFirst();
+  return db.selectFrom("sites")
+    .select(["id"])
+    .where("id", "=", siteId)
+    .where((eb) => eb.or([
+      eb("user_id", "=", userId),
+      eb.exists(eb.selectFrom("team_members").select("id").where("site_id", "=", siteId).where("user_id", "=", userId).where("accepted_at", "is not", null)),
+    ]))
+    .executeTakeFirst();
 }
 
 analyticsRoutes.get("/dashboard", async (c) => {
@@ -420,3 +428,162 @@ analyticsRoutes.get("/recordings/:id", async (c) => {
 
   return c.json({ data: detail, success: true });
 });
+
+// SSE endpoint for real-time visitor updates
+analyticsRoutes.get("/stream", async (c) => {
+  const db = c.get("db");
+  const userId = c.get("userId");
+  const siteId = c.req.query("site_id");
+  if (!siteId) return c.json({ error: "site_id required", success: false }, 400);
+
+  const site = await validateSite(db, userId, siteId);
+  if (!site) return c.json({ error: "Site not found", success: false }, 404);
+
+  const d1 = c.env.DB;
+
+  const stream = new ReadableStream({
+    async start(controller) {
+      const encoder = new TextEncoder();
+      let closed = false;
+
+      const send = (event: string, data: unknown) => {
+        if (closed) return;
+        try {
+          controller.enqueue(encoder.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`));
+        } catch { closed = true; }
+      };
+
+      send("connected", { site_id: siteId, ts: Date.now() });
+
+      let lastTs = new Date().toISOString();
+      let iterations = 0;
+
+      const poll = async () => {
+        if (closed || iterations >= 10) {
+          if (!closed) { send("close", { reason: "timeout" }); try { controller.close(); } catch {} closed = true; }
+          return;
+        }
+        iterations++;
+
+        try {
+          const sdb = createDb(d1);
+          const events = await sdb.selectFrom("events")
+            .select(["id", "visitor_id", "event_type", "name", "path", "timestamp", "country", "city", "device_type", "browser"])
+            .where("site_id", "=", siteId)
+            .where("timestamp", ">", lastTs)
+            .orderBy("timestamp", "asc")
+            .limit(50)
+            .execute();
+
+          if (events.length > 0) {
+            for (const ev of events) {
+              send("visitor", ev);
+            }
+            lastTs = events[events.length - 1]!.timestamp;
+          }
+
+          // Also send live visitor count
+          const liveCount = await sdb.selectFrom("events")
+            .select(({ fn }) => fn.count<number>("visitor_id").distinct().as("count"))
+            .where("site_id", "=", siteId)
+            .where("timestamp", ">", new Date(Date.now() - 5 * 60_000).toISOString())
+            .executeTakeFirst();
+          send("stats", { live_visitors: liveCount?.count ?? 0 });
+        } catch { /* ignore poll errors */ }
+
+        if (!closed) setTimeout(poll, 2500);
+      };
+
+      setTimeout(poll, 1000);
+
+      // Abort signal cleanup
+      const req = c.req.raw;
+      if (req.signal) {
+        req.signal.addEventListener("abort", () => {
+          closed = true;
+          try { controller.close(); } catch {}
+        });
+      }
+    },
+  });
+
+  return new Response(stream, {
+    headers: {
+      "Content-Type": "text/event-stream",
+      "Cache-Control": "no-cache, no-transform",
+      "Connection": "keep-alive",
+      "X-Accel-Buffering": "no",
+    },
+  });
+});
+
+// Data export endpoint (CSV or JSON)
+analyticsRoutes.get("/export", async (c) => {
+  const db = c.get("db");
+  const userId = c.get("userId");
+  const siteId = c.req.query("site_id");
+  const format = c.req.query("format") || "csv";
+  const type = c.req.query("type") || "events";
+  const range = c.req.query("range") || "30d";
+
+  if (!siteId) return c.json({ error: "site_id required", success: false }, 400);
+  const site = await validateSite(db, userId, siteId);
+  if (!site) return c.json({ error: "Site not found", success: false }, 404);
+
+  const { start } = getDateRange(range);
+  const startIso = start.toISOString();
+
+  if (type === "visitors") {
+    const rows = await db.selectFrom("visitor_profiles")
+      .select(["visitor_id", "name", "email", "country", "region", "city", "device_type", "browser", "os", "total_sessions", "total_pageviews", "total_revenue", "first_seen", "last_seen"])
+      .where("site_id", "=", siteId)
+      .orderBy("last_seen", "desc")
+      .limit(10000)
+      .execute();
+
+    if (format === "json") {
+      return c.json({ data: rows, success: true });
+    }
+    const csv = toCsv(rows, ["visitor_id", "name", "email", "country", "region", "city", "device_type", "browser", "os", "total_sessions", "total_pageviews", "total_revenue", "first_seen", "last_seen"]);
+    return new Response(csv, { headers: { "Content-Type": "text/csv", "Content-Disposition": `attachment; filename="visitors-${siteId}-${range}.csv"` } });
+  }
+
+  if (type === "sessions") {
+    const rows = await db.selectFrom("sessions")
+      .select(["id", "visitor_id", "entry_path", "exit_path", "referrer", "utm_source", "utm_medium", "utm_campaign", "country", "city", "device_type", "browser", "page_count", "is_bounce", "started_at", "ended_at"])
+      .where("site_id", "=", siteId)
+      .where("started_at", ">=", startIso)
+      .orderBy("started_at", "desc")
+      .limit(10000)
+      .execute();
+
+    if (format === "json") {
+      return c.json({ data: rows, success: true });
+    }
+    const csv = toCsv(rows, ["id", "visitor_id", "entry_path", "exit_path", "referrer", "utm_source", "utm_medium", "utm_campaign", "country", "city", "device_type", "browser", "page_count", "is_bounce", "started_at", "ended_at"]);
+    return new Response(csv, { headers: { "Content-Type": "text/csv", "Content-Disposition": `attachment; filename="sessions-${siteId}-${range}.csv"` } });
+  }
+
+  // Default: events
+  const rows = await db.selectFrom("events")
+    .select(["id", "visitor_id", "session_id", "event_type", "name", "path", "hostname", "referrer", "utm_source", "utm_medium", "utm_campaign", "country", "region", "city", "device_type", "browser", "os", "revenue", "timestamp"])
+    .where("site_id", "=", siteId)
+    .where("timestamp", ">=", startIso)
+    .orderBy("timestamp", "desc")
+    .limit(10000)
+    .execute();
+
+  if (format === "json") {
+    return c.json({ data: rows, success: true });
+  }
+  const csv = toCsv(rows, ["id", "visitor_id", "session_id", "event_type", "name", "path", "hostname", "referrer", "utm_source", "utm_medium", "utm_campaign", "country", "region", "city", "device_type", "browser", "os", "revenue", "timestamp"]);
+  return new Response(csv, { headers: { "Content-Type": "text/csv", "Content-Disposition": `attachment; filename="events-${siteId}-${range}.csv"` } });
+});
+
+function toCsv(rows: Record<string, unknown>[], columns: string[]): string {
+  const esc = (v: unknown) => {
+    const s = v === null || v === undefined ? "" : String(v);
+    return s.includes(",") || s.includes('"') || s.includes("\n") ? `"${s.replace(/"/g, '""')}"` : s;
+  };
+  return [columns.join(","), ...rows.map(r => columns.map(c => esc(r[c])).join(","))].join("\n");
+}
