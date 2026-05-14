@@ -19,5 +19,8 @@
     {
       "name": "EMAIL"
     }
-  ]
+  ],
+  "ai": {
+    "binding": "AI"
+  }
 }

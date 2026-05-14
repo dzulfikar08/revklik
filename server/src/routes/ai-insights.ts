@@ -5,9 +5,10 @@ import { sql } from "../db";
 import { generateId, getDateRange } from "../utils";
 
 type Variables = { db: Kysely<KlikapaDatabase>; userId: string };
-type Env = { Bindings: { DB: D1Database; ANTHROPIC_API_KEY?: string }; Variables: Variables };
+type AiBinding = { run: (model: string, input: { prompt: string }) => Promise<{ response: string }> };
+type Env = { Bindings: { DB: D1Database; AI?: AiBinding }; Variables: Variables };
 
-export const aiInsightsRoutes = new Hono<{ Variables: Variables }>();
+export const aiInsightsRoutes = new Hono<Env>();
 
 function validateSite(db: Kysely<KlikapaDatabase>, userId: string, siteId: string) {
   return db.selectFrom("sites").select(["id"]).where("id", "=", siteId).where("user_id", "=", userId).executeTakeFirst();
@@ -352,7 +353,7 @@ interface RawInsight {
   action: string | null;
 }
 
-async function callAnthropic(data: AggregatedData, range: string): Promise<RawInsight[]> {
+async function callWorkersAI(ai: AiBinding | undefined, data: AggregatedData, range: string): Promise<RawInsight[]> {
   const prompt = `You are a web analytics expert. Analyze the following aggregated website data for the "${range}" period and generate 3-5 actionable insights.
 
 DATA:
@@ -374,50 +375,19 @@ Return a JSON array of 3-5 insight objects. Each insight must have:
 
 Return ONLY the JSON array, no other text.`;
 
-  const apiKey = (globalThis as any).ANTHROPIC_API_KEY;
-  if (!apiKey) {
-    return generateFallbackInsights(data);
-  }
+  if (!ai) return generateFallbackInsights(data);
 
   try {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 5000);
+    const result = await ai.run("@cf/meta/llama-3.1-8b-instruct", { prompt });
+    const text = result?.response ?? "";
 
-    const response = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-api-key": apiKey,
-        "anthropic-version": "2023-06-01",
-      },
-      body: JSON.stringify({
-        model: "claude-haiku-4-5-20251001",
-        max_tokens: 2048,
-        messages: [{ role: "user", content: prompt }],
-      }),
-      signal: controller.signal,
-    });
-
-    clearTimeout(timeout);
-
-    if (!response.ok) {
-      console.error("Anthropic API error:", response.status, await response.text().catch(() => ""));
-      return generateFallbackInsights(data);
-    }
-
-    const result = (await response.json()) as { content: Array<{ type: string; text: string }> };
-    const text = result.content?.[0]?.text ?? "";
-
-    // Extract JSON array from response (handle markdown code blocks)
     const jsonMatch = text.match(/\[[\s\S]*\]/);
-    if (!jsonMatch) {
-      return generateFallbackInsights(data);
-    }
+    if (!jsonMatch) return generateFallbackInsights(data);
 
     const parsed = JSON.parse(jsonMatch[0]) as RawInsight[];
     return parsed.slice(0, 5);
   } catch (err) {
-    console.error("AI insight generation error:", err);
+    console.error("Workers AI error:", err);
     return generateFallbackInsights(data);
   }
 }
@@ -518,7 +488,7 @@ async function generateInsights(
 
   try {
     const data = await aggregateData(db, siteId, startIso);
-    const rawInsights = await callAnthropic(data, range);
+    const rawInsights = await callWorkersAI(c.env?.AI, data, range);
 
     const now = new Date();
     const expiresAt = new Date(now.getTime() + ttlHours * 60 * 60 * 1000).toISOString();
