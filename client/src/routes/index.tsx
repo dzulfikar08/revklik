@@ -3,6 +3,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { fetchSites, createSite, setActiveSiteId, deleteSite } from "@/lib/api";
 import { AreaChart, Area, ResponsiveContainer } from "recharts";
 import { useState } from "react";
+import { t } from "@/lib/i18n";
 
 export const Route = createFileRoute("/")({ component: OverviewPage });
 
@@ -61,8 +62,8 @@ function OverviewPage() {
     <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
       <div className="overview-scroll">
         <div className="overview-header">
-          <h1 className="overview-title">Your Sites</h1>
-          <p className="overview-sub">{sites?.length ?? 0} site{(sites?.length ?? 0) === 1 ? "" : "s"} tracked · Last 7 days</p>
+          <h1 className="overview-title">{t("sites.title")}</h1>
+          <p className="overview-sub">{sites?.length ?? 0} {t("sites.tracked")}</p>
         </div>
 
         {isLoading ? (
@@ -103,8 +104,8 @@ function OverviewPage() {
                 </div>
                 <Sparkline data={site.sparkline} />
                 <div className="site-card-footer">
-                  <span>Last 7 days</span>
-                  <span style={{ color: "var(--accent)" }}>View details →</span>
+                  <span>{t("sites.last_7d")}</span>
+                  <span style={{ color: "var(--accent)" }}>{t("sites.view_details")}</span>
                 </div>
               </div>
             ))}
@@ -112,7 +113,7 @@ function OverviewPage() {
             {!showAdd ? (
               <div className="add-site-card" onClick={() => setShowAdd(true)}>
                 <span style={{ fontSize: 24, fontWeight: 300 }}>+</span>
-                <span>Add site</span>
+                <span>{t("sites.add")}</span>
               </div>
             ) : (
               <div style={{
@@ -120,14 +121,14 @@ function OverviewPage() {
                 padding: 24, display: "flex", flexDirection: "column", gap: 12,
                 animation: "fadeUp 0.3s ease both",
               }}>
-                <div style={{ fontFamily: "var(--serif)", fontStyle: "italic", fontSize: 18, color: "var(--text)" }}>Add New Site</div>
-                <input value={newName} onChange={(e) => { setNewName(e.target.value); setAddError(""); }} placeholder="Site name" style={{ width: "100%" }} />
+                <div style={{ fontFamily: "var(--serif)", fontStyle: "italic", fontSize: 18, color: "var(--text)" }}>{t("sites.add_new")}</div>
+                <input value={newName} onChange={(e) => { setNewName(e.target.value); setAddError(""); }} placeholder={t("sites.name_placeholder")} style={{ width: "100%" }} />
                 <input value={newDomain} onChange={(e) => { setNewDomain(e.target.value); setAddError(""); }} onKeyDown={(e) => e.key === "Enter" && handleAdd()} placeholder="example.com" style={{ width: "100%" }} />
                 {addError && <div style={{ fontSize: 12, color: "var(--crit)" }}>{addError}</div>}
                 <div style={{ display: "flex", gap: 8 }}>
                   <button className="btn-accent" onClick={handleAdd} disabled={!newDomain.trim() || !newName.trim()}
                     style={{ opacity: !newDomain.trim() || !newName.trim() ? 0.4 : 1 }}>
-                    Add Site
+                    {t("sites.add")}
                   </button>
                   <button className="btn-pill" onClick={() => { setShowAdd(false); setNewDomain(""); setNewName(""); setAddError(""); }}>
                     Cancel

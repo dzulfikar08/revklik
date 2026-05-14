@@ -2,6 +2,7 @@ import { createRootRoute, Outlet, useLocation, useNavigate } from "@tanstack/rea
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { isLoggedIn, fetchSites, getActiveSiteId, setActiveSiteId, logout } from "@/lib/api";
 import { useState, useRef, useEffect } from "react";
+import { t, toggleLang, getLang } from "@/lib/i18n";
 
 export const Route = createRootRoute({ component: RootLayout });
 
@@ -26,13 +27,13 @@ function SiteSwitcher({ sites, siteId, onSelect, onBack }: {
   return (
     <div ref={ref} className="site-switcher">
       <button className="site-switcher-btn" onClick={() => setOpen((v) => !v)}>
-        <span>{current?.name || "All Sites"}</span>
+        <span>{current?.name || t("sites.all_sites")}</span>
         <span style={{ fontSize: 9 }}>{open ? "▲" : "▼"}</span>
       </button>
       {open && (
         <div className="site-switcher-dropdown">
           <button className="site-switcher-item" onClick={() => { onBack(); setOpen(false); }}>
-            ← All Sites
+            ← {t("sites.all_sites")}
           </button>
           {sites.map((s) => (
             <button key={s.id}
@@ -92,8 +93,11 @@ function RootLayout() {
           )}
         </div>
         <div className="topnav-right">
+          <button className="btn-pill" onClick={() => { toggleLang(); queryClient.invalidateQueries(); window.location.reload(); }} style={{ fontSize: 11, padding: "4px 10px", marginRight: 8 }}>
+            {getLang() === "en" ? "ID" : "EN"}
+          </button>
           <button className="btn-pill" onClick={() => { logout(); queryClient.clear(); navigate({ to: "/login" }); }}>
-            Logout
+            {t("nav.logout")}
           </button>
         </div>
       </header>

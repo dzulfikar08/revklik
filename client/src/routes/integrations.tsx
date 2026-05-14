@@ -7,6 +7,7 @@ import {
   getActiveSiteId,
 } from "@/lib/api";
 import type { Integration, IntegrationType } from "shared";
+import { t } from "@/lib/i18n";
 
 export const Route = createFileRoute("/integrations")({ component: IntegrationsPage });
 
@@ -173,7 +174,7 @@ function ConfigModal({
             <ProviderIcon type={provider.type} connected={!!integration} />
             <div>
               <div style={{ fontFamily: "var(--serif)", fontStyle: "italic", fontSize: 20, color: "var(--text)" }}>{provider.name}</div>
-              <div style={{ fontSize: 12, color: "var(--text3)" }}>{isEdit ? "Update configuration" : "Setup integration"}</div>
+              <div style={{ fontSize: 12, color: "var(--text3)" }}>{isEdit ? t("integrations.update_config") : t("integrations.setup")}</div>
             </div>
           </div>
           <button onClick={onClose} style={{ fontSize: 16, color: "var(--text3)", padding: "4px 8px" }}>✕</button>
@@ -194,7 +195,7 @@ function ConfigModal({
                 type={field.secret ? "password" : "text"}
                 value={form[field.key] ?? ""}
                 onChange={(e) => setForm((prev) => ({ ...prev, [field.key]: e.target.value }))}
-                placeholder={isEdit ? "Leave empty to keep current" : field.placeholder}
+                placeholder={isEdit ? t("integrations.keep_current") : field.placeholder}
                 style={{ width: "100%" }}
               />
             </div>
@@ -209,15 +210,15 @@ function ConfigModal({
           <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
             {isEdit ? (
               <button className="btn-accent" onClick={() => updateMut.mutate()} disabled={updateMut.isPending} style={{ opacity: updateMut.isPending ? 0.6 : 1 }}>
-                {updateMut.isPending ? "Saving..." : "Save Changes"}
+                {updateMut.isPending ? t("integrations.saving") : t("integrations.save_changes")}
               </button>
             ) : (
               <button className="btn-accent" onClick={() => createMut.mutate()} disabled={createMut.isPending} style={{ opacity: createMut.isPending ? 0.6 : 1 }}>
-                {createMut.isPending ? "Connecting..." : "Connect"}
+                {createMut.isPending ? t("integrations.connecting") : t("integrations.connect")}
               </button>
             )}
             <button className="btn-pill" onClick={handleTest} disabled={testing}>
-              {testing ? "Testing..." : "Test Connection"}
+              {testing ? t("integrations.testing") : t("integrations.test")}
             </button>
           </div>
         </div>
@@ -237,7 +238,7 @@ function EventLogTable({ integrationId }: { integrationId: string }) {
 
   const rows = events ?? [];
   if (rows.length === 0) {
-    return <div style={{ padding: 16, color: "var(--text3)", fontSize: 12, textAlign: "center" }}>No events yet</div>;
+    return <div style={{ padding: 16, color: "var(--text3)", fontSize: 12, textAlign: "center" }}>{t("integrations.no_events")}</div>;
   }
 
   return (
@@ -302,7 +303,7 @@ function IntegrationsPage() {
   if (!siteId) {
     return (
       <div className="empty-state" style={{ flex: 1 }}>
-        <p>Select a site from the header</p>
+        <p>{t("sites.select_site")}</p>
       </div>
     );
   }
@@ -327,8 +328,8 @@ function IntegrationsPage() {
     <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
       <div className="overview-scroll">
         <div className="overview-header">
-          <h1 className="overview-title">Integrations</h1>
-          <p className="overview-sub">Connect your marketing tools to sync visitor and conversion data</p>
+          <h1 className="overview-title">{t("integrations.title")}</h1>
+          <p className="overview-sub">{t("integrations.subtitle")}</p>
         </div>
 
         {isLoading ? (
@@ -362,7 +363,7 @@ function IntegrationsPage() {
                           border: `1px solid ${enabled ? "rgba(52,211,153,.2)" : "var(--border2)"}`,
                           whiteSpace: "nowrap",
                         }}>
-                          {enabled ? "Connected" : "Disabled"}
+                          {enabled ? t("integrations.connected") : t("integrations.disabled")}
                         </span>
                       )}
                     </div>
@@ -377,21 +378,21 @@ function IntegrationsPage() {
                   <div style={{ padding: "16px 22px 16px", display: "flex", gap: 8, flexWrap: "wrap" }}>
                     <button className="btn-accent" style={{ fontSize: 12, padding: "6px 14px" }}
                       onClick={() => handleConfigure(provider)}>
-                      {connected ? "Configure" : "Connect"}
+                      {connected ? t("integrations.configure") : t("integrations.connect")}
                     </button>
                     {connected && (
                       <>
                         <button className="btn-pill" style={{ fontSize: 12, padding: "6px 14px" }}
                           onClick={() => toggleMut.mutate({ id: integration!.id, enabled: !enabled })}>
-                          {enabled ? "Disable" : "Enable"}
+                          {enabled ? t("integrations.disable") : t("integrations.enable")}
                         </button>
                         <button className="btn-pill" style={{ fontSize: 12, padding: "6px 14px", color: "var(--crit)", borderColor: "rgba(239,68,68,.2)" }}
                           onClick={() => handleDisconnect(integration!)}>
-                          Disconnect
+                          {t("integrations.disconnect")}
                         </button>
                         <button className="btn-pill" style={{ fontSize: 12, padding: "6px 14px" }}
                           onClick={() => setSelectedIntegration(selectedIntegration === integration!.id ? null : integration!.id)}>
-                          {selectedIntegration === integration!.id ? "Hide Events" : "View Events"}
+                          {selectedIntegration === integration!.id ? t("integrations.hide_events") : t("integrations.view_events")}
                         </button>
                       </>
                     )}
@@ -400,7 +401,7 @@ function IntegrationsPage() {
                   {selectedIntegration === integration?.id && (
                     <div style={{ borderTop: "1px solid var(--border)", margin: "0 22px 16px" }}>
                       <div style={{ fontFamily: "var(--mono)", fontSize: 10, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--text3)", padding: "10px 0 6px" }}>
-                        Event Log
+                        {t("integrations.event_log")}
                       </div>
                       <EventLogTable integrationId={integration.id} />
                     </div>

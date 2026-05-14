@@ -6,6 +6,8 @@ import { fetchDashboard, fetchFunnel, fetchGeo, getActiveSiteId, updateVisitor }
 import type { VisitorJourney, FunnelStep } from "shared";
 import { Globe, geoToMarkers } from "@/components/globe";
 import { AiInsightsCard } from "@/components/ai-insights-card";
+import { EventCalculator } from "@/components/event-calculator";
+import { t } from "@/lib/i18n";
 
 export const Route = createFileRoute("/site")({ component: SiteDetailPage });
 
@@ -27,12 +29,12 @@ function ChartCard({ data, loading }: { data: { date: string; pageviews: number;
     return <div className="chart-wrap" style={{ height: 200, display: "flex", alignItems: "center", justifyContent: "center" }}><div className="spinner" /></div>;
   }
   if (!data || data.length === 0) {
-    return <div className="chart-wrap" style={{ height: 200, display: "flex", alignItems: "center", justifyContent: "center", color: "var(--text3)", fontSize: 13 }}>No data for this period</div>;
+    return <div className="chart-wrap" style={{ height: 200, display: "flex", alignItems: "center", justifyContent: "center", color: "var(--text3)", fontSize: 13 }}>{t("chart.no_data")}</div>;
   }
   const chartData = data.map((row) => ({ ...row, label: row.date.length > 10 ? row.date.substring(5, 16) : row.date.substring(5) }));
   return (
     <div className="chart-wrap">
-      <div className="chart-label">Pageviews & Visitors</div>
+      <div className="chart-label">{t("chart.pageviews_visitors")}</div>
       <div style={{ height: 180 }}>
         <ResponsiveContainer width="100%" height="100%">
           <AreaChart data={chartData} margin={{ top: 4, right: 4, bottom: 0, left: -4 }}>
@@ -68,7 +70,7 @@ function DataTable({ title, rows, columns }: {
     <div className="data-table-card">
       <div className="data-table-title">{title}</div>
       {rows.length === 0 ? (
-        <div style={{ padding: 16, color: "var(--text3)", fontSize: 12, textAlign: "center" }}>No data</div>
+        <div style={{ padding: 16, color: "var(--text3)", fontSize: 12, textAlign: "center" }}>{t("common.no_data")}</div>
       ) : (
         <div className="scroll-x">
           <table className="data-table">
@@ -236,7 +238,7 @@ function ProfilePanel({ journey, onClose }: { journey: VisitorJourney | null; on
   return (
     <div className="profile-panel">
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <span style={{ fontFamily: "var(--mono)", fontSize: 10, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--text3)" }}>Visitor Profile</span>
+        <span style={{ fontFamily: "var(--mono)", fontSize: 10, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--text3)" }}>{t("profile.title")}</span>
         <button onClick={onClose} style={{ fontSize: 14, color: "var(--text3)", cursor: "pointer" }}>✕</button>
       </div>
       {editing ? (
@@ -265,7 +267,7 @@ function ProfilePanel({ journey, onClose }: { journey: VisitorJourney | null; on
               <p style={{ fontFamily: "var(--mono)", fontSize: 11, color: "var(--text3)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{journey.visitor_email || journey.visitor_id.slice(0, 16)}</p>
             </div>
           </div>
-          <button onClick={handleEdit} style={{ fontSize: 12, color: "var(--accent)", textAlign: "left", padding: 0, fontWeight: 600 }}>Edit profile</button>
+          <button onClick={handleEdit} style={{ fontSize: 12, color: "var(--accent)", textAlign: "left", padding: 0, fontWeight: 600 }}>{t("profile.edit")}</button>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, fontSize: 13, color: "var(--text2)" }}>
             {[journey.city, journey.region, journey.country].filter(Boolean).length > 0 && <span>{[journey.city, journey.region, journey.country].filter(Boolean).join(", ")}</span>}
             {journey.device_type && <span>{journey.device_type}</span>}
@@ -293,10 +295,10 @@ function EmptyState({ siteId }: { siteId: string }) {
       <Globe />
       <div style={{ textAlign: "center", marginTop: -80, maxWidth: 480 }}>
         <div style={{ fontFamily: "var(--serif)", fontStyle: "italic", fontSize: 28, color: "var(--text)", marginBottom: 8 }}>
-          Waiting for visitors
+          {t("sites.waiting")}
         </div>
         <p style={{ color: "var(--text3)", fontSize: 14, lineHeight: 1.6, marginBottom: 20 }}>
-          Add this script tag to your website to start collecting data
+          {t("sites.script_hint")}
         </p>
         <div style={{
           background: "var(--bg2)", border: "1px solid var(--border)", borderRadius: 10,
@@ -307,7 +309,7 @@ function EmptyState({ siteId }: { siteId: string }) {
           &lt;script defer data-site-id="{siteId}"<br />&nbsp;&nbsp;src="{window.location.origin}/klikapa.js"&gt;&lt;/script&gt;
         </div>
         <button className="btn-accent" onClick={() => { navigator.clipboard.writeText(snippet); setCopied(true); setTimeout(() => setCopied(false), 2000); }}>
-          {copied ? "Copied!" : "Copy Script"}
+          {copied ? t("common.copied") : t("common.copy_script")}
         </button>
       </div>
     </div>
@@ -413,7 +415,7 @@ function GlobeSummaryPanel({ journeys }: { journeys: VisitorJourney[] }) {
   return (
     <div className="globe-summary-panel">
       <div className="globe-stat-card">
-        <span className="globe-stat-label">Live Visitors</span>
+        <span className="globe-stat-label">{t("globe.live_visitors")}</span>
         <span className="globe-stat-value">{stats.uniqueVisitors}</span>
       </div>
       {stats.byReferrer.length > 0 && (
@@ -559,7 +561,7 @@ function SiteDetailPage() {
   });
 
   if (!siteId) {
-    return <div className="empty-state" style={{ flex: 1 }}><p>Select a site from the header</p></div>;
+    return <div className="empty-state" style={{ flex: 1 }}><p>{t("sites.select_site")}</p></div>;
   }
 
   const hasNoData = !isLoading && data && data.stats.pageviews === 0;
@@ -611,7 +613,7 @@ function SiteDetailPage() {
             </div>
             <div className="globe-view-main">
               <div className="globe-header">
-                <span className="globe-title">Visitor Locations</span>
+                <span className="globe-title">{t("table.locations")}</span>
                 {geoData && <span className="globe-count">{geoData.reduce((s, g) => s + g.visitors, 0).toLocaleString()} visitors from {geoData.length} locations</span>}
               </div>
               <div className="globe-canvas-wrap">
@@ -635,13 +637,15 @@ function SiteDetailPage() {
         <div className="detail-scroll">
           <AiInsightsCard siteId={siteId} range={range} />
           <div className="metrics-grid">
-            <MetricCard label="Views" value={stats?.pageviews?.toLocaleString() ?? "0"} />
-            <MetricCard label="Visitors" value={stats?.visitors?.toLocaleString() ?? "0"} />
-            <MetricCard label="Sessions" value={stats?.sessions?.toLocaleString() ?? "0"} />
-            <MetricCard label="Bounce Rate" value={`${stats?.bounceRate ?? 0}%`} />
-            <MetricCard label="Conversions" value={stats?.conversions?.toLocaleString() ?? "0"} />
-            <MetricCard label="Revenue" value={`$${stats?.revenue ?? 0}`} />
+            <MetricCard label={t("metric.views")} value={stats?.pageviews?.toLocaleString() ?? "0"} />
+            <MetricCard label={t("metric.visitors")} value={stats?.visitors?.toLocaleString() ?? "0"} />
+            <MetricCard label={t("metric.sessions")} value={stats?.sessions?.toLocaleString() ?? "0"} />
+            <MetricCard label={t("metric.bounce_rate")} value={`${stats?.bounceRate ?? 0}%`} />
+            <MetricCard label={t("metric.conversions")} value={stats?.conversions?.toLocaleString() ?? "0"} />
+            <MetricCard label={t("metric.revenue")} value={`$${stats?.revenue ?? 0}`} />
           </div>
+
+          <EventCalculator currentEvents={(stats?.pageviews ?? 0) + (stats?.conversions ?? 0)} currentPlan="starter" />
 
           <div className="chart-funnel-row">
             <ChartCard data={timeseries} loading={isLoading} />
@@ -649,7 +653,7 @@ function SiteDetailPage() {
           </div>
 
           <DataTable
-            title="Visitor Locations"
+            title={t("table.locations")}
             rows={(geoData ?? []).map((g) => ({
               city: g.city ?? "Unknown",
               region: g.region ?? "—",
@@ -657,28 +661,28 @@ function SiteDetailPage() {
               visitors: g.visitors.toLocaleString(),
             }))}
             columns={[
-              { key: "city", label: "City" },
-              { key: "region", label: "Region" },
-              { key: "country", label: "Country" },
-              { key: "visitors", label: "Visitors", align: "right", mono: true },
+              { key: "city", label: t("table.city") },
+              { key: "region", label: t("table.region") },
+              { key: "country", label: t("table.country") },
+              { key: "visitors", label: t("table.visitors"), align: "right", mono: true },
             ]}
           />
 
           <div className="tables-row">
-            <DataTable title="Top Pages" rows={topPages.map((p) => ({ path: p.path, views: p.pageviews.toLocaleString(), visitors: p.visitors.toLocaleString() }))}
-              columns={[{ key: "path", label: "Page" }, { key: "views", label: "Views", align: "right", mono: true }, { key: "visitors", label: "Visitors", align: "right", mono: true }]} />
-            <DataTable title="Traffic Sources" rows={sources.map((s) => ({ source: s.source, pct: `${s.percentage}%` }))}
-              columns={[{ key: "source", label: "Source" }, { key: "pct", label: "Share", align: "right", mono: true }]} />
+            <DataTable title={t("table.top_pages")} rows={topPages.map((p) => ({ path: p.path, views: p.pageviews.toLocaleString(), visitors: p.visitors.toLocaleString() }))}
+              columns={[{ key: "path", label: t("table.page") }, { key: "views", label: t("table.views"), align: "right", mono: true }, { key: "visitors", label: t("table.visitors"), align: "right", mono: true }]} />
+            <DataTable title={t("table.traffic_sources")} rows={sources.map((s) => ({ source: s.source, pct: `${s.percentage}%` }))}
+              columns={[{ key: "source", label: t("table.source") }, { key: "pct", label: "Share", align: "right", mono: true }]} />
           </div>
 
           {/* Journeys — Hero Section */}
           <div className="journeys-section">
             <div className="journeys-header">
-              <span className="journeys-title">Customer Journeys</span>
+              <span className="journeys-title">{t("journeys.title")}</span>
               <span className="journeys-count">{journeys.length}</span>
             </div>
             {journeys.length === 0 ? (
-              <div style={{ padding: 20, color: "var(--text3)", fontSize: 13, textAlign: "center" }}>No journeys yet — waiting for visitor activity</div>
+              <div style={{ padding: 20, color: "var(--text3)", fontSize: 13, textAlign: "center" }}>{t("journeys.no_activity")}</div>
             ) : (
               <div className="journeys-list">
                 {journeys.map((j) => (
