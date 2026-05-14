@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as SiteRouteImport } from './routes/site'
 import { Route as RegisterRouteImport } from './routes/register'
 import { Route as LoginRouteImport } from './routes/login'
+import { Route as IntegrationsRouteImport } from './routes/integrations'
 import { Route as IndexRouteImport } from './routes/index'
 
 const SiteRoute = SiteRouteImport.update({
@@ -29,6 +30,11 @@ const LoginRoute = LoginRouteImport.update({
   path: '/login',
   getParentRoute: () => rootRouteImport,
 } as any)
+const IntegrationsRoute = IntegrationsRouteImport.update({
+  id: '/integrations',
+  path: '/integrations',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
@@ -37,12 +43,14 @@ const IndexRoute = IndexRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/integrations': typeof IntegrationsRoute
   '/login': typeof LoginRoute
   '/register': typeof RegisterRoute
   '/site': typeof SiteRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/integrations': typeof IntegrationsRoute
   '/login': typeof LoginRoute
   '/register': typeof RegisterRoute
   '/site': typeof SiteRoute
@@ -50,20 +58,22 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/integrations': typeof IntegrationsRoute
   '/login': typeof LoginRoute
   '/register': typeof RegisterRoute
   '/site': typeof SiteRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/login' | '/register' | '/site'
+  fullPaths: '/' | '/integrations' | '/login' | '/register' | '/site'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/login' | '/register' | '/site'
-  id: '__root__' | '/' | '/login' | '/register' | '/site'
+  to: '/' | '/integrations' | '/login' | '/register' | '/site'
+  id: '__root__' | '/' | '/integrations' | '/login' | '/register' | '/site'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  IntegrationsRoute: typeof IntegrationsRoute
   LoginRoute: typeof LoginRoute
   RegisterRoute: typeof RegisterRoute
   SiteRoute: typeof SiteRoute
@@ -92,6 +102,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LoginRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/integrations': {
+      id: '/integrations'
+      path: '/integrations'
+      fullPath: '/integrations'
+      preLoaderRoute: typeof IntegrationsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/': {
       id: '/'
       path: '/'
@@ -104,6 +121,7 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  IntegrationsRoute: IntegrationsRoute,
   LoginRoute: LoginRoute,
   RegisterRoute: RegisterRoute,
   SiteRoute: SiteRoute,

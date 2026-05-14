@@ -1,4 +1,4 @@
-import type { SiteWithStats, AuthResponse, Site, CreateSitePayload, CreateUserPayload, LoginPayload, SiteDashboard, VisitorProfile } from "shared";
+import type { SiteWithStats, AuthResponse, Site, CreateSitePayload, CreateUserPayload, LoginPayload, SiteDashboard, VisitorProfile, ScrollFunnel, Integration, CreateIntegrationPayload, WebhookEventLog, InsightsResponse, HeatmapData, RecordingSummary, RecordingDetail } from "shared";
 
 const API_BASE = import.meta.env.DEV ? "http://localhost:3000/api" : "/api";
 
@@ -45,4 +45,42 @@ export const fetchDashboard = (siteId: string, range?: string, startDate?: strin
   return apiFetch<SiteDashboard>(`/analytics/dashboard?${p}`);
 };
 export const fetchVisitors = (siteId: string) => apiFetch<VisitorProfile[]>(`/analytics/visitors?site_id=${siteId}`);
+export const fetchFunnel = (siteId: string, range?: string) => {
+  const p = new URLSearchParams({ site_id: siteId });
+  if (range) p.set("range", range);
+  return apiFetch<ScrollFunnel>(`/analytics/funnel?${p}`);
+};
 export const updateVisitor = (id: string, data: Partial<VisitorProfile>) => apiFetch<void>(`/analytics/visitors/${id}`, { method: "PATCH", body: JSON.stringify(data) });
+export const fetchGeo = (siteId: string, range?: string) => {
+  const p = new URLSearchParams({ site_id: siteId });
+  if (range) p.set("range", range);
+  return apiFetch<{ country: string | null; region: string | null; city: string | null; visitors: number }[]>(`/analytics/geo?${p}`);
+};
+
+// Integrations
+export const fetchIntegrations = (siteId: string) => apiFetch<Integration[]>(`/integrations?site_id=${siteId}`);
+export const createIntegration = (data: CreateIntegrationPayload) => apiFetch<Integration>("/integrations", { method: "POST", body: JSON.stringify(data) });
+export const updateIntegration = (id: string, data: Partial<Pick<Integration, "name" | "config" | "enabled">>) => apiFetch<Integration>(`/integrations/${id}`, { method: "PATCH", body: JSON.stringify(data) });
+export const deleteIntegration = (id: string) => apiFetch<void>(`/integrations/${id}`, { method: "DELETE" });
+export const testIntegration = (id: string) => apiFetch<{ ok: boolean; message: string; detail?: string }>(`/integrations/${id}/test`, { method: "POST" });
+export const fetchWebhookEvents = (integrationId: string) => apiFetch<WebhookEventLog[]>(`/integrations/${integrationId}/events`);
+
+// AI Insights
+export const fetchInsights = (siteId: string, range?: string) => {
+  const p = new URLSearchParams({ site_id: siteId });
+  if (range) p.set("range", range);
+  return apiFetch<InsightsResponse>(`/ai-insights?${p}`);
+};
+export const refreshInsights = (siteId: string, range?: string) => apiFetch<InsightsResponse>("/ai-insights/refresh", { method: "POST", body: JSON.stringify({ site_id: siteId, range: range || "7d" }) });
+
+// Heatmaps
+export const fetchHeatmap = (siteId: string, path: string, range?: string) => {
+  const p = new URLSearchParams({ site_id: siteId, path, range: range || "7d" });
+  return apiFetch<HeatmapData>(`/analytics/heatmap?${p}`);
+};
+export const fetchRecordings = (siteId: string, range?: string) => {
+  const p = new URLSearchParams({ site_id: siteId });
+  if (range) p.set("range", range);
+  return apiFetch<RecordingSummary[]>(`/analytics/recordings?${p}`);
+};
+export const fetchRecording = (id: string) => apiFetch<RecordingDetail>(`/analytics/recordings/${id}`);

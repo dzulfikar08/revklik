@@ -23,28 +23,32 @@ function LoginPage() {
 
   return (
     <div style={{ height: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "var(--bg)" }}>
-      <div style={{ width: "100%", maxWidth: 360 }}>
-        <div style={{ textAlign: "center", marginBottom: 32 }}>
-          <div style={{ width: 44, height: 44, borderRadius: 10, background: "var(--cyan)", display: "inline-flex", alignItems: "center", justifyContent: "center", fontWeight: 700, fontSize: 20, color: "#fff", marginBottom: 16 }}>K</div>
-          <h1 style={{ fontSize: 22, fontWeight: 700, color: "var(--fg)", marginBottom: 4 }}>Welcome back</h1>
-          <p style={{ fontSize: 13, color: "var(--muted)" }}>Sign in to your klikapa dashboard</p>
+      <div style={{ width: "100%", maxWidth: 380 }}>
+        <div style={{ textAlign: "center", marginBottom: 36 }}>
+          <div style={{
+            width: 48, height: 48, borderRadius: 12, background: "var(--accent)",
+            display: "inline-flex", alignItems: "center", justifyContent: "center",
+            fontFamily: "var(--serif)", fontStyle: "italic", fontWeight: 400, fontSize: 26, color: "#0a0a0a", marginBottom: 20,
+          }}>k</div>
+          <h1 style={{ fontFamily: "var(--serif)", fontStyle: "italic", fontWeight: 400, fontSize: 28, color: "var(--text)", marginBottom: 6 }}>Welcome back</h1>
+          <p style={{ fontSize: 14, color: "var(--text3)" }}>Sign in to your klikapa dashboard</p>
         </div>
 
         <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-          {error && <div style={{ fontSize: 13, color: "var(--crit)", background: "rgba(239,68,68,0.1)", borderRadius: 8, padding: "10px 14px" }}>{error}</div>}
+          {error && <div style={{ fontSize: 13, color: "var(--crit)", background: "var(--crit-dim)", borderRadius: 8, padding: "10px 14px" }}>{error}</div>}
           <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-            <label style={{ fontSize: 11, fontWeight: 600, color: "var(--muted)", textTransform: "uppercase", letterSpacing: ".05em" }}>Email</label>
-            <input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required placeholder="you@company.com" style={{ width: "100%", padding: "10px 14px", fontSize: 13 }} />
+            <label style={{ fontFamily: "var(--mono)", fontSize: 10, fontWeight: 600, color: "var(--text3)", textTransform: "uppercase", letterSpacing: "0.08em" }}>Email</label>
+            <input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required placeholder="you@company.com" style={{ width: "100%", padding: "12px 16px", fontSize: 14 }} />
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-            <label style={{ fontSize: 11, fontWeight: 600, color: "var(--muted)", textTransform: "uppercase", letterSpacing: ".05em" }}>Password</label>
-            <input id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required placeholder="••••••••" style={{ width: "100%", padding: "10px 14px", fontSize: 13 }} />
+            <label style={{ fontFamily: "var(--mono)", fontSize: 10, fontWeight: 600, color: "var(--text3)", textTransform: "uppercase", letterSpacing: "0.08em" }}>Password</label>
+            <input id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required placeholder="••••••••" style={{ width: "100%", padding: "12px 16px", fontSize: 14 }} />
           </div>
-          <button type="submit" style={{ width: "100%", padding: "10px 18px", borderRadius: 6, border: "none", background: "var(--cyan)", color: "#fff", fontSize: 14, fontWeight: 600, cursor: "pointer" }}>Sign in</button>
+          <button type="submit" className="btn-accent" style={{ width: "100%", padding: "12px 24px", fontSize: 14, justifyContent: "center" }}>Sign in</button>
         </form>
 
-        <p style={{ textAlign: "center", fontSize: 13, color: "var(--muted)", marginTop: 24 }}>
-          No account? <a href="/register" style={{ color: "var(--cyan)", textDecoration: "none", fontWeight: 500 }}>Create one</a>
+        <p style={{ textAlign: "center", fontSize: 13, color: "var(--text3)", marginTop: 24 }}>
+          No account? <a href="/register" style={{ color: "var(--accent)", textDecoration: "none", fontWeight: 500 }}>Create one</a>
         </p>
       </div>
     </div>

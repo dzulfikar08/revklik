@@ -9,6 +9,9 @@ import { migrateDatabase } from "./migrations";
 import { trackRoutes } from "./routes/track";
 import { siteRoutes } from "./routes/sites";
 import { analyticsRoutes } from "./routes/analytics";
+import { aiInsightsRoutes } from "./routes/ai-insights";
+import { integrationRoutes } from "./routes/integrations";
+import { webhookRoutes } from "./routes/webhooks";
 import { hashPassword, generateId, generateApiKey, hashToken } from "./utils";
 
 type Bindings = { DB: D1Database };
@@ -85,6 +88,14 @@ app.route("/sites", siteRoutes);
 
 app.use("/analytics/*", authMiddleware);
 app.route("/analytics", analyticsRoutes);
+
+app.use("/ai-insights/*", authMiddleware);
+app.route("/ai-insights", aiInsightsRoutes);
+
+app.use("/integrations/*", authMiddleware);
+app.route("/integrations", integrationRoutes);
+
+app.route("/webhooks", webhookRoutes);
 
 app.onError((err, c) => {
   console.error("Server error:", err);

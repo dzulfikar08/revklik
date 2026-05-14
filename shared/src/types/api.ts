@@ -16,6 +16,12 @@ export interface TrackEventPayload {
   uco?: string;
   rv?: number;
   pr?: Record<string, string>;
+  ts?: number;
+  dv?: string;
+  br?: string;
+  os?: string;
+  sr?: string;
+  ln?: string;
 }
 
 export interface IdentifyPayload {
@@ -61,6 +67,7 @@ export interface JourneyStep {
   name: string | null;
   timestamp: string;
   revenue: number | null;
+  props: string | null;
 }
 
 export interface VisitorJourney {
@@ -69,6 +76,7 @@ export interface VisitorJourney {
   visitor_name: string | null;
   visitor_email: string | null;
   country: string | null;
+  region: string | null;
   city: string | null;
   device_type: string | null;
   browser: string | null;
@@ -113,6 +121,7 @@ export interface VisitorProfile {
   first_seen: string;
   last_seen: string;
   country: string | null;
+  region: string | null;
   city: string | null;
   device_type: string | null;
   browser: string | null;
@@ -122,6 +131,19 @@ export interface VisitorProfile {
   total_revenue: number;
   tags: string | null;
   notes: string | null;
+}
+
+export interface FunnelStep {
+  section: string;
+  visitors: number;
+  percentage: number;
+  dropoff: number;
+}
+
+export interface ScrollFunnel {
+  steps: FunnelStep[];
+  totalVisitors: number;
+  conversionRate: number;
 }
 
 export interface CreateSitePayload {
@@ -149,4 +171,86 @@ export interface ApiResponse<T = unknown> {
   data?: T;
   error?: string;
   success: boolean;
+}
+
+// Heatmap types
+export interface HeatmapData {
+  clickGrid: number[][];
+  scrollDepths: { depth: number; visitors: number }[];
+  totalSessions: number;
+  totalClicks: number;
+  topElements: { selector: string; clicks: number; label: string }[];
+}
+
+export interface RecordingSummary {
+  id: string;
+  session_id: string;
+  path: string;
+  duration: number;
+  viewport_width: number | null;
+  started_at: string;
+  event_count: number;
+  has_revenue: boolean;
+}
+
+export interface RecordingDetail extends RecordingSummary {
+  events: Array<{
+    t: number;
+    type: "mutation" | "interaction" | "scroll" | "resize";
+    d: unknown;
+  }>;
+  viewport_height: number | null;
+}
+
+// Integration types
+export type IntegrationType = "mailchimp" | "convertkit" | "kit" | "beehiiv" | "meta_ads" | "google_ads";
+
+export interface Integration {
+  id: string;
+  site_id: string;
+  type: IntegrationType;
+  name: string;
+  config: Record<string, string>;
+  enabled: boolean;
+  last_sync: string | null;
+  created_at: string;
+}
+
+export interface CreateIntegrationPayload {
+  site_id: string;
+  type: IntegrationType;
+  name: string;
+  config: Record<string, string>;
+}
+
+export interface WebhookEventLog {
+  id: string;
+  integration_id: string;
+  direction: "inbound" | "outbound";
+  event_type: string;
+  status: "pending" | "processed" | "failed";
+  created_at: string;
+}
+
+// AI Insights types
+export type InsightType = "revenue_drivers" | "geo_opportunities" | "funnel_optimization" | "traffic_roi";
+
+export interface AiInsight {
+  id: string;
+  type: InsightType;
+  title: string;
+  summary: string;
+  detail: string;
+  confidence: number;
+  action: string | null;
+}
+
+export interface InsightsResponse {
+  insights: AiInsight[];
+  generated_at: string;
+  data_summary: {
+    total_events: number;
+    total_revenue: number;
+    date_range: string;
+  };
 }
