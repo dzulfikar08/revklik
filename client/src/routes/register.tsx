@@ -2,6 +2,7 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { register } from "@/lib/api";
 import { t } from "@/lib/i18n";
+import { toast } from "@/components/toast";
 
 export const Route = createFileRoute("/register")({ component: RegisterPage });
 
@@ -19,7 +20,9 @@ function RegisterPage() {
       await register({ name, email, password });
       navigate({ to: "/" });
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Registration failed");
+      const msg = err instanceof Error ? err.message : "Registration failed";
+      setError(msg);
+      toast(msg, "error");
     }
   };
 

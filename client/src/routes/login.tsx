@@ -2,6 +2,7 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { login } from "@/lib/api";
 import { t } from "@/lib/i18n";
+import { toast } from "@/components/toast";
 
 export const Route = createFileRoute("/login")({ component: LoginPage });
 
@@ -18,7 +19,9 @@ function LoginPage() {
       await login({ email, password });
       navigate({ to: "/" });
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Login failed");
+      const msg = err instanceof Error ? err.message : "Login failed";
+      setError(msg);
+      toast(msg, "error");
     }
   };
 

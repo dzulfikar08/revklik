@@ -234,7 +234,7 @@ analyticsRoutes.patch("/visitors/:visitorId", async (c) => {
   const body = await c.req.json();
 
   const profile = await db.selectFrom("visitor_profiles").select(["id", "site_id"])
-    .where("id", "=", profileId).executeTakeFirst();
+    .where("visitor_id", "=", profileId).executeTakeFirst();
   if (!profile) return c.json({ error: "Not found", success: false }, 404);
 
   const site = await validateSite(db, userId, profile.site_id);
@@ -295,9 +295,11 @@ analyticsRoutes.get("/heatmap", async (c) => {
   const [clickRows, scrollRows, sessionCount] = await Promise.all([
     db.selectFrom("heatmap_clicks").select(["x", "y", "element_selector", "element_text", "visitor_id"])
       .where("site_id", "=", siteId).where("path", "=", path).where("timestamp", ">=", startIso)
+      .limit(5000)
       .execute(),
     db.selectFrom("heatmap_scrolls").select(["max_scroll", "visitor_id"])
       .where("site_id", "=", siteId).where("path", "=", path).where("timestamp", ">=", startIso)
+      .limit(5000)
       .execute(),
     db.selectFrom("heatmap_clicks").select(({ fn }) => [fn.count<string>("visitor_id").distinct().as("cnt")])
       .where("site_id", "=", siteId).where("path", "=", path).where("timestamp", ">=", startIso)

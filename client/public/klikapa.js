@@ -57,14 +57,14 @@
     var payload = JSON.stringify(batch);
     if (navigator.sendBeacon) {
       navigator.sendBeacon(ENDPOINT, new Blob([payload], { type: "application/json" }));
-      // Beacon can't read response, so use lightweight fetch for vid sync
-      fetch(ENDPOINT, { method: "POST", body: payload, keepalive: true, headers: { "Content-Type": "application/json" } }).then(function(r) {
+      // Lightweight vid sync — no body, just read response
+      fetch(ENDPOINT, { method: "POST", keepalive: true, headers: { "Content-Type": "application/json", "X-Klikapa-Vid": vid } }).then(function(r) {
         if (r.ok) r.json().then(function(d) { if (d.vid && d.vid !== vid) { vid = d.vid; localStorage.setItem("_kp_vid", vid); } });
-      });
+      }).catch(function() {});
     } else {
       fetch(ENDPOINT, { method: "POST", body: payload, keepalive: true, headers: { "Content-Type": "application/json" } }).then(function(r) {
         if (r.ok) r.json().then(function(d) { if (d.vid && d.vid !== vid) { vid = d.vid; localStorage.setItem("_kp_vid", vid); } });
-      });
+      }).catch(function() {});
     }
   }
 

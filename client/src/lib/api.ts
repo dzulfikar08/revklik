@@ -1,4 +1,5 @@
 import type { SiteWithStats, AuthResponse, Site, CreateSitePayload, CreateUserPayload, LoginPayload, SiteDashboard, VisitorProfile, ScrollFunnel, Integration, CreateIntegrationPayload, WebhookEventLog, InsightsResponse, HeatmapData, RecordingSummary, RecordingDetail } from "shared";
+import { toast } from "@/components/toast";
 
 const API_BASE = import.meta.env.DEV ? "http://localhost:3000/api" : "/api";
 
@@ -6,13 +7,21 @@ function getToken(): string | null { return localStorage.getItem("kp_token"); }
 function authHeaders(): Record<string, string> { const t = getToken(); return t ? { Authorization: `Bearer ${t}` } : {}; }
 
 async function apiFetch<T>(path: string, opts?: RequestInit): Promise<T> {
-  const res = await fetch(`${API_BASE}${path}`, {
-    ...opts,
-    headers: { "Content-Type": "application/json", ...authHeaders(), ...((opts?.headers as Record<string, string>) ?? {}) },
-  });
-  const json = await res.json();
-  if (!json.success) throw new Error(json.error || "Request failed");
-  return json.data as T;
+  try {
+    const res = await fetch(`${API_BASE}${path}`, {
+      ...opts,
+      headers: { "Content-Type": "application/json", ...authHeaders(), ...((opts?.headers as Record<string, string>) ?? {}) },
+    });
+    if (res.status === 401) { localStorage.removeItem("kp_token"); window.location.href = "/login"; throw new Error("Session expired"); }
+    const json = await res.json();
+    if (!json.success) throw new Error(json.error || "Request failed");
+    return json.data as T;
+  } catch (err) {
+    if (err instanceof TypeError && err.message === "Failed to fetch") {
+      toast("Network error — check your connection", "error");
+    }
+    throw err;
+  }
 }
 
 export const isLoggedIn = () => !!getToken();

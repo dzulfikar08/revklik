@@ -3,6 +3,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { isLoggedIn, fetchSites, getActiveSiteId, setActiveSiteId, logout } from "@/lib/api";
 import { useState, useRef, useEffect } from "react";
 import { t, toggleLang, getLang } from "@/lib/i18n";
+import { ToastContainer } from "@/components/toast";
 
 export const Route = createRootRoute({ component: RootLayout });
 
@@ -104,6 +105,7 @@ function RootLayout() {
       <main style={{ flex: 1, overflow: "hidden" }}>
         <Outlet />
       </main>
+      <ToastContainer />
     </div>
   );
 }

@@ -196,17 +196,17 @@ trackRoutes.post("/track/recording", async (c) => {
   const lastEvent = body.chunk[body.chunk.length - 1];
   const duration = lastEvent?.t ?? 0;
 
-  // Upsert: on conflict (session_id), append events and update duration
-  const existing = await db.selectFrom("session_recordings").select(["id", "events", "duration"])
+  // Atomic upsert using insert-or-ignore + update to avoid race conditions
+  const existing = await db.selectFrom("session_recordings").select(["id"])
     .where("session_id", "=", body.sid).executeTakeFirst();
 
   if (existing) {
-    let existingEvents: unknown[] = [];
-    try { existingEvents = JSON.parse(existing.events); } catch { existingEvents = []; }
-    const merged = JSON.stringify([...existingEvents, ...body.chunk]);
+    // Append chunk to existing events atomically using SQL string concat
+    const chunkPrefix = body.chunk.length > 0 ? "," : "";
+    const appendStr = chunkPrefix + chunkEvents.slice(1, -1); // Remove outer [] from chunk
     await db.updateTable("session_recordings").set({
-      events: merged,
-      duration: Math.max(existing.duration, duration),
+      events: sql`substr(events, 1, length(events) - 1) || ${appendStr} || ']'`,
+      duration: sql`max(duration, ${duration})`,
       ended_at: ts,
     }).where("id", "=", existing.id).execute();
   } else {
