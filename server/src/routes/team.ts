@@ -73,6 +73,7 @@ teamRoutes.post("/invite", async (c) => {
 
   // Send invitation email
   const inviter = await db.selectFrom("users").select(["name"]).where("id", "=", userId).executeTakeFirst();
+  const resendKey = (c.env as any).RESEND_API_KEY || "";
   await sendEmail({
     to: email,
     subject: `KlikApa — You've been invited to ${site.name}`,
@@ -81,7 +82,7 @@ teamRoutes.post("/invite", async (c) => {
       <p style="line-height: 1.6;">${inviter?.name ?? "Someone"} invited you to collaborate on <strong>${site.name}</strong> as <strong>${validRole}</strong>.</p>
       <a href="https://klikapa.app/site" style="display: inline-block; margin-top: 12px; padding: 10px 20px; background: #d4882a; color: #0a0a0a; text-decoration: none; border-radius: 6px; font-weight: 600;">Open Dashboard</a>
     </div>`,
-  }).catch(() => {});
+  }, resendKey).catch(() => {});
 
   return c.json({ data: { id, role: validRole, email }, success: true }, 201);
 });

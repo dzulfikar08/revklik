@@ -7,20 +7,19 @@ interface EmailPayload {
   html: string;
 }
 
-export async function sendEmail(payload: EmailPayload): Promise<boolean> {
+// Send email via Resend (Cloudflare-recommended for Workers)
+// Requires RESEND_API_KEY env var and a verified domain in Resend
+export async function sendEmail(payload: EmailPayload, apiKey?: string): Promise<boolean> {
   const { to, subject, html } = payload;
   const from = "KlikApa <noreply@klikapa.app>";
 
+  if (!apiKey) return false;
+
   try {
-    const res = await fetch("https://api.mailchannels.net/tx/v1/send", {
+    const res = await fetch("https://api.resend.com/emails", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        personalizations: [{ to: [{ email: to }] }],
-        from: { email: from },
-        subject,
-        content: [{ type: "text/html", value: html }],
-      }),
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
+      body: JSON.stringify({ from, to: [to], subject, html }),
     });
     return res.ok;
   } catch {
@@ -34,6 +33,7 @@ export async function sendMilestoneAlert(
   useremail: string,
   metric: string,
   value: number,
+  resendKey?: string,
 ): Promise<void> {
   const subject = `KlikApa — ${metric} reached ${value.toLocaleString()}`;
   const html = `
@@ -44,13 +44,14 @@ export async function sendMilestoneAlert(
       <p style="font-size: 12px; color: #6b6560; margin-top: 20px;">You're receiving this because you enabled email alerts for this site.</p>
     </div>
   `;
-  await sendEmail({ to: useremail, subject, html });
+  await sendEmail({ to: useremail, subject, html }, resendKey);
 }
 
 export async function sendWeeklyReport(
   useremail: string,
   siteName: string,
   stats: { pageviews: number; visitors: number; topPages: { path: string; views: number }[] },
+  resendKey?: string,
 ): Promise<void> {
   const topPagesHtml = stats.topPages.map(p =>
     `<tr><td style="padding: 6px 12px; border-bottom: 1px solid #222; font-size: 13px;">${p.path}</td><td style="padding: 6px 12px; border-bottom: 1px solid #222; font-size: 13px; text-align: right; font-family: monospace;">${p.views.toLocaleString()}</td></tr>`
@@ -80,5 +81,5 @@ export async function sendWeeklyReport(
       <p style="font-size: 12px; color: #6b6560; margin-top: 20px;">You're receiving this because you enabled weekly reports.</p>
     </div>
   `;
-  await sendEmail({ to: useremail, subject, html });
+  await sendEmail({ to: useremail, subject, html }, resendKey);
 }

@@ -107,39 +107,64 @@ app.post("/billing/webhook", async (c) => {
   if (!d1) return c.json({ error: "DB unavailable" }, 503);
   const db = createDb(d1);
   const body = await c.req.text();
-  const signature = c.req.header("X-Polar-Signature") || "";
+
+  // Verify Polar webhook signature using standardwebhooks format
   const secret = (c.env as any).POLAR_WEBHOOK_SECRET || "";
-  if (secret && signature) {
+  if (secret) {
+    const webhookId = c.req.header("webhook-id") || "";
+    const webhookTs = c.req.header("webhook-timestamp") || "";
+    const webhookSig = c.req.header("webhook-signature") || "";
+    if (!webhookId || !webhookTs || !webhookSig) {
+      return c.json({ error: "Missing webhook headers" }, 401);
+    }
+    // standardwebhooks: signed_payload = "${webhook_id}.${webhook_timestamp}.${body}"
+    const signedPayload = `${webhookId}.${webhookTs}.${body}`;
     const enc = new TextEncoder();
-    const key = await crypto.subtle.importKey("raw", enc.encode(secret), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
-    const sig = await crypto.subtle.sign("HMAC", key, enc.encode(body));
-    const computed = btoa(String.fromCharCode(...new Uint8Array(sig)));
-    const sigClean = signature.replace(/^sha256=/, "");
-    if (computed.length !== sigClean.length) return c.json({ error: "Invalid signature" }, 401);
-    let r = 0;
-    for (let i = 0; i < computed.length; i++) r |= computed.charCodeAt(i) ^ sigClean.charCodeAt(i);
-    if (r !== 0) return c.json({ error: "Invalid signature" }, 401);
+    // Secret is base64-encoded
+    const secretBytes = Uint8Array.from(atob(secret), c => c.charCodeAt(0));
+    const key = await crypto.subtle.importKey("raw", secretBytes, { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
+    const sig = await crypto.subtle.sign("HMAC", key, enc.encode(signedPayload));
+    const computedSig = "v1," + btoa(String.fromCharCode(...new Uint8Array(sig)));
+    // Compare against any signature in the header (space-separated)
+    const sigs = webhookSig.split(" ");
+    let valid = false;
+    for (const s of sigs) {
+      let r = 0;
+      const a = computedSig, b = s.startsWith("v1,") ? s : "v1," + s;
+      const maxLen = Math.max(a.length, b.length);
+      for (let i = 0; i < maxLen; i++) r |= (a.charCodeAt(i) || 0) ^ (b.charCodeAt(i) || 0);
+      if (r === 0) { valid = true; break; }
+    }
+    if (!valid) return c.json({ error: "Invalid signature" }, 401);
   }
+
   try {
     const event = JSON.parse(body);
-    const userId = event.metadata?.user_id || event.data?.metadata?.user_id;
-    const plan = event.metadata?.plan || event.data?.metadata?.plan;
+    // Polar webhook types: subscription.created, subscription.active, subscription.canceled, etc.
+    const eventType = event.type;
+    const data = event.data;
+    // Metadata can be at top level (from checkout) or in data
+    const userId = data?.metadata?.user_id || event.metadata?.user_id;
+    const plan = data?.metadata?.plan || event.metadata?.plan;
+
     if (!userId) return c.json({ error: "Missing user_id" }, 400);
-    if (event.type === "subscription.created" || event.type === "subscription.updated") {
-      const s = event.data;
+
+    if (eventType === "subscription.created" || eventType === "subscription.active" || eventType === "subscription.updated") {
       await db.insertInto("subscriptions").values({
         id: generateId(), user_id: userId, plan: plan || "starter",
-        status: s?.status || "active",
-        current_period_start: s?.current_period_start || new Date().toISOString(),
-        current_period_end: s?.current_period_end || new Date(Date.now() + 30 * 86400000).toISOString(),
-        cancel_at_period_end: 0, polar_subscription_id: s?.id || null, polar_customer_id: s?.customer_id || null,
+        status: data?.status || "active",
+        current_period_start: data?.current_period_start || new Date().toISOString(),
+        current_period_end: data?.current_period_end || new Date(Date.now() + 30 * 86400000).toISOString(),
+        cancel_at_period_end: 0, polar_subscription_id: data?.id || null, polar_customer_id: data?.customer_id || null,
         created_at: new Date().toISOString(), updated_at: new Date().toISOString(),
       }).onConflict((oc) => oc.column("user_id").doUpdateSet({
-        plan: plan || "starter", status: s?.status || "active",
-        current_period_end: s?.current_period_end || undefined,
-        polar_subscription_id: s?.id || undefined, updated_at: new Date().toISOString(),
+        plan: plan || "starter", status: data?.status || "active",
+        current_period_end: data?.current_period_end || undefined,
+        polar_subscription_id: data?.id || undefined,
+        polar_customer_id: data?.customer_id || undefined,
+        updated_at: new Date().toISOString(),
       })).execute();
-    } else if (event.type === "subscription.canceled") {
+    } else if (eventType === "subscription.canceled") {
       await db.updateTable("subscriptions").set({ cancel_at_period_end: 1, status: "canceled", updated_at: new Date().toISOString() }).where("user_id", "=", userId).execute();
     }
     return c.json({ success: true });

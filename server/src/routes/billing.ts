@@ -4,7 +4,7 @@ import type { Kysely } from "kysely";
 import { generateId } from "../utils";
 
 type Variables = { db: Kysely<KlikapaDatabase>; userId: string };
-type Bindings = { POLAR_ACCESS_TOKEN?: string; POLAR_ORG_ID?: string; POLAR_WEBHOOK_SECRET?: string; POLAR_STARTER_PRICE_ID?: string; POLAR_GROWTH_PRICE_ID?: string };
+type Bindings = { POLAR_ACCESS_TOKEN?: string; POLAR_ORG_ID?: string; POLAR_WEBHOOK_SECRET?: string; POLAR_STARTER_PRODUCT_ID?: string; POLAR_GROWTH_PRODUCT_ID?: string };
 type BillingEnv = { Variables: Variables; Bindings: Bindings };
 
 export const billingRoutes = new Hono<BillingEnv>();
@@ -113,16 +113,17 @@ billingRoutes.post("/checkout", async (c) => {
   }
 
   try {
-    const res = await fetch(`${POLAR_API}/checkouts/`, {
+    // Polar API: POST /v1/checkouts/session with products array
+    const productId = (c.env as any)[`POLAR_${plan.toUpperCase()}_PRODUCT_ID`] || "";
+    const res = await fetch(`${POLAR_API}/checkouts/session`, {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${polarToken}` },
       body: JSON.stringify({
-        product_price_id: (c.env as any)[`POLAR_${plan.toUpperCase()}_PRICE_ID`] || "",
+        products: productId ? [productId] : [],
         customer_email: user.email,
         customer_name: user.name,
         metadata: { user_id: userId, plan },
         success_url: `${new URL(c.req.url).origin}/site?billing=success`,
-        cancel_url: `${new URL(c.req.url).origin}/site?billing=canceled`,
       }),
     });
 
@@ -203,6 +204,7 @@ billingRoutes.post("/test-email", async (c) => {
   const user = await db.selectFrom("users").select(["email", "name"]).where("id", "=", userId).executeTakeFirst();
   if (!user) return c.json({ error: "User not found", success: false }, 404);
 
+  const resendKey = (c.env as any).RESEND_API_KEY || "";
   const { sendEmail } = await import("../lib/email");
   const ok = await sendEmail({
     to: user.email,
@@ -212,7 +214,7 @@ billingRoutes.post("/test-email", async (c) => {
       <p style="line-height: 1.6;">Hey ${user.name}, your email alerts are now configured. You'll receive weekly reports and milestone notifications.</p>
       <p style="font-size: 12px; color: #6b6560; margin-top: 20px;">You can manage your preferences in the KlikApa dashboard.</p>
     </div>`,
-  });
+  }, resendKey);
 
   return c.json({ data: { sent: ok }, success: ok });
 });
