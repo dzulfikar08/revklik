@@ -42,11 +42,11 @@ export function EventCalculator({ currentEvents, currentPlan }: EventCalculatorP
         background: "var(--bg2)",
         border: "1px solid var(--border)",
         borderRadius: 12,
-        padding: "16px 20px",
-        marginBottom: 20,
+        padding: "14px 16px",
+        marginBottom: 16,
       }}
     >
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12, flexWrap: "wrap", gap: 6 }}>
         <span style={{ fontWeight: 600, fontSize: 14 }}>Event Usage This Month</span>
         <span
           style={{

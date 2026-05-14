@@ -33,8 +33,8 @@ export function AiInsightsCard({ siteId, range }: { siteId: string; range: strin
 
   return (
     <div style={{ background: "var(--bg2)", border: "1px solid var(--border)", borderRadius: 12, padding: 20, marginBottom: 20 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16, flexWrap: "wrap", gap: 8 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
           <span style={{ fontSize: 18 }}>&#x2728;</span>
           <span style={{ fontWeight: 600, fontSize: 14 }}>AI Insights</span>
           {data?.data_summary && (
@@ -46,7 +46,7 @@ export function AiInsightsCard({ siteId, range }: { siteId: string; range: strin
         <button
           onClick={() => refresh.mutate()}
           disabled={refresh.isPending}
-          style={{ background: "var(--bg3)", border: "1px solid var(--border2)", color: "var(--text2)", padding: "6px 14px", borderRadius: 100, fontSize: 12, cursor: "pointer", fontFamily: "var(--mono)" }}
+          style={{ background: "var(--bg3)", border: "1px solid var(--border2)", color: "var(--text2)", padding: "6px 14px", borderRadius: 100, fontSize: 12, cursor: "pointer", fontFamily: "var(--mono)", whiteSpace: "nowrap" }}
         >
           {refresh.isPending ? "Generating..." : "Refresh"}
         </button>
@@ -65,7 +65,7 @@ export function AiInsightsCard({ siteId, range }: { siteId: string; range: strin
       ) : (
         <div style={{ display: "grid", gap: 10 }}>
           {data.insights.map((insight, i) => (
-            <div key={i} style={{ background: "var(--bg3)", borderRadius: 8, padding: 14, display: "flex", gap: 12, alignItems: "flex-start" }}>
+            <div key={i} style={{ background: "var(--bg3)", borderRadius: 8, padding: 12, display: "flex", gap: 10, alignItems: "flex-start" }}>
               <div style={{
                 width: 28, height: 28, borderRadius: 6, display: "flex", alignItems: "center", justifyContent: "center",
                 background: `${typeColors[insight.type]}20`, color: typeColors[insight.type], fontSize: 14, fontWeight: 700, flexShrink: 0,

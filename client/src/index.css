@@ -1322,15 +1322,18 @@ input:focus, select:focus {
   .chart-funnel-row { grid-template-columns: 1fr !important; }
   .overview-scroll { padding: 20px 16px 48px; }
   .detail-scroll { padding: 16px 16px 48px; }
-  .topnav { padding: 0 16px; }
-  .range-bar { padding: 10px 16px; flex-wrap: wrap; gap: 8px; }
+  .topnav { padding: 0 16px; gap: 8px; }
+  .range-bar { padding: 10px 16px; flex-wrap: wrap; gap: 6px; }
   .globe-view-layout { grid-template-columns: 1fr !important; }
   .globe-marker-popup { width: calc(100% - 24px); max-height: 400px; margin: 0 12px; }
 
-  /* Hide nav links on mobile, show burger */
-  .topnav-left .topnav-links { display: none; }
-  .topnav-burger { display: flex; }
-  .topnav-right .lang-toggle { display: none; }
+  /* Topnav: compact for mobile */
+  .topnav-left { gap: 8px; min-width: 0; flex: 1; }
+  .topnav-logo-text { display: none; }
+  .topnav-divider { display: none; }
+  .site-switcher-btn { max-width: 140px; font-size: 12px; padding: 4px 10px; }
+  .topnav-right { gap: 4px; flex-shrink: 0; }
+  .btn-pill { font-size: 11px; padding: 5px 10px; }
 
   /* Profile panel full-screen on mobile */
   .profile-panel {
@@ -1342,27 +1345,57 @@ input:focus, select:focus {
     border-radius: 0 !important;
     border: none !important;
   }
+
+  /* Overview title smaller */
+  .overview-title { font-size: 26px; }
+  .overview-header { margin-bottom: 20px; }
+
+  /* Site card metrics tighter */
+  .site-card-metric-value { font-size: 16px; }
+
+  /* Journey cards compact */
+  .journey-main { flex-wrap: wrap; gap: 4px; padding: 8px 10px; }
+  .journey-meta { font-size: 9px; }
+
+  /* Globe view: sidebar stacks above */
+  .globe-view-sidebar { order: 2; }
+  .globe-view-main { order: 1; }
+  .globe-canvas-wrap { min-height: 280px; }
+
+  /* Data tables horizontal scroll */
+  .scroll-x { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .data-table { min-width: 400px; }
+
+  /* Auth pages */
+  input { font-size: 16px; /* Prevents iOS zoom on focus */ }
+
+  /* Integrations cards stack */
+  .site-cards-grid .site-card > div:first-child { padding: "14px 16px 0"; }
 }
 
 @media (max-width: 520px) {
-  .metrics-grid { grid-template-columns: 1fr 1fr !important; gap: 8px !important; }
-  .metric-card { padding: 10px 12px !important; }
-  .metric-label { font-size: 10px !important; }
-  .metric-value { font-size: 18px !important; }
+  .metrics-grid { grid-template-columns: 1fr 1fr !important; gap: 6px !important; }
+  .metric-card { padding: 8px 10px !important; }
+  .metric-label { font-size: 9px !important; }
+  .metric-value { font-size: 16px !important; }
 
   /* Range bar stack on very small screens */
-  .range-bar { flex-direction: column; align-items: stretch; }
-  .range-btns { justify-content: center; }
+  .range-bar { gap: 4px; }
+  .location-tabs { width: 100%; justify-content: center; }
 
   /* Journey cards tighter */
-  .journey-card { padding: 12px !important; }
+  .journey-card { margin: 3px 4px; }
   .journey-meta { font-size: 9px !important; }
 
   /* Globe summary full width */
   .globe-summary-panel { width: 100% !important; max-width: 100% !important; }
-  .globe-stat-row span:last-child { font-size: 11px !important; }
 
-  /* Data tables horizontal scroll */
-  .data-table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
-  .data-table { min-width: 400px; }
+  /* Site card even tighter */
+  .site-card-metrics { gap: 2px; }
+  .site-card-metric-value { font-size: 14px; }
+  .site-card-name { font-size: 17px; }
+
+  /* Funnel compact */
+  .funnel-bar-track { height: 12px; }
+  .funnel-step-visitors { font-size: 9px; }
 }
