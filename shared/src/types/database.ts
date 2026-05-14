@@ -113,6 +113,7 @@ export interface KlikapaDatabase {
   ai_insights: AiInsightTable;
   subscriptions: SubscriptionTable;
   team_members: TeamMemberTable;
+  push_tokens: PushTokenTable;
 }
 
 export interface HeatmapClickTable {
@@ -226,4 +227,12 @@ export interface TeamMemberTable {
   invited_by: string;
   invited_at: string;
   accepted_at: string | null;
+}
+
+export interface PushTokenTable {
+  id: string;
+  user_id: string;
+  device_token: string;
+  platform: string;
+  created_at: string;
 }

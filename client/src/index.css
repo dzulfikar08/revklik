@@ -4,6 +4,13 @@
   padding: 0;
 }
 
+html {
+  padding-top: env(safe-area-inset-top);
+  padding-bottom: env(safe-area-inset-bottom);
+  padding-left: env(safe-area-inset-left);
+  padding-right: env(safe-area-inset-right);
+}
+
 :root {
   --bg: #0a0a0a;
   --bg2: #111111;

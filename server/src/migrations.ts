@@ -244,5 +244,20 @@ export async function migrateDatabase(d1: D1Database): Promise<void> {
     ]);
   } catch { /* table may already exist */ }
 
+  // Push tokens for mobile notifications
+  try {
+    await d1.prepare(`CREATE TABLE IF NOT EXISTS push_tokens (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      device_token TEXT NOT NULL,
+      platform TEXT NOT NULL,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )`).run();
+    await d1.batch([
+      d1.prepare("CREATE INDEX IF NOT EXISTS idx_pt_user ON push_tokens(user_id)"),
+      d1.prepare("CREATE UNIQUE INDEX IF NOT EXISTS idx_pt_token ON push_tokens(device_token)"),
+    ]);
+  } catch { /* table may already exist */ }
+
   migrationRan = true;
 }

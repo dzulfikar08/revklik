@@ -4,6 +4,7 @@ import { isLoggedIn, fetchSites, getActiveSiteId, setActiveSiteId, logout } from
 import { useState, useRef, useEffect } from "react";
 import { t, toggleLang, getLang } from "@/lib/i18n";
 import { ToastContainer } from "@/components/toast";
+import { removeItem } from "@/lib/mobile-storage";
 
 export const Route = createRootRoute({ component: RootLayout });
 
@@ -85,7 +86,7 @@ function RootLayout() {
                   if (location.pathname !== "/site") navigate({ to: "/site" });
                 }}
                 onBack={() => {
-                  localStorage.removeItem("kp_active_site");
+                  removeItem("kp_active_site");
                   queryClient.invalidateQueries();
                   navigate({ to: "/" });
                 }}

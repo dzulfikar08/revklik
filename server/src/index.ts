@@ -14,6 +14,8 @@ import { integrationRoutes } from "./routes/integrations";
 import { webhookRoutes } from "./routes/webhooks";
 import { billingRoutes } from "./routes/billing";
 import { teamRoutes } from "./routes/team";
+import { pushTokenRoutes } from "./routes/push-tokens";
+import { widgetRoutes } from "./routes/widgets";
 import { docsRoutes } from "./routes/docs";
 import { hashPassword, generateId, generateApiKey, hashToken } from "./utils";
 
@@ -176,6 +178,11 @@ app.route("/billing", billingRoutes);
 
 app.use("/team/*", authMiddleware);
 app.route("/team", teamRoutes);
+
+app.use("/push-tokens/*", authMiddleware);
+app.route("/push-tokens", pushTokenRoutes);
+
+app.route("/widget-data", widgetRoutes);
 
 app.onError((err, c) => {
   console.error("Server error:", err);

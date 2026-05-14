@@ -6,9 +6,25 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
-    "preview": "vite preview"
+    "build:mobile": "tsc -b && vite build",
+    "preview": "vite preview",
+    "cap:sync": "cap sync",
+    "cap:open:ios": "cap open ios",
+    "cap:open:android": "cap open android",
+    "mobile:prepare": "bun run build:mobile && bun run cap:sync",
+    "mobile:ios": "bun run mobile:prepare && bun run cap:open:ios",
+    "mobile:android": "bun run mobile:prepare && bun run cap:open:android"
   },
   "dependencies": {
+    "@capacitor/app": "^8.1.0",
+    "@capacitor/core": "^8.3.4",
+    "@capacitor/haptics": "^8.0.2",
+    "@capacitor/network": "^8.0.1",
+    "@capacitor/preferences": "^8.0.1",
+    "@capacitor/push-notifications": "^8.0.4",
+    "@capacitor/splash-screen": "^8.0.1",
+    "@capacitor/status-bar": "^8.0.2",
+    "@capgo/capacitor-native-biometric": "^8.4.5",
     "@radix-ui/react-slot": "^1.2.4",
     "@tailwindcss/vite": "^4.1.18",
     "@tanstack/react-query": "^5.100.10",
@@ -25,6 +41,9 @@
     "tailwindcss": "^4.1.18"
   },
   "devDependencies": {
+    "@capacitor/android": "^8.3.4",
+    "@capacitor/cli": "^8.3.4",
+    "@capacitor/ios": "^8.3.4",
     "@tanstack/router-plugin": "^1.167.35",
     "@types/node": "^22.19.2",
     "@types/react": "^19.2.7",

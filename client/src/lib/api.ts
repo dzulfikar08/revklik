@@ -1,18 +1,20 @@
 import type { SiteWithStats, AuthResponse, Site, CreateSitePayload, CreateUserPayload, LoginPayload, SiteDashboard, VisitorProfile, ScrollFunnel, Integration, CreateIntegrationPayload, WebhookEventLog, InsightsResponse, HeatmapData, RecordingSummary, RecordingDetail, Subscription, PlanInfo } from "shared";
 import { toast } from "@/components/toast";
+import { getItem, setItem, removeItem, getItemSync } from "./mobile-storage";
 
-const API_BASE = import.meta.env.DEV ? "http://localhost:3000/api" : "/api";
+const API_BASE = import.meta.env.VITE_API_BASE || (import.meta.env.DEV ? "http://localhost:3000/api" : "/api");
 
-function getToken(): string | null { return localStorage.getItem("kp_token"); }
-function authHeaders(): Record<string, string> { const t = getToken(); return t ? { Authorization: `Bearer ${t}` } : {}; }
+async function getToken(): Promise<string | null> { return getItem("kp_token"); }
+async function authHeaders(): Promise<Record<string, string>> { const t = await getToken(); return t ? { Authorization: `Bearer ${t}` } : {}; }
 
 async function apiFetch<T>(path: string, opts?: RequestInit): Promise<T> {
   try {
+    const headers = await authHeaders();
     const res = await fetch(`${API_BASE}${path}`, {
       ...opts,
-      headers: { "Content-Type": "application/json", ...authHeaders(), ...((opts?.headers as Record<string, string>) ?? {}) },
+      headers: { "Content-Type": "application/json", ...headers, ...((opts?.headers as Record<string, string>) ?? {}) },
     });
-    if (res.status === 401) { localStorage.removeItem("kp_token"); window.location.href = "/login"; throw new Error("Session expired"); }
+    if (res.status === 401) { await removeItem("kp_token"); window.location.href = "/login"; throw new Error("Session expired"); }
     const json = await res.json();
     if (!json.success) throw new Error(json.error || "Request failed");
     return json.data as T;
@@ -24,24 +26,25 @@ async function apiFetch<T>(path: string, opts?: RequestInit): Promise<T> {
   }
 }
 
-export const isLoggedIn = () => !!getToken();
-export const getActiveSiteId = () => localStorage.getItem("kp_active_site");
-export const setActiveSiteId = (id: string) => localStorage.setItem("kp_active_site", id);
-export const getCurrentUser = () => { const r = localStorage.getItem("kp_user"); return r ? JSON.parse(r) : null; };
+// Sync helpers for render-time reads (backed by localStorage, synced to native on write)
+export const isLoggedIn = () => !!getItemSync("kp_token");
+export const getActiveSiteId = () => getItemSync("kp_active_site");
+export const setActiveSiteId = (id: string) => { setItem("kp_active_site", id); };
+export const getCurrentUser = () => { const r = getItemSync("kp_user"); return r ? JSON.parse(r) : null; };
 
 export async function register(p: CreateUserPayload): Promise<AuthResponse> {
   const data = await apiFetch<AuthResponse>("/auth/register", { method: "POST", body: JSON.stringify(p) });
-  localStorage.setItem("kp_token", data.token); localStorage.setItem("kp_user", JSON.stringify(data.user));
+  await setItem("kp_token", data.token); await setItem("kp_user", JSON.stringify(data.user));
   return data;
 }
 
 export async function login(p: LoginPayload): Promise<AuthResponse> {
   const data = await apiFetch<AuthResponse>("/auth/login", { method: "POST", body: JSON.stringify(p) });
-  localStorage.setItem("kp_token", data.token); localStorage.setItem("kp_user", JSON.stringify(data.user));
+  await setItem("kp_token", data.token); await setItem("kp_user", JSON.stringify(data.user));
   return data;
 }
 
-export function logout() { localStorage.removeItem("kp_token"); localStorage.removeItem("kp_user"); localStorage.removeItem("kp_active_site"); }
+export function logout() { removeItem("kp_token"); removeItem("kp_user"); removeItem("kp_active_site"); }
 
 export const fetchSites = () => apiFetch<SiteWithStats[]>("/sites");
 export const createSite = (p: CreateSitePayload) => apiFetch<Site>("/sites", { method: "POST", body: JSON.stringify(p) });
@@ -99,17 +102,15 @@ export function connectSSE(
   siteId: string,
   onEvent: (event: { type: string; data: unknown }) => void,
 ): () => void {
-  const token = getToken();
-  if (!token) return () => {};
-
-  const base = import.meta.env.DEV ? "http://localhost:3000/api" : "/api";
   let aborted = false;
   let reconnectTimer: ReturnType<typeof setTimeout>;
 
   const connect = async () => {
     if (aborted) return;
+    const token = await getToken();
+    if (!token) return;
     try {
-      const res = await fetch(`${base}/analytics/stream?site_id=${siteId}`, {
+      const res = await fetch(`${API_BASE}/analytics/stream?site_id=${siteId}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (!res.ok || !res.body) { scheduleReconnect(); return; }
@@ -146,9 +147,9 @@ export function connectSSE(
 
 // Data export
 export async function exportData(siteId: string, type: string, format: string, range: string): Promise<void> {
-  const base = import.meta.env.DEV ? "http://localhost:3000/api" : "/api";
-  const res = await fetch(`${base}/analytics/export?site_id=${siteId}&type=${type}&format=${format}&range=${range}`, {
-    headers: authHeaders(),
+  const headers = await authHeaders();
+  const res = await fetch(`${API_BASE}/analytics/export?site_id=${siteId}&type=${type}&format=${format}&range=${range}`, {
+    headers,
   });
   if (!res.ok) throw new Error("Export failed");
   const blob = await res.blob();

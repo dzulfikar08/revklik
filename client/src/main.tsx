@@ -37,4 +37,17 @@ if (!rootElement.innerHTML) {
 			</QueryClientProvider>
 		</StrictMode>,
 	);
+
+	// Hide native splash screen once React mounts
+	import("@capacitor/core").then(({ Capacitor }) => {
+		if (Capacitor.isNativePlatform()) {
+			import("@capacitor/splash-screen").then(({ SplashScreen }) => {
+				SplashScreen.hide({ fadeOutDuration: 300 });
+			});
+			import("@capacitor/status-bar").then(({ StatusBar, Style }) => {
+				StatusBar.setStyle({ style: Style.Dark });
+				StatusBar.setBackgroundColor({ color: "#0a0a0a" });
+			});
+		}
+	});
 }
