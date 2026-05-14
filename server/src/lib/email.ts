@@ -5,23 +5,28 @@ interface EmailPayload {
   to: string;
   subject: string;
   html: string;
+  text?: string;
 }
 
-// Send email via Resend (Cloudflare-recommended for Workers)
-// Requires RESEND_API_KEY env var and a verified domain in Resend
-export async function sendEmail(payload: EmailPayload, apiKey?: string): Promise<boolean> {
-  const { to, subject, html } = payload;
-  const from = "KlikApa <noreply@klikapa.app>";
+interface EmailBinding {
+  send: (msg: { to: string; from: string; subject: string; html: string; text?: string }) => Promise<void>;
+}
 
-  if (!apiKey) return false;
+const FROM = "KlikApa <noreply@klikapa.app>";
 
+// Send email using Cloudflare Email Service Workers binding
+// Requires "send_email" binding in wrangler.jsonc
+export async function sendEmail(payload: EmailPayload, emailBinding?: EmailBinding): Promise<boolean> {
+  if (!emailBinding) return false;
   try {
-    const res = await fetch("https://api.resend.com/emails", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
-      body: JSON.stringify({ from, to: [to], subject, html }),
+    await emailBinding.send({
+      to: payload.to,
+      from: FROM,
+      subject: payload.subject,
+      html: payload.html,
+      text: payload.text || payload.subject,
     });
-    return res.ok;
+    return true;
   } catch {
     return false;
   }
@@ -33,7 +38,7 @@ export async function sendMilestoneAlert(
   useremail: string,
   metric: string,
   value: number,
-  resendKey?: string,
+  emailBinding?: EmailBinding,
 ): Promise<void> {
   const subject = `KlikApa — ${metric} reached ${value.toLocaleString()}`;
   const html = `
@@ -44,14 +49,14 @@ export async function sendMilestoneAlert(
       <p style="font-size: 12px; color: #6b6560; margin-top: 20px;">You're receiving this because you enabled email alerts for this site.</p>
     </div>
   `;
-  await sendEmail({ to: useremail, subject, html }, resendKey);
+  await sendEmail({ to: useremail, subject, html }, emailBinding);
 }
 
 export async function sendWeeklyReport(
   useremail: string,
   siteName: string,
   stats: { pageviews: number; visitors: number; topPages: { path: string; views: number }[] },
-  resendKey?: string,
+  emailBinding?: EmailBinding,
 ): Promise<void> {
   const topPagesHtml = stats.topPages.map(p =>
     `<tr><td style="padding: 6px 12px; border-bottom: 1px solid #222; font-size: 13px;">${p.path}</td><td style="padding: 6px 12px; border-bottom: 1px solid #222; font-size: 13px; text-align: right; font-family: monospace;">${p.views.toLocaleString()}</td></tr>`
@@ -81,5 +86,5 @@ export async function sendWeeklyReport(
       <p style="font-size: 12px; color: #6b6560; margin-top: 20px;">You're receiving this because you enabled weekly reports.</p>
     </div>
   `;
-  await sendEmail({ to: useremail, subject, html }, resendKey);
+  await sendEmail({ to: useremail, subject, html }, emailBinding);
 }

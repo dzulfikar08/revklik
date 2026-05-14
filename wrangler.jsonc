@@ -14,5 +14,10 @@
       "database_name": "klikapa-db",
       "database_id": "06842ad9-7e94-49db-a207-7a58683092d7"
     }
+  ],
+  "send_email": [
+    {
+      "name": "EMAIL"
+    }
   ]
 }

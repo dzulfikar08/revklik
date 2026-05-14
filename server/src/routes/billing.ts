@@ -204,7 +204,7 @@ billingRoutes.post("/test-email", async (c) => {
   const user = await db.selectFrom("users").select(["email", "name"]).where("id", "=", userId).executeTakeFirst();
   if (!user) return c.json({ error: "User not found", success: false }, 404);
 
-  const resendKey = (c.env as any).RESEND_API_KEY || "";
+  const emailBinding = (c.env as any).EMAIL;
   const { sendEmail } = await import("../lib/email");
   const ok = await sendEmail({
     to: user.email,
@@ -214,7 +214,7 @@ billingRoutes.post("/test-email", async (c) => {
       <p style="line-height: 1.6;">Hey ${user.name}, your email alerts are now configured. You'll receive weekly reports and milestone notifications.</p>
       <p style="font-size: 12px; color: #6b6560; margin-top: 20px;">You can manage your preferences in the KlikApa dashboard.</p>
     </div>`,
-  }, resendKey);
+  }, emailBinding);
 
   return c.json({ data: { sent: ok }, success: ok });
 });
