@@ -8,6 +8,7 @@ import { Globe, geoToMarkers } from "@/components/globe";
 import { AiInsightsCard } from "@/components/ai-insights-card";
 import { EventCalculator } from "@/components/event-calculator";
 import { t } from "@/lib/i18n";
+import { Capacitor } from "@capacitor/core";
 
 export const Route = createFileRoute("/site")({ component: SiteDetailPage });
 
@@ -575,6 +576,21 @@ function SiteDetailPage() {
     });
     return disconnect;
   }, [siteId, queryClient]);
+
+  // Sync widget data on dashboard update
+  useEffect(() => {
+    if (!data || !Capacitor.isNativePlatform()) return;
+    import("@/plugins/klikapa-widget-bridge").then(({ KlikapaWidgetBridge }) => {
+      KlikapaWidgetBridge.saveWidgetData({
+        siteName: siteId,
+        visitors: data.stats.visitors,
+        pageviews: data.stats.pageviews,
+        trend: 0,
+        sparkline: [],
+        updatedAt: new Date().toISOString(),
+      });
+    }).catch(() => {});
+  }, [data]);
 
   if (!siteId) {
     return <div className="empty-state" style={{ flex: 1 }}><p>{t("sites.select_site")}</p></div>;

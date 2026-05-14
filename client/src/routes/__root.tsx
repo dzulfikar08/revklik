@@ -5,6 +5,7 @@ import { useState, useRef, useEffect } from "react";
 import { t, toggleLang, getLang } from "@/lib/i18n";
 import { ToastContainer } from "@/components/toast";
 import { removeItem } from "@/lib/mobile-storage";
+import { initPushNotifications } from "@/lib/push";
 
 export const Route = createRootRoute({ component: RootLayout });
 
@@ -62,6 +63,8 @@ function RootLayout() {
 
   if (!authenticated && !isAuthPage) { navigate({ to: "/login" }); return null; }
   if (isAuthPage) return <div style={{ height: "100vh" }}><Outlet /></div>;
+
+  useEffect(() => { initPushNotifications(); }, []);
 
   const { data: sites } = useQuery({ queryKey: ["sites"], queryFn: fetchSites });
   const sitesList = sites ?? [];
