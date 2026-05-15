@@ -12,6 +12,9 @@ import { analyticsRoutes } from "./routes/analytics";
 import { aiInsightsRoutes } from "./routes/ai-insights";
 import { integrationRoutes } from "./routes/integrations";
 import { webhookRoutes } from "./routes/webhooks";
+import { midtransWebhookRoutes } from "./routes/webhooks-midtrans";
+import { xenditWebhookRoutes } from "./routes/webhooks-xendit";
+import { paymentProviderRoutes } from "./routes/payment-providers";
 import { billingRoutes } from "./routes/billing";
 import { teamRoutes } from "./routes/team";
 import { pushTokenRoutes } from "./routes/push-tokens";
@@ -277,6 +280,11 @@ app.use("/tokens/*", authMiddleware);
 app.route("/tokens", tokenRoutes);
 
 app.route("/webhooks", webhookRoutes);
+app.route("/webhooks/midtrans", midtransWebhookRoutes);
+app.route("/webhooks/xendit", xenditWebhookRoutes);
+
+app.use("/payment-providers/*", authMiddleware);
+app.route("/payment-providers", paymentProviderRoutes);
 
 // Serve tracking script based on site plan tier
 app.get("/klikapa.js", async (c) => {

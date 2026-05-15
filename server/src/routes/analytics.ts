@@ -3,7 +3,7 @@ import type { KlikapaDatabase, SiteDashboard, VisitorJourney, HeatmapData, Recor
 import type { Kysely } from "kysely";
 import { sql, createDb } from "../db";
 import { getDateRange } from "../utils";
-import { getOverviewStats, getTimeseries, getTopPages, getReferrers, getDeviceBreakdown, getRevenueBySource, getRevenueByCountry, getRevenueTimeseries } from "../queries/analytics";
+import { getOverviewStats, getTimeseries, getTopPages, getReferrers, getDeviceBreakdown, getRevenueBySource, getRevenueByCountry, getRevenueTimeseries, getEntryPagesRevenue, getRevenueByPaymentMethod, getRevenueByPaymentProvider, getChannelBreakdown } from "../queries/analytics";
 
 type Variables = { db: Kysely<KlikapaDatabase>; userId: string };
 type AnalyticsEnv = { Variables: Variables; Bindings: { DB: D1Database } };
@@ -35,7 +35,7 @@ analyticsRoutes.get("/dashboard", async (c) => {
   const spanHours = (end.getTime() - start.getTime()) / (1000 * 60 * 60);
   const isHourly = spanHours <= 48;
 
-  const [stats, timeseries, topPages, sources, { devices, os, browsers }, recentSessions, profiles, revenueBySource, revenueByCountry, revenueTimeseries] = await Promise.all([
+  const [stats, timeseries, topPages, sources, { devices, os, browsers }, recentSessions, profiles, revenueBySource, revenueByCountry, revenueTimeseries, entryPagesRevenue, revenueByMethod, revenueByProvider, channels] = await Promise.all([
     getOverviewStats(db, siteId, startIso),
     getTimeseries(db, siteId, startIso, isHourly),
     getTopPages(db, siteId, startIso, 10),
@@ -48,6 +48,10 @@ analyticsRoutes.get("/dashboard", async (c) => {
     getRevenueBySource(db, siteId, startIso),
     getRevenueByCountry(db, siteId, startIso),
     getRevenueTimeseries(db, siteId, startIso, isHourly),
+    getEntryPagesRevenue(db, siteId, startIso),
+    getRevenueByPaymentMethod(db, siteId, startIso),
+    getRevenueByPaymentProvider(db, siteId, startIso),
+    getChannelBreakdown(db, siteId, startIso),
   ]);
 
   const sessionIds = recentSessions.map((s) => s.id);
@@ -84,7 +88,7 @@ analyticsRoutes.get("/dashboard", async (c) => {
     });
   }
 
-  const dashboard: SiteDashboard = { stats, timeseries, topPages, sources, devices, os, browsers, journeys, revenueBySource, revenueByCountry, revenueTimeseries };
+  const dashboard: SiteDashboard = { stats, timeseries, topPages, sources, devices, os, browsers, journeys, revenueBySource, revenueByCountry, revenueTimeseries, entryPagesRevenue, revenueByMethod, revenueByProvider, channels };
   return c.json({ data: dashboard, success: true });
 });
 

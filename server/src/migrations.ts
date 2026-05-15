@@ -288,5 +288,90 @@ export async function migrateDatabase(d1: D1Database): Promise<void> {
     await d1.prepare("CREATE INDEX IF NOT EXISTS idx_api_keys_type ON api_keys(user_id, token_type)").run();
   } catch { /* index may already exist */ }
 
+  // Payment provider configurations per site
+  try {
+    await d1.prepare(`CREATE TABLE IF NOT EXISTS payment_providers (
+      id TEXT PRIMARY KEY,
+      site_id TEXT NOT NULL,
+      provider TEXT NOT NULL,
+      config TEXT NOT NULL,
+      enabled INTEGER DEFAULT 1,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )`).run();
+    await d1.prepare("CREATE INDEX IF NOT EXISTS idx_pp_site ON payment_providers(site_id)").run();
+    await d1.prepare("CREATE INDEX IF NOT EXISTS idx_pp_site_provider ON payment_providers(site_id, provider)").run();
+  } catch { /* table may already exist */ }
+
+  // Webhook delivery log for payment providers
+  try {
+    await d1.prepare(`CREATE TABLE IF NOT EXISTS webhook_logs (
+      id TEXT PRIMARY KEY,
+      site_id TEXT NOT NULL,
+      provider TEXT NOT NULL,
+      event_type TEXT NOT NULL,
+      payload TEXT NOT NULL,
+      status TEXT DEFAULT 'pending',
+      error TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      processed_at TEXT
+    )`).run();
+    await d1.prepare("CREATE INDEX IF NOT EXISTS idx_wl_site ON webhook_logs(site_id)").run();
+    await d1.prepare("CREATE INDEX IF NOT EXISTS idx_wl_site_provider ON webhook_logs(site_id, provider)").run();
+  } catch { /* table may already exist */ }
+
+  // Saved segments
+  try {
+    await d1.prepare(`CREATE TABLE IF NOT EXISTS segments (
+      id TEXT PRIMARY KEY,
+      site_id TEXT NOT NULL,
+      name TEXT NOT NULL,
+      filters TEXT NOT NULL,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )`).run();
+    await d1.prepare("CREATE INDEX IF NOT EXISTS idx_segments_site ON segments(site_id)").run();
+  } catch { /* table may already exist */ }
+
+  // Chart annotations
+  try {
+    await d1.prepare(`CREATE TABLE IF NOT EXISTS annotations (
+      id TEXT PRIMARY KEY,
+      site_id TEXT NOT NULL,
+      date TEXT NOT NULL,
+      text TEXT NOT NULL,
+      user_id TEXT NOT NULL,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )`).run();
+    await d1.prepare("CREATE INDEX IF NOT EXISTS idx_annotations_site ON annotations(site_id, date)").run();
+  } catch { /* table may already exist */ }
+
+  // Email reports config
+  try {
+    await d1.prepare(`CREATE TABLE IF NOT EXISTS email_reports (
+      id TEXT PRIMARY KEY,
+      site_id TEXT NOT NULL,
+      user_id TEXT NOT NULL,
+      frequency TEXT NOT NULL DEFAULT 'weekly',
+      enabled INTEGER DEFAULT 1,
+      last_sent TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )`).run();
+    await d1.prepare("CREATE INDEX IF NOT EXISTS idx_er_site ON email_reports(site_id)").run();
+  } catch { /* table may already exist */ }
+
+  // Payment-related columns on events and sites
+  for (const stmt of [
+    "ALTER TABLE events ADD COLUMN payment_provider TEXT",
+    "ALTER TABLE events ADD COLUMN payment_method TEXT",
+    "ALTER TABLE events ADD COLUMN currency TEXT DEFAULT 'USD'",
+    "ALTER TABLE events ADD COLUMN subscription_id TEXT",
+    "ALTER TABLE sites ADD COLUMN share_token TEXT",
+    "ALTER TABLE sites ADD COLUMN public_dashboard INTEGER DEFAULT 0",
+  ]) {
+    try { await d1.prepare(stmt).run(); } catch { /* column may already exist */ }
+  }
+  try {
+    await d1.prepare("CREATE INDEX IF NOT EXISTS idx_events_site_payment ON events(site_id, payment_provider, payment_method, timestamp)").run();
+  } catch { /* index may already exist */ }
+
   migrationRan = true;
 }

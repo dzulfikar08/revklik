@@ -53,6 +53,7 @@ siteRoutes.post("/", async (c) => {
   const siteId = generateId();
   await db.insertInto("sites").values({
     id: siteId, user_id: userId, name, domain, created_at: new Date().toISOString(),
+    share_token: null, public_dashboard: 0,
   }).execute();
 
   return c.json({ data: { id: siteId, name, domain, created_at: new Date().toISOString() } as Site, success: true }, 201);

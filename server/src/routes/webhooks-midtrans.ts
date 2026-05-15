@@ -1,0 +1,123 @@
+import { Hono } from "hono";
+import type { KlikapaDatabase } from "shared";
+import type { Kysely } from "kysely";
+import { sql } from "../db";
+import { generateId } from "../utils";
+import { verifyMidtransSignature, parseMidtransPaymentMethod } from "../lib/webhook-utils";
+
+export const midtransWebhookRoutes = new Hono<{ Variables: { db: Kysely<KlikapaDatabase> } }>();
+
+function findIntegration(db: Kysely<KlikapaDatabase>, siteId: string, type: string) {
+  return db.selectFrom("integrations").select(["id", "site_id", "type", "config"])
+    .where("site_id", "=", siteId).where("type", "=", type).where("enabled", "=", 1)
+    .executeTakeFirst();
+}
+
+async function logWebhookEvent(db: Kysely<KlikapaDatabase>, siteId: string, integrationId: string, eventType: string, payload: string, status: string) {
+  await db.insertInto("webhook_events").values({
+    id: generateId(), site_id: siteId, integration_id: integrationId,
+    direction: "inbound", event_type: eventType, payload, status, attempts: 1,
+    created_at: new Date().toISOString(),
+    processed_at: status === "processed" ? new Date().toISOString() : null,
+  }).execute();
+}
+
+const PAYMENT_TYPE_MAP: Record<string, string> = {
+  gopay: "GoPay", qris: "QRIS", bank_transfer: "Bank Transfer",
+  bca_va: "BCA VA", bni_va: "BNI VA", bri_va: "BRI VA",
+  credit_card: "Credit Card", echannel: "Mandiri Bill",
+  shopeepay: "ShopeePay", kredivo: "Kredivo", akulaku: "Akulaku",
+  ovo: "OVO", dana: "DANA", linkaja: "LinkAja", cstore: "Convenience Store",
+};
+
+midtransWebhookRoutes.post("/", async (c) => {
+  const db = c.get("db");
+  const rawBody = await c.req.text();
+  let notification: any;
+  try { notification = JSON.parse(rawBody); } catch { return c.json({ error: "Invalid JSON" }, 400); }
+
+  const siteId = notification.custom_field4 || c.req.query("site_id") || "";
+  if (!siteId) return c.json({ error: "site_id required" }, 400);
+
+  const integration = await findIntegration(db, siteId, "midtrans");
+  if (!integration) return c.json({ error: "No Midtrans integration" }, 404);
+
+  const config = JSON.parse((integration.config as string) || "{}");
+  const serverKey = config.server_key || "";
+  const orderId = notification.order_id || "";
+  const statusCode = notification.status_code || "";
+  const grossAmount = notification.gross_amount || "";
+  const signatureKey = (notification.signature_key || "").toLowerCase();
+
+  if (serverKey && signatureKey) {
+    const valid = await verifyMidtransSignature(orderId, statusCode, grossAmount, serverKey, signatureKey);
+    if (!valid) {
+      await logWebhookEvent(db, siteId, integration.id, "midtrans_invalid_sig", rawBody, "failed");
+      return c.json({ error: "Invalid signature" }, 401);
+    }
+  }
+
+  const transactionStatus = notification.transaction_status || "";
+  if (transactionStatus !== "settlement" && transactionStatus !== "capture") {
+    await logWebhookEvent(db, siteId, integration.id, `midtrans_${transactionStatus}`, rawBody, "processed");
+    return c.json({ success: true, action: "logged" });
+  }
+
+  if (transactionStatus === "capture" && notification.fraud_status && notification.fraud_status !== "accept") {
+    await logWebhookEvent(db, siteId, integration.id, `midtrans_fraud_${notification.fraud_status}`, rawBody, "processed");
+    return c.json({ success: true, action: "fraud_rejected" });
+  }
+
+  const amount = parseFloat(grossAmount) || 0;
+  const existing = await db.selectFrom("events").select(["id"])
+    .where("site_id", "=", siteId).where("event_type", "=", "payment" as any)
+    .where("props", "like", `%"order_id":"${orderId}"%`).executeTakeFirst();
+  if (existing) return c.json({ success: true, action: "duplicate" });
+
+  const sessionId = notification.custom_field1 || generateId();
+  let visitorId = `midtrans_${orderId.replace(/[^a-zA-Z0-9]/g, "_")}`;
+  if (notification.custom_field1) {
+    const session = await db.selectFrom("sessions").select(["visitor_id"])
+      .where("id", "=", notification.custom_field1).where("site_id", "=", siteId).executeTakeFirst();
+    if (session) visitorId = session.visitor_id;
+  }
+
+  const paymentType = notification.payment_type || "unknown";
+  const mappedMethod = parseMidtransPaymentMethod(paymentType);
+  const ts = notification.transaction_time ? new Date(notification.transaction_time).toISOString() : new Date().toISOString();
+
+  const eventId = generateId();
+  await db.insertInto("events").values({
+    id: eventId, site_id: siteId, session_id: sessionId, visitor_id: visitorId,
+    timestamp: ts, event_type: "payment" as any,
+    name: `payment_${paymentType}`, path: "/checkout/success", hostname: null, referrer: null,
+    utm_source: notification.custom_field2 || null, utm_medium: null,
+    utm_campaign: notification.custom_field3 || null, utm_term: null, utm_content: null,
+    country: null, region: null, city: null, device_type: null, browser: null, os: null,
+    revenue: amount,
+    props: JSON.stringify({ order_id: orderId, payment_type: paymentType, payment_method: mappedMethod, source: "midtrans_webhook" }),
+    fingerprint: null,
+  }).execute();
+
+  await db.insertInto("visitor_profiles").values({
+    id: generateId(), site_id: siteId, visitor_id: visitorId,
+    first_seen: ts, last_seen: ts, country: null, region: null, city: null,
+    device_type: null, browser: null, os: null,
+    total_sessions: 0, total_pageviews: 0, total_revenue: amount, fingerprint: null,
+  }).onConflict((oc) => oc.columns(["site_id", "visitor_id"]).doUpdateSet({
+    last_seen: ts, total_revenue: sql`total_revenue + ${amount}`,
+  })).execute();
+
+  await logWebhookEvent(db, siteId, integration.id, `midtrans_${transactionStatus}`, rawBody, "processed");
+  return c.json({ success: true, event_id: eventId, revenue: amount, method: mappedMethod });
+});
+
+midtransWebhookRoutes.get("/test", async (c) => {
+  const db = c.get("db");
+  const siteId = c.req.query("siteId");
+  if (!siteId) return c.json({ error: "siteId required" }, 400);
+  const logs = await db.selectFrom("webhook_events").select(["id", "event_type", "status", "created_at", "processed_at"])
+    .where("site_id", "=", siteId).where("event_type", "like", "midtrans_%")
+    .orderBy("created_at", "desc").limit(10).execute();
+  return c.json({ success: true, data: logs });
+});

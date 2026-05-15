@@ -104,13 +104,52 @@
     });
   }
 
+  // data-revklik-scroll attribute tracking via IntersectionObserver
+  var saEl = d.querySelector("[data-revklik-scroll]");
+  if (saEl) {
+    var saTh = parseFloat(saEl.getAttribute("data-revklik-scroll"));
+    if (saTh > 0 && saTh <= 1) {
+      var saDone = false;
+      var sentinel = d.createElement("div");
+      sentinel.style.cssText = "position:absolute;left:0;width:1px;height:1px;pointer-events:none;visibility:hidden;";
+      sentinel.style.top = Math.round(d.documentElement.scrollHeight * saTh) + "px";
+      d.body.appendChild(sentinel);
+      var saObs = new IntersectionObserver(function(entries) {
+        if (!saDone && entries[0] && entries[0].isIntersecting) {
+          saDone = true;
+          send({ t: "e", n: "scroll_depth", p: lastPath, pr: { depth: Math.round(saTh * 100) } });
+          saObs.disconnect();
+          sentinel.remove();
+        }
+      }, { threshold: 0 });
+      saObs.observe(sentinel);
+    }
+  }
+
   // Click tracking
   function trackClick(e) {
-    const target = e.target.closest("a, button, [data-track]");
+    // Goal tracking via data-revklik-goal attribute
+    var gEl = e.target.closest("[data-revklik-goal]");
+    if (gEl) {
+      var gName = gEl.getAttribute("data-revklik-goal");
+      if (gName) {
+        var gP = {}, gR = null;
+        for (var i = 0, a = gEl.attributes; i < a.length; i++) {
+          if (a[i].name.indexOf("data-revklik-goal-") === 0) {
+            var k = a[i].name.slice(18);
+            if (k === "value") gR = parseFloat(a[i].value) || null;
+            else gP[k] = a[i].value;
+          }
+        }
+        send({ t: "c", n: gName, p: lastPath, pr: Object.keys(gP).length ? gP : undefined, rv: gR });
+      }
+    }
+    // General click tracking
+    var target = e.target.closest("a, button, [data-track]");
     if (!target) return;
-    const label = (target.textContent || "").trim().slice(0, 80) || target.getAttribute("data-track") || "";
-    const href = target.href || "";
-    const tag = target.tagName.toLowerCase();
+    var label = (target.textContent || "").trim().slice(0, 80) || target.getAttribute("data-track") || "";
+    var href = target.href || "";
+    var tag = target.tagName.toLowerCase();
     send({ t: "e", n: "click", p: lastPath, pr: { label, href: href.slice(0, 200), tag } });
   }
 
@@ -162,6 +201,10 @@
     pageview,
     track(name, props, revenue) { send({ t: "e", n: name, p: lastPath, pr: props, rv: revenue }); },
     conversion(name, revenue, props) { send({ t: "c", n: name, p: lastPath, rv: revenue, pr: props }); },
+    getSessionId() { return sid; },
+    getUtmSource() { return parseUTM().us || ""; },
+    getUtmMedium() { return parseUTM().um || ""; },
+    getUtmCampaign() { return parseUTM().uc || ""; },
     identify(data) {
       flush();
       fetch(ENDPOINT.replace("/track", "/identify"), {

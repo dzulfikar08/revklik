@@ -1,6 +1,7 @@
-import type { KlikapaDatabase, StatsResponse, TimeSeriesPoint, TopPage, SourceEntry, DeviceEntry, RevenueBySource, RevenueByCountry, RevenueTimeSeriesPoint } from "shared";
+import type { KlikapaDatabase, StatsResponse, TimeSeriesPoint, TopPage, SourceEntry, DeviceEntry, RevenueBySource, RevenueByCountry, RevenueTimeSeriesPoint, EntryPageRevenue, RevenueByPaymentMethod, RevenueByPaymentProvider, ChannelEntry } from "shared";
 import type { Kysely } from "kysely";
 import { sql } from "../db";
+import { categorizeChannel } from "../lib/webhook-utils";
 
 // Referrer source SQL: extracts hostname from referrer URL and normalizes known social/referral domains.
 // This is used in getReferrers and getRevenueBySource so both display unified source names.
@@ -236,4 +237,113 @@ export async function getRevenueTimeseries(
     revenue: Number(r.revenue ?? 0),
     conversions: Number(r.conversions ?? 0),
   }));
+}
+
+export async function getEntryPagesRevenue(
+  db: Kysely<KlikapaDatabase>,
+  siteId: string,
+  startIso: string,
+): Promise<EntryPageRevenue[]> {
+  const rows = await db.selectFrom("sessions")
+    .innerJoin("events", "events.session_id", "sessions.id")
+    .select([
+      "sessions.entry_path as path",
+      sql<number>`COUNT(DISTINCT sessions.id)`.as("sessions"),
+      sql<number>`COUNT(DISTINCT CASE WHEN events.event_type = 'conversion' OR events.event_type = 'payment' THEN events.id END)`.as("conversions"),
+      sql<number>`COALESCE(SUM(CASE WHEN events.revenue > 0 THEN events.revenue END), 0)`.as("revenue"),
+    ])
+    .where("sessions.site_id", "=", siteId)
+    .where("sessions.started_at", ">=", startIso)
+    .where("events.site_id", "=", siteId)
+    .groupBy("sessions.entry_path")
+    .orderBy("revenue", "desc")
+    .limit(20)
+    .execute();
+  return rows.map((r: any) => ({
+    path: String(r.path ?? "/"),
+    sessions: Number(r.sessions),
+    conversions: Number(r.conversions),
+    revenue: Number(r.revenue),
+  }));
+}
+
+export async function getRevenueByPaymentMethod(
+  db: Kysely<KlikapaDatabase>,
+  siteId: string,
+  startIso: string,
+): Promise<RevenueByPaymentMethod[]> {
+  const rows = await db.selectFrom("events")
+    .select([
+      sql<string>`COALESCE(payment_method, 'unknown')`.as("method"),
+      sql<number>`COUNT(*)`.as("count"),
+      sql<number>`COALESCE(SUM(revenue), 0)`.as("revenue"),
+    ])
+    .where("site_id", "=", siteId)
+    .where("revenue", ">", 0)
+    .where("timestamp", ">=", startIso)
+    .groupBy("payment_method")
+    .orderBy("revenue", "desc")
+    .execute();
+  return rows.map((r: any) => ({
+    method: String(r.method),
+    count: Number(r.count),
+    revenue: Number(r.revenue),
+  }));
+}
+
+export async function getRevenueByPaymentProvider(
+  db: Kysely<KlikapaDatabase>,
+  siteId: string,
+  startIso: string,
+): Promise<RevenueByPaymentProvider[]> {
+  const rows = await db.selectFrom("events")
+    .select([
+      sql<string>`COALESCE(payment_provider, 'unknown')`.as("provider"),
+      sql<number>`COUNT(*)`.as("count"),
+      sql<number>`COALESCE(SUM(revenue), 0)`.as("revenue"),
+    ])
+    .where("site_id", "=", siteId)
+    .where("revenue", ">", 0)
+    .where("timestamp", ">=", startIso)
+    .groupBy("payment_provider")
+    .orderBy("revenue", "desc")
+    .execute();
+  return rows.map((r: any) => ({
+    provider: String(r.provider),
+    count: Number(r.count),
+    revenue: Number(r.revenue),
+  }));
+}
+
+export async function getChannelBreakdown(
+  db: Kysely<KlikapaDatabase>,
+  siteId: string,
+  startIso: string,
+): Promise<ChannelEntry[]> {
+  const rows = await db.selectFrom("events")
+    .select(["referrer", "utm_source", "utm_medium", "visitor_id", "id", "revenue"])
+    .where("site_id", "=", siteId)
+    .where("timestamp", ">=", startIso)
+    .execute();
+
+  const channelMap = new Map<string, { visitors: Set<string>; pageviews: number; revenue: number }>();
+  for (const row of rows) {
+    const channel = categorizeChannel(row.referrer, row.utm_source, row.utm_medium);
+    if (!channelMap.has(channel)) channelMap.set(channel, { visitors: new Set(), pageviews: 0, revenue: 0 });
+    const entry = channelMap.get(channel)!;
+    entry.visitors.add(row.visitor_id);
+    entry.pageviews++;
+    if (row.revenue) entry.revenue += Number(row.revenue);
+  }
+
+  const totalVisitors = [...channelMap.values()].reduce((s, e) => s + e.visitors.size, 0) || 1;
+  return [...channelMap.entries()]
+    .map(([channel, data]) => ({
+      channel,
+      visitors: data.visitors.size,
+      pageviews: data.pageviews,
+      revenue: data.revenue,
+      percentage: Math.round((data.visitors.size / totalVisitors) * 100),
+    }))
+    .sort((a, b) => b.visitors - a.visitors);
 }

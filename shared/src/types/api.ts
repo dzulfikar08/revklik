@@ -128,6 +128,55 @@ export interface RevenueTimeSeriesPoint {
   conversions: number;
 }
 
+export interface ChannelEntry {
+  channel: string;
+  visitors: number;
+  pageviews: number;
+  revenue: number;
+  percentage: number;
+}
+
+export interface EntryPageRevenue {
+  path: string;
+  sessions: number;
+  conversions: number;
+  revenue: number;
+}
+
+export interface RevenueByPaymentMethod {
+  method: string;
+  count: number;
+  revenue: number;
+}
+
+export interface RevenueByPaymentProvider {
+  provider: string;
+  count: number;
+  revenue: number;
+}
+
+export interface Filter {
+  dimension: string;
+  operator: "is" | "is_not" | "contains";
+  value: string;
+}
+
+export interface SavedSegment {
+  id: string;
+  site_id: string;
+  name: string;
+  filters: Filter[];
+  created_at: string;
+}
+
+export interface Annotation {
+  id: string;
+  site_id: string;
+  date: string;
+  text: string;
+  created_at: string;
+}
+
 export interface SiteDashboard {
   stats: StatsResponse;
   timeseries: TimeSeriesPoint[];
@@ -140,6 +189,10 @@ export interface SiteDashboard {
   revenueBySource: RevenueBySource[];
   revenueByCountry: RevenueByCountry[];
   revenueTimeseries: RevenueTimeSeriesPoint[];
+  channels: ChannelEntry[];
+  entryPagesRevenue: EntryPageRevenue[];
+  revenueByMethod: RevenueByPaymentMethod[];
+  revenueByProvider: RevenueByPaymentProvider[];
 }
 
 export interface VisitorProfile {
@@ -242,7 +295,7 @@ export interface RecordingDetail extends RecordingSummary {
 }
 
 // Integration types
-export type IntegrationType = "mailchimp" | "convertkit" | "kit" | "beehiiv" | "meta_ads" | "google_ads";
+export type IntegrationType = "mailchimp" | "convertkit" | "kit" | "beehiiv" | "meta_ads" | "google_ads" | "midtrans" | "xendit" | "doku" | "nicepay";
 
 export interface Integration {
   id: string;

@@ -4,7 +4,7 @@ export interface EventTable {
   session_id: string;
   visitor_id: string;
   timestamp: string;
-  event_type: "pageview" | "custom" | "conversion";
+  event_type: "pageview" | "custom" | "conversion" | "payment" | "subscription";
   name: string | null;
   path: string;
   hostname: string | null;
@@ -23,6 +23,10 @@ export interface EventTable {
   revenue: number | null;
   props: string | null;
   fingerprint: string | null;
+  payment_provider: string | null;
+  payment_method: string | null;
+  currency: string | null;
+  subscription_id: string | null;
 }
 
 export interface SessionTable {
@@ -54,6 +58,8 @@ export interface SiteTable {
   name: string;
   domain: string;
   created_at: string;
+  share_token?: string | null;
+  public_dashboard?: number;
 }
 
 export interface UserTable {
@@ -105,6 +111,54 @@ export interface VisitorProfileTable {
   fingerprint: string | null;
 }
 
+export interface PaymentProviderTable {
+  id: string;
+  site_id: string;
+  provider: string;
+  config: string;
+  enabled: number;
+  created_at: string;
+}
+
+export interface WebhookLogTable {
+  id: string;
+  site_id: string;
+  provider: string;
+  event_type: string;
+  payload: string;
+  status: string;
+  error: string | null;
+  created_at: string;
+  processed_at: string | null;
+}
+
+export interface SegmentTable {
+  id: string;
+  site_id: string;
+  name: string;
+  filters: string;
+  created_at: string;
+}
+
+export interface AnnotationTable {
+  id: string;
+  site_id: string;
+  date: string;
+  text: string;
+  user_id: string;
+  created_at: string;
+}
+
+export interface EmailReportTable {
+  id: string;
+  site_id: string;
+  user_id: string;
+  frequency: string;
+  enabled: number;
+  last_sent: string | null;
+  created_at: string;
+}
+
 export interface KlikapaDatabase {
   events: EventTable;
   sessions: SessionTable;
@@ -122,6 +176,11 @@ export interface KlikapaDatabase {
   subscriptions: SubscriptionTable;
   team_members: TeamMemberTable;
   push_tokens: PushTokenTable;
+  payment_providers: PaymentProviderTable;
+  webhook_logs: WebhookLogTable;
+  segments: SegmentTable;
+  annotations: AnnotationTable;
+  email_reports: EmailReportTable;
 }
 
 export interface HeatmapClickTable {
