@@ -12,6 +12,13 @@
   // Device detection
   const ua = navigator.userAgent;
   function detectBrowser() {
+    // In-app browsers must be detected before their host browsers
+    if (ua.includes("Instagram")) return "Instagram";
+    if (ua.includes("Threads") || ua.includes("Barcelona")) return "Threads";
+    if (ua.includes("FBAN") || ua.includes("FBAV") || ua.includes("Facebook")) return "Facebook";
+    if (ua.includes("LinkedInApp")) return "LinkedIn";
+    if (ua.includes("Twitter") || ua.includes("X/") || /FB_IAB\/FB4A/.test(ua)) return "X (Twitter)";
+    // Standard browsers
     if (ua.includes("Firefox/")) return "Firefox";
     if (ua.includes("Edg/")) return "Edge";
     if (ua.includes("OPR/") || ua.includes("Opera")) return "Opera";
@@ -34,7 +41,7 @@
     if (/tablet/i.test(ua)) return "tablet";
     return "desktop";
   }
-  const device = { dv: detectDevice(), br: detectBrowser(), os: detectOS(), sr: `${screen.width}x${screen.height}`, ln: navigator.language };
+  const device = { dv: detectDevice(), br: detectBrowser(), os: detectOS(), sr: `${screen.width}x${screen.height}`, ln: navigator.language, tz: Intl.DateTimeFormat().resolvedOptions().timeZone || "" };
 
   // UTM
   function parseUTM() {

@@ -2,7 +2,7 @@ import { Hono } from "hono";
 import type { KlikapaDatabase, TrackEventPayload, IdentifyPayload } from "shared";
 import type { Kysely } from "kysely";
 import { sql } from "../db";
-import { generateId, fingerprintFromRequest } from "../utils";
+import { generateId, fingerprintFromRequest, countryFromTimezone } from "../utils";
 
 type Variables = { db: Kysely<KlikapaDatabase> };
 type Env = { req: Request };
@@ -39,7 +39,7 @@ trackRoutes.post("/track", async (c) => {
 
   // Cloudflare geo — prefer cf object for country/region/city, fall back to header
   const cf = (c.req.raw as any).cf as Record<string, unknown> | undefined;
-  const cfCountry = (cf?.country as string) ?? c.req.header("cf-ipcountry") ?? null;
+  let cfCountry: string | null = (cf?.country as string) ?? c.req.header("cf-ipcountry") ?? null;
   const cfRegion = (cf?.region as string) ?? null;
   const cfCity = (cf?.city as string) ?? null;
 
@@ -53,6 +53,11 @@ trackRoutes.post("/track", async (c) => {
 
   const site = await db.selectFrom("sites").select(["id"]).where("id", "=", siteId).executeTakeFirst();
   if (!site) return c.json({ error: "Invalid site_id", success: false }, 400);
+
+  // Fall back to client timezone when Cloudflare geo is unavailable
+  if (!cfCountry) {
+    cfCountry = countryFromTimezone(first.tz);
+  }
 
   const deviceType = first.dv ?? null;
   const browser = first.br ?? null;

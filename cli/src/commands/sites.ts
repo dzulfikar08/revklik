@@ -18,7 +18,7 @@ sitesCommand
       }
       printTable(
         ["ID", "Name", "Domain", "Created"],
-        sites.map((s) => [s.id.slice(0, 8), s.name, s.domain, s.created_at.slice(0, 10)])
+        sites.map((s) => [s.id, s.name, s.domain, s.created_at.slice(0, 10)])
       );
     } catch (err: any) {
       console.error(chalk.red(err.message));

@@ -73,3 +73,43 @@ export function getDateRange(range: string): { start: Date; end: Date } {
 
   return { start, end };
 }
+
+/**
+ * Infer a country code from an IANA timezone string.
+ * Used as a fallback when Cloudflare CF-IPCountry is not available.
+ * Only covers the most common timezone-to-country mappings.
+ */
+const tzCountryMap: Record<string, string> = {
+  "America/New_York": "US", "America/Chicago": "US", "America/Denver": "US",
+  "America/Los_Angeles": "US", "America/Phoenix": "US", "America/Anchorage": "US",
+  "Pacific/Honolulu": "US", "America/Indiana/Indianapolis": "US",
+  "Europe/London": "GB", "Europe/Dublin": "IE",
+  "Europe/Paris": "FR", "Europe/Berlin": "DE", "Europe/Madrid": "ES",
+  "Europe/Rome": "IT", "Europe/Amsterdam": "NL", "Europe/Brussels": "BE",
+  "Europe/Zurich": "CH", "Europe/Vienna": "AT", "Europe/Stockholm": "SE",
+  "Europe/Oslo": "NO", "Europe/Copenhagen": "DK", "Europe/Helsinki": "FI",
+  "Europe/Warsaw": "PL", "Europe/Prague": "CZ", "Europe/Budapest": "HU",
+  "Europe/Bucharest": "RO", "Europe/Athens": "GR", "Europe/Lisbon": "PT",
+  "Asia/Jakarta": "ID", "Asia/Makassar": "ID", "Asia/Jayapura": "ID",
+  "Asia/Bangkok": "TH", "Asia/Ho_Chi_Minh": "VN", "Asia/Manila": "PH",
+  "Asia/Kuala_Lumpur": "MY", "Asia/Singapore": "SG",
+  "Asia/Tokyo": "JP", "Asia/Seoul": "KR", "Asia/Shanghai": "CN",
+  "Asia/Hong_Kong": "HK", "Asia/Taipei": "TW",
+  "Asia/Kolkata": "IN", "Asia/Karachi": "PK", "Asia/Dhaka": "BD",
+  "Asia/Dubai": "AE", "Asia/Riyadh": "SA", "Asia/Tehran": "IR",
+  "Australia/Sydney": "AU", "Australia/Melbourne": "AU", "Australia/Brisbane": "AU",
+  "Australia/Perth": "AU", "Australia/Adelaide": "AU",
+  "Pacific/Auckland": "NZ",
+  "America/Toronto": "CA", "America/Vancouver": "CA", "America/Edmonton": "CA",
+  "America/Winnipeg": "CA", "America/Halifax": "CA",
+  "America/Mexico_City": "MX", "America/Sao_Paulo": "BR", "America/Buenos_Aires": "AR",
+  "America/Lima": "PE", "America/Bogota": "CO", "America/Santiago": "CL",
+  "Africa/Cairo": "EG", "Africa/Lagos": "NG", "Africa/Johannesburg": "ZA",
+  "Africa/Nairobi": "KE", "Africa/Casablanca": "MA",
+  "Africa/Accra": "GH", "Africa/Addis_Ababa": "ET",
+};
+
+export function countryFromTimezone(tz: string | null | undefined): string | null {
+  if (!tz) return null;
+  return tzCountryMap[tz] ?? null;
+}

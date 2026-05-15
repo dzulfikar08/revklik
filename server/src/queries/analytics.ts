@@ -2,6 +2,30 @@ import type { KlikapaDatabase, StatsResponse, TimeSeriesPoint, TopPage, SourceEn
 import type { Kysely } from "kysely";
 import { sql } from "../db";
 
+// Referrer source SQL: extracts hostname from referrer URL and normalizes known social/referral domains.
+// This is used in getReferrers and getRevenueBySource so both display unified source names.
+const sourceSql = sql<string>`COALESCE(utm_source,
+  CASE WHEN referrer IS NULL OR referrer = '' THEN 'direct'
+  WHEN referrer LIKE '%ig_text_post_permalink%' OR referrer LIKE '%ig_text_feed_timeline%' THEN 'instagram'
+  ELSE
+    CASE LOWER(REPLACE(
+        SUBSTR(SUBSTR(referrer, INSTR(referrer, '://') + 3), 1,
+          INSTR(SUBSTR(referrer, INSTR(referrer, '://') + 3) || '/', '/') - 1),
+        'www.', ''))
+      WHEN 'l.threads.com' THEN 'threads'
+      WHEN 'threads.net' THEN 'threads'
+      WHEN 'm.facebook.com' THEN 'facebook'
+      WHEN 'facebook.com' THEN 'facebook'
+      WHEN 'fb.me' THEN 'facebook'
+      WHEN 't.co' THEN 'twitter'
+      WHEN 'instagram.com' THEN 'instagram'
+      ELSE LOWER(REPLACE(
+        SUBSTR(SUBSTR(referrer, INSTR(referrer, '://') + 3), 1,
+          INSTR(SUBSTR(referrer, INSTR(referrer, '://') + 3) || '/', '/') - 1),
+        'www.', ''))
+    END
+  END)`;
+
 export async function getOverviewStats(
   db: Kysely<KlikapaDatabase>,
   siteId: string,
@@ -80,22 +104,10 @@ export async function getReferrers(
   limit: number,
 ): Promise<SourceEntry[]> {
   const sourceRows = await db.selectFrom("events").select([
-    sql<string>`COALESCE(utm_source,
-      CASE WHEN referrer IS NULL OR referrer = '' THEN 'direct'
-      ELSE LOWER(REPLACE(
-        SUBSTR(SUBSTR(referrer, INSTR(referrer, '://') + 3), 1,
-          INSTR(SUBSTR(referrer, INSTR(referrer, '://') + 3) || '/', '/') - 1),
-        'www.', ''))
-      END)`.as("source"),
+    sourceSql.as("source"),
     ({ fn }) => fn.count<number>("visitor_id").distinct().as("visitors"),
   ]).where("site_id", "=", siteId).where("timestamp", ">=", startIso)
-    .groupBy(sql`COALESCE(utm_source,
-      CASE WHEN referrer IS NULL OR referrer = '' THEN 'direct'
-      ELSE LOWER(REPLACE(
-        SUBSTR(SUBSTR(referrer, INSTR(referrer, '://') + 3), 1,
-          INSTR(SUBSTR(referrer, INSTR(referrer, '://') + 3) || '/', '/') - 1),
-        'www.', ''))
-      END)`).orderBy("visitors", "desc").limit(limit).execute();
+    .groupBy(sourceSql).orderBy("visitors", "desc").limit(limit).execute();
 
   const totalSrc = sourceRows.reduce((s, r) => s + Number(r.visitors), 0);
   return sourceRows.map((r) => ({
@@ -171,23 +183,11 @@ export async function getRevenueBySource(
   startIso: string,
 ): Promise<RevenueBySource[]> {
   const rows = await db.selectFrom("events").select([
-    sql<string>`COALESCE(utm_source,
-      CASE WHEN referrer IS NULL OR referrer = '' THEN 'direct'
-      ELSE LOWER(REPLACE(
-        SUBSTR(SUBSTR(referrer, INSTR(referrer, '://') + 3), 1,
-          INSTR(SUBSTR(referrer, INSTR(referrer, '://') + 3) || '/', '/') - 1),
-        'www.', ''))
-      END)`.as("source"),
+    sourceSql.as("source"),
     ({ fn }) => fn.sum<number>("revenue").as("revenue"),
     ({ fn }) => fn.count<number>("id").as("conversions"),
   ]).where("site_id", "=", siteId).where("revenue", ">", 0).where("timestamp", ">=", startIso)
-    .groupBy(sql`COALESCE(utm_source,
-      CASE WHEN referrer IS NULL OR referrer = '' THEN 'direct'
-      ELSE LOWER(REPLACE(
-        SUBSTR(SUBSTR(referrer, INSTR(referrer, '://') + 3), 1,
-          INSTR(SUBSTR(referrer, INSTR(referrer, '://') + 3) || '/', '/') - 1),
-        'www.', ''))
-      END)`).orderBy("revenue", "desc").limit(10).execute();
+    .groupBy(sourceSql).orderBy("revenue", "desc").limit(10).execute();
 
   return rows.map((r) => ({
     source: String(r.source),

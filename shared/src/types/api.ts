@@ -22,6 +22,7 @@ export interface TrackEventPayload {
   os?: string;
   sr?: string;
   ln?: string;
+  tz?: string;
 }
 
 export interface IdentifyPayload {

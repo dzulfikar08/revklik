@@ -49,6 +49,22 @@ export async function apiRequest<T>(method: string, path: string, params?: Recor
   return data.data as T;
 }
 
+// Resolve a site identifier (full ID, partial ID, or domain) to a full site ID
+export async function resolveSite(input: string): Promise<string> {
+  // If it looks like a full UUID, return as-is
+  if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(input)) {
+    return input;
+  }
+  const sites = await listSites();
+  // Exact domain match
+  const byDomain = sites.find((s) => s.domain === input);
+  if (byDomain) return byDomain.id;
+  // Partial ID match (prefix)
+  const byPartial = sites.find((s) => s.id.startsWith(input));
+  if (byPartial) return byPartial.id;
+  throw new Error(`Site not found: ${input}. Run "revklik sites list" to see available sites.`);
+}
+
 // Typed helpers
 export async function whoami() {
   return apiRequest<{
