@@ -21,11 +21,36 @@ function validateSite(db: Kysely<KlikapaDatabase>, userId: string, siteId: strin
     .executeTakeFirst();
 }
 
+// Parse filter params from query string: filters=country:is:ID,device_type:is_not:Mobile
+function parseFilters(query: string): { dimension: string; operator: string; value: string }[] {
+  if (!query) return [];
+  return query.split(",").map((f) => {
+    const [dimension, operator, ...rest] = f.split(":");
+    return { dimension: dimension ?? "", operator: operator ?? "is", value: rest.join(":") };
+  }).filter((f) => f.dimension && f.value);
+}
+
+// Apply filters to a Kysely query builder
+function applyFilters(qb: any, filters: { dimension: string; operator: string; value: string }[]) {
+  for (const f of filters) {
+    if (f.operator === "is") {
+      qb = qb.where(f.dimension, "=", f.value);
+    } else if (f.operator === "is_not") {
+      qb = qb.where(f.dimension, "!=", f.value);
+    } else if (f.operator === "contains") {
+      qb = qb.where(f.dimension, "like", `%${f.value}%`);
+    }
+  }
+  return qb;
+}
+
 analyticsRoutes.get("/dashboard", async (c) => {
   const db = c.get("db");
   const userId = c.get("userId");
   const siteId = c.req.query("site_id");
   const range = c.req.query("range") || "7d";
+  const filtersParam = c.req.query("filters") || "";
+  const filters = parseFilters(filtersParam);
   if (!siteId) return c.json({ error: "site_id required", success: false }, 400);
   const site = await validateSite(db, userId, siteId);
   if (!site) return c.json({ error: "Site not found", success: false }, 404);

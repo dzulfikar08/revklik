@@ -1742,6 +1742,7 @@ function SiteDetailPage() {
           onClick={() => setEditing(!editing)}>{editing ? "Done" : "Edit Layout"}</button>
         <button className="btn-pill range-overflow-btn" onClick={() => navigate({ to: "/import" })} title="Import data">↑ Import</button>
         <button className="btn-pill range-overflow-btn" onClick={() => exportData(siteId, "events", "csv", range)} title="Export CSV">↓ CSV</button>
+        <button className="btn-pill range-overflow-btn" onClick={() => navigate({ to: "/settings" })} title="Settings">⚙ Settings</button>
         <div className="location-tabs">
           <button className={`location-tab ${locationView === "cards" ? "active" : ""}`} onClick={() => { setLocationView("cards"); setSelectedGlobeCity(null); }}>Cards</button>
           <button className={`location-tab ${locationView === "globe" ? "active" : ""}`} onClick={() => { setLocationView("globe"); setSelectedGlobeCity(null); }}>Globe</button>

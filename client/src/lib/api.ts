@@ -190,3 +190,29 @@ export const importOneDollarStats = (siteId: string, apiKey: string, odsSiteId: 
 export const fetchTokens = () => apiFetch<TokenInfo[]>("/tokens");
 export const createApiToken = (data: { name: string; type: "account" | "site"; scopes?: string[]; site_id?: string }) => apiFetch<CreateTokenResponse>("/tokens", { method: "POST", body: JSON.stringify(data) });
 export const revokeApiToken = (id: string) => apiFetch<void>(`/tokens/${id}`, { method: "DELETE" });
+
+// Segments
+export const fetchSegments = (siteId: string) => apiFetch<{ id: string; site_id: string; name: string; filters: string; created_at: string }[]>(`/segments?site_id=${siteId}`);
+export const createSegment = (siteId: string, name: string, filters: { dimension: string; operator: string; value: string }[]) =>
+  apiFetch<{ id: string }>("/segments", { method: "POST", body: JSON.stringify({ site_id: siteId, name, filters }) });
+export const deleteSegment = (id: string) => apiFetch<void>(`/segments/${id}`, { method: "DELETE" });
+
+// Annotations
+export const fetchAnnotations = (siteId: string) => apiFetch<{ id: string; site_id: string; date: string; text: string; created_at: string }[]>(`/annotations?site_id=${siteId}`);
+export const createAnnotation = (siteId: string, date: string, text: string) =>
+  apiFetch<{ id: string }>("/annotations", { method: "POST", body: JSON.stringify({ site_id: siteId, date, text }) });
+export const deleteAnnotation = (id: string) => apiFetch<void>(`/annotations/${id}`, { method: "DELETE" });
+
+// Email Reports
+export const fetchEmailReports = (siteId: string) => apiFetch<{ id: string; site_id: string; frequency: string; enabled: number; last_sent: string | null; created_at: string }[]>(`/email-reports?site_id=${siteId}`);
+export const createEmailReport = (siteId: string, frequency: string) =>
+  apiFetch<{ id: string }>("/email-reports", { method: "POST", body: JSON.stringify({ site_id: siteId, frequency }) });
+export const updateEmailReport = (id: string, data: { frequency?: string; enabled?: boolean }) =>
+  apiFetch<void>(`/email-reports/${id}`, { method: "PUT", body: JSON.stringify(data) });
+export const deleteEmailReport = (id: string) => apiFetch<void>(`/email-reports/${id}`, { method: "DELETE" });
+
+// Public Dashboard Sharing
+export const togglePublicDashboard = (siteId: string) =>
+  apiFetch<{ public: boolean; share_token: string | null }>(`/share/${siteId}/toggle`, { method: "POST" });
+export const fetchShareStatus = (siteId: string) =>
+  apiFetch<{ public: boolean; share_token: string | null }>(`/share/${siteId}/status`);

@@ -22,6 +22,10 @@ import { widgetRoutes } from "./routes/widgets";
 import { docsRoutes } from "./routes/docs";
 import { tokenRoutes } from "./routes/tokens";
 import { v1Routes } from "./routes/v1";
+import { segmentRoutes } from "./routes/segments";
+import { annotationRoutes } from "./routes/annotations";
+import { emailReportRoutes } from "./routes/email-reports";
+import { shareRoutes } from "./routes/share";
 import { hashPassword, generateId, generateApiKey, hashToken } from "./utils";
 
 type Bindings = { DB: D1Database; POLAR_ACCESS_TOKEN?: string; POLAR_ORG_ID?: string; POLAR_WEBHOOK_SECRET?: string };
@@ -459,6 +463,52 @@ app.route("/team", teamRoutes);
 
 app.use("/push-tokens/*", authMiddleware);
 app.route("/push-tokens", pushTokenRoutes);
+
+app.use("/segments/*", authMiddleware);
+app.route("/segments", segmentRoutes);
+
+app.use("/annotations/*", authMiddleware);
+app.route("/annotations", annotationRoutes);
+
+app.use("/email-reports/*", authMiddleware);
+app.route("/email-reports", emailReportRoutes);
+
+app.use("/share/*", authMiddleware);
+app.route("/share", shareRoutes);
+
+// Public dashboard (no auth)
+app.get("/public/:token", async (c) => {
+  const d1 = c.env.DB;
+  if (!d1) return c.json({ error: "DB unavailable", success: false }, 503);
+  try { await migrateDatabase(d1); } catch {}
+  c.set("db", createDb(d1));
+
+  const token = c.req.param("token");
+  const db = c.get("db") as Kysely<KlikapaDatabase>;
+  const site = await db.selectFrom("sites").select(["id", "name", "domain", "public_dashboard"])
+    .where("share_token", "=", token).where("public_dashboard", "=", 1).executeTakeFirst();
+  if (!site) return c.json({ error: "Dashboard not found", success: false }, 404);
+
+  const { getDateRange } = await import("./utils");
+  const range = c.req.query("range") || "7d";
+  const { start } = getDateRange(range);
+  const startIso = start.toISOString();
+
+  const { getOverviewStats, getTimeseries, getTopPages, getReferrers, getDeviceBreakdown, getRevenueBySource, getRevenueByCountry, getRevenueTimeseries, getChannelBreakdown } = await import("./queries/analytics");
+  const [stats, timeseries, topPages, sources, { devices, os, browsers }, revenueBySource, revenueByCountry, revenueTimeseries, channels] = await Promise.all([
+    getOverviewStats(db, site.id, startIso),
+    getTimeseries(db, site.id, startIso, false),
+    getTopPages(db, site.id, startIso, 10),
+    getReferrers(db, site.id, startIso, 10),
+    getDeviceBreakdown(db, site.id, startIso),
+    getRevenueBySource(db, site.id, startIso),
+    getRevenueByCountry(db, site.id, startIso),
+    getRevenueTimeseries(db, site.id, startIso, false),
+    getChannelBreakdown(db, site.id, startIso),
+  ]);
+
+  return c.json({ data: { site: { name: site.name, domain: site.domain }, dashboard: { stats, timeseries, topPages, sources, devices, os, browsers, revenueBySource, revenueByCountry, revenueTimeseries, channels } }, success: true });
+});
 
 app.route("/widget-data", widgetRoutes);
 
