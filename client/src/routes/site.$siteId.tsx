@@ -5,8 +5,8 @@ import { AreaChart, Area, Bar, XAxis, YAxis, Tooltip as RechartsTooltip, Respons
 // Custom funnel chart — pure React SVG, no MUI dependency
 import GridLayout, { useContainerWidth } from "react-grid-layout";
 import type { Layout } from "react-grid-layout";
-import { fetchDashboard, fetchFunnel, fetchGeo, fetchRecordings, fetchRecording, fetchHeatmap, updateVisitor, connectSSE, exportData } from "@/lib/api";
-import type { VisitorJourney, FunnelStep, PageFunnel, DeviceEntry, RecordingSummary, RecordingDetail, RevenueBySource, RevenueByCountry, RevenueTimeSeriesPoint, ChannelEntry, EntryPageRevenue, RevenueByPaymentMethod, RevenueByPaymentProvider } from "shared";
+import { fetchDashboard, fetchFunnel, fetchGeo, fetchRecordings, fetchRecording, fetchHeatmap, updateVisitor, connectSSE, exportData, fetchPredictions, refreshPredictions } from "@/lib/api";
+import type { VisitorJourney, FunnelStep, PageFunnel, DeviceEntry, RecordingSummary, RecordingDetail, RevenueBySource, RevenueByCountry, RevenueTimeSeriesPoint, ChannelEntry, EntryPageRevenue, RevenueByPaymentMethod, RevenueByPaymentProvider, RevenuePrediction } from "shared";
 import { Globe, geoToMarkers } from "@/components/globe";
 import { AiInsightsCard } from "@/components/ai-insights-card";
 import { EventCalculator } from "@/components/event-calculator";
@@ -1122,6 +1122,7 @@ const DEFAULT_LAYOUT = [
   { i: "event-usage", x: 6, y: 26, w: 6, h: 3, minW: 6, minH: 1 },
   { i: "channels", x: 4, y: 18, w: 6, h: 4, minW: 4, minH: 2 },
   { i: "entry-pages", x: 0, y: 26, w: 6, h: 5, minW: 4, minH: 2 },
+  { i: "predictions", x: 6, y: 29, w: 6, h: 5, minW: 4, minH: 2 },
 ] as const satisfies Layout;
 
 type LocationTab = "country" | "region" | "city";
@@ -1400,6 +1401,84 @@ function toMobileLayout(layout: Layout, cols: number): Layout {
   });
 }
 
+function PredictionsWidget({ siteId }: { siteId: string }) {
+  const { data, isLoading, refetch, isRefetching } = useQuery({
+    queryKey: ["predictions", siteId],
+    queryFn: () => fetchPredictions(siteId),
+    enabled: !!siteId,
+    staleTime: 60 * 60 * 1000,
+  });
+
+  const top5 = (data?.predictions ?? [])
+    .sort((a, b) => b.conversion_probability - a.conversion_probability)
+    .slice(0, 5);
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", height: "100%", padding: "10px 14px" }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+        <span className="data-table-title" style={{ marginBottom: 0 }}>Revenue Predictions</span>
+        <button
+          onClick={() => refreshPredictions(siteId).then(() => refetch())}
+          disabled={isRefetching}
+          style={{
+            fontSize: 10, padding: "3px 10px", borderRadius: 4, border: "1px solid var(--border)",
+            cursor: isRefetching ? "wait" : "pointer", background: "transparent", color: "var(--text3)",
+            fontFamily: "var(--mono)",
+          }}
+        >
+          {isRefetching ? "Loading..." : "Refresh"}
+        </button>
+      </div>
+      {isLoading ? (
+        <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <div className="spinner" />
+        </div>
+      ) : top5.length === 0 ? (
+        <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", color: "var(--text3)", fontSize: 12 }}>
+          No visitor data yet
+        </div>
+      ) : (
+        <div style={{ flex: 1, overflowY: "auto" }}>
+          <table className="data-table">
+            <thead>
+              <tr>
+                <th>Visitor</th>
+                <th style={{ textAlign: "right" }}>Score</th>
+                <th style={{ textAlign: "right" }}>Predicted LTV</th>
+              </tr>
+            </thead>
+            <tbody>
+              {top5.map((p: RevenuePrediction) => (
+                <tr key={p.visitor_id}>
+                  <td style={{ fontSize: 12, fontFamily: "var(--mono)" }}>
+                    {p.visitor_id.length > 12 ? `${p.visitor_id.slice(0, 12)}...` : p.visitor_id}
+                  </td>
+                  <td style={{ textAlign: "right", fontFamily: "var(--mono)", fontSize: 12 }}>
+                    <span style={{
+                      color: p.conversion_probability >= 70 ? "var(--green)" : p.conversion_probability >= 40 ? "#f59e0b" : "var(--text3)",
+                      fontWeight: 600,
+                    }}>
+                      {p.conversion_probability}%
+                    </span>
+                  </td>
+                  <td style={{ textAlign: "right", fontFamily: "var(--mono)", fontSize: 12 }}>
+                    ${p.predicted_revenue.toFixed(2)}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {data?.model_version && (
+            <div style={{ marginTop: 6, fontSize: 10, color: "var(--text3)", fontFamily: "var(--mono)" }}>
+              Model: {data.model_version} &middot; {data.generated_at ? new Date(data.generated_at).toLocaleTimeString() : ""}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function DashboardGrid({ siteId, stats, isLoading, timeseries, topPages, sources, devices, osData, browsersData, geoData, funnelSteps, funnelRate, funnelPages, journeys, allJourneys, hasFilters, selectedJourney, setSelectedJourney, setFilterPage, setFilterCountry, recordings, onSelectRecording, range, revenueBySource, revenueByCountry, revenueTimeseries, channels, entryPagesRevenue, revenueByMethod, revenueByProvider, editing, layout, onLayoutChange }: {
   siteId: string;
   stats: any;
@@ -1601,6 +1680,10 @@ function DashboardGrid({ siteId, stats, isLoading, timeseries, topPages, sources
             ]}
           />
         </div>
+
+        <div key="predictions" style={widgetStyle("predictions")}>
+          <PredictionsWidget siteId={siteId} />
+        </div>
       </GridLayout>
       )}
     </div>
@@ -1741,6 +1824,7 @@ function SiteDetailPage() {
         <button className="btn-pill range-overflow-btn" style={{ fontSize: 11, padding: "4px 10px", color: editing ? "var(--accent)" : "var(--text3)" }}
           onClick={() => setEditing(!editing)}>{editing ? "Done" : "Edit Layout"}</button>
         <button className="btn-pill range-overflow-btn" onClick={() => navigate({ to: "/import" })} title="Import data">↑ Import</button>
+        <button className="btn-pill range-overflow-btn" onClick={() => navigate({ to: "/docs/install" })} title="Install Guide">📋 Install</button>
         <button className="btn-pill range-overflow-btn" onClick={() => exportData(siteId, "events", "csv", range)} title="Export CSV">↓ CSV</button>
         <button className="btn-pill range-overflow-btn" onClick={() => navigate({ to: "/settings" })} title="Settings">⚙ Settings</button>
         <div className="location-tabs">

@@ -4,10 +4,16 @@ import { register, isLoggedIn } from "@/lib/api";
 import { t } from "@/lib/i18n";
 import { toast } from "@/components/toast";
 
-export const Route = createFileRoute("/register")({ component: RegisterPage });
+export const Route = createFileRoute("/register")({
+  component: RegisterPage,
+  validateSearch: (search: Record<string, string>) => ({
+    ref: search.ref || undefined,
+  }),
+});
 
 function RegisterPage() {
   const navigate = useNavigate();
+  const { ref } = Route.useSearch();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -19,7 +25,7 @@ function RegisterPage() {
     e.preventDefault();
     setError("");
     try {
-      await register({ name, email, password });
+      await register({ name, email, password }, ref);
       navigate({ to: "/" });
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Registration failed";

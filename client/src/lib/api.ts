@@ -1,4 +1,4 @@
-import type { SiteWithStats, AuthResponse, Site, CreateSitePayload, CreateUserPayload, LoginPayload, SiteDashboard, VisitorProfile, ScrollFunnel, Integration, CreateIntegrationPayload, WebhookEventLog, InsightsResponse, HeatmapData, RecordingSummary, RecordingDetail, Subscription, PlanInfo, TokenInfo, CreateTokenResponse } from "shared";
+import type { SiteWithStats, AuthResponse, Site, CreateSitePayload, CreateUserPayload, LoginPayload, SiteDashboard, VisitorProfile, ScrollFunnel, Integration, CreateIntegrationPayload, WebhookEventLog, InsightsResponse, PredictionResponse, HeatmapData, RecordingSummary, RecordingDetail, Subscription, PlanInfo, TokenInfo, CreateTokenResponse, SearchQueryData } from "shared";
 import { toast } from "@/components/toast";
 import { getItem, setItem, removeItem, getItemSync } from "./mobile-storage";
 
@@ -32,8 +32,9 @@ export const getActiveSiteId = () => getItemSync("kp_active_site");
 export const setActiveSiteId = (id: string) => { setItem("kp_active_site", id); };
 export const getCurrentUser = () => { const r = getItemSync("kp_user"); return r ? JSON.parse(r) : null; };
 
-export async function register(p: CreateUserPayload): Promise<AuthResponse> {
-  const data = await apiFetch<AuthResponse>("/auth/register", { method: "POST", body: JSON.stringify(p) });
+export async function register(p: CreateUserPayload, refCode?: string): Promise<AuthResponse> {
+  const path = refCode ? `/auth/register?ref=${encodeURIComponent(refCode)}` : "/auth/register";
+  const data = await apiFetch<AuthResponse>(path, { method: "POST", body: JSON.stringify(p) });
   await setItem("kp_token", data.token); await setItem("kp_user", JSON.stringify(data.user));
   return data;
 }
@@ -216,3 +217,44 @@ export const togglePublicDashboard = (siteId: string) =>
   apiFetch<{ public: boolean; share_token: string | null }>(`/share/${siteId}/toggle`, { method: "POST" });
 export const fetchShareStatus = (siteId: string) =>
   apiFetch<{ public: boolean; share_token: string | null }>(`/share/${siteId}/status`);
+
+// Google Search Console
+export const fetchSearchQueries = (siteId: string): Promise<SearchQueryData[]> =>
+  apiFetch(`/gsc/queries?site_id=${siteId}`);
+export const syncGSC = (siteId: string): Promise<void> =>
+  apiFetch(`/gsc/sync?site_id=${siteId}`, { method: "POST" });
+
+// Revenue Predictions
+export const fetchPredictions = (siteId: string): Promise<PredictionResponse> =>
+  apiFetch(`/predictions?site_id=${siteId}`);
+export const refreshPredictions = (siteId: string): Promise<PredictionResponse> =>
+  apiFetch(`/predictions/refresh?site_id=${siteId}`, { method: "POST" });
+
+// Affiliate
+export const fetchAffiliate = () => apiFetch("/affiliates/me");
+export const generateReferralCode = () => apiFetch("/affiliates/generate-code", { method: "POST" });
+export const fetchAffiliateReferrals = () => apiFetch("/affiliates/referrals");
+export const fetchAffiliateStats = () => apiFetch("/affiliates/stats");
+
+export const getGSCAuthUrl = (siteId: string): string => {
+  const base = import.meta.env.VITE_API_BASE || (import.meta.env.DEV ? "http://localhost:3000/api" : "/api");
+  return `${base}/gsc/auth?site_id=${siteId}`;
+};
+
+// Marketplace (Shopee / Tokopedia)
+export const getShopeeAuthUrl = (siteId: string): string => {
+  const base = import.meta.env.VITE_API_BASE || (import.meta.env.DEV ? "http://localhost:3000/api" : "/api");
+  return `${base}/marketplace/shopee/auth?site_id=${siteId}`;
+};
+export const getTokopediaAuthUrl = (siteId: string): string => {
+  const base = import.meta.env.VITE_API_BASE || (import.meta.env.DEV ? "http://localhost:3000/api" : "/api");
+  return `${base}/marketplace/tokopedia/auth?site_id=${siteId}`;
+};
+export const syncShopeeOrders = (siteId: string) =>
+  apiFetch(`/marketplace/shopee/sync?site_id=${siteId}`, { method: "POST" });
+export const fetchShopeeOrders = (siteId: string) =>
+  apiFetch(`/marketplace/shopee/orders?site_id=${siteId}`);
+export const syncTokopediaOrders = (siteId: string) =>
+  apiFetch(`/marketplace/tokopedia/sync?site_id=${siteId}`, { method: "POST" });
+export const fetchTokopediaOrders = (siteId: string) =>
+  apiFetch(`/marketplace/tokopedia/orders?site_id=${siteId}`);

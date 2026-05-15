@@ -6,7 +6,7 @@ import { generateId } from "../utils";
 type Variables = { db: Kysely<KlikapaDatabase>; userId: string };
 export const paymentProviderRoutes = new Hono<{ Variables: Variables }>();
 
-const VALID_PROVIDERS = ["midtrans", "xendit", "doku", "nicepay"];
+const VALID_PROVIDERS = ["midtrans", "xendit", "doku", "nicepay", "stripe", "lemonsqueezy"];
 
 function maskConfig(config: Record<string, string>): Record<string, string> {
   const masked: Record<string, string> = {};

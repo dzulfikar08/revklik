@@ -111,8 +111,14 @@ function RootLayout() {
           )}
         </div>
         <div className="topnav-right">
+          <button className="btn-pill" onClick={() => navigate({ to: "/affiliate" })} style={{ fontSize: 11, padding: "4px 10px", marginRight: 8 }}>
+            Affiliate
+          </button>
           <button className="btn-pill" onClick={() => navigate({ to: "/settings" })} style={{ fontSize: 11, padding: "4px 10px", marginRight: 8 }}>
             Settings
+          </button>
+          <button className="btn-pill" onClick={() => navigate({ to: "/settings/api-playground" })} style={{ fontSize: 11, padding: "4px 10px", marginRight: 8 }}>
+            API
           </button>
           <button className="btn-pill" onClick={() => navigate({ to: "/settings/api-tokens" })} style={{ fontSize: 11, padding: "4px 10px", marginRight: 8 }}>
             API Tokens

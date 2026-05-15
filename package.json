@@ -10,7 +10,8 @@
     "./server",
     "./client",
     "./shared",
-    "./cli"
+    "./cli",
+    "./sdk"
   ],
   "scripts": {
     "dev": "turbo dev",

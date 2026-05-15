@@ -181,6 +181,10 @@ export interface KlikapaDatabase {
   segments: SegmentTable;
   annotations: AnnotationTable;
   email_reports: EmailReportTable;
+  search_console_data: SearchConsoleDataTable;
+  marketplace_orders: MarketplaceOrderTable;
+  affiliates: AffiliateTable;
+  referrals: ReferralTable;
 }
 
 export interface HeatmapClickTable {
@@ -301,5 +305,53 @@ export interface PushTokenTable {
   user_id: string;
   device_token: string;
   platform: string;
+  created_at: string;
+}
+
+export interface SearchConsoleDataTable {
+  id: string;
+  site_id: string;
+  date: string;
+  query: string;
+  clicks: number;
+  impressions: number;
+  ctr: number;
+  position: number;
+  fetched_at: string;
+}
+
+export interface MarketplaceOrderTable {
+  id: string;
+  site_id: string;
+  marketplace: string;
+  order_id: string;
+  order_sn: string;
+  amount: number;
+  currency: string;
+  status: string;
+  buyer_info: string | null;
+  items: string | null;
+  ordered_at: string;
+  synced_at: string;
+}
+
+export interface AffiliateTable {
+  id: string;
+  user_id: string;
+  referral_code: string;
+  commission_rate: number;
+  total_earned: number;
+  total_paid: number;
+  status: string;
+  created_at: string;
+}
+
+export interface ReferralTable {
+  id: string;
+  affiliate_id: string;
+  referred_user_id: string;
+  event: string;
+  commission_amount: number;
+  status: string;
   created_at: string;
 }

@@ -65,6 +65,65 @@ export function mapXenditMethod(method: string, channel: string): string {
   return channelMap[channel] || channel.toLowerCase();
 }
 
+export async function verifyStripeSignature(
+  payload: string,
+  signatureHeader: string,
+  secret: string,
+): Promise<boolean> {
+  // Stripe-Signature header format: t=timestamp,v1=signature[,v1=signature...]
+  const parts = signatureHeader.split(",");
+  let timestamp = "";
+  let v1Signature = "";
+  for (const part of parts) {
+    const eqIdx = part.indexOf("=");
+    if (eqIdx === -1) continue;
+    const key = part.slice(0, eqIdx);
+    const value = part.slice(eqIdx + 1);
+    if (key === "t") timestamp = value;
+    else if (key === "v1") v1Signature = value;
+  }
+  if (!timestamp || !v1Signature) return false;
+
+  const signedPayload = `${timestamp}.${payload}`;
+
+  // Decode the whsec_ prefixed secret from base64
+  const rawSecret = secret.startsWith("whsec_") ? secret.slice(7) : secret;
+  const secretBytes = Uint8Array.from(atob(rawSecret), (c) => c.charCodeAt(0));
+
+  const enc = new TextEncoder();
+  const key = await crypto.subtle.importKey("raw", secretBytes, { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
+  const sig = await crypto.subtle.sign("HMAC", key, enc.encode(signedPayload));
+  const computed = Array.from(new Uint8Array(sig), (b) => b.toString(16).padStart(2, "0")).join("");
+
+  return timingSafeEqual(computed, v1Signature);
+}
+
+export async function verifyLemonSqueezySignature(
+  payload: string,
+  signatureHeader: string,
+  secret: string,
+): Promise<boolean> {
+  const enc = new TextEncoder();
+  const key = await crypto.subtle.importKey("raw", enc.encode(secret), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
+  const sig = await crypto.subtle.sign("HMAC", key, enc.encode(payload));
+  const computed = Array.from(new Uint8Array(sig), (b) => b.toString(16).padStart(2, "0")).join("");
+  return timingSafeEqual(computed, signatureHeader);
+}
+
+export function mapStripePaymentMethod(type: string): string {
+  const map: Record<string, string> = {
+    card: "Credit Card",
+    grabpay: "GrabPay",
+    fpx: "FPX",
+    alipay: "Alipay",
+    wechat: "WeChat Pay",
+    bank_transfer: "Bank Transfer",
+    promptpay: "PromptPay",
+    oxxo: "OXXO",
+  };
+  return map[type] || type;
+}
+
 export function categorizeChannel(referrer: string | null, utmSource: string | null, utmMedium: string | null): string {
   if (utmMedium === 'cpc' || utmMedium === 'ppc' || utmMedium === 'paid') return 'Paid';
   if (utmMedium === 'email') return 'Email';

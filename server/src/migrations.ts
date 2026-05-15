@@ -373,5 +373,72 @@ export async function migrateDatabase(d1: D1Database): Promise<void> {
     await d1.prepare("CREATE INDEX IF NOT EXISTS idx_events_site_payment ON events(site_id, payment_provider, payment_method, timestamp)").run();
   } catch { /* index may already exist */ }
 
+  // Search Console data
+  try {
+    await d1.prepare(`CREATE TABLE IF NOT EXISTS search_console_data (
+      id TEXT PRIMARY KEY,
+      site_id TEXT NOT NULL,
+      date TEXT NOT NULL,
+      query TEXT NOT NULL,
+      clicks INTEGER DEFAULT 0,
+      impressions INTEGER DEFAULT 0,
+      ctr REAL DEFAULT 0,
+      position REAL DEFAULT 0,
+      fetched_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )`).run();
+    await d1.prepare("CREATE INDEX IF NOT EXISTS idx_scd_site_date ON search_console_data(site_id, date)").run();
+  } catch { /* table may already exist */ }
+
+  // Marketplace orders
+  try {
+    await d1.prepare(`CREATE TABLE IF NOT EXISTS marketplace_orders (
+      id TEXT PRIMARY KEY,
+      site_id TEXT NOT NULL,
+      marketplace TEXT NOT NULL,
+      order_id TEXT NOT NULL,
+      order_sn TEXT NOT NULL,
+      amount REAL DEFAULT 0,
+      currency TEXT DEFAULT 'IDR',
+      status TEXT DEFAULT 'pending',
+      buyer_info TEXT,
+      items TEXT,
+      ordered_at TEXT NOT NULL,
+      synced_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )`).run();
+    await d1.prepare("CREATE UNIQUE INDEX IF NOT EXISTS idx_mo_unique ON marketplace_orders(site_id, marketplace, order_sn)").run();
+    await d1.prepare("CREATE INDEX IF NOT EXISTS idx_mo_site ON marketplace_orders(site_id, marketplace, ordered_at)").run();
+  } catch { /* table may already exist */ }
+
+  // Affiliates
+  try {
+    await d1.prepare(`CREATE TABLE IF NOT EXISTS affiliates (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL UNIQUE,
+      referral_code TEXT NOT NULL UNIQUE,
+      commission_rate REAL DEFAULT 0.2,
+      total_earned REAL DEFAULT 0,
+      total_paid REAL DEFAULT 0,
+      status TEXT DEFAULT 'active',
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )`).run();
+    await d1.prepare("CREATE INDEX IF NOT EXISTS idx_aff_user ON affiliates(user_id)").run();
+    await d1.prepare("CREATE INDEX IF NOT EXISTS idx_aff_code ON affiliates(referral_code)").run();
+  } catch { /* table may already exist */ }
+
+  // Referrals
+  try {
+    await d1.prepare(`CREATE TABLE IF NOT EXISTS referrals (
+      id TEXT PRIMARY KEY,
+      affiliate_id TEXT NOT NULL,
+      referred_user_id TEXT NOT NULL,
+      event TEXT NOT NULL DEFAULT 'signup',
+      commission_amount REAL DEFAULT 0,
+      status TEXT DEFAULT 'pending',
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )`).run();
+    await d1.prepare("CREATE INDEX IF NOT EXISTS idx_ref_affiliate ON referrals(affiliate_id)").run();
+    await d1.prepare("CREATE INDEX IF NOT EXISTS idx_ref_user ON referrals(referred_user_id)").run();
+  } catch { /* table may already exist */ }
+
   migrationRan = true;
 }

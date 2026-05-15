@@ -14,6 +14,8 @@ import { integrationRoutes } from "./routes/integrations";
 import { webhookRoutes } from "./routes/webhooks";
 import { midtransWebhookRoutes } from "./routes/webhooks-midtrans";
 import { xenditWebhookRoutes } from "./routes/webhooks-xendit";
+import { stripeWebhookRoutes } from "./routes/webhooks-stripe";
+import { lemonsqueezyWebhookRoutes } from "./routes/webhooks-lemonsqueezy";
 import { paymentProviderRoutes } from "./routes/payment-providers";
 import { billingRoutes } from "./routes/billing";
 import { teamRoutes } from "./routes/team";
@@ -26,6 +28,11 @@ import { segmentRoutes } from "./routes/segments";
 import { annotationRoutes } from "./routes/annotations";
 import { emailReportRoutes } from "./routes/email-reports";
 import { shareRoutes } from "./routes/share";
+import { gscRoutes } from "./routes/gsc";
+import { predictionsRoutes } from "./routes/predictions";
+import { affiliateRoutes } from "./routes/affiliates";
+import { shopeeRoutes } from "./routes/marketplace-shopee";
+import { tokopediaRoutes } from "./routes/marketplace-tokopedia";
 import { hashPassword, generateId, generateApiKey, hashToken } from "./utils";
 
 type Bindings = { DB: D1Database; POLAR_ACCESS_TOKEN?: string; POLAR_ORG_ID?: string; POLAR_WEBHOOK_SECRET?: string };
@@ -148,6 +155,26 @@ app.post("/auth/register", async (c) => {
   }).execute();
   const { key, prefix } = generateApiKey("session");
   await db.insertInto("api_keys").values({ id: generateId(), user_id: userId, key_hash: await hashToken(key), key_prefix: prefix, name: "default", token_type: "session", scopes: null, site_id: null, last_used_at: null, expires_at: null, created_at: new Date().toISOString() }).execute();
+
+  // Referral tracking: check for ref code in query or body
+  const refCode = c.req.query("ref");
+  if (refCode) {
+    try {
+      const affiliate = await db.selectFrom("affiliates").select(["id", "commission_rate"]).where("referral_code", "=", refCode).executeTakeFirst();
+      if (affiliate) {
+        await db.insertInto("referrals").values({
+          id: generateId(),
+          affiliate_id: affiliate.id,
+          referred_user_id: userId,
+          event: "signup",
+          commission_amount: 0,
+          status: "confirmed",
+          created_at: new Date().toISOString(),
+        }).execute();
+      }
+    } catch { /* referral tracking failure should not block registration */ }
+  }
+
   return c.json({ data: { user: { id: userId, name, email }, token: key }, success: true }, 201);
 });
 
@@ -286,6 +313,8 @@ app.route("/tokens", tokenRoutes);
 app.route("/webhooks", webhookRoutes);
 app.route("/webhooks/midtrans", midtransWebhookRoutes);
 app.route("/webhooks/xendit", xenditWebhookRoutes);
+app.route("/webhooks/stripe", stripeWebhookRoutes);
+app.route("/webhooks/lemonsqueezy", lemonsqueezyWebhookRoutes);
 
 app.use("/payment-providers/*", authMiddleware);
 app.route("/payment-providers", paymentProviderRoutes);
@@ -475,6 +504,19 @@ app.route("/email-reports", emailReportRoutes);
 
 app.use("/share/*", authMiddleware);
 app.route("/share", shareRoutes);
+
+// GSC routes: auth/callback are public (OAuth flow), queries/sync are authenticated
+app.route("/gsc", gscRoutes);
+
+app.use("/predictions/*", authMiddleware);
+app.route("/predictions", predictionsRoutes);
+
+app.use("/affiliates/*", authMiddleware);
+app.route("/affiliates", affiliateRoutes);
+
+// Marketplace routes: auth/callback are public (OAuth flow), sync/orders are authenticated
+app.route("/marketplace/shopee", shopeeRoutes);
+app.route("/marketplace/tokopedia", tokopediaRoutes);
 
 // Public dashboard (no auth)
 app.get("/public/:token", async (c) => {

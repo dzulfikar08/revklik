@@ -295,7 +295,7 @@ export interface RecordingDetail extends RecordingSummary {
 }
 
 // Integration types
-export type IntegrationType = "mailchimp" | "convertkit" | "kit" | "beehiiv" | "meta_ads" | "google_ads" | "midtrans" | "xendit" | "doku" | "nicepay";
+export type IntegrationType = "mailchimp" | "convertkit" | "kit" | "beehiiv" | "meta_ads" | "google_ads" | "google_search_console" | "midtrans" | "xendit" | "doku" | "nicepay" | "stripe" | "lemonsqueezy" | "shopee" | "tokopedia";
 
 export interface Integration {
   id: string;
@@ -325,7 +325,20 @@ export interface WebhookEventLog {
 }
 
 // AI Insights types
-export type InsightType = "revenue_drivers" | "geo_opportunities" | "funnel_optimization" | "traffic_roi";
+export type InsightType = "revenue_drivers" | "geo_opportunities" | "funnel_optimization" | "traffic_roi" | "revenue_prediction";
+
+export interface RevenuePrediction {
+  visitor_id: string;
+  conversion_probability: number;
+  predicted_revenue: number;
+  factors: string[];
+}
+
+export interface PredictionResponse {
+  predictions: RevenuePrediction[];
+  model_version: string;
+  generated_at: string;
+}
 
 export interface AiInsight {
   id: string;
@@ -437,4 +450,62 @@ export interface TokenInfo {
   site_id: string | null;
   last_used_at: string | null;
   created_at: string;
+}
+
+// Search Console types
+export interface SearchQueryData {
+  query: string;
+  clicks: number;
+  impressions: number;
+  ctr: number;
+  position: number;
+  date: string;
+}
+
+// Affiliate types
+export interface Affiliate {
+  id: string;
+  user_id: string;
+  referral_code: string;
+  commission_rate: number;
+  total_earned: number;
+  total_paid: number;
+  status: "active" | "paused" | "banned";
+  created_at: string;
+}
+
+export interface Referral {
+  id: string;
+  affiliate_id: string;
+  referred_user_id: string;
+  event: "signup" | "subscription" | "payment";
+  commission_amount: number;
+  status: "pending" | "approved" | "paid" | "confirmed";
+  created_at: string;
+  referred_user_name?: string | null;
+  referred_user_email?: string | null;
+}
+
+export interface AffiliateStats {
+  total_referrals: number;
+  total_earned: number;
+  total_paid: number;
+  pending_commissions: number;
+  breakdown: { event: string; count: number; total_commission: number }[];
+}
+
+// Marketplace order types
+export interface MarketplaceOrder {
+  id: string;
+  site_id: string;
+  marketplace: "shopee" | "tokopedia";
+  order_id: string;
+  order_sn: string;
+  amount: number;
+  currency: string;
+  status: string;
+  buyer_info: string | null;
+  items: string | null;
+  ordered_at: string;
+  synced_at: string;
 }

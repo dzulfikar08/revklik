@@ -7,6 +7,7 @@ const typeIcons: Record<InsightType, string> = {
   geo_opportunities: "\u25C9",
   funnel_optimization: "\u25BC",
   traffic_roi: "\u2197",
+  revenue_prediction: "\u2618",
 };
 
 const typeColors: Record<InsightType, string> = {
@@ -14,6 +15,7 @@ const typeColors: Record<InsightType, string> = {
   geo_opportunities: "#60a5fa",
   funnel_optimization: "#f59e0b",
   traffic_roi: "#a78bfa",
+  revenue_prediction: "#fb923c",
 };
 
 export function AiInsightsCard({ siteId, range }: { siteId: string; range: string }) {

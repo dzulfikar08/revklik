@@ -14,9 +14,12 @@ import { Route as RegisterRouteImport } from './routes/register'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as IntegrationsRouteImport } from './routes/integrations'
 import { Route as ImportRouteImport } from './routes/import'
+import { Route as AffiliateRouteImport } from './routes/affiliate'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as SiteSiteIdRouteImport } from './routes/site.$siteId'
 import { Route as SettingsApiTokensRouteImport } from './routes/settings.api-tokens'
+import { Route as SettingsApiPlaygroundRouteImport } from './routes/settings.api-playground'
+import { Route as DocsInstallRouteImport } from './routes/docs.install'
 
 const SettingsRoute = SettingsRouteImport.update({
   id: '/settings',
@@ -43,6 +46,11 @@ const ImportRoute = ImportRouteImport.update({
   path: '/import',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AffiliateRoute = AffiliateRouteImport.update({
+  id: '/affiliate',
+  path: '/affiliate',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
@@ -58,35 +66,54 @@ const SettingsApiTokensRoute = SettingsApiTokensRouteImport.update({
   path: '/api-tokens',
   getParentRoute: () => SettingsRoute,
 } as any)
+const SettingsApiPlaygroundRoute = SettingsApiPlaygroundRouteImport.update({
+  id: '/api-playground',
+  path: '/api-playground',
+  getParentRoute: () => SettingsRoute,
+} as any)
+const DocsInstallRoute = DocsInstallRouteImport.update({
+  id: '/docs/install',
+  path: '/docs/install',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/affiliate': typeof AffiliateRoute
   '/import': typeof ImportRoute
   '/integrations': typeof IntegrationsRoute
   '/login': typeof LoginRoute
   '/register': typeof RegisterRoute
   '/settings': typeof SettingsRouteWithChildren
+  '/docs/install': typeof DocsInstallRoute
+  '/settings/api-playground': typeof SettingsApiPlaygroundRoute
   '/settings/api-tokens': typeof SettingsApiTokensRoute
   '/site/$siteId': typeof SiteSiteIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/affiliate': typeof AffiliateRoute
   '/import': typeof ImportRoute
   '/integrations': typeof IntegrationsRoute
   '/login': typeof LoginRoute
   '/register': typeof RegisterRoute
   '/settings': typeof SettingsRouteWithChildren
+  '/docs/install': typeof DocsInstallRoute
+  '/settings/api-playground': typeof SettingsApiPlaygroundRoute
   '/settings/api-tokens': typeof SettingsApiTokensRoute
   '/site/$siteId': typeof SiteSiteIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/affiliate': typeof AffiliateRoute
   '/import': typeof ImportRoute
   '/integrations': typeof IntegrationsRoute
   '/login': typeof LoginRoute
   '/register': typeof RegisterRoute
   '/settings': typeof SettingsRouteWithChildren
+  '/docs/install': typeof DocsInstallRoute
+  '/settings/api-playground': typeof SettingsApiPlaygroundRoute
   '/settings/api-tokens': typeof SettingsApiTokensRoute
   '/site/$siteId': typeof SiteSiteIdRoute
 }
@@ -94,42 +121,53 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/affiliate'
     | '/import'
     | '/integrations'
     | '/login'
     | '/register'
     | '/settings'
+    | '/docs/install'
+    | '/settings/api-playground'
     | '/settings/api-tokens'
     | '/site/$siteId'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/affiliate'
     | '/import'
     | '/integrations'
     | '/login'
     | '/register'
     | '/settings'
+    | '/docs/install'
+    | '/settings/api-playground'
     | '/settings/api-tokens'
     | '/site/$siteId'
   id:
     | '__root__'
     | '/'
+    | '/affiliate'
     | '/import'
     | '/integrations'
     | '/login'
     | '/register'
     | '/settings'
+    | '/docs/install'
+    | '/settings/api-playground'
     | '/settings/api-tokens'
     | '/site/$siteId'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AffiliateRoute: typeof AffiliateRoute
   ImportRoute: typeof ImportRoute
   IntegrationsRoute: typeof IntegrationsRoute
   LoginRoute: typeof LoginRoute
   RegisterRoute: typeof RegisterRoute
   SettingsRoute: typeof SettingsRouteWithChildren
+  DocsInstallRoute: typeof DocsInstallRoute
   SiteSiteIdRoute: typeof SiteSiteIdRoute
 }
 
@@ -170,6 +208,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ImportRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/affiliate': {
+      id: '/affiliate'
+      path: '/affiliate'
+      fullPath: '/affiliate'
+      preLoaderRoute: typeof AffiliateRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/': {
       id: '/'
       path: '/'
@@ -191,14 +236,30 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SettingsApiTokensRouteImport
       parentRoute: typeof SettingsRoute
     }
+    '/settings/api-playground': {
+      id: '/settings/api-playground'
+      path: '/api-playground'
+      fullPath: '/settings/api-playground'
+      preLoaderRoute: typeof SettingsApiPlaygroundRouteImport
+      parentRoute: typeof SettingsRoute
+    }
+    '/docs/install': {
+      id: '/docs/install'
+      path: '/docs/install'
+      fullPath: '/docs/install'
+      preLoaderRoute: typeof DocsInstallRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
 interface SettingsRouteChildren {
+  SettingsApiPlaygroundRoute: typeof SettingsApiPlaygroundRoute
   SettingsApiTokensRoute: typeof SettingsApiTokensRoute
 }
 
 const SettingsRouteChildren: SettingsRouteChildren = {
+  SettingsApiPlaygroundRoute: SettingsApiPlaygroundRoute,
   SettingsApiTokensRoute: SettingsApiTokensRoute,
 }
 
@@ -208,11 +269,13 @@ const SettingsRouteWithChildren = SettingsRoute._addFileChildren(
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AffiliateRoute: AffiliateRoute,
   ImportRoute: ImportRoute,
   IntegrationsRoute: IntegrationsRoute,
   LoginRoute: LoginRoute,
   RegisterRoute: RegisterRoute,
   SettingsRoute: SettingsRouteWithChildren,
+  DocsInstallRoute: DocsInstallRoute,
   SiteSiteIdRoute: SiteSiteIdRoute,
 }
 export const routeTree = rootRouteImport

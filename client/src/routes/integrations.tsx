@@ -5,14 +5,101 @@ import {
   fetchIntegrations, createIntegration, updateIntegration,
   deleteIntegration, testIntegration, fetchWebhookEvents,
   fetchPaymentProviders, createPaymentProvider, deletePaymentProvider,
-  getActiveSiteId,
+  getActiveSiteId, getGSCAuthUrl, syncGSC,
+  getShopeeAuthUrl, getTokopediaAuthUrl, syncShopeeOrders, fetchShopeeOrders,
+  syncTokopediaOrders, fetchTokopediaOrders,
 } from "@/lib/api";
-import type { Integration, IntegrationType } from "shared";
+import type { Integration, IntegrationType, MarketplaceOrder } from "shared";
 import { t } from "@/lib/i18n";
 
 export const Route = createFileRoute("/integrations")({ component: IntegrationsPage });
 
-const PAYMENT_PROVIDERS = ["midtrans", "xendit", "doku", "nicepay"];
+const PAYMENT_PROVIDERS = ["midtrans", "xendit", "doku", "nicepay", "stripe", "lemonsqueezy"];
+const MARKETPLACE_PROVIDERS = ["shopee", "tokopedia"];
+
+function MarketplaceOrdersSection({ provider, siteId }: { provider: string; siteId: string }) {
+  const [expanded, setExpanded] = useState(false);
+  const [syncing, setSyncing] = useState(false);
+  const queryClient = useQueryClient();
+
+  const fetchOrders = provider === "shopee" ? fetchShopeeOrders : fetchTokopediaOrders;
+  const syncOrders = provider === "shopee" ? syncShopeeOrders : syncTokopediaOrders;
+
+  const { data: orders, isLoading } = useQuery({
+    queryKey: ["marketplace-orders", provider, siteId],
+    queryFn: () => fetchOrders(siteId) as Promise<MarketplaceOrder[]>,
+    enabled: expanded,
+  });
+
+  const handleSync = async () => {
+    setSyncing(true);
+    try {
+      await syncOrders(siteId);
+      queryClient.invalidateQueries({ queryKey: ["marketplace-orders", provider, siteId] });
+      queryClient.invalidateQueries({ queryKey: ["integrations"] });
+    } catch { /* toast handled by apiFetch */ }
+    finally { setSyncing(false); }
+  };
+
+  return (
+    <div style={{ margin: "0 22px 16px" }}>
+      <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
+        <button className="btn-pill" style={{ fontSize: 12, padding: "6px 14px" }}
+          onClick={handleSync} disabled={syncing}>
+          {syncing ? "Syncing..." : "Sync Orders"}
+        </button>
+        <button className="btn-pill" style={{ fontSize: 12, padding: "6px 14px" }}
+          onClick={() => setExpanded(!expanded)}>
+          {expanded ? "Hide Orders" : "View Orders"}
+        </button>
+      </div>
+      {expanded && (
+        <div style={{ borderTop: "1px solid var(--border)", paddingTop: 10 }}>
+          {isLoading ? (
+            <div style={{ padding: 16, textAlign: "center" }}><div className="spinner" /></div>
+          ) : (orders ?? []).length === 0 ? (
+            <div style={{ fontSize: 12, color: "var(--text3)", textAlign: "center", padding: 12 }}>
+              No orders found. Click "Sync Orders" to fetch from {provider === "shopee" ? "Shopee" : "Tokopedia"}.
+            </div>
+          ) : (
+            <div className="scroll-x">
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th>Order SN</th>
+                    <th>Amount</th>
+                    <th>Status</th>
+                    <th>Ordered</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(orders ?? []).slice(0, 20).map((o) => (
+                    <tr key={o.id}>
+                      <td style={{ fontFamily: "var(--mono)", fontSize: 11 }}>{o.order_sn}</td>
+                      <td style={{ fontFamily: "var(--mono)", fontSize: 11 }}>{Number(o.amount).toLocaleString("id-ID", { style: "currency", currency: o.currency || "IDR" })}</td>
+                      <td>
+                        <span style={{
+                          fontFamily: "var(--mono)", fontSize: 10, padding: "2px 8px", borderRadius: 100,
+                          background: o.status === "completed" || o.status === "SHIPPED" ? "var(--green-dim)" : o.status === "cancelled" || o.status === "CANCELLED" ? "var(--crit-dim)" : "var(--accent-dim)",
+                          color: o.status === "completed" || o.status === "SHIPPED" ? "var(--green)" : o.status === "cancelled" || o.status === "CANCELLED" ? "var(--crit)" : "var(--accent)",
+                        }}>
+                          {o.status}
+                        </span>
+                      </td>
+                      <td style={{ fontFamily: "var(--mono)", fontSize: 10, color: "var(--text3)" }}>
+                        {new Date(o.ordered_at).toLocaleString("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
 
 const PROVIDERS: {
   type: IntegrationType;
@@ -82,6 +169,27 @@ const PROVIDERS: {
     ],
   },
   {
+    type: "google_search_console",
+    name: "Google Search Console",
+    icon: "\uD83D\uDD0D",
+    description: "Import search query performance data from Google",
+    fields: [],
+  },
+  {
+    type: "shopee",
+    name: "Shopee",
+    icon: "\uD83D\uDED2",
+    description: "Indonesian e-commerce marketplace",
+    fields: [],
+  },
+  {
+    type: "tokopedia",
+    name: "Tokopedia",
+    icon: "\uD83D\uDECD",
+    description: "Indonesian e-commerce marketplace",
+    fields: [],
+  },
+  {
     type: "midtrans",
     name: "Midtrans",
     icon: "\uD83D\uDCB3",
@@ -120,6 +228,24 @@ const PROVIDERS: {
     fields: [
       { key: "client_id", label: "Client ID", placeholder: "your-nicepay-client-id" },
       { key: "secret_key", label: "Secret Key", placeholder: "your-nicepay-secret-key", secret: true },
+    ],
+  },
+  {
+    type: "stripe",
+    name: "Stripe",
+    icon: "S",
+    description: "Global payments \u2014 cards, wallets, bank debits, subscriptions",
+    fields: [
+      { key: "webhook_secret", label: "Webhook Signing Secret", placeholder: "whsec_...", secret: true },
+    ],
+  },
+  {
+    type: "lemonsqueezy",
+    name: "LemonSqueezy",
+    icon: "L",
+    description: "Digital products and SaaS billing platform",
+    fields: [
+      { key: "webhook_secret", label: "Webhook Secret", placeholder: "your-webhook-secret", secret: true },
     ],
   },
 ];
@@ -340,6 +466,8 @@ const WEBHOOK_PATHS: Record<string, string> = {
   xendit: "/api/webhooks/xendit",
   doku: "/api/webhooks/doku",
   nicepay: "/api/webhooks/nicepay",
+  stripe: "/api/webhooks/stripe",
+  lemonsqueezy: "/api/webhooks/lemonsqueezy",
 };
 
 function WebhookUrlSection({ provider }: { provider: string }) {
@@ -500,11 +628,71 @@ function IntegrationsPage() {
                   )}
 
                   <div style={{ padding: "16px 22px 16px", display: "flex", gap: 8, flexWrap: "wrap" }}>
-                    <button className="btn-accent" style={{ fontSize: 12, padding: "6px 14px" }}
-                      onClick={() => handleConfigure(provider)}>
-                      {connected ? t("integrations.configure") : t("integrations.connect")}
-                    </button>
-                    {connected && (
+                    {provider.type === "google_search_console" ? (
+                      connected ? (
+                        <>
+                          <button className="btn-accent" style={{ fontSize: 12, padding: "6px 14px" }}
+                            onClick={() => { window.location.href = getGSCAuthUrl(siteId); }}>
+                            Re-authorize
+                          </button>
+                          <button className="btn-pill" style={{ fontSize: 12, padding: "6px 14px" }}
+                            onClick={async () => { try { await syncGSC(siteId); queryClient.invalidateQueries({ queryKey: ["integrations"] }); } catch (err) { /* toast handled by apiFetch */ } }}>
+                            Sync Now
+                          </button>
+                          <button className="btn-pill" style={{ fontSize: 12, padding: "6px 14px", color: "var(--crit)", borderColor: "rgba(239,68,68,.2)" }}
+                            onClick={() => handleDisconnect(integration!)}>
+                            {t("integrations.disconnect")}
+                          </button>
+                        </>
+                      ) : (
+                        <button className="btn-accent" style={{ fontSize: 12, padding: "6px 14px" }}
+                          onClick={() => { window.location.href = getGSCAuthUrl(siteId); }}>
+                          Authorize with Google
+                        </button>
+                      )
+                    ) : provider.type === "shopee" ? (
+                      connected ? (
+                        <>
+                          <button className="btn-accent" style={{ fontSize: 12, padding: "6px 14px" }}
+                            onClick={() => { window.location.href = getShopeeAuthUrl(siteId); }}>
+                            Re-authorize
+                          </button>
+                          <button className="btn-pill" style={{ fontSize: 12, padding: "6px 14px", color: "var(--crit)", borderColor: "rgba(239,68,68,.2)" }}
+                            onClick={() => handleDisconnect(integration!)}>
+                            {t("integrations.disconnect")}
+                          </button>
+                        </>
+                      ) : (
+                        <button className="btn-accent" style={{ fontSize: 12, padding: "6px 14px" }}
+                          onClick={() => { window.location.href = getShopeeAuthUrl(siteId); }}>
+                          Connect with Shopee
+                        </button>
+                      )
+                    ) : provider.type === "tokopedia" ? (
+                      connected ? (
+                        <>
+                          <button className="btn-accent" style={{ fontSize: 12, padding: "6px 14px" }}
+                            onClick={() => { window.location.href = getTokopediaAuthUrl(siteId); }}>
+                            Re-authorize
+                          </button>
+                          <button className="btn-pill" style={{ fontSize: 12, padding: "6px 14px", color: "var(--crit)", borderColor: "rgba(239,68,68,.2)" }}
+                            onClick={() => handleDisconnect(integration!)}>
+                            {t("integrations.disconnect")}
+                          </button>
+                        </>
+                      ) : (
+                        <button className="btn-accent" style={{ fontSize: 12, padding: "6px 14px" }}
+                          onClick={() => { window.location.href = getTokopediaAuthUrl(siteId); }}>
+                          Connect with Tokopedia
+                        </button>
+                      )
+                    ) : (
+                      <button className="btn-accent" style={{ fontSize: 12, padding: "6px 14px" }}
+                        onClick={() => handleConfigure(provider)}>
+                        {connected ? t("integrations.configure") : t("integrations.connect")}
+                      </button>
+                    )}
+                    {connected && provider.type !== "google_search_console" && !MARKETPLACE_PROVIDERS.includes(provider.type) && (
                       <>
                         <button className="btn-pill" style={{ fontSize: 12, padding: "6px 14px" }}
                           onClick={() => toggleMut.mutate({ id: integration!.id, enabled: !enabled })}>
@@ -521,6 +709,10 @@ function IntegrationsPage() {
                       </>
                     )}
                   </div>
+
+                  {connected && MARKETPLACE_PROVIDERS.includes(provider.type) && (
+                    <MarketplaceOrdersSection provider={provider.type} siteId={siteId} />
+                  )}
 
                   {selectedIntegration === integration?.id && (
                     <div style={{ borderTop: "1px solid var(--border)", margin: "0 22px 16px" }}>
