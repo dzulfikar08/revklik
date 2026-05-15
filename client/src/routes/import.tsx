@@ -52,6 +52,7 @@ function PolarImportCard({ siteId }: { siteId: string }) {
   const [polarOrgId, setPolarOrgId] = useState("");
   const [result, setResult] = useState<{ imported: number; skipped: number } | null>(null);
   const [error, setError] = useState("");
+  const [whCopied, setWhCopied] = useState(false);
 
   const mut = useMutation({
     mutationFn: () => importPolarOrders(siteId, polarToken, polarOrgId || undefined),
@@ -63,6 +64,8 @@ function PolarImportCard({ siteId }: { siteId: string }) {
     width: "100%", padding: "8px 12px", borderRadius: 8, border: "1px solid var(--border)",
     background: "var(--bg3)", color: "var(--text)", fontSize: 13, fontFamily: "var(--mono)" as const, boxSizing: "border-box" as const,
   };
+
+  const webhookUrl = `${window.location.origin}/api/billing/webhook`;
 
   return (
     <div style={{ background: "var(--bg2)", border: "1px solid var(--border)", borderRadius: 12, padding: 20 }}>
@@ -77,18 +80,34 @@ function PolarImportCard({ siteId }: { siteId: string }) {
         </div>
       </div>
 
+      {/* Webhook Setup */}
+      <div style={{ background: "var(--green-dim)", borderRadius: 8, padding: 14, marginBottom: 16, fontSize: 12, lineHeight: 1.7 }}>
+        <div style={{ fontWeight: 600, color: "var(--green)", marginBottom: 6 }}>Real-time Webhook (for automatic order sync)</div>
+        <ol style={{ margin: 0, paddingLeft: 18, color: "var(--text2)" }}>
+          <li>Go to <a href="https://polar.sh/settings" target="_blank" rel="noreferrer" style={{ color: "var(--accent)" }}>polar.sh/settings</a> → <strong>Webhooks</strong></li>
+          <li>Click <strong>Add Endpoint</strong></li>
+          <li>Paste this URL:</li>
+        </ol>
+        <div style={{ display: "flex", gap: 6, marginTop: 8, alignItems: "center" }}>
+          <code style={{ flex: 1, fontFamily: "var(--mono)", fontSize: 11, background: "var(--bg2)", padding: "6px 10px", borderRadius: 6, wordBreak: "break-all", border: "1px solid var(--border)" }}>
+            {webhookUrl}
+          </code>
+          <button className="btn-pill" style={{ fontSize: 11, padding: "4px 10px", whiteSpace: "nowrap" }}
+            onClick={() => { navigator.clipboard.writeText(webhookUrl); setWhCopied(true); setTimeout(() => setWhCopied(false), 2000); }}>
+            {whCopied ? "Copied!" : "Copy"}
+          </button>
+        </div>
+        <div style={{ marginTop: 6, color: "var(--text3)" }}>Select events: <code style={{ fontFamily: "var(--mono)", fontSize: 10 }}>order.created</code>, <code style={{ fontFamily: "var(--mono)", fontSize: 10 }}>subscription.created</code>, <code style={{ fontFamily: "var(--mono)", fontSize: 10 }}>order.paid</code></div>
+      </div>
+
+      {/* Historical Import */}
       <div style={{ background: "var(--bg3)", borderRadius: 8, padding: 14, marginBottom: 16, fontSize: 12, color: "var(--text2)", lineHeight: 1.7 }}>
-        <div style={{ fontWeight: 600, color: "var(--text)", marginBottom: 6 }}>How to create a Polar Organization Access Token</div>
+        <div style={{ fontWeight: 600, color: "var(--text)", marginBottom: 6 }}>Historical Import (one-time)</div>
+        <div style={{ color: "var(--text3)", marginBottom: 8 }}>To import past orders, create a Polar Organization Access Token:</div>
         <ol style={{ margin: "0 0 0 0", paddingLeft: 18, color: "var(--text3)" }}>
-          <li>Go to <a href="https://polar.sh" target="_blank" rel="noreferrer" style={{ color: "var(--accent)" }}>polar.sh</a>, click <strong>Settings</strong> on the left sidebar, then <strong>General</strong></li>
-          <li>Scroll to bottom and click <strong>New Token</strong> in the Developer section</li>
-          <li>Choose <strong>No expiration</strong></li>
-          <li>Select permissions:{" "}
-            <code style={{ fontFamily: "var(--mono)", background: "var(--bg2)", padding: "1px 4px", borderRadius: 3 }}>orders:read</code>,{" "}
-            <code style={{ fontFamily: "var(--mono)", background: "var(--bg2)", padding: "1px 4px", borderRadius: 3 }}>subscriptions:read</code>,{" "}
-            <code style={{ fontFamily: "var(--mono)", background: "var(--bg2)", padding: "1px 4px", borderRadius: 3 }}>organizations:read</code>
-          </li>
-          <li>Copy the token and paste it below</li>
+          <li>Go to <a href="https://polar.sh" target="_blank" rel="noreferrer" style={{ color: "var(--accent)" }}>polar.sh</a> → <strong>Settings</strong> → <strong>General</strong></li>
+          <li>Click <strong>New Token</strong> in the Developer section, choose <strong>No expiration</strong></li>
+          <li>Select: <code style={{ fontFamily: "var(--mono)", background: "var(--bg2)", padding: "1px 4px", borderRadius: 3 }}>orders:read</code>, <code style={{ fontFamily: "var(--mono)", background: "var(--bg2)", padding: "1px 4px", borderRadius: 3 }}>subscriptions:read</code>, <code style={{ fontFamily: "var(--mono)", background: "var(--bg2)", padding: "1px 4px", borderRadius: 3 }}>organizations:read</code></li>
         </ol>
       </div>
 
