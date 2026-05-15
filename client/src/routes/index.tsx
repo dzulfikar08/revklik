@@ -1,6 +1,6 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { fetchSites, createSite, setActiveSiteId, deleteSite } from "@/lib/api";
+import { fetchSites, createSite, deleteSite } from "@/lib/api";
 import { AreaChart, Area, ResponsiveContainer } from "recharts";
 import { useState } from "react";
 import { t } from "@/lib/i18n";
@@ -74,7 +74,7 @@ function OverviewPage() {
           <div className="site-cards-grid">
             {sites?.map((site, i) => (
               <div key={site.id} className="site-card" style={{ animationDelay: `${i * 80}ms` }}
-                onClick={() => { setActiveSiteId(site.id); navigate({ to: "/site" }); }}
+                onClick={() => { navigate({ to: "/site/$siteId", params: { siteId: site.id } }); }}
               >
                 <div className="site-card-header">
                   <div>

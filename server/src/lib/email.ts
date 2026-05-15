@@ -12,7 +12,7 @@ interface EmailBinding {
   send: (msg: { to: string; from: string; subject: string; html: string; text?: string }) => Promise<void>;
 }
 
-const FROM = "KlikApa <noreply@klikapa.app>";
+const FROM = "RevKlik <noreply@revklik.com>";
 
 // Send email using Cloudflare Email Service Workers binding
 // Requires "send_email" binding in wrangler.jsonc
@@ -45,7 +45,7 @@ export async function sendMilestoneAlert(
     <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; max-width: 480px; margin: 0 auto; padding: 24px; background: #0a0a0a; color: #e8e4de; border-radius: 12px;">
       <h2 style="font-size: 20px; margin: 0 0 16px; color: #d4882a;">${metric} Milestone</h2>
       <p style="font-size: 15px; line-height: 1.6; margin: 0 0 12px;">Your site just reached <strong style="color: #d4882a;">${value.toLocaleString()} ${metric.toLowerCase()}</strong>.</p>
-      <a href="https://klikapa.app/site" style="display: inline-block; padding: 10px 20px; background: #d4882a; color: #0a0a0a; text-decoration: none; border-radius: 6px; font-weight: 600; font-size: 14px;">View Dashboard</a>
+      <a href="https://app.revklik.com/site" style="display: inline-block; padding: 10px 20px; background: #d4882a; color: #0a0a0a; text-decoration: none; border-radius: 6px; font-weight: 600; font-size: 14px;">View Dashboard</a>
       <p style="font-size: 12px; color: #6b6560; margin-top: 20px;">You're receiving this because you enabled email alerts for this site.</p>
     </div>
   `;
@@ -82,7 +82,7 @@ export async function sendWeeklyReport(
         <thead><tr style="border-bottom: 1px solid #333;"><th style="padding: 6px 12px; text-align: left; font-size: 11px; color: #6b6560; text-transform: uppercase;">Path</th><th style="padding: 6px 12px; text-align: right; font-size: 11px; color: #6b6560; text-transform: uppercase;">Views</th></tr></thead>
         <tbody>${topPagesHtml}</tbody>
       </table>
-      <a href="https://klikapa.app/site" style="display: inline-block; margin-top: 20px; padding: 10px 20px; background: #d4882a; color: #0a0a0a; text-decoration: none; border-radius: 6px; font-weight: 600; font-size: 14px;">View Full Dashboard</a>
+      <a href="https://app.revklik.com/site" style="display: inline-block; margin-top: 20px; padding: 10px 20px; background: #d4882a; color: #0a0a0a; text-decoration: none; border-radius: 6px; font-weight: 600; font-size: 14px;">View Full Dashboard</a>
       <p style="font-size: 12px; color: #6b6560; margin-top: 20px;">You're receiving this because you enabled weekly reports.</p>
     </div>
   `;

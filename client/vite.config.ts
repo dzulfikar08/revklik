@@ -6,7 +6,6 @@ import { tanstackRouter } from "@tanstack/router-plugin/vite";
 
 export default defineConfig({
 	plugins: [
-		// Please make sure that '@tanstack/router-plugin' is passed before '@vitejs/plugin-react'
 		tanstackRouter({
 			target: "react",
 			autoCodeSplitting: true,
@@ -19,5 +18,8 @@ export default defineConfig({
 			"@": path.resolve(__dirname, "./src"),
 		},
 	},
-	base: "./",
+	base: process.env.VITE_MOBILE ? "./" : "/",
+	define: process.env.VITE_MOBILE
+		? { "import.meta.env.VITE_API_BASE": JSON.stringify("https://app.revklik.com/api") }
+		: undefined,
 });

@@ -12,9 +12,9 @@ export const billingRoutes = new Hono<BillingEnv>();
 const POLAR_API = "https://api.polar.sh/v1";
 
 const PLANS = {
-  free: { name: "Free", price: 0, events_per_month: 10000, sites: 1 },
-  starter: { name: "Starter", price: 19, events_per_month: 100000, sites: 5 },
-  growth: { name: "Growth", price: 49, events_per_month: 1000000, sites: 25 },
+  micro: { name: "Micro", price: 1, events_per_month: 10000, sites: 1 },
+  starter: { name: "Starter", price: 4, events_per_month: 100000, sites: 3 },
+  growth: { name: "Growth", price: 12, events_per_month: 500000, sites: 10 },
 } as const;
 
 // Get current subscription
@@ -30,7 +30,7 @@ billingRoutes.get("/subscription", async (c) => {
   if (!sub) {
     return c.json({
       data: {
-        id: "", user_id: userId, plan: "free" as const, status: "active" as const,
+        id: "", user_id: userId, plan: "micro" as const, status: "active" as const,
         current_period_start: new Date().toISOString(),
         current_period_end: new Date(Date.now() + 30 * 86400000).toISOString(),
         cancel_at_period_end: false, polar_subscription_id: null, polar_customer_id: null,
@@ -41,7 +41,7 @@ billingRoutes.get("/subscription", async (c) => {
   return c.json({
     data: {
       ...sub,
-      plan: sub.plan as "free" | "starter" | "growth",
+      plan: sub.plan as "micro" | "starter" | "growth",
       status: sub.status as "active" | "canceled" | "past_due" | "trialing",
       cancel_at_period_end: !!sub.cancel_at_period_end,
     }, success: true,
@@ -70,7 +70,6 @@ billingRoutes.get("/plans", async (c) => {
 
       if (Array.isArray((products as Record<string, unknown>)?.items)) {
         for (const plan of plans) {
-          if (plan.price === 0) continue;
           const product = (products as any).items.find((p: any) =>
             p.name?.toLowerCase().includes(plan.tier)
           );
@@ -91,14 +90,12 @@ billingRoutes.post("/checkout", async (c) => {
   const userId = c.get("userId");
   const polarToken = c.env.POLAR_ACCESS_TOKEN || "";
 
-  const { plan } = await c.req.json<{ plan: string }>();
+  const { plan, visitor_id, session_id } = await c.req.json<{ plan: string; visitor_id?: string; session_id?: string }>();
   if (!plan || !PLANS[plan as keyof typeof PLANS]) {
     return c.json({ error: "Invalid plan", success: false }, 400);
   }
 
-  if (plan === "free") {
-    return c.json({ error: "Free plan requires no checkout", success: false }, 400);
-  }
+  // All plans are paid — no checkout skip needed
 
   // Get user email for Polar customer
   const user = await db.selectFrom("users").select(["email", "name"]).where("id", "=", userId).executeTakeFirst();
@@ -107,7 +104,7 @@ billingRoutes.post("/checkout", async (c) => {
   // If Polar token not configured, return direct link placeholder
   if (!polarToken) {
     return c.json({
-      data: { url: `https://polar.sh/klikapa/checkout?plan=${plan}` },
+      data: { url: `https://polar.sh/revklik/checkout?plan=${plan}` },
       success: true,
     });
   }
@@ -122,8 +119,8 @@ billingRoutes.post("/checkout", async (c) => {
         products: productId ? [productId] : [],
         customer_email: user.email,
         customer_name: user.name,
-        metadata: { user_id: userId, plan },
-        success_url: `${new URL(c.req.url).origin}/site?billing=success`,
+        metadata: { user_id: userId, plan, klikapa_visitor_id: visitor_id || null, klikapa_session_id: session_id || null },
+        success_url: `https://revklik.com/success/{CHECKOUT_ID}`,
       }),
     });
 
@@ -166,9 +163,9 @@ billingRoutes.post("/cancel", async (c) => {
 
 function getFeatures(tier: keyof typeof PLANS): string[] {
   const base = ["Privacy-first analytics", "Cookieless tracking", "Visitor profiles", "UTM tracking", "CSV export"];
-  if (tier === "free") return [...base, "1 site", "10K events/month", "7-day retention"];
-  if (tier === "starter") return [...base, "5 sites", "100K events/month", "30-day retention", "AI insights", "Heatmaps", "Email support"];
-  return [...base, "25 sites", "1M events/month", "90-day retention", "AI insights", "Heatmaps", "Session replays", "Integrations", "Priority support", "Team members"];
+  if (tier === "micro") return [...base, "1 site", "10K events/month", "<1KB script", "7-day retention"];
+  if (tier === "starter") return [...base, "3 sites", "100K events/month", "<1KB script", "30-day retention", "Funnel conversion", "Revenue attribution", "Real-time dashboard"];
+  return [...base, "10 sites", "500K events/month", "Full script", "90-day retention", "AI insights", "Heatmaps", "Session replays", "Integrations", "Priority support", "Team members"];
 }
 
 // Email alert preferences
@@ -208,11 +205,11 @@ billingRoutes.post("/test-email", async (c) => {
   const { sendEmail } = await import("../lib/email");
   const ok = await sendEmail({
     to: user.email,
-    subject: "KlikApa — Email alerts active",
+    subject: "RevKlik — Email alerts active",
     html: `<div style="font-family: sans-serif; max-width: 480px; margin: 0 auto; padding: 24px; background: #0a0a0a; color: #e8e4de; border-radius: 12px;">
       <h2 style="color: #d4882a; margin: 0 0 12px;">Email Alerts Active</h2>
       <p style="line-height: 1.6;">Hey ${user.name}, your email alerts are now configured. You'll receive weekly reports and milestone notifications.</p>
-      <p style="font-size: 12px; color: #6b6560; margin-top: 20px;">You can manage your preferences in the KlikApa dashboard.</p>
+      <p style="font-size: 12px; color: #6b6560; margin-top: 20px;">You can manage your preferences in the RevKlik dashboard.</p>
     </div>`,
   }, emailBinding);
 

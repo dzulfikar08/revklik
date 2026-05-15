@@ -167,3 +167,8 @@ export const fetchSubscription = () => apiFetch<Subscription>("/billing/subscrip
 export const fetchPlans = () => apiFetch<PlanInfo[]>("/billing/plans");
 export const createCheckout = (plan: string) => apiFetch<{ url: string }>("/billing/checkout", { method: "POST", body: JSON.stringify({ plan }) });
 export const cancelSubscription = () => apiFetch<void>("/billing/cancel", { method: "POST" });
+
+// Data import
+export const importPolarOrders = (siteId: string, polarToken: string, polarOrgId?: string) => apiFetch<{ imported: number; skipped: number }>("/import/polar-orders", { method: "POST", body: JSON.stringify({ site_id: siteId, polar_token: polarToken, polar_org_id: polarOrgId }) });
+export const importOneDollarStats = (siteId: string, apiKey: string, odsSiteId: string, dateRange?: string) =>
+  apiFetch<{ imported: number; note: string }>("/import/onedollarstats", { method: "POST", body: JSON.stringify({ site_id: siteId, api_key: apiKey, ods_site_id: odsSiteId, date_range: dateRange || "all" }) });

@@ -45,6 +45,7 @@
     "typescript": "^5.8.3"
   },
   "dependencies": {
+    "@radix-ui/react-tooltip": "^1.2.8",
     "kysely": "^0.29.0",
     "kysely-bun-worker": "^1.2.1"
   }

@@ -244,6 +244,16 @@ export async function migrateDatabase(d1: D1Database): Promise<void> {
     ]);
   } catch { /* table may already exist */ }
 
+  // Migrate: add google_id, avatar_url, role to users
+  for (const stmt of [
+    "ALTER TABLE users ADD COLUMN google_id TEXT",
+    "ALTER TABLE users ADD COLUMN avatar_url TEXT",
+    "ALTER TABLE users ADD COLUMN role TEXT NOT NULL DEFAULT 'user'",
+  ]) {
+    try { await d1.prepare(stmt).run(); } catch { /* column may already exist */ }
+  }
+  try { await d1.prepare("CREATE UNIQUE INDEX IF NOT EXISTS idx_users_google ON users(google_id)").run(); } catch { /* index may already exist */ }
+
   // Push tokens for mobile notifications
   try {
     await d1.prepare(`CREATE TABLE IF NOT EXISTS push_tokens (
@@ -258,6 +268,11 @@ export async function migrateDatabase(d1: D1Database): Promise<void> {
       d1.prepare("CREATE UNIQUE INDEX IF NOT EXISTS idx_pt_token ON push_tokens(device_token)"),
     ]);
   } catch { /* table may already exist */ }
+
+  // Revenue analytics index for fast revenue breakdown queries
+  try {
+    await d1.prepare("CREATE INDEX IF NOT EXISTS idx_events_site_revenue_time ON events(site_id, revenue, timestamp)").run();
+  } catch { /* index may already exist */ }
 
   migrationRan = true;
 }

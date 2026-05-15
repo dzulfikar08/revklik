@@ -266,3 +266,86 @@ trackRoutes.post("/track/recording", async (c) => {
 
   return c.json({ success: true }, { status: 202 });
 });
+
+// Server-side Payment API — track payments from any provider (DataFast-style)
+trackRoutes.post("/track/payment", async (c) => {
+  const ip = c.req.header("cf-connecting-ip") || "unknown";
+  if (!rateLimit(`pay:${ip}`, 30, 60_000)) {
+    return c.json({ error: "Rate limit exceeded", success: false }, 429);
+  }
+
+  const db = c.get("db");
+  const body = await c.req.json();
+  const { s: siteId, vid, amount, transaction_id, name } = body;
+
+  if (!siteId || amount == null || !transaction_id) {
+    return c.json({ error: "site_id (s), amount, and transaction_id required", success: false }, 400);
+  }
+
+  const site = await db.selectFrom("sites").select(["id"]).where("id", "=", siteId).executeTakeFirst();
+  if (!site) return c.json({ error: "Invalid site_id", success: false }, 400);
+
+  // Idempotency: check for existing event with this transaction_id
+  const existing = await db.selectFrom("events").select(["id"])
+    .where("site_id", "=", siteId)
+    .where("event_type", "=", "conversion")
+    .where("props", "like", `%"transaction_id":"${transaction_id}"%`)
+    .executeTakeFirst();
+  if (existing) return c.json({ success: true, event_id: existing.id, duplicate: true });
+
+  const cf = (c.req.raw as any).cf as Record<string, unknown> | undefined;
+  const cfCountry = (cf?.country as string) ?? c.req.header("cf-ipcountry") ?? null;
+  const cfRegion = (cf?.region as string) ?? null;
+  const cfCity = (cf?.city as string) ?? null;
+
+  let visitorId = vid;
+  let utmSource: string | null = null;
+  let utmMedium: string | null = null;
+  let utmCampaign: string | null = null;
+  let referrer: string | null = null;
+
+  // If visitor_id provided, look up their last event to inherit attribution
+  if (vid) {
+    const lastEvent = await db.selectFrom("events")
+      .select(["utm_source", "utm_medium", "utm_campaign", "referrer"])
+      .where("site_id", "=", siteId).where("visitor_id", "=", vid)
+      .orderBy("timestamp", "desc").limit(1).executeTakeFirst();
+    if (lastEvent) {
+      utmSource = lastEvent.utm_source;
+      utmMedium = lastEvent.utm_medium;
+      utmCampaign = lastEvent.utm_campaign;
+      referrer = lastEvent.referrer;
+    }
+  } else {
+    visitorId = `pay_${transaction_id.replace(/[^a-zA-Z0-9]/g, "_")}`;
+  }
+
+  const sessionId = body.sid || generateId();
+  const ts = body.timestamp ? new Date(body.timestamp).toISOString() : new Date().toISOString();
+  const eventId = generateId();
+
+  await db.insertInto("events").values({
+    id: eventId, site_id: siteId, session_id: sessionId, visitor_id: visitorId,
+    timestamp: ts, event_type: "conversion", name: name || "payment", path: "/payment",
+    hostname: null, referrer,
+    utm_source: utmSource, utm_medium: utmMedium, utm_campaign: utmCampaign,
+    utm_term: null, utm_content: null,
+    revenue: Number(amount), props: JSON.stringify({ transaction_id, ...(body.props || {}) }),
+    country: cfCountry, region: cfRegion, city: cfCity,
+    device_type: null, browser: null, os: null, fingerprint: null,
+  }).execute();
+
+  await db.insertInto("visitor_profiles").values({
+    id: generateId(), site_id: siteId, visitor_id: visitorId,
+    first_seen: ts, last_seen: ts,
+    country: cfCountry, region: cfRegion, city: cfCity,
+    device_type: null, browser: null, os: null,
+    total_sessions: 0, total_pageviews: 0, total_revenue: Number(amount),
+    fingerprint: null,
+  }).onConflict((oc) => oc.columns(["site_id", "visitor_id"]).doUpdateSet({
+    last_seen: ts,
+    total_revenue: sql`total_revenue + ${Number(amount)}`,
+  })).execute();
+
+  return c.json({ success: true, event_id: eventId, visitor_id: visitorId });
+});

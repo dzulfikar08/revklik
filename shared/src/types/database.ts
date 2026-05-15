@@ -61,6 +61,9 @@ export interface UserTable {
   email: string;
   password_hash: string;
   name: string;
+  google_id: string | null;
+  avatar_url: string | null;
+  role: "user" | "admin" | "super_admin";
   created_at: string;
 }
 

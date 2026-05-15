@@ -61,6 +61,12 @@ export interface SourceEntry {
   percentage: number;
 }
 
+export interface DeviceEntry {
+  device: string;
+  visitors: number;
+  percentage: number;
+}
+
 export interface JourneyStep {
   path: string;
   event_type: string;
@@ -103,12 +109,36 @@ export interface SiteWithStats extends Site {
   revenue: number;
 }
 
+export interface RevenueBySource {
+  source: string;
+  revenue: number;
+  conversions: number;
+}
+
+export interface RevenueByCountry {
+  country: string;
+  revenue: number;
+  conversions: number;
+}
+
+export interface RevenueTimeSeriesPoint {
+  date: string;
+  revenue: number;
+  conversions: number;
+}
+
 export interface SiteDashboard {
   stats: StatsResponse;
   timeseries: TimeSeriesPoint[];
   topPages: TopPage[];
   sources: SourceEntry[];
+  devices: DeviceEntry[];
+  os: DeviceEntry[];
+  browsers: DeviceEntry[];
   journeys: VisitorJourney[];
+  revenueBySource: RevenueBySource[];
+  revenueByCountry: RevenueByCountry[];
+  revenueTimeseries: RevenueTimeSeriesPoint[];
 }
 
 export interface VisitorProfile {
@@ -140,10 +170,18 @@ export interface FunnelStep {
   dropoff: number;
 }
 
+export interface PageFunnel {
+  path: string;
+  steps: FunnelStep[];
+  totalVisitors: number;
+  conversionRate: number;
+}
+
 export interface ScrollFunnel {
   steps: FunnelStep[];
   totalVisitors: number;
   conversionRate: number;
+  pages: PageFunnel[];
 }
 
 export interface CreateSitePayload {

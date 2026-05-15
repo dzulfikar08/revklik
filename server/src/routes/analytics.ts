@@ -1,5 +1,5 @@
 import { Hono } from "hono";
-import type { KlikapaDatabase, SiteDashboard, StatsResponse, TimeSeriesPoint, TopPage, SourceEntry, VisitorJourney, VisitorProfile, HeatmapData, RecordingSummary, RecordingDetail } from "shared";
+import type { KlikapaDatabase, SiteDashboard, StatsResponse, TimeSeriesPoint, TopPage, SourceEntry, DeviceEntry, VisitorJourney, VisitorProfile, HeatmapData, RecordingSummary, RecordingDetail, RevenueBySource, RevenueByCountry, RevenueTimeSeriesPoint } from "shared";
 import type { Kysely } from "kysely";
 import { sql, createDb } from "../db";
 import { getDateRange } from "../utils";
@@ -29,10 +29,14 @@ analyticsRoutes.get("/dashboard", async (c) => {
   const site = await validateSite(db, userId, siteId);
   if (!site) return c.json({ error: "Site not found", success: false }, 404);
 
-  const { start } = getDateRange(range);
+  const { start, end } = getDateRange(range);
   const startIso = start.toISOString();
+  const spanHours = (end.getTime() - start.getTime()) / (1000 * 60 * 60);
+  const isHourly = spanHours <= 48;
+  const tsDate = isHourly ? sql<string>`strftime('%Y-%m-%dT%H:00:00', ${sql.ref("timestamp")})` : sql<string>`date(${sql.ref("timestamp")})`;
+  const tsGroup = isHourly ? sql`strftime('%Y-%m-%dT%H:00:00', ${sql.ref("timestamp")})` : sql`date(${sql.ref("timestamp")})`;
 
-  const [pv, vi, se, bo, rev, conv, tsRows, pageRows, sourceRows, recentSessions, profiles] = await Promise.all([
+  const [pv, vi, se, bo, rev, conv, tsRows, pageRows, sourceRows, deviceRows, osRows, browserRows, recentSessions, profiles, revBySource, revByCountry, revTs] = await Promise.all([
     db.selectFrom("events").select(({ fn }) => [fn.count<number>("id").as("count")])
       .where("site_id", "=", siteId).where("event_type", "=", "pageview").where("timestamp", ">=", startIso).executeTakeFirst(),
     db.selectFrom("events").select(({ fn }) => [fn.count<number>("visitor_id").distinct().as("count")])
@@ -48,21 +52,81 @@ analyticsRoutes.get("/dashboard", async (c) => {
     db.selectFrom("events").select([
       ({ fn }) => fn.count<number>("id").as("pageviews"),
       ({ fn }) => fn.count<number>("visitor_id").distinct().as("visitors"),
-      "timestamp",
+      tsDate.as("date"),
     ]).where("site_id", "=", siteId).where("event_type", "=", "pageview").where("timestamp", ">=", startIso)
-      .groupBy(sql`date(${sql.ref("timestamp")})`).orderBy("timestamp", "asc").execute(),
+      .groupBy(tsGroup).orderBy("date", "asc").execute(),
     db.selectFrom("events").select(["path", ({ fn }) => fn.count<number>("id").as("pageviews"), ({ fn }) => fn.count<number>("visitor_id").distinct().as("visitors")])
       .where("site_id", "=", siteId).where("event_type", "=", "pageview").where("timestamp", ">=", startIso)
       .groupBy("path").orderBy("pageviews", "desc").limit(10).execute(),
     db.selectFrom("events").select([
-      ({ fn }) => fn.coalesce("utm_source", sql.lit("direct")).as("source"),
+      sql<string>`COALESCE(utm_source,
+        CASE WHEN referrer IS NULL OR referrer = '' THEN 'direct'
+        ELSE LOWER(REPLACE(
+          SUBSTR(SUBSTR(referrer, INSTR(referrer, '://') + 3), 1,
+            INSTR(SUBSTR(referrer, INSTR(referrer, '://') + 3) || '/', '/') - 1),
+          'www.', ''))
+        END)`.as("source"),
       ({ fn }) => fn.count<number>("visitor_id").distinct().as("visitors"),
     ]).where("site_id", "=", siteId).where("timestamp", ">=", startIso)
-      .groupBy(({ fn }) => fn.coalesce("utm_source", sql.lit("direct"))).orderBy("visitors", "desc").limit(10).execute(),
+      .groupBy(sql`COALESCE(utm_source,
+        CASE WHEN referrer IS NULL OR referrer = '' THEN 'direct'
+        ELSE LOWER(REPLACE(
+          SUBSTR(SUBSTR(referrer, INSTR(referrer, '://') + 3), 1,
+            INSTR(SUBSTR(referrer, INSTR(referrer, '://') + 3) || '/', '/') - 1),
+          'www.', ''))
+        END)`).orderBy("visitors", "desc").limit(10).execute(),
+    db.selectFrom("sessions").select([
+      sql<string>`COALESCE(device_type, 'unknown')`.as("device"),
+      ({ fn }) => fn.count<number>("visitor_id").distinct().as("visitors"),
+    ]).where("site_id", "=", siteId).where("started_at", ">=", startIso)
+      .groupBy("device_type").orderBy("visitors", "desc").limit(10).execute(),
+    db.selectFrom("sessions").select([
+      sql<string>`COALESCE(os, 'unknown')`.as("device"),
+      ({ fn }) => fn.count<number>("visitor_id").distinct().as("visitors"),
+    ]).where("site_id", "=", siteId).where("started_at", ">=", startIso)
+      .groupBy("os").orderBy("visitors", "desc").limit(10).execute(),
+    db.selectFrom("sessions").select([
+      sql<string>`COALESCE(browser, 'unknown')`.as("device"),
+      ({ fn }) => fn.count<number>("visitor_id").distinct().as("visitors"),
+    ]).where("site_id", "=", siteId).where("started_at", ">=", startIso)
+      .groupBy("browser").orderBy("visitors", "desc").limit(10).execute(),
     db.selectFrom("sessions").select(["id", "visitor_id", "started_at", "country", "region", "city", "device_type", "browser", "os", "utm_source", "referrer", "page_count"])
-      .where("site_id", "=", siteId).where("started_at", ">=", startIso).orderBy("started_at", "desc").limit(30).execute(),
+      .where("site_id", "=", siteId).where("started_at", ">=", startIso).orderBy("started_at", "desc").limit(100).execute(),
     db.selectFrom("visitor_profiles").select(["id", "visitor_id", "name", "email", "phone", "first_seen", "last_seen", "country", "region", "city", "device_type", "browser", "os", "total_sessions", "total_pageviews", "total_revenue", "tags", "notes"])
       .where("site_id", "=", siteId).orderBy("last_seen", "desc").limit(50).execute(),
+    // Revenue by source
+    db.selectFrom("events").select([
+      sql<string>`COALESCE(utm_source,
+        CASE WHEN referrer IS NULL OR referrer = '' THEN 'direct'
+        ELSE LOWER(REPLACE(
+          SUBSTR(SUBSTR(referrer, INSTR(referrer, '://') + 3), 1,
+            INSTR(SUBSTR(referrer, INSTR(referrer, '://') + 3) || '/', '/') - 1),
+          'www.', ''))
+        END)`.as("source"),
+      ({ fn }) => fn.sum<number>("revenue").as("revenue"),
+      ({ fn }) => fn.count<number>("id").as("conversions"),
+    ]).where("site_id", "=", siteId).where("revenue", ">", 0).where("timestamp", ">=", startIso)
+      .groupBy(sql`COALESCE(utm_source,
+        CASE WHEN referrer IS NULL OR referrer = '' THEN 'direct'
+        ELSE LOWER(REPLACE(
+          SUBSTR(SUBSTR(referrer, INSTR(referrer, '://') + 3), 1,
+            INSTR(SUBSTR(referrer, INSTR(referrer, '://') + 3) || '/', '/') - 1),
+          'www.', ''))
+        END)`).orderBy("revenue", "desc").limit(10).execute(),
+    // Revenue by country
+    db.selectFrom("events").select([
+      sql<string>`COALESCE(country, 'unknown')`.as("country"),
+      ({ fn }) => fn.sum<number>("revenue").as("revenue"),
+      ({ fn }) => fn.count<number>("id").as("conversions"),
+    ]).where("site_id", "=", siteId).where("revenue", ">", 0).where("timestamp", ">=", startIso)
+      .groupBy("country").orderBy("revenue", "desc").limit(10).execute(),
+    // Revenue time series (same grouping as main timeseries)
+    db.selectFrom("events").select([
+      tsDate.as("date"),
+      ({ fn }) => fn.sum<number>("revenue").as("revenue"),
+      ({ fn }) => fn.count<number>("id").as("conversions"),
+    ]).where("site_id", "=", siteId).where("revenue", ">", 0).where("timestamp", ">=", startIso)
+      .groupBy(tsGroup).orderBy("date", "asc").execute(),
   ]);
 
   const stats: StatsResponse = {
@@ -72,8 +136,7 @@ analyticsRoutes.get("/dashboard", async (c) => {
   };
 
   const timeseries: TimeSeriesPoint[] = tsRows.map((r) => {
-    const ts = String(r.timestamp ?? new Date().toISOString());
-    return { date: ts.split("T")[0] ?? ts, pageviews: Number(r.pageviews), visitors: Number(r.visitors) };
+    return { date: String(r.date ?? ""), pageviews: Number(r.pageviews), visitors: Number(r.visitors) };
   });
 
   const topPages: TopPage[] = pageRows.map((r) => ({ path: r.path, pageviews: Number(r.pageviews), visitors: Number(r.visitors) }));
@@ -84,9 +147,33 @@ analyticsRoutes.get("/dashboard", async (c) => {
     percentage: totalSrc > 0 ? Math.round((Number(r.visitors) / totalSrc) * 100) : 0,
   }));
 
+  const totalDev = deviceRows.reduce((s, r) => s + Number(r.visitors), 0);
+  const devices: DeviceEntry[] = deviceRows.map((r) => ({
+    device: String(r.device), visitors: Number(r.visitors),
+    percentage: totalDev > 0 ? Math.round((Number(r.visitors) / totalDev) * 100) : 0,
+  }));
+
+  const totalOs = osRows.reduce((s, r) => s + Number(r.visitors), 0);
+  const os: DeviceEntry[] = osRows.map((r) => ({
+    device: String(r.device), visitors: Number(r.visitors),
+    percentage: totalOs > 0 ? Math.round((Number(r.visitors) / totalOs) * 100) : 0,
+  }));
+
+  const totalBr = browserRows.reduce((s, r) => s + Number(r.visitors), 0);
+  const browsers: DeviceEntry[] = browserRows.map((r) => ({
+    device: String(r.device), visitors: Number(r.visitors),
+    percentage: totalBr > 0 ? Math.round((Number(r.visitors) / totalBr) * 100) : 0,
+  }));
+
   const sessionIds = recentSessions.map((s) => s.id);
-  const allSessionEvents = sessionIds.length > 0 ? await db.selectFrom("events").select(["session_id", "path", "event_type", "name", "timestamp", "revenue", "props"])
-    .where("session_id", "in", sessionIds).where("site_id", "=", siteId).orderBy("timestamp", "asc").execute() : [];
+  const BATCH = 50;
+  const allSessionEvents: { session_id: string; path: string; event_type: string; name: string | null; timestamp: string; revenue: number | null; props: string | null }[] = [];
+  for (let i = 0; i < sessionIds.length; i += BATCH) {
+    const batch = sessionIds.slice(i, i + BATCH);
+    const rows = await db.selectFrom("events").select(["session_id", "path", "event_type", "name", "timestamp", "revenue", "props"])
+      .where("session_id", "in", batch).where("site_id", "=", siteId).orderBy("timestamp", "asc").execute();
+    allSessionEvents.push(...rows);
+  }
   const eventsBySession = new Map<string, typeof allSessionEvents>();
   for (const e of allSessionEvents) {
     if (!eventsBySession.has(e.session_id)) eventsBySession.set(e.session_id, []);
@@ -112,7 +199,19 @@ analyticsRoutes.get("/dashboard", async (c) => {
     });
   }
 
-  const dashboard: SiteDashboard = { stats, timeseries, topPages, sources, journeys };
+  const revenueBySource: RevenueBySource[] = revBySource.map((r) => ({
+    source: String(r.source), revenue: Number(r.revenue ?? 0), conversions: Number(r.conversions ?? 0),
+  }));
+
+  const revenueByCountry: RevenueByCountry[] = revByCountry.map((r) => ({
+    country: String(r.country), revenue: Number(r.revenue ?? 0), conversions: Number(r.conversions ?? 0),
+  }));
+
+  const revenueTimeseries: RevenueTimeSeriesPoint[] = revTs.map((r) => ({
+    date: String(r.date ?? ""), revenue: Number(r.revenue ?? 0), conversions: Number(r.conversions ?? 0),
+  }));
+
+  const dashboard: SiteDashboard = { stats, timeseries, topPages, sources, devices, os, browsers, journeys, revenueBySource, revenueByCountry, revenueTimeseries };
   return c.json({ data: dashboard, success: true });
 });
 
@@ -146,78 +245,110 @@ analyticsRoutes.get("/funnel", async (c) => {
   const { start } = getDateRange(range);
   const startIso = start.toISOString();
 
-  // Get total unique visitors for the period (funnel entry)
+  // Total unique visitors (funnel entry = all pageview visitors)
   const totalVisitors = await db.selectFrom("events").select(({ fn }) => [fn.count<number>("visitor_id").distinct().as("count")])
     .where("site_id", "=", siteId).where("timestamp", ">=", startIso).executeTakeFirst();
 
-  // Get scroll_section events: unique visitors per section
-  const sectionRows = await db.selectFrom("events").select([
-    ({ fn }) => fn.count<number>("visitor_id").distinct().as("visitors"),
+  // Get all scroll-related events with their page path
+  const scrollEvents = await db.selectFrom("events").select([
+    "visitor_id",
+    "name",
     "props",
-  ]).where("site_id", "=", siteId).where("name", "=", "scroll_section").where("timestamp", ">=", startIso)
-    .groupBy("props").execute();
+    "path",
+  ]).where("site_id", "=", siteId)
+    .where("name", "in", ["scroll", "scroll_section"])
+    .where("timestamp", ">=", startIso).execute();
 
-  // Also get scroll depth milestones (25/50/75/90)
-  const depthRows = await db.selectFrom("events").select([
-    ({ fn }) => fn.count<number>("visitor_id").distinct().as("visitors"),
-    "props",
-  ]).where("site_id", "=", siteId).where("name", "=", "scroll").where("timestamp", ">=", startIso)
-    .groupBy("props").execute();
+  // Per-page tracking: path -> section -> visitor set
+  const pageSectionVisitors = new Map<string, Map<string, Set<string>>>();
+  // Global fallback
+  const visitorDepths = new Map<string, number>();
+  const sectionVisitors = new Map<string, Set<string>>();
 
-  // Parse section visitors from props JSON
-  const sectionVisitors: Record<string, number> = {};
-  for (const row of sectionRows) {
+  for (const ev of scrollEvents) {
     try {
-      const p = JSON.parse(row.props ?? "{}");
-      if (p.section) sectionVisitors[p.section] = Number(row.visitors);
+      const p = JSON.parse(ev.props ?? "{}");
+      if (p.section && ev.visitor_id && ev.path) {
+        const section = String(p.section);
+        // Per-page
+        if (!pageSectionVisitors.has(ev.path)) pageSectionVisitors.set(ev.path, new Map());
+        const pageMap = pageSectionVisitors.get(ev.path)!;
+        if (!pageMap.has(section)) pageMap.set(section, new Set());
+        pageMap.get(section)!.add(ev.visitor_id);
+        // Global
+        if (!sectionVisitors.has(section)) sectionVisitors.set(section, new Set());
+        sectionVisitors.get(section)!.add(ev.visitor_id);
+      }
+      if (p.depth && ev.visitor_id) {
+        const d = Number(p.depth);
+        const prev = visitorDepths.get(ev.visitor_id) ?? 0;
+        if (d > prev) visitorDepths.set(ev.visitor_id, d);
+      }
     } catch { /* skip */ }
   }
 
-  const depthVisitors: Record<string, number> = {};
-  for (const row of depthRows) {
-    try {
-      const p = JSON.parse(row.props ?? "{}");
-      if (p.depth) depthVisitors[String(p.depth)] = Number(row.visitors);
-    } catch { /* skip */ }
-  }
-
-  // Ordered sections (page order)
-  const sections = ["hero", "features", "how-it-works", "code-example", "pricing", "comparison", "blog", "cta"];
   const total = Number(totalVisitors?.count ?? 0);
 
-  const steps = sections
-    .filter((s) => sectionVisitors[s] !== undefined)
-    .map((section, i, arr) => {
-      const visitors = sectionVisitors[section]!;
-      const prevVisitors = i === 0 ? total : (arr[i - 1] ? sectionVisitors[arr[i - 1]!] ?? total : total);
+  // Helper: build funnel steps from a section->visitors map
+  const buildSteps = (secMap: Map<string, Set<string>>, totalVis: number) => {
+    // Sort sections by visitor count descending to get the natural order
+    const sorted = [...secMap.entries()].sort((a, b) => b[1].size - a[1].size);
+    return sorted.map(([section, visitors], i, arr) => {
+      const prevVisitors = i === 0 ? totalVis : arr[i - 1]![1].size;
       return {
         section,
-        visitors,
-        percentage: total > 0 ? Math.round((visitors / total) * 100) : 0,
-        dropoff: i > 0 && prevVisitors > 0 ? Math.round(((prevVisitors - visitors) / prevVisitors) * 100) : 0,
+        visitors: visitors.size,
+        percentage: totalVis > 0 ? Math.round((visitors.size / totalVis) * 100) : 0,
+        dropoff: i > 0 && prevVisitors > 0 ? Math.round(((prevVisitors - visitors.size) / prevVisitors) * 100) : 0,
       };
     });
+  };
 
-  // If no section data, build from depth milestones
-  const depths = [25, 50, 75, 90]
-    .filter((d) => depthVisitors[String(d)] !== undefined)
-    .map((d, i, arr) => {
-      const key = String(d);
-      const visitors = depthVisitors[key]!;
-      const prevKey = arr[i - 1] !== undefined ? String(arr[i - 1]) : null;
-      const prevVisitors = i === 0 ? total : (prevKey ? depthVisitors[prevKey] ?? total : total);
-      return {
-        section: `${d}%`,
-        visitors,
-        percentage: total > 0 ? Math.round((visitors / total) * 100) : 0,
-        dropoff: i > 0 && prevVisitors > 0 ? Math.round(((prevVisitors - visitors) / prevVisitors) * 100) : 0,
-      };
-    });
+  // Build global funnel
+  let steps: { section: string; visitors: number; percentage: number; dropoff: number }[] = [];
+  if (sectionVisitors.size > 0) {
+    steps = buildSteps(sectionVisitors, total);
+  } else {
+    const depthBuckets = [25, 50, 75, 90];
+    const depthCounts = new Map<number, number>();
+    for (const [, maxDepth] of visitorDepths) {
+      for (const bucket of depthBuckets) {
+        if (maxDepth >= bucket) depthCounts.set(bucket, (depthCounts.get(bucket) ?? 0) + 1);
+      }
+    }
+    steps = depthBuckets
+      .filter((d) => (depthCounts.get(d) ?? 0) > 0)
+      .map((d, i, arr) => {
+        const visitors = depthCounts.get(d) ?? 0;
+        const prevVisitors = i === 0 ? total : (depthCounts.get(arr[i - 1]!) ?? total);
+        return { section: `${d}%`, visitors, percentage: total > 0 ? Math.round((visitors / total) * 100) : 0, dropoff: i > 0 && prevVisitors > 0 ? Math.round(((prevVisitors - visitors) / prevVisitors) * 100) : 0 };
+      });
+  }
 
-  const stepsOut = steps.length > 0 ? steps : depths;
-  const convRate = stepsOut.length >= 2 && total > 0 ? Math.round((stepsOut[stepsOut.length - 1]!.visitors / total) * 1000) / 10 : 0;
+  const convRate = steps.length >= 2 && total > 0 ? Math.round((steps[steps.length - 1]!.visitors / total) * 1000) / 10 : 0;
 
-  return c.json({ data: { steps: stepsOut, totalVisitors: total, conversionRate: convRate }, success: true });
+  // Build per-page funnels
+  // Get pageview counts per page for totalVisitors per page
+  const pageVisCounts = await db.selectFrom("events").select([
+    "path",
+    ({ fn }) => fn.count<number>("visitor_id").distinct().as("visitors"),
+  ]).where("site_id", "=", siteId).where("event_type", "=", "pageview")
+    .where("timestamp", ">=", startIso)
+    .groupBy("path").orderBy("visitors", "desc").limit(50).execute();
+
+  const pageVisMap = new Map(pageVisCounts.map((r) => [r.path, Number(r.visitors)]));
+
+  const pages = [...pageSectionVisitors.entries()]
+    .map(([path, secMap]) => {
+      const pageTotal = pageVisMap.get(path) ?? 0;
+      const pageSteps = buildSteps(secMap, pageTotal);
+      const pageConvRate = pageSteps.length >= 2 && pageTotal > 0 ? Math.round((pageSteps[pageSteps.length - 1]!.visitors / pageTotal) * 1000) / 10 : 0;
+      return { path, steps: pageSteps, totalVisitors: pageTotal, conversionRate: pageConvRate };
+    })
+    .filter((p) => p.steps.length > 0)
+    .sort((a, b) => b.totalVisitors - a.totalVisitors);
+
+  return c.json({ data: { steps, totalVisitors: total, conversionRate: convRate, pages }, success: true });
 });
 
 analyticsRoutes.get("/visitors", async (c) => {
@@ -365,11 +496,16 @@ analyticsRoutes.get("/recordings", async (c) => {
   const startIso = start.toISOString();
 
   const rows = await db.selectFrom("session_recordings")
-    .select(["id", "session_id", "path", "duration", "viewport_width", "started_at"])
+    .select(["id", "session_id", "path", "duration", "viewport_width", "started_at", "events"])
     .where("site_id", "=", siteId).where("started_at", ">=", startIso)
     .orderBy("started_at", "desc").limit(50).execute();
 
   const recordings: RecordingSummary[] = rows.map((r) => {
+    let eventCount = 0;
+    try {
+      const evts = JSON.parse((r as any).events || "[]");
+      eventCount = Array.isArray(evts) ? evts.length : 0;
+    } catch { /* ignore */ }
     return {
       id: r.id,
       session_id: r.session_id,
@@ -377,7 +513,7 @@ analyticsRoutes.get("/recordings", async (c) => {
       duration: r.duration,
       viewport_width: r.viewport_width,
       started_at: r.started_at,
-      event_count: 0,
+      event_count: eventCount,
       has_revenue: false,
     };
   });

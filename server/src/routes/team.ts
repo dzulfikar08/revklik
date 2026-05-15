@@ -80,7 +80,7 @@ teamRoutes.post("/invite", async (c) => {
     html: `<div style="font-family: sans-serif; max-width: 480px; margin: 0 auto; padding: 24px; background: #0a0a0a; color: #e8e4de; border-radius: 12px;">
       <h2 style="color: #d4882a; margin: 0 0 12px;">Team Invitation</h2>
       <p style="line-height: 1.6;">${inviter?.name ?? "Someone"} invited you to collaborate on <strong>${site.name}</strong> as <strong>${validRole}</strong>.</p>
-      <a href="https://klikapa.app/site" style="display: inline-block; margin-top: 12px; padding: 10px 20px; background: #d4882a; color: #0a0a0a; text-decoration: none; border-radius: 6px; font-weight: 600;">Open Dashboard</a>
+      <a href="https://app.revklik.com/site" style="display: inline-block; margin-top: 12px; padding: 10px 20px; background: #d4882a; color: #0a0a0a; text-decoration: none; border-radius: 6px; font-weight: 600;">Open Dashboard</a>
     </div>`,
   }, emailBinding).catch(() => {});
 

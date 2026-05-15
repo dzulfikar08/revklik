@@ -28,8 +28,10 @@
     return "Other";
   }
   function detectDevice() {
-    if (/iPad|tablet/i.test(ua)) return "tablet";
+    if (/iPad/i.test(ua)) return "tablet";
+    if (ua.includes("Mac OS") || ua.includes("Windows") || ua.includes("Linux")) return "desktop";
     if (/Mobi|iPhone|Android.*Mobile/i.test(ua)) return "mobile";
+    if (/tablet/i.test(ua)) return "tablet";
     return "desktop";
   }
   const device = { dv: detectDevice(), br: detectBrowser(), os: detectOS(), sr: `${screen.width}x${screen.height}`, ln: navigator.language };
@@ -55,17 +57,9 @@
     if (!queue.length) return;
     var batch = queue.splice(0);
     var payload = JSON.stringify(batch);
-    if (navigator.sendBeacon) {
-      navigator.sendBeacon(ENDPOINT, new Blob([payload], { type: "application/json" }));
-      // Lightweight vid sync — no body, just read response
-      fetch(ENDPOINT, { method: "POST", keepalive: true, headers: { "Content-Type": "application/json", "X-Klikapa-Vid": vid } }).then(function(r) {
-        if (r.ok) r.json().then(function(d) { if (d.vid && d.vid !== vid) { vid = d.vid; localStorage.setItem("_kp_vid", vid); } });
-      }).catch(function() {});
-    } else {
-      fetch(ENDPOINT, { method: "POST", body: payload, keepalive: true, headers: { "Content-Type": "application/json" } }).then(function(r) {
-        if (r.ok) r.json().then(function(d) { if (d.vid && d.vid !== vid) { vid = d.vid; localStorage.setItem("_kp_vid", vid); } });
-      }).catch(function() {});
-    }
+    fetch(ENDPOINT, { method: "POST", body: payload, keepalive: true, headers: { "Content-Type": "application/json" } }).then(function(r) {
+      if (r.ok) r.json().then(function(d) { if (d.vid && d.vid !== vid) { vid = d.vid; localStorage.setItem("_kp_vid", vid); } });
+    }).catch(function() {});
   }
 
   // Page view

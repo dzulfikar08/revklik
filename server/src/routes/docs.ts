@@ -72,7 +72,7 @@ docsRoutes.get("/", (c) => {
   <div class="wrap">
     <h1>KlikApa API</h1>
     <p class="sub">Privacy-first analytics platform. All authenticated endpoints require <code>Authorization: Bearer &lt;token&gt;</code></p>
-    <div class="base"><strong>Base URL:</strong> <code>https://klikapa.app/api</code></div>
+    <div class="base"><strong>Base URL:</strong> <code>https://app.revklik.com/api</code></div>
     <h2>Authentication</h2>
     <p style="font-size:14px;color:#a8a29e;line-height:1.6;margin-bottom:16px;">
       Obtain a token via <code>POST /auth/register</code> or <code>POST /auth/login</code>.
@@ -115,7 +115,7 @@ docsRoutes.get("/openapi.json", (c) => {
   return c.json({
     openapi: "3.1.0",
     info: { title: "KlikApa API", version: "1.0.0", description: "Privacy-first analytics platform API" },
-    servers: [{ url: "https://klikapa.app/api" }],
+    servers: [{ url: "https://app.revklik.com/api" }],
     components: {
       securitySchemes: { bearerAuth: { type: "http", scheme: "bearer" } },
     },

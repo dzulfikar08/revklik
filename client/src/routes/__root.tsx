@@ -1,19 +1,18 @@
-import { createRootRoute, Outlet, useLocation, useNavigate } from "@tanstack/react-router";
+import { createRootRoute, Outlet, useLocation, useNavigate, useRouterState } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { isLoggedIn, fetchSites, getActiveSiteId, setActiveSiteId, logout } from "@/lib/api";
+import { isLoggedIn, fetchSites, setActiveSiteId, logout } from "@/lib/api";
 import { useState, useRef, useEffect } from "react";
 import { t, toggleLang, getLang } from "@/lib/i18n";
 import { ToastContainer } from "@/components/toast";
-import { removeItem } from "@/lib/mobile-storage";
 import { initPushNotifications } from "@/lib/push";
+import { TooltipProvider } from "@/components/ui/tooltip";
 
 export const Route = createRootRoute({ component: RootLayout });
 
-function SiteSwitcher({ sites, siteId, onSelect, onBack }: {
+function SiteSwitcher({ sites, currentSiteId, onNavigate }: {
   sites: { id: string; name: string }[];
-  siteId: string;
-  onSelect: (id: string) => void;
-  onBack: () => void;
+  currentSiteId: string;
+  onNavigate: (siteId: string | null) => void;
 }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -25,7 +24,7 @@ function SiteSwitcher({ sites, siteId, onSelect, onBack }: {
     return () => document.removeEventListener("mousedown", h);
   }, [open]);
 
-  const current = sites.find((s) => s.id === siteId);
+  const current = sites.find((s) => s.id === currentSiteId);
 
   return (
     <div ref={ref} className="site-switcher">
@@ -35,16 +34,16 @@ function SiteSwitcher({ sites, siteId, onSelect, onBack }: {
       </button>
       {open && (
         <div className="site-switcher-dropdown">
-          <button className="site-switcher-item" onClick={() => { onBack(); setOpen(false); }}>
+          <button className="site-switcher-item" onClick={() => { onNavigate(null); setOpen(false); }}>
             ← {t("sites.all_sites")}
           </button>
           {sites.map((s) => (
             <button key={s.id}
-              className={`site-switcher-item ${s.id === siteId ? "active" : ""}`}
-              onClick={() => { onSelect(s.id); setOpen(false); }}
+              className={`site-switcher-item ${s.id === currentSiteId ? "active" : ""}`}
+              onClick={() => { onNavigate(s.id); setOpen(false); }}
             >
               <span>{s.name}</span>
-              {s.id === siteId && <span style={{ fontSize: 10, color: "var(--accent)" }}>✓</span>}
+              {s.id === currentSiteId && <span style={{ fontSize: 10, color: "var(--accent)" }}>✓</span>}
             </button>
           ))}
         </div>
@@ -57,8 +56,24 @@ function RootLayout() {
   const location = useLocation();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+
+  // Handle Google OAuth callback token from URL fragment
+  useEffect(() => {
+    const hash = window.location.hash;
+    const m = hash.match(/token=([^&]+)/);
+    if (m && m[1]) {
+      const token = decodeURIComponent(m[1]!);
+      import("@/lib/mobile-storage").then(({ setItem }) => { setItem("kp_token", token); });
+      window.location.hash = "";
+      queryClient.invalidateQueries();
+      navigate({ to: "/" });
+    }
+  }, []);
+
   const authenticated = isLoggedIn();
-  const siteId = getActiveSiteId();
+  const routeState = useRouterState({ select: (s) => s.location });
+  const siteMatch = routeState.pathname.match(/^\/site\/([^/]+)/);
+  const siteId = siteMatch ? siteMatch[1]! : null;
   const isAuthPage = location.pathname === "/login" || location.pathname === "/register";
 
   if (!authenticated && !isAuthPage) { navigate({ to: "/login" }); return null; }
@@ -74,24 +89,22 @@ function RootLayout() {
       <header className="topnav">
         <div className="topnav-left">
           <button className="topnav-logo" onClick={() => navigate({ to: "/" })}>
-            <div className="topnav-logo-mark">k</div>
-            <span className="topnav-logo-text">klikapa</span>
+            <img src="/revklik.webp" alt="" className="topnav-logo-icon" />
+            <span className="topnav-logo-text">RevKlik</span>
           </button>
           {siteId && sitesList.length > 0 && (
             <>
               <div className="topnav-divider" />
               <SiteSwitcher
                 sites={sitesList}
-                siteId={siteId}
-                onSelect={(id) => {
-                  setActiveSiteId(id);
-                  queryClient.invalidateQueries();
-                  if (location.pathname !== "/site") navigate({ to: "/site" });
-                }}
-                onBack={() => {
-                  removeItem("kp_active_site");
-                  queryClient.invalidateQueries();
-                  navigate({ to: "/" });
+                currentSiteId={siteId}
+                onNavigate={(id) => {
+                  if (id) {
+                    setActiveSiteId(id);
+                    navigate({ to: "/site/$siteId", params: { siteId: id } });
+                  } else {
+                    navigate({ to: "/" });
+                  }
                 }}
               />
             </>
@@ -106,9 +119,11 @@ function RootLayout() {
           </button>
         </div>
       </header>
-      <main style={{ flex: 1, overflow: "hidden" }}>
-        <Outlet />
-      </main>
+      <TooltipProvider delayDuration={200}>
+        <main style={{ flex: 1, overflow: "hidden", display: "flex", flexDirection: "column" }}>
+          <Outlet />
+        </main>
+      </TooltipProvider>
       <ToastContainer />
     </div>
   );

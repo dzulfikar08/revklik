@@ -73,6 +73,8 @@ const DEFAULT_MARKERS = [
 
 export function Globe({ className, markers, style, paused, onMarkerClick, fullscreen }: GlobeProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const overlayRef = useRef<HTMLDivElement>(null);
+  const avatarEls = useRef<HTMLElement[]>([]);
   const pointerInteracting = useRef<number | null>(null);
   const phiRef = useRef(0);
   const dragPhi = useRef(0);
@@ -87,12 +89,40 @@ export function Globe({ className, markers, style, paused, onMarkerClick, fullsc
     baseColor: [0.06, 0.06, 0.06],
     markerColor: [0.83, 0.53, 0.16],
     glowColor: [0.83, 0.53, 0.16],
-    markers: activeMarkers.map(m => ({ location: [m.lat, m.lng], size: m.size })),
+    markers: activeMarkers.map(m => ({ location: [m.lat, m.lng], size: 0.004 })),
   }), [activeMarkers]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
+    const overlay = overlayRef.current;
     if (!canvas) return;
+
+    // Create avatar overlay elements
+    if (overlay) {
+      overlay.replaceChildren();
+      avatarEls.current = [];
+      const svgNS = "http://www.w3.org/2000/svg";
+      for (const m of activeMarkers) {
+        const el = document.createElement("div");
+        const s = Math.round(Math.max(18, Math.min(28, m.size * 400)));
+        el.style.cssText = `position:absolute;width:${s}px;height:${s}px;border-radius:50%;background:linear-gradient(135deg,#d48729,#e8a04a);box-shadow:0 0 8px rgba(212,135,41,0.6),0 2px 4px rgba(0,0,0,0.3);display:flex;align-items:center;justify-content:center;transform:translate(-50%,-50%);pointer-events:none;transition:opacity .3s;opacity:0`;
+        const ico = Math.round(s * 0.55);
+        const svg = document.createElementNS(svgNS, "svg");
+        svg.setAttribute("viewBox", "0 0 20 20");
+        svg.setAttribute("width", String(ico));
+        svg.setAttribute("height", String(ico));
+        svg.setAttribute("fill", "#fff");
+        svg.style.display = "block";
+        const circle = document.createElementNS(svgNS, "circle");
+        circle.setAttribute("cx", "10"); circle.setAttribute("cy", "7"); circle.setAttribute("r", "3.5");
+        const path = document.createElementNS(svgNS, "path");
+        path.setAttribute("d", "M3 17v-1.5C3 13.5 6.5 12 10 12s7 1.5 7 3.5V17z");
+        svg.append(circle, path);
+        el.appendChild(svg);
+        overlay.appendChild(el);
+        avatarEls.current.push(el);
+      }
+    }
 
     const ro = new ResizeObserver(() => {
       const dpr = 2;
@@ -112,7 +142,21 @@ export function Globe({ className, markers, style, paused, onMarkerClick, fullsc
 
       const animate = () => {
         if (!paused && !pointerInteracting.current) phiRef.current += 0.003;
-        globe.update({ phi: phiRef.current + dragPhi.current });
+        const currentPhi = phiRef.current + dragPhi.current;
+        globe.update({ phi: currentPhi });
+
+        // Update avatar positions
+        const els = avatarEls.current;
+        if (els.length) {
+          const cw = canvas.width, ch = canvas.height;
+          for (let i = 0; i < els.length && i < activeMarkers.length; i++) {
+            const p = projectMarker(activeMarkers[i].lat, activeMarkers[i].lng, currentPhi, 0.3, cw, ch);
+            els[i].style.left = `${(p.screenX / cw) * 100}%`;
+            els[i].style.top = `${(p.screenY / ch) * 100}%`;
+            els[i].style.opacity = p.visible ? "1" : "0";
+          }
+        }
+
         rafRef.current = requestAnimationFrame(animate);
       };
       rafRef.current = requestAnimationFrame(animate);
@@ -133,6 +177,7 @@ export function Globe({ className, markers, style, paused, onMarkerClick, fullsc
       const cleanup = (canvas as any).__cleanup;
       if (cleanup) cleanup();
       cancelAnimationFrame(rafRef.current);
+      if (overlay) { overlay.replaceChildren(); avatarEls.current = []; }
     };
   }, [config, paused, fullscreen]);
 
@@ -197,6 +242,7 @@ export function Globe({ className, markers, style, paused, onMarkerClick, fullsc
           contain: "layout paint size", cursor: paused ? "default" : "grab",
         }}
       />
+      <div ref={overlayRef} style={{ position: "absolute", inset: 0, pointerEvents: "none" }} />
     </div>
   );
 }

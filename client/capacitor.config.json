@@ -1,6 +1,6 @@
 {
   "appId": "app.klikapa.mobile",
-  "appName": "KlikApa",
+  "appName": "RevKlik",
   "webDir": "dist",
   "server": {
     "androidScheme": "https",
@@ -24,7 +24,7 @@
     }
   },
   "ios": {
-    "scheme": "KlikApa",
+    "scheme": "RevKlik",
     "preferredContentMode": "mobile",
     "handleApplicationNotifications": true
   },
