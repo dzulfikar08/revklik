@@ -1,0 +1,41 @@
+{
+  "name": "@revklik/cli",
+  "version": "1.0.5",
+  "description": "RevKlik analytics CLI — query your analytics from the terminal",
+  "bin": {
+    "revklik": "dist/index.js"
+  },
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "prepublishOnly": "npm run build"
+  },
+  "dependencies": {
+    "chalk": "^5.3.0",
+    "cli-table3": "^0.6.5",
+    "commander": "^13.0.0",
+    "conf": "^13.0.0",
+    "open": "^10.0.0",
+    "ora": "^8.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "tsup": "^8.0.0",
+    "typescript": "^5.9.0"
+  },
+  "files": [
+    "dist"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "keywords": [
+    "analytics",
+    "cli",
+    "revklik",
+    "klikapa",
+    "privacy",
+    "web-analytics"
+  ],
+  "license": "MIT"
+}

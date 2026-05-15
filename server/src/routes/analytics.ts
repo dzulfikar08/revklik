@@ -1,8 +1,9 @@
 import { Hono } from "hono";
-import type { KlikapaDatabase, SiteDashboard, StatsResponse, TimeSeriesPoint, TopPage, SourceEntry, DeviceEntry, VisitorJourney, VisitorProfile, HeatmapData, RecordingSummary, RecordingDetail, RevenueBySource, RevenueByCountry, RevenueTimeSeriesPoint } from "shared";
+import type { KlikapaDatabase, SiteDashboard, VisitorJourney, HeatmapData, RecordingSummary, RecordingDetail } from "shared";
 import type { Kysely } from "kysely";
 import { sql, createDb } from "../db";
 import { getDateRange } from "../utils";
+import { getOverviewStats, getTimeseries, getTopPages, getReferrers, getDeviceBreakdown, getRevenueBySource, getRevenueByCountry, getRevenueTimeseries } from "../queries/analytics";
 
 type Variables = { db: Kysely<KlikapaDatabase>; userId: string };
 type AnalyticsEnv = { Variables: Variables; Bindings: { DB: D1Database } };
@@ -33,137 +34,21 @@ analyticsRoutes.get("/dashboard", async (c) => {
   const startIso = start.toISOString();
   const spanHours = (end.getTime() - start.getTime()) / (1000 * 60 * 60);
   const isHourly = spanHours <= 48;
-  const tsDate = isHourly ? sql<string>`strftime('%Y-%m-%dT%H:00:00', ${sql.ref("timestamp")})` : sql<string>`date(${sql.ref("timestamp")})`;
-  const tsGroup = isHourly ? sql`strftime('%Y-%m-%dT%H:00:00', ${sql.ref("timestamp")})` : sql`date(${sql.ref("timestamp")})`;
 
-  const [pv, vi, se, bo, rev, conv, tsRows, pageRows, sourceRows, deviceRows, osRows, browserRows, recentSessions, profiles, revBySource, revByCountry, revTs] = await Promise.all([
-    db.selectFrom("events").select(({ fn }) => [fn.count<number>("id").as("count")])
-      .where("site_id", "=", siteId).where("event_type", "=", "pageview").where("timestamp", ">=", startIso).executeTakeFirst(),
-    db.selectFrom("events").select(({ fn }) => [fn.count<number>("visitor_id").distinct().as("count")])
-      .where("site_id", "=", siteId).where("timestamp", ">=", startIso).executeTakeFirst(),
-    db.selectFrom("sessions").select(({ fn }) => [fn.count<number>("id").as("count")])
-      .where("site_id", "=", siteId).where("started_at", ">=", startIso).executeTakeFirst(),
-    db.selectFrom("sessions").select(({ fn }) => [fn.avg<number>("is_bounce").as("avg")])
-      .where("site_id", "=", siteId).where("started_at", ">=", startIso).executeTakeFirst(),
-    db.selectFrom("events").select(({ fn }) => [fn.sum<number>("revenue").as("total")])
-      .where("site_id", "=", siteId).where("revenue", ">", 0).where("timestamp", ">=", startIso).executeTakeFirst(),
-    db.selectFrom("events").select(({ fn }) => [fn.count<number>("id").as("count")])
-      .where("site_id", "=", siteId).where("event_type", "=", "conversion").where("timestamp", ">=", startIso).executeTakeFirst(),
-    db.selectFrom("events").select([
-      ({ fn }) => fn.count<number>("id").as("pageviews"),
-      ({ fn }) => fn.count<number>("visitor_id").distinct().as("visitors"),
-      tsDate.as("date"),
-    ]).where("site_id", "=", siteId).where("event_type", "=", "pageview").where("timestamp", ">=", startIso)
-      .groupBy(tsGroup).orderBy("date", "asc").execute(),
-    db.selectFrom("events").select(["path", ({ fn }) => fn.count<number>("id").as("pageviews"), ({ fn }) => fn.count<number>("visitor_id").distinct().as("visitors")])
-      .where("site_id", "=", siteId).where("event_type", "=", "pageview").where("timestamp", ">=", startIso)
-      .groupBy("path").orderBy("pageviews", "desc").limit(10).execute(),
-    db.selectFrom("events").select([
-      sql<string>`COALESCE(utm_source,
-        CASE WHEN referrer IS NULL OR referrer = '' THEN 'direct'
-        ELSE LOWER(REPLACE(
-          SUBSTR(SUBSTR(referrer, INSTR(referrer, '://') + 3), 1,
-            INSTR(SUBSTR(referrer, INSTR(referrer, '://') + 3) || '/', '/') - 1),
-          'www.', ''))
-        END)`.as("source"),
-      ({ fn }) => fn.count<number>("visitor_id").distinct().as("visitors"),
-    ]).where("site_id", "=", siteId).where("timestamp", ">=", startIso)
-      .groupBy(sql`COALESCE(utm_source,
-        CASE WHEN referrer IS NULL OR referrer = '' THEN 'direct'
-        ELSE LOWER(REPLACE(
-          SUBSTR(SUBSTR(referrer, INSTR(referrer, '://') + 3), 1,
-            INSTR(SUBSTR(referrer, INSTR(referrer, '://') + 3) || '/', '/') - 1),
-          'www.', ''))
-        END)`).orderBy("visitors", "desc").limit(10).execute(),
-    db.selectFrom("sessions").select([
-      sql<string>`COALESCE(device_type, 'unknown')`.as("device"),
-      ({ fn }) => fn.count<number>("visitor_id").distinct().as("visitors"),
-    ]).where("site_id", "=", siteId).where("started_at", ">=", startIso)
-      .groupBy("device_type").orderBy("visitors", "desc").limit(10).execute(),
-    db.selectFrom("sessions").select([
-      sql<string>`COALESCE(os, 'unknown')`.as("device"),
-      ({ fn }) => fn.count<number>("visitor_id").distinct().as("visitors"),
-    ]).where("site_id", "=", siteId).where("started_at", ">=", startIso)
-      .groupBy("os").orderBy("visitors", "desc").limit(10).execute(),
-    db.selectFrom("sessions").select([
-      sql<string>`COALESCE(browser, 'unknown')`.as("device"),
-      ({ fn }) => fn.count<number>("visitor_id").distinct().as("visitors"),
-    ]).where("site_id", "=", siteId).where("started_at", ">=", startIso)
-      .groupBy("browser").orderBy("visitors", "desc").limit(10).execute(),
+  const [stats, timeseries, topPages, sources, { devices, os, browsers }, recentSessions, profiles, revenueBySource, revenueByCountry, revenueTimeseries] = await Promise.all([
+    getOverviewStats(db, siteId, startIso),
+    getTimeseries(db, siteId, startIso, isHourly),
+    getTopPages(db, siteId, startIso, 10),
+    getReferrers(db, siteId, startIso, 10),
+    getDeviceBreakdown(db, siteId, startIso),
     db.selectFrom("sessions").select(["id", "visitor_id", "started_at", "country", "region", "city", "device_type", "browser", "os", "utm_source", "referrer", "page_count"])
       .where("site_id", "=", siteId).where("started_at", ">=", startIso).orderBy("started_at", "desc").limit(100).execute(),
     db.selectFrom("visitor_profiles").select(["id", "visitor_id", "name", "email", "phone", "first_seen", "last_seen", "country", "region", "city", "device_type", "browser", "os", "total_sessions", "total_pageviews", "total_revenue", "tags", "notes"])
       .where("site_id", "=", siteId).orderBy("last_seen", "desc").limit(50).execute(),
-    // Revenue by source
-    db.selectFrom("events").select([
-      sql<string>`COALESCE(utm_source,
-        CASE WHEN referrer IS NULL OR referrer = '' THEN 'direct'
-        ELSE LOWER(REPLACE(
-          SUBSTR(SUBSTR(referrer, INSTR(referrer, '://') + 3), 1,
-            INSTR(SUBSTR(referrer, INSTR(referrer, '://') + 3) || '/', '/') - 1),
-          'www.', ''))
-        END)`.as("source"),
-      ({ fn }) => fn.sum<number>("revenue").as("revenue"),
-      ({ fn }) => fn.count<number>("id").as("conversions"),
-    ]).where("site_id", "=", siteId).where("revenue", ">", 0).where("timestamp", ">=", startIso)
-      .groupBy(sql`COALESCE(utm_source,
-        CASE WHEN referrer IS NULL OR referrer = '' THEN 'direct'
-        ELSE LOWER(REPLACE(
-          SUBSTR(SUBSTR(referrer, INSTR(referrer, '://') + 3), 1,
-            INSTR(SUBSTR(referrer, INSTR(referrer, '://') + 3) || '/', '/') - 1),
-          'www.', ''))
-        END)`).orderBy("revenue", "desc").limit(10).execute(),
-    // Revenue by country
-    db.selectFrom("events").select([
-      sql<string>`COALESCE(country, 'unknown')`.as("country"),
-      ({ fn }) => fn.sum<number>("revenue").as("revenue"),
-      ({ fn }) => fn.count<number>("id").as("conversions"),
-    ]).where("site_id", "=", siteId).where("revenue", ">", 0).where("timestamp", ">=", startIso)
-      .groupBy("country").orderBy("revenue", "desc").limit(10).execute(),
-    // Revenue time series (same grouping as main timeseries)
-    db.selectFrom("events").select([
-      tsDate.as("date"),
-      ({ fn }) => fn.sum<number>("revenue").as("revenue"),
-      ({ fn }) => fn.count<number>("id").as("conversions"),
-    ]).where("site_id", "=", siteId).where("revenue", ">", 0).where("timestamp", ">=", startIso)
-      .groupBy(tsGroup).orderBy("date", "asc").execute(),
+    getRevenueBySource(db, siteId, startIso),
+    getRevenueByCountry(db, siteId, startIso),
+    getRevenueTimeseries(db, siteId, startIso, isHourly),
   ]);
-
-  const stats: StatsResponse = {
-    pageviews: Number(pv?.count ?? 0), visitors: Number(vi?.count ?? 0),
-    sessions: Number(se?.count ?? 0), bounceRate: Math.round(Number(bo?.avg ?? 0) * 100),
-    avgDuration: 0, revenue: Number(rev?.total ?? 0), conversions: Number(conv?.count ?? 0),
-  };
-
-  const timeseries: TimeSeriesPoint[] = tsRows.map((r) => {
-    return { date: String(r.date ?? ""), pageviews: Number(r.pageviews), visitors: Number(r.visitors) };
-  });
-
-  const topPages: TopPage[] = pageRows.map((r) => ({ path: r.path, pageviews: Number(r.pageviews), visitors: Number(r.visitors) }));
-
-  const totalSrc = sourceRows.reduce((s, r) => s + Number(r.visitors), 0);
-  const sources: SourceEntry[] = sourceRows.map((r) => ({
-    source: String(r.source), visitors: Number(r.visitors),
-    percentage: totalSrc > 0 ? Math.round((Number(r.visitors) / totalSrc) * 100) : 0,
-  }));
-
-  const totalDev = deviceRows.reduce((s, r) => s + Number(r.visitors), 0);
-  const devices: DeviceEntry[] = deviceRows.map((r) => ({
-    device: String(r.device), visitors: Number(r.visitors),
-    percentage: totalDev > 0 ? Math.round((Number(r.visitors) / totalDev) * 100) : 0,
-  }));
-
-  const totalOs = osRows.reduce((s, r) => s + Number(r.visitors), 0);
-  const os: DeviceEntry[] = osRows.map((r) => ({
-    device: String(r.device), visitors: Number(r.visitors),
-    percentage: totalOs > 0 ? Math.round((Number(r.visitors) / totalOs) * 100) : 0,
-  }));
-
-  const totalBr = browserRows.reduce((s, r) => s + Number(r.visitors), 0);
-  const browsers: DeviceEntry[] = browserRows.map((r) => ({
-    device: String(r.device), visitors: Number(r.visitors),
-    percentage: totalBr > 0 ? Math.round((Number(r.visitors) / totalBr) * 100) : 0,
-  }));
 
   const sessionIds = recentSessions.map((s) => s.id);
   const BATCH = 50;
@@ -198,18 +83,6 @@ analyticsRoutes.get("/dashboard", async (c) => {
       is_identified: !!(profile?.name || profile?.email),
     });
   }
-
-  const revenueBySource: RevenueBySource[] = revBySource.map((r) => ({
-    source: String(r.source), revenue: Number(r.revenue ?? 0), conversions: Number(r.conversions ?? 0),
-  }));
-
-  const revenueByCountry: RevenueByCountry[] = revByCountry.map((r) => ({
-    country: String(r.country), revenue: Number(r.revenue ?? 0), conversions: Number(r.conversions ?? 0),
-  }));
-
-  const revenueTimeseries: RevenueTimeSeriesPoint[] = revTs.map((r) => ({
-    date: String(r.date ?? ""), revenue: Number(r.revenue ?? 0), conversions: Number(r.conversions ?? 0),
-  }));
 
   const dashboard: SiteDashboard = { stats, timeseries, topPages, sources, devices, os, browsers, journeys, revenueBySource, revenueByCountry, revenueTimeseries };
   return c.json({ data: dashboard, success: true });

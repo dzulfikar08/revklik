@@ -73,6 +73,11 @@ export interface ApiKeyTable {
   key_hash: string;
   key_prefix: string;
   name: string;
+  token_type: "session" | "account" | "site";
+  scopes: string | null;
+  site_id: string | null;
+  last_used_at: string | null;
+  expires_at: string | null;
   created_at: string;
 }
 

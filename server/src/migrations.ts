@@ -274,5 +274,19 @@ export async function migrateDatabase(d1: D1Database): Promise<void> {
     await d1.prepare("CREATE INDEX IF NOT EXISTS idx_events_site_revenue_time ON events(site_id, revenue, timestamp)").run();
   } catch { /* index may already exist */ }
 
+  // Public API: extend api_keys with token types, scopes, site binding, usage tracking
+  for (const stmt of [
+    "ALTER TABLE api_keys ADD COLUMN token_type TEXT NOT NULL DEFAULT 'session'",
+    "ALTER TABLE api_keys ADD COLUMN scopes TEXT",
+    "ALTER TABLE api_keys ADD COLUMN site_id TEXT",
+    "ALTER TABLE api_keys ADD COLUMN last_used_at TEXT",
+    "ALTER TABLE api_keys ADD COLUMN expires_at TEXT",
+  ]) {
+    try { await d1.prepare(stmt).run(); } catch { /* column may already exist */ }
+  }
+  try {
+    await d1.prepare("CREATE INDEX IF NOT EXISTS idx_api_keys_type ON api_keys(user_id, token_type)").run();
+  } catch { /* index may already exist */ }
+
   migrationRan = true;
 }

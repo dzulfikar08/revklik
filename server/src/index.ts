@@ -17,11 +17,61 @@ import { teamRoutes } from "./routes/team";
 import { pushTokenRoutes } from "./routes/push-tokens";
 import { widgetRoutes } from "./routes/widgets";
 import { docsRoutes } from "./routes/docs";
+import { tokenRoutes } from "./routes/tokens";
+import { v1Routes } from "./routes/v1";
 import { hashPassword, generateId, generateApiKey, hashToken } from "./utils";
 
-type Bindings = { DB: D1Database };
+type Bindings = { DB: D1Database; POLAR_ACCESS_TOKEN?: string; POLAR_ORG_ID?: string; POLAR_WEBHOOK_SECRET?: string };
 type Variables = { db: Kysely<KlikapaDatabase>; userId: string };
 type Env = { Bindings: Bindings; Variables: Variables };
+
+/** Process a single Polar order — creates conversion event + upserts visitor profile. Deduplicates by visitor_id. */
+async function processPolarOrder(db: Kysely<KlikapaDatabase>, order: any, siteId: string): Promise<"imported" | "skipped" | "refunded"> {
+  const polarOrderId = order.id;
+  const visitorId = `polar_${polarOrderId.replace(/[^a-zA-Z0-9]/g, "_")}`;
+
+  const existing = await db.selectFrom("events").select(["id", "revenue", "props"]).where("site_id", "=", siteId).where("visitor_id", "=", visitorId).executeTakeFirst();
+  if (existing) {
+    // If order was refunded, update existing event revenue to 0
+    if (order.status === "refunded" && existing.revenue) {
+      await db.updateTable("events").set({ revenue: 0, props: JSON.stringify({ ...(existing.props ? JSON.parse(existing.props as string) : {}), refunded: true }) }).where("id", "=", existing.id).execute();
+      return "refunded";
+    }
+    return "skipped";
+  }
+
+  const isRefund = order.status === "refunded";
+  const amount = isRefund ? 0 : (order.total_amount ?? 0) / 100;
+  const country = order.customer?.billing_address?.country ?? order.billing_address?.country ?? null;
+  const customerEmail = order.customer?.email ?? null;
+  const customerName = order.customer?.name ?? order.billing_name ?? null;
+  const ts = order.created_at ?? new Date().toISOString();
+  const productName = order.product?.name ?? null;
+  const billingReason = order.billing_reason ?? "purchase";
+  const isRecurring = ["subscription_create", "subscription_cycle", "subscription_update"].includes(billingReason);
+
+  await db.insertInto("events").values({
+    id: generateId(), site_id: siteId, session_id: generateId(), visitor_id: visitorId,
+    timestamp: ts, event_type: "conversion",
+    name: isRecurring ? "subscription_payment" : "one_time_purchase",
+    path: "/purchase", hostname: null, referrer: null,
+    utm_source: null, utm_medium: null, utm_campaign: null, utm_term: null, utm_content: null,
+    country, region: order.billing_address?.state ?? null, city: order.billing_address?.city ?? null,
+    device_type: null, browser: null, os: null, revenue: amount,
+    props: JSON.stringify({ polar_order_id: polarOrderId, currency: order.currency ?? "usd", customer_email: customerEmail, customer_name: customerName, product_name: productName, billing_reason: billingReason, source: "polar_sync" }),
+    fingerprint: null,
+  }).execute();
+
+  await db.insertInto("visitor_profiles").values({
+    id: generateId(), site_id: siteId, visitor_id: visitorId, name: customerName, email: customerEmail,
+    first_seen: ts, last_seen: ts, country, region: order.billing_address?.state ?? null, city: order.billing_address?.city ?? null,
+    device_type: null, browser: null, os: null, total_sessions: 0, total_pageviews: 0, total_revenue: amount, fingerprint: null,
+  }).onConflict((oc) => oc.columns(["site_id", "visitor_id"]).doUpdateSet({
+    last_seen: ts, total_revenue: sql`total_revenue + ${amount}`,
+  })).execute();
+
+  return "imported";
+}
 
 const authMiddleware = createMiddleware<Env>(async (c, next) => {
   const authHeader = c.req.header("Authorization");
@@ -70,6 +120,9 @@ app.use(async (c, next) => {
 
 app.route("/", trackRoutes);
 
+// Public API v1 (uses rvt_ and rv_ tokens, not kp_ session tokens)
+app.route("/v1", v1Routes);
+
 app.post("/auth/register", async (c) => {
   const db = c.get("db");
   if (!db) return c.json({ error: "DB unavailable", success: false }, 503);
@@ -86,8 +139,8 @@ app.post("/auth/register", async (c) => {
     role: email === superAdminEmail ? "super_admin" : "user",
     created_at: new Date().toISOString(),
   }).execute();
-  const { key, prefix } = generateApiKey();
-  await db.insertInto("api_keys").values({ id: generateId(), user_id: userId, key_hash: await hashToken(key), key_prefix: prefix, name: "default", created_at: new Date().toISOString() }).execute();
+  const { key, prefix } = generateApiKey("session");
+  await db.insertInto("api_keys").values({ id: generateId(), user_id: userId, key_hash: await hashToken(key), key_prefix: prefix, name: "default", token_type: "session", scopes: null, site_id: null, last_used_at: null, expires_at: null, created_at: new Date().toISOString() }).execute();
   return c.json({ data: { user: { id: userId, name, email }, token: key }, success: true }, 201);
 });
 
@@ -98,8 +151,8 @@ app.post("/auth/login", async (c) => {
   const user = await db.selectFrom("users").select(["id", "name", "email", "password_hash"]).where("email", "=", email).executeTakeFirst();
   if (!user || (await hashPassword(password)) !== user.password_hash) return c.json({ error: "Invalid credentials", success: false }, 401);
 
-  const { key } = generateApiKey();
-  await db.insertInto("api_keys").values({ id: generateId(), user_id: user.id, key_hash: await hashToken(key), key_prefix: key.slice(0, 7), name: "session", created_at: new Date().toISOString() }).execute();
+  const { key } = generateApiKey("session");
+  await db.insertInto("api_keys").values({ id: generateId(), user_id: user.id, key_hash: await hashToken(key), key_prefix: key.slice(0, 7), name: "session", token_type: "session", scopes: null, site_id: null, last_used_at: null, expires_at: null, created_at: new Date().toISOString() }).execute();
   return c.json({ data: { user: { id: user.id, name: user.name, email: user.email }, token: key }, success: true });
 });
 
@@ -188,13 +241,18 @@ app.get("/auth/google/callback", async (c) => {
   }
 
   // Issue API key
-  const { key } = generateApiKey();
+  const { key } = generateApiKey("session");
   await db.insertInto("api_keys").values({
     id: generateId(),
     user_id: userId,
     key_hash: await hashToken(key),
     key_prefix: key.slice(0, 7),
     name: "session",
+    token_type: "session",
+    scopes: null,
+    site_id: null,
+    last_used_at: null,
+    expires_at: null,
     created_at: new Date().toISOString(),
   }).execute();
 
@@ -214,6 +272,9 @@ app.route("/ai-insights", aiInsightsRoutes);
 
 app.use("/integrations/*", authMiddleware);
 app.route("/integrations", integrationRoutes);
+
+app.use("/tokens/*", authMiddleware);
+app.route("/tokens", tokenRoutes);
 
 app.route("/webhooks", webhookRoutes);
 
@@ -355,6 +416,26 @@ app.post("/billing/webhook", async (c) => {
           })).execute();
         }
       }
+    } else if (eventType === "order.paid" || eventType === "order.refunded") {
+      // Order events — process using shared helper
+      const order = data;
+      const customerEmail = order?.customer?.email || order?.customer_email;
+      let orderUserId = order?.metadata?.user_id || userId;
+
+      // Resolve user from customer email if no user_id
+      if (!orderUserId && customerEmail) {
+        const matched = await db.selectFrom("users").select(["id"]).where("email", "=", customerEmail).executeTakeFirst();
+        if (matched) orderUserId = matched.id;
+      }
+      if (!orderUserId) return c.json({ error: "Cannot resolve user for order" }, 400);
+
+      // Find user's first site to attribute revenue
+      const userSites = await db.selectFrom("sites").select(["id"]).where("user_id", "=", orderUserId).limit(1).execute();
+      const siteId = userSites[0]?.id;
+      if (!siteId) return c.json({ error: "No site found for user" }, 404);
+
+      const result = await processPolarOrder(db, order, siteId);
+      return c.json({ success: true, result });
     } else if (eventType === "subscription.canceled") {
       await db.updateTable("subscriptions").set({ cancel_at_period_end: 1, status: "canceled", updated_at: new Date().toISOString() }).where("user_id", "=", userId).execute();
     }
@@ -419,41 +500,9 @@ app.post("/import/polar-orders", async (c) => {
 
     for (const order of orders) {
       if (order.status !== "paid") { skipped++; continue; }
-      const polarOrderId = order.id;
-      const visitorId = `polar_${polarOrderId.replace(/[^a-zA-Z0-9]/g, "_")}`;
-      const existing = await db.selectFrom("events").select(["id"])
-        .where("site_id", "=", site_id).where("visitor_id", "=", visitorId)
-        .executeTakeFirst();
-      if (existing) { skipped++; continue; }
-
-      const amount = (order.total_amount ?? 0) / 100;
-      const country = order.customer?.billing_address?.country ?? order.billing_address?.country ?? null;
-      const customerEmail = order.customer?.email ?? null;
-      const customerName = order.customer?.name ?? order.billing_name ?? null;
-      const ts = order.created_at ?? new Date().toISOString();
-      const productName = order.product?.name ?? null;
-      const isRecurring = order.product?.is_recurring ?? false;
-
-      await db.insertInto("events").values({
-        id: generateId(), site_id, session_id: generateId(), visitor_id: visitorId,
-        timestamp: ts, event_type: "conversion",
-        name: isRecurring ? "subscription_payment" : "one_time_purchase",
-        path: "/purchase", hostname: null, referrer: null,
-        utm_source: null, utm_medium: null, utm_campaign: null, utm_term: null, utm_content: null,
-        country, region: order.billing_address?.state ?? null, city: order.billing_address?.city ?? null,
-        device_type: null, browser: null, os: null, revenue: amount,
-        props: JSON.stringify({ polar_order_id: polarOrderId, currency: order.currency ?? "usd", customer_email: customerEmail, customer_name: customerName, product_name: productName, source: "polar_import" }),
-        fingerprint: null,
-      }).execute();
-
-      await db.insertInto("visitor_profiles").values({
-        id: generateId(), site_id, visitor_id: visitorId, name: customerName, email: customerEmail,
-        first_seen: ts, last_seen: ts, country, region: order.billing_address?.state ?? null, city: order.billing_address?.city ?? null,
-        device_type: null, browser: null, os: null, total_sessions: 0, total_pageviews: 0, total_revenue: amount, fingerprint: null,
-      }).onConflict((oc) => oc.columns(["site_id", "visitor_id"]).doUpdateSet({
-        last_seen: ts, total_revenue: sql`total_revenue + ${amount}`,
-      })).execute();
-      imported++;
+      const result = await processPolarOrder(db, order, site_id);
+      if (result === "imported") imported++;
+      else skipped++;
     }
     page++;
   }
@@ -606,5 +655,56 @@ app.onError((err, c) => {
   return c.json({ error: err.message, success: false }, 500);
 });
 
-export default app;
+export default {
+  fetch: app.fetch,
+  async scheduled(controller: ScheduledController, env: Bindings & Record<string, any>, ctx: ExecutionContext) {
+    const polarToken = env.POLAR_ACCESS_TOKEN || "";
+    const polarOrgId = env.POLAR_ORG_ID || "";
+    if (!polarToken || !polarOrgId || !env.DB) {
+      console.error("Polar cron sync: missing POLAR_ACCESS_TOKEN, POLAR_ORG_ID, or DB binding");
+      return;
+    }
+
+    const db = createDb(env.DB);
+    // Fetch orders from last 7 days to catch missed webhooks
+    const sevenDaysAgo = new Date(Date.now() - 7 * 86400000).toISOString();
+    let page = 1;
+    let hasMore = true;
+    let synced = 0;
+
+    while (hasMore) {
+      try {
+        const res = await fetch(`https://api.polar.sh/v1/orders?organization_id=${polarOrgId}&page=${page}&limit=100&sorting=-created_at&since=${encodeURIComponent(sevenDaysAgo)}`, {
+          headers: { Authorization: `Bearer ${polarToken}`, "Content-Type": "application/json" },
+        });
+        if (!res.ok) { console.error(`Polar cron sync API error: ${res.status}`); break; }
+
+        const data: any = await res.json();
+        const orders: any[] = data.items ?? data.data?.items ?? data.result?.items ?? (Array.isArray(data.data) ? data.data : []);
+        const pagination = data.pagination ?? data.data?.pagination ?? data.meta ?? {};
+        hasMore = page < (pagination.max_page ?? pagination.total_pages ?? 1);
+
+        for (const order of orders) {
+          if (order.status !== "paid") continue;
+          // Resolve user by customer email, then find their site
+          const customerEmail = order.customer?.email || order.customer_email;
+          if (!customerEmail) continue;
+          const user = await db.selectFrom("users").select(["id"]).where("email", "=", customerEmail).executeTakeFirst();
+          if (!user) continue;
+          const site = await db.selectFrom("sites").select(["id"]).where("user_id", "=", user.id).limit(1).executeTakeFirst();
+          if (!site) continue;
+
+          const result = await processPolarOrder(db, order, site.id);
+          if (result === "imported") synced++;
+        }
+        page++;
+      } catch (err) {
+        console.error("Polar cron sync error:", err);
+        break;
+      }
+    }
+    console.log(`Polar cron sync complete: ${synced} orders synced`);
+  },
+} satisfies ExportedHandler<Bindings>;
+
 export { sql };

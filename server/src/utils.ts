@@ -10,10 +10,12 @@ export async function verifyPassword(password: string, hash: string): Promise<bo
   return passwordHash === hash;
 }
 
-export function generateApiKey(): { key: string; hash: string; prefix: string } {
+export function generateApiKey(type: "session" | "account" | "site" = "session"): { key: string; hash: string; prefix: string } {
   const bytes = new Uint8Array(32);
   crypto.getRandomValues(bytes);
-  const key = `kp_${Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("")}`;
+  const hex = Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
+  const prefixMap = { session: "kp_", account: "rvt_", site: "rv_" };
+  const key = `${prefixMap[type]}${hex}`;
   const prefix = key.slice(0, 7);
   return { key, hash: prefix, prefix };
 }

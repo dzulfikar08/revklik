@@ -321,3 +321,66 @@ export interface PlanInfo {
   features: string[];
   checkout_url: string | null;
 }
+
+// Public API v1 types
+export const SCOPES = {
+  SITES_READ: "sites:read",
+  ANALYTICS_READ: "analytics:read",
+  ANALYTICS_EXPORT: "analytics:export",
+  TOKENS_READ: "tokens:read",
+  TOKENS_WRITE: "tokens:write",
+} as const;
+
+export const DEFAULT_ACCOUNT_SCOPES = [
+  SCOPES.SITES_READ,
+  SCOPES.ANALYTICS_READ,
+  SCOPES.ANALYTICS_EXPORT,
+  SCOPES.TOKENS_READ,
+  SCOPES.TOKENS_WRITE,
+];
+
+export const DEFAULT_SITE_SCOPES = [
+  SCOPES.ANALYTICS_READ,
+  SCOPES.ANALYTICS_EXPORT,
+];
+
+export interface WhoamiResponse {
+  user: { id: string; name: string; email: string };
+  plan: string;
+  token: {
+    type: "account" | "site";
+    scopes: string[];
+    site_id: string | null;
+    name: string;
+    created_at: string;
+  };
+}
+
+export interface CreateTokenRequest {
+  name: string;
+  type: "account" | "site";
+  scopes?: string[];
+  site_id?: string;
+}
+
+export interface CreateTokenResponse {
+  id: string;
+  token: string;
+  prefix: string;
+  name: string;
+  type: "account" | "site";
+  scopes: string[];
+  site_id: string | null;
+  created_at: string;
+}
+
+export interface TokenInfo {
+  id: string;
+  prefix: string;
+  name: string;
+  type: "account" | "site";
+  scopes: string[];
+  site_id: string | null;
+  last_used_at: string | null;
+  created_at: string;
+}

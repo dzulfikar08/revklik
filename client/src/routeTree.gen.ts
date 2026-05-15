@@ -15,6 +15,7 @@ import { Route as IntegrationsRouteImport } from './routes/integrations'
 import { Route as ImportRouteImport } from './routes/import'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as SiteSiteIdRouteImport } from './routes/site.$siteId'
+import { Route as SettingsApiTokensRouteImport } from './routes/settings.api-tokens'
 
 const RegisterRoute = RegisterRouteImport.update({
   id: '/register',
@@ -46,6 +47,11 @@ const SiteSiteIdRoute = SiteSiteIdRouteImport.update({
   path: '/site/$siteId',
   getParentRoute: () => rootRouteImport,
 } as any)
+const SettingsApiTokensRoute = SettingsApiTokensRouteImport.update({
+  id: '/settings/api-tokens',
+  path: '/settings/api-tokens',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -53,6 +59,7 @@ export interface FileRoutesByFullPath {
   '/integrations': typeof IntegrationsRoute
   '/login': typeof LoginRoute
   '/register': typeof RegisterRoute
+  '/settings/api-tokens': typeof SettingsApiTokensRoute
   '/site/$siteId': typeof SiteSiteIdRoute
 }
 export interface FileRoutesByTo {
@@ -61,6 +68,7 @@ export interface FileRoutesByTo {
   '/integrations': typeof IntegrationsRoute
   '/login': typeof LoginRoute
   '/register': typeof RegisterRoute
+  '/settings/api-tokens': typeof SettingsApiTokensRoute
   '/site/$siteId': typeof SiteSiteIdRoute
 }
 export interface FileRoutesById {
@@ -70,6 +78,7 @@ export interface FileRoutesById {
   '/integrations': typeof IntegrationsRoute
   '/login': typeof LoginRoute
   '/register': typeof RegisterRoute
+  '/settings/api-tokens': typeof SettingsApiTokensRoute
   '/site/$siteId': typeof SiteSiteIdRoute
 }
 export interface FileRouteTypes {
@@ -80,6 +89,7 @@ export interface FileRouteTypes {
     | '/integrations'
     | '/login'
     | '/register'
+    | '/settings/api-tokens'
     | '/site/$siteId'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -88,6 +98,7 @@ export interface FileRouteTypes {
     | '/integrations'
     | '/login'
     | '/register'
+    | '/settings/api-tokens'
     | '/site/$siteId'
   id:
     | '__root__'
@@ -96,6 +107,7 @@ export interface FileRouteTypes {
     | '/integrations'
     | '/login'
     | '/register'
+    | '/settings/api-tokens'
     | '/site/$siteId'
   fileRoutesById: FileRoutesById
 }
@@ -105,6 +117,7 @@ export interface RootRouteChildren {
   IntegrationsRoute: typeof IntegrationsRoute
   LoginRoute: typeof LoginRoute
   RegisterRoute: typeof RegisterRoute
+  SettingsApiTokensRoute: typeof SettingsApiTokensRoute
   SiteSiteIdRoute: typeof SiteSiteIdRoute
 }
 
@@ -152,6 +165,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SiteSiteIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/settings/api-tokens': {
+      id: '/settings/api-tokens'
+      path: '/settings/api-tokens'
+      fullPath: '/settings/api-tokens'
+      preLoaderRoute: typeof SettingsApiTokensRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -161,6 +181,7 @@ const rootRouteChildren: RootRouteChildren = {
   IntegrationsRoute: IntegrationsRoute,
   LoginRoute: LoginRoute,
   RegisterRoute: RegisterRoute,
+  SettingsApiTokensRoute: SettingsApiTokensRoute,
   SiteSiteIdRoute: SiteSiteIdRoute,
 }
 export const routeTree = rootRouteImport

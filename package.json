@@ -9,7 +9,8 @@
   "workspaces": [
     "./server",
     "./client",
-    "./shared"
+    "./shared",
+    "./cli"
   ],
   "scripts": {
     "dev": "turbo dev",

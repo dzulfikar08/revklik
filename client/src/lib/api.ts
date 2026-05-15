@@ -1,4 +1,4 @@
-import type { SiteWithStats, AuthResponse, Site, CreateSitePayload, CreateUserPayload, LoginPayload, SiteDashboard, VisitorProfile, ScrollFunnel, Integration, CreateIntegrationPayload, WebhookEventLog, InsightsResponse, HeatmapData, RecordingSummary, RecordingDetail, Subscription, PlanInfo } from "shared";
+import type { SiteWithStats, AuthResponse, Site, CreateSitePayload, CreateUserPayload, LoginPayload, SiteDashboard, VisitorProfile, ScrollFunnel, Integration, CreateIntegrationPayload, WebhookEventLog, InsightsResponse, HeatmapData, RecordingSummary, RecordingDetail, Subscription, PlanInfo, TokenInfo, CreateTokenResponse } from "shared";
 import { toast } from "@/components/toast";
 import { getItem, setItem, removeItem, getItemSync } from "./mobile-storage";
 
@@ -170,5 +170,9 @@ export const cancelSubscription = () => apiFetch<void>("/billing/cancel", { meth
 
 // Data import
 export const importPolarOrders = (siteId: string, polarToken: string, polarOrgId?: string) => apiFetch<{ imported: number; skipped: number }>("/import/polar-orders", { method: "POST", body: JSON.stringify({ site_id: siteId, polar_token: polarToken, polar_org_id: polarOrgId }) });
-export const importOneDollarStats = (siteId: string, apiKey: string, odsSiteId: string, dateRange?: string) =>
-  apiFetch<{ imported: number; note: string }>("/import/onedollarstats", { method: "POST", body: JSON.stringify({ site_id: siteId, api_key: apiKey, ods_site_id: odsSiteId, date_range: dateRange || "all" }) });
+export const importOneDollarStats = (siteId: string, apiKey: string, odsSiteId: string, dateRange?: string) => apiFetch<{ imported: number; note: string }>("/import/onedollarstats", { method: "POST", body: JSON.stringify({ site_id: siteId, api_key: apiKey, ods_site_id: odsSiteId, date_range: dateRange || "all" }) });
+
+// API Token management
+export const fetchTokens = () => apiFetch<TokenInfo[]>("/tokens");
+export const createApiToken = (data: { name: string; type: "account" | "site"; scopes?: string[]; site_id?: string }) => apiFetch<CreateTokenResponse>("/tokens", { method: "POST", body: JSON.stringify(data) });
+export const revokeApiToken = (id: string) => apiFetch<void>(`/tokens/${id}`, { method: "DELETE" });
