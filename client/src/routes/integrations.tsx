@@ -173,9 +173,10 @@ function ConfigModal({
   const [testResult, setTestResult] = useState<{ ok: boolean; message: string } | null>(null);
 
   const createMut = useMutation({
-    mutationFn: () => {
+    mutationFn: async () => {
       if (PAYMENT_PROVIDERS.includes(provider.type)) {
-        return createPaymentProvider(siteId, provider.type, form);
+        await createPaymentProvider(siteId, provider.type, form);
+        return null;
       }
       return createIntegration({ site_id: siteId, type: provider.type, name, config: form });
     },
@@ -393,6 +394,7 @@ function IntegrationsPage() {
         name: pp.provider,
         config: pp.config,
         enabled: pp.enabled,
+        last_sync: null,
         created_at: pp.created_at,
       });
     }
