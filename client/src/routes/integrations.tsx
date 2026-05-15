@@ -4,12 +4,15 @@ import { useState } from "react";
 import {
   fetchIntegrations, createIntegration, updateIntegration,
   deleteIntegration, testIntegration, fetchWebhookEvents,
+  fetchPaymentProviders, createPaymentProvider, deletePaymentProvider,
   getActiveSiteId,
 } from "@/lib/api";
 import type { Integration, IntegrationType } from "shared";
 import { t } from "@/lib/i18n";
 
 export const Route = createFileRoute("/integrations")({ component: IntegrationsPage });
+
+const PAYMENT_PROVIDERS = ["midtrans", "xendit", "doku", "nicepay"];
 
 const PROVIDERS: {
   type: IntegrationType;
@@ -78,6 +81,47 @@ const PROVIDERS: {
       { key: "customer_id", label: "Customer ID", placeholder: "123-456-7890" },
     ],
   },
+  {
+    type: "midtrans",
+    name: "Midtrans",
+    icon: "\uD83D\uDCB3",
+    description: "Indonesian payment gateway \u2014 GoPay, QRIS, bank transfer, credit card, ShopeePay",
+    fields: [
+      { key: "server_key", label: "Server Key", placeholder: "SB-Mid-server-...", secret: true },
+      { key: "client_key", label: "Client Key", placeholder: "SB-Mid-client-...", secret: true },
+      { key: "is_production", label: "Production Mode", placeholder: "false" },
+    ],
+  },
+  {
+    type: "xendit",
+    name: "Xendit",
+    icon: "\uD83D\uDCB3",
+    description: "Southeast Asian payment gateway \u2014 OVO, DANA, ShopeePay, virtual accounts",
+    fields: [
+      { key: "secret_key", label: "Secret API Key", placeholder: "xnd_development_...", secret: true },
+      { key: "webhook_secret", label: "Webhook Secret (x-callback-token)", placeholder: "your-callback-token", secret: true },
+    ],
+  },
+  {
+    type: "doku",
+    name: "DOKU",
+    icon: "\uD83D\uDCB3",
+    description: "Indonesian payment gateway \u2014 SNAP standard, virtual accounts, e-wallets",
+    fields: [
+      { key: "client_id", label: "Client ID", placeholder: "your-doku-client-id" },
+      { key: "secret_key", label: "Secret Key", placeholder: "your-doku-secret-key", secret: true },
+    ],
+  },
+  {
+    type: "nicepay",
+    name: "NICEPAY",
+    icon: "\uD83D\uDCB3",
+    description: "Indonesian payment gateway \u2014 e-wallets, QRIS, virtual accounts, paylater",
+    fields: [
+      { key: "client_id", label: "Client ID", placeholder: "your-nicepay-client-id" },
+      { key: "secret_key", label: "Secret Key", placeholder: "your-nicepay-secret-key", secret: true },
+    ],
+  },
 ];
 
 function ProviderIcon({ type, connected }: { type: IntegrationType; connected: boolean }) {
@@ -129,8 +173,17 @@ function ConfigModal({
   const [testResult, setTestResult] = useState<{ ok: boolean; message: string } | null>(null);
 
   const createMut = useMutation({
-    mutationFn: () => createIntegration({ site_id: siteId, type: provider.type, name, config: form }),
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["integrations"] }); onClose(); },
+    mutationFn: () => {
+      if (PAYMENT_PROVIDERS.includes(provider.type)) {
+        return createPaymentProvider(siteId, provider.type, form);
+      }
+      return createIntegration({ site_id: siteId, type: provider.type, name, config: form });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["integrations"] });
+      queryClient.invalidateQueries({ queryKey: ["payment-providers"] });
+      onClose();
+    },
     onError: (err) => setError(err.message),
   });
 
@@ -147,6 +200,10 @@ function ConfigModal({
   });
 
   const handleTest = async () => {
+    if (PAYMENT_PROVIDERS.includes(provider.type)) {
+      setTestResult({ ok: true, message: "Payment provider test is not available yet" });
+      return;
+    }
     setTesting(true);
     setTestResult(null);
     try {
@@ -290,9 +347,23 @@ function IntegrationsPage() {
     enabled: !!siteId,
   });
 
+  const { data: paymentProviders } = useQuery({
+    queryKey: ["payment-providers", siteId],
+    queryFn: () => fetchPaymentProviders(siteId),
+    enabled: !!siteId,
+  });
+
   const deleteMut = useMutation({
-    mutationFn: (id: string) => deleteIntegration(id),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["integrations"] }),
+    mutationFn: ({ id, type, providerSiteId }: { id: string; type: string; providerSiteId?: string }) => {
+      if (PAYMENT_PROVIDERS.includes(type) && providerSiteId) {
+        return deletePaymentProvider(providerSiteId, type);
+      }
+      return deleteIntegration(id);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["integrations"] });
+      queryClient.invalidateQueries({ queryKey: ["payment-providers"] });
+    },
   });
 
   const toggleMut = useMutation({
@@ -312,6 +383,21 @@ function IntegrationsPage() {
     (integrations ?? []).map((i) => [i.type, i])
   );
 
+  // Merge payment providers into the map so they appear as connected
+  for (const pp of paymentProviders ?? []) {
+    if (!integrationMap.has(pp.provider)) {
+      integrationMap.set(pp.provider, {
+        id: pp.id,
+        site_id: pp.site_id,
+        type: pp.provider as IntegrationType,
+        name: pp.provider,
+        config: pp.config,
+        enabled: pp.enabled,
+        created_at: pp.created_at,
+      });
+    }
+  }
+
   const handleConfigure = (provider: typeof PROVIDERS[number]) => {
     const existing = integrationMap.get(provider.type);
     setConfigProvider(provider);
@@ -320,7 +406,7 @@ function IntegrationsPage() {
 
   const handleDisconnect = (integration: Integration) => {
     if (!confirm(`Disconnect ${integration.name}?`)) return;
-    deleteMut.mutate(integration.id);
+    deleteMut.mutate({ id: integration.id, type: integration.type, providerSiteId: integration.site_id });
     if (selectedIntegration === integration.id) setSelectedIntegration(null);
   };
 

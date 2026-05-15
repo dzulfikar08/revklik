@@ -77,6 +77,20 @@ export const deleteIntegration = (id: string) => apiFetch<void>(`/integrations/$
 export const testIntegration = (id: string) => apiFetch<{ ok: boolean; message: string; detail?: string }>(`/integrations/${id}/test`, { method: "POST" });
 export const fetchWebhookEvents = (integrationId: string) => apiFetch<WebhookEventLog[]>(`/integrations/${integrationId}/events`);
 
+// Payment Providers
+export const fetchPaymentProviders = (siteId: string) =>
+  apiFetch<{ id: string; site_id: string; provider: string; config: Record<string, string>; enabled: boolean; created_at: string }[]>(`/payment-providers?site_id=${siteId}`);
+
+export const createPaymentProvider = (siteId: string, provider: string, config: Record<string, string>) =>
+  apiFetch<{ id: string; provider: string; enabled: boolean }>("/payment-providers", {
+    method: "POST",
+    body: JSON.stringify({ site_id: siteId, provider, config }),
+    headers: { "Content-Type": "application/json" },
+  });
+
+export const deletePaymentProvider = (siteId: string, provider: string) =>
+  apiFetch<void>(`/payment-providers/${provider}?site_id=${siteId}`, { method: "DELETE" });
+
 // AI Insights
 export const fetchInsights = (siteId: string, range?: string) => {
   const p = new URLSearchParams({ site_id: siteId });

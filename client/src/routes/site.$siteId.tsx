@@ -6,7 +6,7 @@ import { AreaChart, Area, Bar, XAxis, YAxis, Tooltip as RechartsTooltip, Respons
 import GridLayout, { useContainerWidth } from "react-grid-layout";
 import type { Layout } from "react-grid-layout";
 import { fetchDashboard, fetchFunnel, fetchGeo, fetchRecordings, fetchRecording, fetchHeatmap, updateVisitor, connectSSE, exportData } from "@/lib/api";
-import type { VisitorJourney, FunnelStep, PageFunnel, DeviceEntry, RecordingSummary, RecordingDetail, RevenueBySource, RevenueByCountry, RevenueTimeSeriesPoint } from "shared";
+import type { VisitorJourney, FunnelStep, PageFunnel, DeviceEntry, RecordingSummary, RecordingDetail, RevenueBySource, RevenueByCountry, RevenueTimeSeriesPoint, ChannelEntry, EntryPageRevenue, RevenueByPaymentMethod, RevenueByPaymentProvider } from "shared";
 import { Globe, geoToMarkers } from "@/components/globe";
 import { AiInsightsCard } from "@/components/ai-insights-card";
 import { EventCalculator } from "@/components/event-calculator";
@@ -1120,6 +1120,8 @@ const DEFAULT_LAYOUT = [
   { i: "ai-insights", x: 0, y: 22, w: 12, h: 4, minW: 6, minH: 1 },
   { i: "revenue", x: 0, y: 26, w: 6, h: 5, minW: 4, minH: 2 },
   { i: "event-usage", x: 6, y: 26, w: 6, h: 3, minW: 6, minH: 1 },
+  { i: "channels", x: 4, y: 18, w: 6, h: 4, minW: 4, minH: 2 },
+  { i: "entry-pages", x: 0, y: 26, w: 6, h: 5, minW: 4, minH: 2 },
 ] as const satisfies Layout;
 
 type LocationTab = "country" | "region" | "city";
@@ -1259,9 +1261,9 @@ function DeviceTable({ devices, os, browsers }: { devices: DeviceEntry[]; os: De
   );
 }
 
-type RevenueTab = "source" | "country" | "trend";
+type RevenueTab = "source" | "country" | "trend" | "method" | "provider";
 
-function RevenueBreakdownWidget({ bySource, byCountry, trend }: { bySource: RevenueBySource[]; byCountry: RevenueByCountry[]; trend: RevenueTimeSeriesPoint[] }) {
+function RevenueBreakdownWidget({ bySource, byCountry, trend, byMethod, byProvider }: { bySource: RevenueBySource[]; byCountry: RevenueByCountry[]; trend: RevenueTimeSeriesPoint[]; byMethod: RevenueByPaymentMethod[]; byProvider: RevenueByPaymentProvider[] }) {
   const [tab, setTab] = useState<RevenueTab>("source");
 
   return (
@@ -1269,7 +1271,7 @@ function RevenueBreakdownWidget({ bySource, byCountry, trend }: { bySource: Reve
       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
         <span className="data-table-title" style={{ marginBottom: 0 }}>Revenue</span>
         <div style={{ display: "flex", gap: 2, marginLeft: "auto" }}>
-          {([["source", "Source"], ["country", "Country"], ["trend", "Trend"]] as [RevenueTab, string][]).map(([key, label]) => (
+          {([["source", "Source"], ["country", "Country"], ["trend", "Trend"], ["method", "Method"], ["provider", "Provider"]] as [RevenueTab, string][]).map(([key, label]) => (
             <button key={key} onClick={() => setTab(key)} style={{
               fontSize: 10, padding: "2px 8px", borderRadius: 4, border: "none", cursor: "pointer",
               fontFamily: "var(--mono)",
@@ -1293,6 +1295,44 @@ function RevenueBreakdownWidget({ bySource, byCountry, trend }: { bySource: Reve
                 <Area type="monotone" dataKey="revenue" stroke="var(--accent)" fill="var(--accent-dim)" strokeWidth={2} />
               </AreaChart>
             </ResponsiveContainer>
+          </div>
+        )
+      ) : tab === "method" ? (
+        byMethod.length === 0 ? (
+          <div style={{ padding: 16, color: "var(--text3)", fontSize: 12, textAlign: "center" }}>No payment method data</div>
+        ) : (
+          <div style={{ flex: 1, overflowY: "auto" }}>
+            <table className="data-table">
+              <thead><tr><th>Method</th><th style={{ textAlign: "right" }}>Count</th><th style={{ textAlign: "right" }}>Revenue</th></tr></thead>
+              <tbody>
+                {byMethod.map((r, i) => (
+                  <tr key={i}>
+                    <td style={{ fontSize: 12 }}>{r.method}</td>
+                    <td style={{ textAlign: "right", fontFamily: "var(--mono)", fontSize: 11 }}>{r.count}</td>
+                    <td style={{ textAlign: "right", fontFamily: "var(--mono)", fontSize: 11 }}>${r.revenue.toFixed(2)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )
+      ) : tab === "provider" ? (
+        byProvider.length === 0 ? (
+          <div style={{ padding: 16, color: "var(--text3)", fontSize: 12, textAlign: "center" }}>No payment provider data</div>
+        ) : (
+          <div style={{ flex: 1, overflowY: "auto" }}>
+            <table className="data-table">
+              <thead><tr><th>Provider</th><th style={{ textAlign: "right" }}>Count</th><th style={{ textAlign: "right" }}>Revenue</th></tr></thead>
+              <tbody>
+                {byProvider.map((r, i) => (
+                  <tr key={i}>
+                    <td style={{ fontSize: 12 }}>{r.provider}</td>
+                    <td style={{ textAlign: "right", fontFamily: "var(--mono)", fontSize: 11 }}>{r.count}</td>
+                    <td style={{ textAlign: "right", fontFamily: "var(--mono)", fontSize: 11 }}>${r.revenue.toFixed(2)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         )
       ) : (
@@ -1323,6 +1363,25 @@ function RevenueBreakdownWidget({ bySource, byCountry, trend }: { bySource: Reve
   );
 }
 
+function ChannelBreakdownWidget({ data }: { data: ChannelEntry[] }) {
+  if (data.length === 0) return <div style={{ padding: 16, color: "var(--text3)", fontSize: 12, textAlign: "center" }}>No channel data</div>;
+  const maxVisitors = Math.max(...data.map(d => d.visitors)) || 1;
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+      {data.map(d => (
+        <div key={d.channel} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12 }}>
+          <span style={{ width: 100, color: "var(--text2)", flexShrink: 0 }}>{d.channel}</span>
+          <div style={{ flex: 1, background: "var(--bg3)", borderRadius: 4, height: 18, overflow: "hidden" }}>
+            <div style={{ width: `${(d.visitors / maxVisitors) * 100}%`, height: "100%", background: "var(--accent)", borderRadius: 4, minWidth: 2 }} />
+          </div>
+          <span style={{ fontFamily: "var(--mono)", fontSize: 11, color: "var(--text2)", width: 50, textAlign: "right" }}>{d.visitors}</span>
+          <span style={{ fontFamily: "var(--mono)", fontSize: 10, color: "var(--text3)", width: 35, textAlign: "right" }}>{d.percentage}%</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function loadLayout(siteId: string): Layout {
   try {
     const saved = localStorage.getItem(`kp_layout_${siteId}`);
@@ -1341,7 +1400,7 @@ function toMobileLayout(layout: Layout, cols: number): Layout {
   });
 }
 
-function DashboardGrid({ siteId, stats, isLoading, timeseries, topPages, sources, devices, osData, browsersData, geoData, funnelSteps, funnelRate, funnelPages, journeys, allJourneys, hasFilters, selectedJourney, setSelectedJourney, setFilterPage, setFilterCountry, recordings, onSelectRecording, range, revenueBySource, revenueByCountry, revenueTimeseries, editing, layout, onLayoutChange }: {
+function DashboardGrid({ siteId, stats, isLoading, timeseries, topPages, sources, devices, osData, browsersData, geoData, funnelSteps, funnelRate, funnelPages, journeys, allJourneys, hasFilters, selectedJourney, setSelectedJourney, setFilterPage, setFilterCountry, recordings, onSelectRecording, range, revenueBySource, revenueByCountry, revenueTimeseries, channels, entryPagesRevenue, revenueByMethod, revenueByProvider, editing, layout, onLayoutChange }: {
   siteId: string;
   stats: any;
   isLoading: boolean;
@@ -1368,6 +1427,10 @@ function DashboardGrid({ siteId, stats, isLoading, timeseries, topPages, sources
   revenueBySource: RevenueBySource[];
   revenueByCountry: RevenueByCountry[];
   revenueTimeseries: RevenueTimeSeriesPoint[];
+  channels: ChannelEntry[];
+  entryPagesRevenue: EntryPageRevenue[];
+  revenueByMethod: RevenueByPaymentMethod[];
+  revenueByProvider: RevenueByPaymentProvider[];
   editing: boolean;
   layout: Layout;
   onLayoutChange: (layout: Layout) => void;
@@ -1509,7 +1572,34 @@ function DashboardGrid({ siteId, stats, isLoading, timeseries, topPages, sources
         </div>
 
         <div key="revenue" style={widgetStyle("revenue")}>
-          <RevenueBreakdownWidget bySource={revenueBySource} byCountry={revenueByCountry} trend={revenueTimeseries} />
+          <RevenueBreakdownWidget bySource={revenueBySource} byCountry={revenueByCountry} trend={revenueTimeseries} byMethod={revenueByMethod} byProvider={revenueByProvider} />
+        </div>
+
+        <div key="channels" style={widgetStyle("channels")}>
+          <div className="data-table-card" style={{ border: "none", background: "transparent", display: "flex", flexDirection: "column", height: "100%" }}>
+            <span className="data-table-title">Traffic Channels</span>
+            <ChannelBreakdownWidget data={channels} />
+          </div>
+        </div>
+
+        <div key="entry-pages" style={widgetStyle("entry-pages")}>
+          <DataTable
+            title="Entry Pages Revenue"
+            rows={entryPagesRevenue.map(r => ({
+              path: r.path,
+              sessions: r.sessions.toLocaleString(),
+              conversions: r.conversions.toLocaleString(),
+              revenue: `$${r.revenue.toFixed(2)}`,
+              rate: r.sessions > 0 ? `${((r.conversions / r.sessions) * 100).toFixed(1)}%` : "0%",
+            }))}
+            columns={[
+              { key: "path", label: "Page" },
+              { key: "sessions", label: "Sessions", align: "right", mono: true },
+              { key: "conversions", label: "Conv.", align: "right", mono: true },
+              { key: "revenue", label: "Revenue", align: "right", mono: true },
+              { key: "rate", label: "Rate", align: "right", mono: true },
+            ]}
+          />
         </div>
       </GridLayout>
       )}
@@ -1606,6 +1696,10 @@ function SiteDetailPage() {
   const revenueBySource = data?.revenueBySource ?? [];
   const revenueByCountry = data?.revenueByCountry ?? [];
   const revenueTimeseries = data?.revenueTimeseries ?? [];
+  const channels = data?.channels ?? [];
+  const entryPagesRevenue = data?.entryPagesRevenue ?? [];
+  const revenueByMethod = data?.revenueByMethod ?? [];
+  const revenueByProvider = data?.revenueByProvider ?? [];
 
   const journeys = useMemo(() => {
     let filtered = allJourneys;
@@ -1718,6 +1812,7 @@ function SiteDetailPage() {
           recordings={recordingsData ?? []} onSelectRecording={setSelectedRecording}
           range={range}
           revenueBySource={revenueBySource} revenueByCountry={revenueByCountry} revenueTimeseries={revenueTimeseries}
+          channels={channels} entryPagesRevenue={entryPagesRevenue} revenueByMethod={revenueByMethod} revenueByProvider={revenueByProvider}
           editing={editing} layout={layout} onLayoutChange={onLayoutChange} />
       )}
 

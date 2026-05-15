@@ -73,7 +73,7 @@ function PolarImportCard({ siteId }: { siteId: string }) {
         }}>P</div>
         <div>
           <div style={{ fontFamily: "var(--serif)", fontStyle: "italic", fontSize: 18, color: "var(--text)" }}>Polar</div>
-          <div style={{ fontSize: 12, color: "var(--text3)" }}>Import all paid orders with customer details &amp; country</div>
+          <div style={{ fontSize: 12, color: "var(--text3)" }}>Import paid orders with customer details &amp; country. New orders sync automatically via webhooks + periodic cron.</div>
         </div>
       </div>
 
@@ -107,12 +107,13 @@ function PolarImportCard({ siteId }: { siteId: string }) {
         background: "var(--accent)", color: "#fff", fontWeight: 600, fontSize: 13, fontFamily: "var(--sans)",
         opacity: mut.isPending || !siteId || !polarToken || !polarOrgId ? 0.6 : 1,
       }}>
-        {mut.isPending ? "Importing..." : "Import Polar Orders"}
+        {mut.isPending ? "Importing..." : "Import Historical Orders"}
       </button>
 
       {result && (
         <div style={{ marginTop: 12, padding: 10, borderRadius: 8, background: "var(--green-dim)", fontSize: 12, color: "var(--green)" }}>
           Imported {result.imported} orders, skipped {result.skipped} (already imported or unpaid)
+          {result.imported > 0 && <span style={{ display: "block", marginTop: 6, color: "var(--text3)" }}>New orders will sync automatically via webhooks and periodic cron checks.</span>}
         </div>
       )}
       {error && (
