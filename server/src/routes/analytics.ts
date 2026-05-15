@@ -1,48 +1,16 @@
 import { Hono } from "hono";
-import type { KlikapaDatabase, SiteDashboard, VisitorJourney, HeatmapData, RecordingSummary, RecordingDetail } from "shared";
+import type { KlikapaDatabase, SiteDashboard, VisitorJourney, RecordingSummary, RecordingDetail } from "shared";
 import type { Kysely } from "kysely";
 import { sql, createDb } from "../db";
 import { getDateRange } from "../utils";
 import { getOverviewStats, getTimeseries, getTopPages, getReferrers, getDeviceBreakdown, getRevenueBySource, getRevenueByCountry, getRevenueTimeseries, getEntryPagesRevenue, getRevenueByPaymentMethod, getRevenueByPaymentProvider, getChannelBreakdown } from "../queries/analytics";
+import { validateSite, parseFilters, toCsv, buildFunnelSteps, buildDepthSteps, processScrollEvents, buildHeatmapData } from "../lib/analytics-queries";
+import type { FunnelStep } from "../lib/analytics-queries";
 
 type Variables = { db: Kysely<KlikapaDatabase>; userId: string };
 type AnalyticsEnv = { Variables: Variables; Bindings: { DB: D1Database } };
 
 export const analyticsRoutes = new Hono<AnalyticsEnv>();
-
-function validateSite(db: Kysely<KlikapaDatabase>, userId: string, siteId: string) {
-  return db.selectFrom("sites")
-    .select(["id"])
-    .where("id", "=", siteId)
-    .where((eb) => eb.or([
-      eb("user_id", "=", userId),
-      eb.exists(eb.selectFrom("team_members").select("id").where("site_id", "=", siteId).where("user_id", "=", userId).where("accepted_at", "is not", null)),
-    ]))
-    .executeTakeFirst();
-}
-
-// Parse filter params from query string: filters=country:is:ID,device_type:is_not:Mobile
-function parseFilters(query: string): { dimension: string; operator: string; value: string }[] {
-  if (!query) return [];
-  return query.split(",").map((f) => {
-    const [dimension, operator, ...rest] = f.split(":");
-    return { dimension: dimension ?? "", operator: operator ?? "is", value: rest.join(":") };
-  }).filter((f) => f.dimension && f.value);
-}
-
-// Apply filters to a Kysely query builder
-function applyFilters(qb: any, filters: { dimension: string; operator: string; value: string }[]) {
-  for (const f of filters) {
-    if (f.operator === "is") {
-      qb = qb.where(f.dimension, "=", f.value);
-    } else if (f.operator === "is_not") {
-      qb = qb.where(f.dimension, "!=", f.value);
-    } else if (f.operator === "contains") {
-      qb = qb.where(f.dimension, "like", `%${f.value}%`);
-    }
-  }
-  return qb;
-}
 
 analyticsRoutes.get("/dashboard", async (c) => {
   const db = c.get("db");
@@ -162,69 +130,16 @@ analyticsRoutes.get("/funnel", async (c) => {
     .where("timestamp", ">=", startIso).execute();
 
   // Per-page tracking: path -> section -> visitor set
-  const pageSectionVisitors = new Map<string, Map<string, Set<string>>>();
-  // Global fallback
-  const visitorDepths = new Map<string, number>();
-  const sectionVisitors = new Map<string, Set<string>>();
-
-  for (const ev of scrollEvents) {
-    try {
-      const p = JSON.parse(ev.props ?? "{}");
-      if (p.section && ev.visitor_id && ev.path) {
-        const section = String(p.section);
-        // Per-page
-        if (!pageSectionVisitors.has(ev.path)) pageSectionVisitors.set(ev.path, new Map());
-        const pageMap = pageSectionVisitors.get(ev.path)!;
-        if (!pageMap.has(section)) pageMap.set(section, new Set());
-        pageMap.get(section)!.add(ev.visitor_id);
-        // Global
-        if (!sectionVisitors.has(section)) sectionVisitors.set(section, new Set());
-        sectionVisitors.get(section)!.add(ev.visitor_id);
-      }
-      if (p.depth && ev.visitor_id) {
-        const d = Number(p.depth);
-        const prev = visitorDepths.get(ev.visitor_id) ?? 0;
-        if (d > prev) visitorDepths.set(ev.visitor_id, d);
-      }
-    } catch { /* skip */ }
-  }
+  const { pageSectionVisitors, sectionVisitors, visitorDepths } = processScrollEvents(scrollEvents);
 
   const total = Number(totalVisitors?.count ?? 0);
 
-  // Helper: build funnel steps from a section->visitors map
-  const buildSteps = (secMap: Map<string, Set<string>>, totalVis: number) => {
-    // Sort sections by visitor count descending to get the natural order
-    const sorted = [...secMap.entries()].sort((a, b) => b[1].size - a[1].size);
-    return sorted.map(([section, visitors], i, arr) => {
-      const prevVisitors = i === 0 ? totalVis : arr[i - 1]![1].size;
-      return {
-        section,
-        visitors: visitors.size,
-        percentage: totalVis > 0 ? Math.round((visitors.size / totalVis) * 100) : 0,
-        dropoff: i > 0 && prevVisitors > 0 ? Math.round(((prevVisitors - visitors.size) / prevVisitors) * 100) : 0,
-      };
-    });
-  };
-
   // Build global funnel
-  let steps: { section: string; visitors: number; percentage: number; dropoff: number }[] = [];
+  let steps: FunnelStep[] = [];
   if (sectionVisitors.size > 0) {
-    steps = buildSteps(sectionVisitors, total);
+    steps = buildFunnelSteps(sectionVisitors, total);
   } else {
-    const depthBuckets = [25, 50, 75, 90];
-    const depthCounts = new Map<number, number>();
-    for (const [, maxDepth] of visitorDepths) {
-      for (const bucket of depthBuckets) {
-        if (maxDepth >= bucket) depthCounts.set(bucket, (depthCounts.get(bucket) ?? 0) + 1);
-      }
-    }
-    steps = depthBuckets
-      .filter((d) => (depthCounts.get(d) ?? 0) > 0)
-      .map((d, i, arr) => {
-        const visitors = depthCounts.get(d) ?? 0;
-        const prevVisitors = i === 0 ? total : (depthCounts.get(arr[i - 1]!) ?? total);
-        return { section: `${d}%`, visitors, percentage: total > 0 ? Math.round((visitors / total) * 100) : 0, dropoff: i > 0 && prevVisitors > 0 ? Math.round(((prevVisitors - visitors) / prevVisitors) * 100) : 0 };
-      });
+    steps = buildDepthSteps(visitorDepths, total);
   }
 
   const convRate = steps.length >= 2 && total > 0 ? Math.round((steps[steps.length - 1]!.visitors / total) * 1000) / 10 : 0;
@@ -243,7 +158,7 @@ analyticsRoutes.get("/funnel", async (c) => {
   const pages = [...pageSectionVisitors.entries()]
     .map(([path, secMap]) => {
       const pageTotal = pageVisMap.get(path) ?? 0;
-      const pageSteps = buildSteps(secMap, pageTotal);
+      const pageSteps = buildFunnelSteps(secMap, pageTotal);
       const pageConvRate = pageSteps.length >= 2 && pageTotal > 0 ? Math.round((pageSteps[pageSteps.length - 1]!.visitors / pageTotal) * 1000) / 10 : 0;
       return { path, steps: pageSteps, totalVisitors: pageTotal, conversionRate: pageConvRate };
     })
@@ -260,7 +175,6 @@ analyticsRoutes.get("/visitors", async (c) => {
   if (!siteId) return c.json({ error: "site_id required", success: false }, 400);
   const site = await validateSite(db, userId, siteId);
   if (!site) return c.json({ error: "Site not found", success: false }, 404);
-
   const visitors = await db.selectFrom("visitor_profiles")
     .select(["id", "visitor_id", "name", "email", "phone", "first_seen", "last_seen", "country", "region", "city", "device_type", "browser", "os", "total_sessions", "total_pageviews", "total_revenue", "tags", "notes"])
     .where("site_id", "=", siteId).orderBy("last_seen", "desc").limit(100).execute();
@@ -280,7 +194,6 @@ analyticsRoutes.patch("/visitors/:visitorId", async (c) => {
 
   const site = await validateSite(db, userId, profile.site_id);
   if (!site) return c.json({ error: "Not found", success: false }, 404);
-
   const updates: Record<string, unknown> = {};
   if (body.name !== undefined) updates.name = body.name;
   if (body.email !== undefined) updates.email = body.email;
@@ -303,10 +216,8 @@ analyticsRoutes.get("/geo", async (c) => {
   if (!siteId) return c.json({ error: "site_id required", success: false }, 400);
   const site = await validateSite(db, userId, siteId);
   if (!site) return c.json({ error: "Site not found", success: false }, 404);
-
   const { start } = getDateRange(range);
   const startIso = start.toISOString();
-
   const rows = await db.selectFrom("events")
     .select(["country", "region", "city", ({ fn }) => fn.count<number>("visitor_id").distinct().as("visitors")])
     .where("site_id", "=", siteId)
@@ -347,39 +258,7 @@ analyticsRoutes.get("/heatmap", async (c) => {
       .executeTakeFirst(),
   ]);
 
-  // Build 50x50 click grid (2% buckets)
-  const grid: number[][] = Array.from({ length: 50 }, () => Array(50).fill(0));
-  const elemMap: Record<string, { selector: string; clicks: number; label: string }> = {};
-
-  for (const row of clickRows) {
-    const bx = Math.min(49, Math.max(0, Math.floor(Number(row.x) / 2)));
-    const by = Math.min(49, Math.max(0, Math.floor(Number(row.y) / 2)));
-    grid[by]![bx]!++;
-    if (row.element_selector) {
-      const key = row.element_selector;
-      if (!elemMap[key]) elemMap[key] = { selector: key, clicks: 0, label: row.element_text || key };
-      elemMap[key]!.clicks++;
-    }
-  }
-
-  const topElements = Object.values(elemMap).sort((a, b) => b.clicks - a.clicks).slice(0, 20);
-
-  // Build scroll depth distribution
-  const depthBuckets: Record<number, { depth: number; visitors: Set<string> }> = {};
-  for (let d = 0; d <= 100; d += 10) depthBuckets[d] = { depth: d, visitors: new Set<string>() };
-  for (const row of scrollRows) {
-    const d = Math.min(100, Math.max(0, Math.round(Number(row.max_scroll) / 10) * 10));
-    depthBuckets[d]!.visitors.add(row.visitor_id);
-  }
-  const scrollDepths = Object.values(depthBuckets).map((b) => ({ depth: b.depth, visitors: b.visitors.size }));
-
-  const heatmapData: HeatmapData = {
-    clickGrid: grid,
-    scrollDepths,
-    totalSessions: Number(sessionCount?.cnt ?? 0),
-    totalClicks: clickRows.length,
-    topElements,
-  };
+  const heatmapData = buildHeatmapData(clickRows, scrollRows, Number(sessionCount?.cnt ?? 0));
 
   return c.json({ data: heatmapData, success: true });
 });
@@ -617,11 +496,3 @@ analyticsRoutes.get("/export", async (c) => {
   const csv = toCsv(rows, ["id", "visitor_id", "session_id", "event_type", "name", "path", "hostname", "referrer", "utm_source", "utm_medium", "utm_campaign", "country", "region", "city", "device_type", "browser", "os", "revenue", "timestamp"]);
   return new Response(csv, { headers: { "Content-Type": "text/csv", "Content-Disposition": `attachment; filename="events-${siteId}-${range}.csv"` } });
 });
-
-function toCsv(rows: Record<string, unknown>[], columns: string[]): string {
-  const esc = (v: unknown) => {
-    const s = v === null || v === undefined ? "" : String(v);
-    return s.includes(",") || s.includes('"') || s.includes("\n") ? `"${s.replace(/"/g, '""')}"` : s;
-  };
-  return [columns.join(","), ...rows.map(r => columns.map(c => esc(r[c])).join(","))].join("\n");
-}
