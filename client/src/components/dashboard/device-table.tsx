@@ -6,7 +6,7 @@ import type { DeviceEntry } from "shared";
 
 type DeviceTab = "device" | "os" | "browser";
 
-export function DeviceTable({ devices, os, browsers }: { devices: DeviceEntry[]; os: DeviceEntry[]; browsers: DeviceEntry[] }) {
+export function DeviceTable({ devices, os, browsers, onCrossFilter }: { devices: DeviceEntry[]; os: DeviceEntry[]; browsers: DeviceEntry[]; onCrossFilter?: (dimension: string, value: string) => void }) {
   const [tab, setTab] = useState<DeviceTab>("device");
   const data = tab === "device" ? devices : tab === "os" ? os : browsers;
 
@@ -37,7 +37,7 @@ export function DeviceTable({ devices, os, browsers }: { devices: DeviceEntry[];
             </tr></thead>
             <tbody>
               {data.map((d, i) => (
-                <tr key={i}>
+                <tr key={i} style={{ cursor: onCrossFilter ? "pointer" : undefined }} onClick={() => onCrossFilter?.(tab === "device" ? "device_type" : tab, d.device)}>
                   <td style={{ fontSize: 13 }}>
                     <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}>
                       {tab === "device" ? <DeviceIcon device={d.device} /> : tab === "os" ? <OSIcon os={d.device} /> : <BrowserIcon browser={d.device} />}

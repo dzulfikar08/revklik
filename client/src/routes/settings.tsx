@@ -3,6 +3,7 @@ import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { getActiveSiteId, fetchSegments, createSegment, deleteSegment, fetchAnnotations, createAnnotation, deleteAnnotation, fetchEmailReports, createEmailReport, updateEmailReport, deleteEmailReport, fetchShareStatus, togglePublicDashboard } from "@/lib/api";
 import { t } from "@/lib/i18n";
+import { PageHeader } from "@/components/page-header";
 
 export const Route = createFileRoute("/settings")({ component: SettingsPage });
 
@@ -260,10 +261,11 @@ function SettingsPage() {
   return (
     <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
       <div className="overview-scroll">
-        <div className="overview-header">
-          <h1 className="overview-title">Settings</h1>
-          <p className="overview-sub">Manage segments, annotations, email reports, and sharing</p>
-        </div>
+        <PageHeader
+          title="Settings"
+          subtitle="Manage segments, annotations, email reports, and sharing"
+          backTo="/site/$siteId"
+        />
 
         <div style={{ maxWidth: 720 }}>
           <Section title="Public Dashboard">

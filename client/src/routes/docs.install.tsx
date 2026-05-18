@@ -1,6 +1,7 @@
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { getActiveSiteId } from "@/lib/api";
+import { PageHeader } from "@/components/page-header";
 
 export const Route = createFileRoute("/docs/install")({ component: InstallGuidePage });
 
@@ -36,7 +37,6 @@ const PLATFORM_STEPS: Record<PlatformKey, string> = {
 };
 
 function InstallGuidePage() {
-  const navigate = useNavigate();
   const siteId = getActiveSiteId() ?? "YOUR_SITE_ID";
   const [activePlatform, setActivePlatform] = useState<PlatformKey>("html");
   const [copied, setCopied] = useState(false);
@@ -50,38 +50,13 @@ function InstallGuidePage() {
     setTimeout(() => setCopied(false), 2000);
   };
 
-  const handleBack = () => {
-    if (siteId && siteId !== "YOUR_SITE_ID") {
-      navigate({ to: "/site/$siteId", params: { siteId } });
-    } else {
-      navigate({ to: "/" });
-    }
-  };
-
   return (
     <div style={{ maxWidth: 780, margin: "0 auto", padding: "24px 16px" }}>
-      <div className="overview-header">
-        <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 4 }}>
-          <button
-            onClick={handleBack}
-            style={{
-              background: "none",
-              border: "none",
-              cursor: "pointer",
-              color: "var(--text3)",
-              fontSize: 18,
-              padding: 0,
-              display: "flex",
-              alignItems: "center",
-            }}
-            title="Back to dashboard"
-          >
-            &larr;
-          </button>
-          <h1 className="overview-title">Install Guide</h1>
-        </div>
-        <p className="overview-sub">Get started with RevKlik in under 2 minutes</p>
-      </div>
+      <PageHeader
+        title="Install Guide"
+        subtitle="Get started with RevKlik in under 2 minutes"
+        backTo={siteId !== "YOUR_SITE_ID" ? "/site/$siteId" : "/"}
+      />
 
       {/* Platform tabs */}
       <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 24 }}>

@@ -2,20 +2,11 @@ import { createMiddleware } from "hono/factory";
 import type { KlikapaDatabase } from "shared";
 import type { Kysely } from "kysely";
 import type { PublicApiEnv } from "./public-auth";
+import { getApiRateLimit } from "../lib/plans";
 
 // In-memory per-key rate limiting (per-isolate, resets on Worker recycle)
 const rlMap = new Map<string, { count: number; resetAt: number; limit: number }>();
 let lastCleanup = Date.now();
-
-const PLAN_LIMITS: Record<string, number> = {
-  free: 30,
-  starter: 120,
-  growth: 300,
-};
-
-function getLimit(plan: string): number {
-  return PLAN_LIMITS[plan] ?? 30;
-}
 
 function checkRateLimit(keyPrefix: string, limit: number, windowMs: number): { allowed: boolean; remaining: number; resetAt: number } {
   const now = Date.now();
@@ -49,7 +40,7 @@ export const rateLimiterMiddleware = createMiddleware<PublicApiEnv>(async (c, ne
   if (!db || !userId) return c.json({ error: "Database unavailable", success: false }, 503);
 
   // Get user's plan for rate limit tier
-  let plan = "free";
+  let plan = "micro";
   try {
     const sub = await db
       .selectFrom("subscriptions")
@@ -57,9 +48,9 @@ export const rateLimiterMiddleware = createMiddleware<PublicApiEnv>(async (c, ne
       .where("user_id", "=", userId)
       .executeTakeFirst();
     if (sub?.plan) plan = sub.plan;
-  } catch { /* default to free */ }
+  } catch { /* default to micro */ }
 
-  const limit = getLimit(plan);
+  const limit = getApiRateLimit(plan);
   const authHeader = c.req.header("Authorization") ?? "";
   const tokenPrefix = authHeader.slice(7, 14); // Use first 7 chars of token as key
 

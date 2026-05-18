@@ -3,6 +3,7 @@ import type { KlikapaDatabase, TrackEventPayload, IdentifyPayload } from "shared
 import type { Kysely } from "kysely";
 import { sql } from "../db";
 import { generateId, fingerprintFromRequest, countryFromTimezone } from "../utils";
+import { enforceSiteQuota, incrementCachedCount } from "../lib/subscription-cache";
 
 type Variables = { db: Kysely<KlikapaDatabase> };
 type Env = { req: Request };
@@ -53,6 +54,12 @@ trackRoutes.post("/track", async (c) => {
 
   const site = await db.selectFrom("sites").select(["id"]).where("id", "=", siteId).executeTakeFirst();
   if (!site) return c.json({ error: "Invalid site_id", success: false }, 400);
+
+  // Subscription + quota enforcement
+  const enforcement = await enforceSiteQuota(db, siteId);
+  if (!enforcement.allowed) {
+    return c.json({ success: true, quota: { limit: enforcement.eventsLimit, used: enforcement.eventsUsed, plan: enforcement.plan, period_end: enforcement.periodEnd }, reason: enforcement.reason }, { status: 202 });
+  }
 
   // Fall back to client timezone when Cloudflare geo is unavailable
   if (!cfCountry) {
@@ -137,6 +144,8 @@ trackRoutes.post("/track", async (c) => {
     })).execute();
   }
 
+  incrementCachedCount(siteId, payloads.length);
+
   return c.json({ success: true, vid: resolvedVid !== first.vid ? resolvedVid : undefined }, { status: 202 });
 });
 
@@ -145,6 +154,11 @@ trackRoutes.post("/identify", async (c) => {
   const payload: IdentifyPayload = await c.req.json();
   const siteId = payload.s;
   if (!siteId || !payload.vid) return c.json({ error: "site_id and visitor_id required", success: false }, 400);
+
+  const enforcement = await enforceSiteQuota(db, siteId);
+  if (!enforcement.allowed) {
+    return c.json({ success: true, reason: enforcement.reason }, { status: 202 });
+  }
 
   const fingerprint = await fingerprintFromRequest(c.req.raw);
 
@@ -180,6 +194,11 @@ trackRoutes.post("/track/heatmap", async (c) => {
 
   const site = await db.selectFrom("sites").select(["id"]).where("id", "=", siteId).executeTakeFirst();
   if (!site) return c.json({ error: "Invalid site_id", success: false }, 400);
+
+  const enforcement = await enforceSiteQuota(db, siteId, true);
+  if (!enforcement.allowed) {
+    return c.json({ success: true, reason: enforcement.reason }, { status: 202 });
+  }
 
   const path = body.p || "/";
   const ts = new Date().toISOString();
@@ -233,6 +252,11 @@ trackRoutes.post("/track/recording", async (c) => {
 
   const site = await db.selectFrom("sites").select(["id"]).where("id", "=", siteId).executeTakeFirst();
   if (!site) return c.json({ error: "Invalid site_id", success: false }, 400);
+
+  const enforcement = await enforceSiteQuota(db, siteId, true);
+  if (!enforcement.allowed) {
+    return c.json({ success: true, reason: enforcement.reason }, { status: 202 });
+  }
 
   const path = body.p || "/";
   const ts = new Date().toISOString();
@@ -289,6 +313,11 @@ trackRoutes.post("/track/payment", async (c) => {
 
   const site = await db.selectFrom("sites").select(["id"]).where("id", "=", siteId).executeTakeFirst();
   if (!site) return c.json({ error: "Invalid site_id", success: false }, 400);
+
+  const enforcement = await enforceSiteQuota(db, siteId);
+  if (!enforcement.allowed) {
+    return c.json({ success: true, quota: { limit: enforcement.eventsLimit, used: enforcement.eventsUsed, plan: enforcement.plan }, reason: enforcement.reason }, { status: 202 });
+  }
 
   // Idempotency: check for existing event with this transaction_id
   const existing = await db.selectFrom("events").select(["id"])

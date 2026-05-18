@@ -2,8 +2,9 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { fetchSites, createSite, deleteSite } from "@/lib/api";
 import { AreaChart, Area, ResponsiveContainer } from "recharts";
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { t } from "@/lib/i18n";
+import { DateTimePicker } from "@/components/time-picker";
 
 export const Route = createFileRoute("/")({ component: OverviewPage });
 
@@ -28,10 +29,32 @@ function Sparkline({ data, color }: { data: number[]; color?: string }) {
   );
 }
 
+const RANGE_PRESETS = [
+  { key: "7d", label: "7d" },
+  { key: "30d", label: "30d" },
+  { key: "90d", label: "90d" },
+];
+
 function OverviewPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const { data: sites, isLoading } = useQuery({ queryKey: ["sites"], queryFn: fetchSites });
+  const [range, setRange] = useState("7d");
+  const [customStart, setCustomStart] = useState("");
+  const [customEnd, setCustomEnd] = useState("");
+  const [showCustom, setShowCustom] = useState(false);
+
+  const effectiveRange = useMemo(() =>
+    showCustom && customStart && customEnd ? `${customStart},${customEnd}` : range
+  , [showCustom, customStart, customEnd, range]);
+
+  const rangeLabel = showCustom && customStart && customEnd
+    ? `${customStart} → ${customEnd}`
+    : range === "7d" ? t("sites.last_7d") : `Last ${range.replace("d", " days")}`;
+
+  const { data: sites, isLoading } = useQuery({
+    queryKey: ["sites", effectiveRange],
+    queryFn: () => fetchSites(showCustom ? undefined : range, showCustom ? customStart : undefined, showCustom ? customEnd : undefined),
+  });
   const [newDomain, setNewDomain] = useState("");
   const [newName, setNewName] = useState("");
   const [showAdd, setShowAdd] = useState(false);
@@ -62,8 +85,25 @@ function OverviewPage() {
     <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
       <div className="overview-scroll">
         <div className="overview-header">
-          <h1 className="overview-title">{t("sites.title")}</h1>
-          <p className="overview-sub">{sites?.length ?? 0} {t("sites.tracked")}</p>
+          <div>
+            <h1 className="overview-title">{t("sites.title")}</h1>
+            <p className="overview-sub">{sites?.length ?? 0} sites tracked · {rangeLabel}</p>
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+            {RANGE_PRESETS.map((r) => (
+              <button key={r.key} className={`btn-pill ${!showCustom && range === r.key ? "active" : ""}`}
+                onClick={() => { setRange(r.key); setShowCustom(false); }}>{r.label}</button>
+            ))}
+            <div style={{ width: 1, height: 18, background: "var(--border)", margin: "0 2px" }} />
+            <button className={`btn-pill ${showCustom ? "active" : ""}`} onClick={() => setShowCustom(!showCustom)}>Custom</button>
+            {showCustom && (
+              <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                <DateTimePicker value={customStart} onChange={setCustomStart} placeholder="Start" />
+                <span style={{ fontSize: 12, color: "var(--text3)" }}>&rarr;</span>
+                <DateTimePicker value={customEnd} onChange={setCustomEnd} placeholder="End" />
+              </div>
+            )}
+          </div>
         </div>
 
         {isLoading ? (
@@ -104,7 +144,7 @@ function OverviewPage() {
                 </div>
                 <Sparkline data={site.sparkline} />
                 <div className="site-card-footer">
-                  <span>{t("sites.last_7d")}</span>
+                  <span>{rangeLabel}</span>
                   <span style={{ color: "var(--accent)" }}>{t("sites.view_details")}</span>
                 </div>
               </div>

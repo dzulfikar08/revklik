@@ -4,7 +4,7 @@ import { useState, useMemo, useEffect, useCallback, useRef } from "react";
 import GridLayout, { useContainerWidth } from "react-grid-layout";
 import type { Layout } from "react-grid-layout";
 import { fetchDashboard, fetchFunnel, fetchGeo, fetchRecordings, connectSSE, exportData } from "@/lib/api";
-import type { VisitorJourney, FunnelStep, PageFunnel, DeviceEntry, RecordingSummary, RecordingDetail, RevenueBySource, RevenueByCountry, RevenueTimeSeriesPoint, ChannelEntry, EntryPageRevenue, RevenueByPaymentMethod, RevenueByPaymentProvider } from "shared";
+import type { VisitorJourney, FunnelStep, PageFunnel, DeviceEntry, RecordingSummary, RecordingDetail, RevenueBySource, RevenueByCountry, RevenueTimeSeriesPoint, ChannelEntry, EntryPageRevenue, RevenueByPaymentMethod, RevenueByPaymentProvider, Filter } from "shared";
 import { Globe, geoToMarkers } from "@/components/globe";
 import { AiInsightsCard } from "@/components/ai-insights-card";
 import { EventCalculator } from "@/components/event-calculator";
@@ -24,7 +24,9 @@ import { RevenueBreakdownWidget, ChannelBreakdownWidget } from "@/components/das
 import { RecordingsTable, RecordingPanel } from "@/components/dashboard/recordings";
 import { LocationTable } from "@/components/dashboard/location-table";
 import { DeviceTable } from "@/components/dashboard/device-table";
+import { FilterBar } from "@/components/dashboard/filter-bar";
 import { DEFAULT_LAYOUT, EmptyState, CollapsibleSection, loadLayout, toMobileLayout } from "@/components/dashboard/helpers";
+import { parseFilterString, encodeFilterString, toggleFilter, matchesAllFilters } from "@/lib/filters";
 import "react-grid-layout/css/styles.css";
 import "react-resizable/css/styles.css";
 
@@ -32,7 +34,7 @@ export const Route = createFileRoute("/site/$siteId")({ component: SiteDetailPag
 
 const RANGE_PRESETS = [{ key: "24h", label: "24h" }, { key: "7d", label: "7d" }, { key: "30d", label: "30d" }, { key: "90d", label: "90d" }];
 
-function DashboardGrid({ siteId, stats, isLoading, timeseries, topPages, sources, devices, osData, browsersData, geoData, funnelSteps, funnelRate, funnelPages, journeys, allJourneys, hasFilters, selectedJourney, setSelectedJourney, setFilterPage, setFilterCountry, recordings, onSelectRecording, range, revenueBySource, revenueByCountry, revenueTimeseries, channels, entryPagesRevenue, revenueByMethod, revenueByProvider, editing, layout, onLayoutChange }: {
+function DashboardGrid({ siteId, stats, isLoading, timeseries, topPages, sources, devices, osData, browsersData, geoData, funnelSteps, funnelRate, funnelPages, journeys, allJourneys, hasFilters, selectedJourney, setSelectedJourney, onCrossFilter, recordings, onSelectRecording, range, revenueBySource, revenueByCountry, revenueTimeseries, channels, entryPagesRevenue, revenueByMethod, revenueByProvider, editing, layout, onLayoutChange }: {
   siteId: string;
   stats: any;
   isLoading: boolean;
@@ -51,8 +53,7 @@ function DashboardGrid({ siteId, stats, isLoading, timeseries, topPages, sources
   hasFilters: boolean;
   selectedJourney: VisitorJourney | null;
   setSelectedJourney: (j: VisitorJourney) => void;
-  setFilterPage: (p: string | null) => void;
-  setFilterCountry: (c: string | null) => void;
+  onCrossFilter: (dimension: string, value: string) => void;
   recordings: RecordingSummary[];
   onSelectRecording: (r: RecordingDetail) => void;
   range: string;
@@ -140,9 +141,9 @@ function DashboardGrid({ siteId, stats, isLoading, timeseries, topPages, sources
         </div>
 
         <div key="top-pages" style={widgetStyle("top-pages")}>
-          <DataTable title={t("table.top_pages")} rows={topPages.map((p) => ({ path: p.path, views: p.pageviews.toLocaleString(), visitors: p.visitors.toLocaleString() }))}
+          <DataTable title={t("table.top_pages")} rows={topPages.map((p: any) => ({ path: p.path, views: p.pageviews.toLocaleString(), visitors: p.visitors.toLocaleString() }))}
             columns={[{ key: "path", label: t("table.page") }, { key: "views", label: t("table.views"), align: "right", mono: true }, { key: "visitors", label: t("table.visitors"), align: "right", mono: true }]}
-            onRowClick={(row) => setFilterPage(String(row.path))} />
+            onRowClick={(row: any) => onCrossFilter("path", String(row.path))} />
         </div>
 
         <div key="chart" style={widgetStyle("chart")}>
@@ -150,23 +151,24 @@ function DashboardGrid({ siteId, stats, isLoading, timeseries, topPages, sources
         </div>
 
         <div key="sources" style={widgetStyle("sources")}>
-          <DataTable title={t("table.traffic_sources")} rows={sources.map((s) => {
+          <DataTable title={t("table.traffic_sources")} rows={sources.map((s: any) => {
             const label = sourceLabel(s.source);
-            return { source: label, _pct: `${s.percentage}%` };
+            return { source: label, _pct: `${s.percentage}%`, _raw_source: s.source };
           })}
-            columns={[{ key: "source", label: t("table.source") }, { key: "_pct", label: "Share", align: "right", mono: true }]} />
+            columns={[{ key: "source", label: t("table.source") }, { key: "_pct", label: "Share", align: "right", mono: true }]}
+            onRowClick={(row: any) => onCrossFilter("utm_source", String(row._raw_source))} />
         </div>
 
         <div key="locations" style={widgetStyle("locations")}>
-          <LocationTable geoData={geoData} onFilterCountry={setFilterCountry} />
+          <LocationTable geoData={geoData} onCrossFilter={onCrossFilter} />
         </div>
 
         <div key="devices" style={widgetStyle("devices")}>
-          <DeviceTable devices={devices} os={osData} browsers={browsersData} />
+          <DeviceTable devices={devices} os={osData} browsers={browsersData} onCrossFilter={onCrossFilter} />
         </div>
 
         <div key="funnel" style={widgetStyle("funnel")}>
-          <FunnelChartCustom steps={funnelSteps} conversionRate={funnelRate} pages={funnelPages} />
+          <FunnelChartCustom steps={funnelSteps} conversionRate={funnelRate} pages={funnelPages} onCrossFilter={onCrossFilter} />
         </div>
 
         <div key="recordings" style={widgetStyle("recordings")}>
@@ -204,7 +206,7 @@ function DashboardGrid({ siteId, stats, isLoading, timeseries, topPages, sources
         </div>
 
         <div key="revenue" style={widgetStyle("revenue")}>
-          <RevenueBreakdownWidget bySource={revenueBySource} byCountry={revenueByCountry} trend={revenueTimeseries} byMethod={revenueByMethod} byProvider={revenueByProvider} />
+          <RevenueBreakdownWidget bySource={revenueBySource} byCountry={revenueByCountry} trend={revenueTimeseries} byMethod={revenueByMethod} byProvider={revenueByProvider} onCrossFilter={onCrossFilter} />
         </div>
 
         <div key="channels" style={widgetStyle("channels")}>
@@ -217,7 +219,7 @@ function DashboardGrid({ siteId, stats, isLoading, timeseries, topPages, sources
         <div key="entry-pages" style={widgetStyle("entry-pages")}>
           <DataTable
             title="Entry Pages Revenue"
-            rows={entryPagesRevenue.map(r => ({
+            rows={entryPagesRevenue.map((r: any) => ({
               path: r.path,
               sessions: r.sessions.toLocaleString(),
               conversions: r.conversions.toLocaleString(),
@@ -254,8 +256,7 @@ function SiteDetailPage() {
   const [selectedJourney, setSelectedJourney] = useState<VisitorJourney | null>(null);
   const [locationView, setLocationView] = useState<"cards" | "globe" | "heatmap">("cards");
   const [selectedGlobeCity, setSelectedGlobeCity] = useState<string | null>(null);
-  const [filterPage, setFilterPage] = useState<string | null>(null);
-  const [filterCountry, setFilterCountry] = useState<string | null>(null);
+  const [filtersString, setFiltersString] = useState("");
   const [selectedRecording, setSelectedRecording] = useState<RecordingDetail | null>(null);
   const [editing, setEditing] = useState(false);
   const [layout, setLayout] = useState<Layout>(() => loadLayout(siteId));
@@ -266,22 +267,32 @@ function SiteDetailPage() {
   }, [siteId]);
 
   const effectiveRange = showCustom && customStart && customEnd ? `${customStart},${customEnd}` : range;
+  const activeFilters = parseFilterString(filtersString);
+  const hasFilters = activeFilters.length > 0;
+
+  const onCrossFilter = useCallback((dimension: string, value: string) => {
+    setFiltersString((prev) => {
+      const current = parseFilterString(prev);
+      const rule: Filter = { dimension, operator: "is", value };
+      return encodeFilterString(toggleFilter(current, rule));
+    });
+  }, []);
 
   const { data, isLoading } = useQuery({
-    queryKey: ["dashboard", siteId, effectiveRange],
-    queryFn: () => fetchDashboard(siteId, showCustom && customStart && customEnd ? undefined : range, showCustom ? customStart : undefined, showCustom ? customEnd : undefined),
+    queryKey: ["dashboard", siteId, effectiveRange, filtersString],
+    queryFn: () => fetchDashboard(siteId, showCustom && customStart && customEnd ? undefined : range, showCustom ? customStart : undefined, showCustom ? customEnd : undefined, filtersString || undefined),
     enabled: !!siteId,
   });
 
   const { data: funnelData } = useQuery({
-    queryKey: ["funnel", siteId, effectiveRange],
-    queryFn: () => fetchFunnel(siteId, showCustom && customStart && customEnd ? undefined : range),
+    queryKey: ["funnel", siteId, effectiveRange, filtersString],
+    queryFn: () => fetchFunnel(siteId, showCustom && customStart && customEnd ? undefined : range, filtersString || undefined),
     enabled: !!siteId,
   });
 
   const { data: geoData } = useQuery({
-    queryKey: ["geo", siteId, effectiveRange],
-    queryFn: () => fetchGeo(siteId, showCustom && customStart && customEnd ? undefined : range),
+    queryKey: ["geo", siteId, effectiveRange, filtersString],
+    queryFn: () => fetchGeo(siteId, showCustom && customStart && customEnd ? undefined : range, filtersString || undefined),
     enabled: !!siteId,
   });
 
@@ -291,7 +302,6 @@ function SiteDetailPage() {
     enabled: !!siteId,
   });
 
-  // SSE for real-time updates — only active on globe tab
   useEffect(() => {
     if (!siteId || locationView !== "globe") return;
     const disconnect = connectSSE(siteId, (ev) => {
@@ -302,7 +312,6 @@ function SiteDetailPage() {
     return disconnect;
   }, [siteId, queryClient, locationView]);
 
-  // Sync widget data on dashboard update
   useEffect(() => {
     if (!data || !Capacitor.isNativePlatform()) return;
     import("@/plugins/klikapa-widget-bridge").then(({ KlikapaWidgetBridge }) => {
@@ -336,13 +345,25 @@ function SiteDetailPage() {
   const revenueByProvider = data?.revenueByProvider ?? [];
 
   const journeys = useMemo(() => {
-    let filtered = allJourneys;
-    if (filterPage) filtered = filtered.filter((j) => j.steps.some((s) => s.path === filterPage));
-    if (filterCountry) filtered = filtered.filter((j) => j.country === filterCountry);
-    return filtered;
-  }, [allJourneys, filterPage, filterCountry]);
-
-  const hasFilters = !!(filterPage || filterCountry);
+    if (!hasFilters) return allJourneys;
+    return allJourneys.filter((j) => {
+      const journeyObj: Record<string, any> = {
+        country: j.country, region: j.region, city: j.city,
+        device_type: j.device_type, browser: j.browser, os: j.os,
+        utm_source: j.utm_source, referrer: j.referrer,
+      };
+      // Path filter: check if any step matches
+      const pathFilters = activeFilters.filter((f) => f.dimension === "path");
+      const otherFilters = activeFilters.filter((f) => f.dimension !== "path");
+      if (pathFilters.length > 0) {
+        const hasMatchingStep = j.steps.some((s) =>
+          pathFilters.every((f) => matchesAllFilters({ path: s.path }, [f]))
+        );
+        if (!hasMatchingStep) return false;
+      }
+      return matchesAllFilters(journeyObj, otherFilters);
+    });
+  }, [allJourneys, activeFilters, hasFilters]);
 
   const globeMarkers = useMemo(() => geoToMarkers(geoData ?? []), [geoData]);
 
@@ -385,25 +406,7 @@ function SiteDetailPage() {
         </div>
       </div>
 
-      {hasFilters && (
-        <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 20px", borderBottom: "1px solid var(--border)", background: "var(--bg2)", flexWrap: "wrap" }}>
-          <span style={{ fontSize: 11, color: "var(--text3)", fontFamily: "var(--mono)", textTransform: "uppercase", letterSpacing: "0.06em" }}>Filters:</span>
-          {filterPage && (
-            <button className="btn-pill" style={{ fontSize: 11, padding: "3px 10px", display: "flex", alignItems: "center", gap: 4, background: "var(--accent-dim)", color: "var(--accent)" }}
-              onClick={() => setFilterPage(null)}>
-              {filterPage} <span style={{ opacity: 0.6 }}>&#10005;</span>
-            </button>
-          )}
-          {filterCountry && (
-            <button className="btn-pill" style={{ fontSize: 11, padding: "3px 10px", display: "flex", alignItems: "center", gap: 4, background: "var(--accent-dim)", color: "var(--accent)" }}
-              onClick={() => setFilterCountry(null)}>
-              {filterCountry} <span style={{ opacity: 0.6 }}>&#10005;</span>
-            </button>
-          )}
-          <button className="btn-pill" style={{ fontSize: 10, padding: "3px 8px", color: "var(--text3)" }}
-            onClick={() => { setFilterPage(null); setFilterCountry(null); }}>Clear all</button>
-        </div>
-      )}
+      <FilterBar filters={filtersString} onFiltersChange={setFiltersString} />
 
       {isLoading ? (
         <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center" }}><div className="spinner" /></div>
@@ -417,7 +420,7 @@ function SiteDetailPage() {
             <div className="globe-view-main">
               <div className="globe-header">
                 <span className="globe-title">{t("table.locations")}</span>
-                {geoData && <span className="globe-count">{geoData.reduce((s, g) => s + g.visitors, 0).toLocaleString()} visitors from {geoData.length} locations</span>}
+                {geoData && <span className="globe-count">{geoData.reduce((s: number, g: any) => s + g.visitors, 0).toLocaleString()} visitors from {geoData.length} locations</span>}
               </div>
               <div className="globe-canvas-wrap">
                 <Globe
@@ -444,7 +447,7 @@ function SiteDetailPage() {
           funnelSteps={funnelData?.steps ?? []} funnelRate={funnelData?.conversionRate ?? 0} funnelPages={funnelData?.pages ?? []}
           journeys={journeys} allJourneys={allJourneys} hasFilters={hasFilters}
           selectedJourney={selectedJourney} setSelectedJourney={setSelectedJourney}
-          setFilterPage={setFilterPage} setFilterCountry={setFilterCountry}
+          onCrossFilter={onCrossFilter}
           recordings={recordingsData ?? []} onSelectRecording={setSelectedRecording}
           range={range}
           revenueBySource={revenueBySource} revenueByCountry={revenueByCountry} revenueTimeseries={revenueTimeseries}

@@ -48,7 +48,7 @@ authRoutes.post("/register", async (c) => {
     } catch { /* referral tracking failure should not block registration */ }
   }
 
-  return c.json({ data: { user: { id: userId, name, email }, token: key }, success: true }, 201);
+  return c.json({ data: { user: { id: userId, name, email, role: email === superAdminEmail ? "super_admin" : "user" }, token: key }, success: true }, 201);
 });
 
 // POST /auth/login
@@ -56,12 +56,12 @@ authRoutes.post("/login", async (c) => {
   const db = c.get("db");
   if (!db) return c.json({ error: "DB unavailable", success: false }, 503);
   const { email, password } = await c.req.json();
-  const user = await db.selectFrom("users").select(["id", "name", "email", "password_hash"]).where("email", "=", email).executeTakeFirst();
+  const user = await db.selectFrom("users").select(["id", "name", "email", "password_hash", "role"]).where("email", "=", email).executeTakeFirst();
   if (!user || (await hashPassword(password)) !== user.password_hash) return c.json({ error: "Invalid credentials", success: false }, 401);
 
   const { key } = generateApiKey("session");
   await db.insertInto("api_keys").values({ id: generateId(), user_id: user.id, key_hash: await hashToken(key), key_prefix: key.slice(0, 7), name: "session", token_type: "session", scopes: null, site_id: null, last_used_at: null, expires_at: null, created_at: new Date().toISOString() }).execute();
-  return c.json({ data: { user: { id: user.id, name: user.name, email: user.email }, token: key }, success: true });
+  return c.json({ data: { user: { id: user.id, name: user.name, email: user.email, role: user.role }, token: key }, success: true });
 });
 
 // GET /auth/google — initiate Google OAuth flow
@@ -165,7 +165,18 @@ authRoutes.get("/google/callback", async (c) => {
     created_at: new Date().toISOString(),
   }).execute();
 
-  // Redirect to app with token
+  // Redirect to app with token only — client fetches user from /auth/me
   const appUrl = `${new URL(c.req.url).origin}/#token=${encodeURIComponent(key)}`;
   return c.redirect(appUrl);
+});
+
+// GET /auth/me — return current user info based on session token
+authRoutes.get("/me", async (c) => {
+  const db = c.get("db");
+  if (!db) return c.json({ error: "DB unavailable", success: false }, 503);
+  const userId = c.get("userId");
+  if (!userId) return c.json({ error: "Unauthorized", success: false }, 401);
+  const user = await db.selectFrom("users").select(["id", "name", "email", "role"]).where("id", "=", userId).executeTakeFirst();
+  if (!user) return c.json({ error: "User not found", success: false }, 404);
+  return c.json({ data: { user: { id: user.id, name: user.name, email: user.email, role: user.role } }, success: true });
 });

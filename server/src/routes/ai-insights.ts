@@ -3,6 +3,7 @@ import type { KlikapaDatabase, AiInsight, InsightsResponse, InsightType } from "
 import type { Kysely } from "kysely";
 import { generateId, getDateRange } from "../utils";
 import { aggregateData, callWorkersAI, type AggregatedData, type RawInsight, type AiBinding } from "../lib/ai-prompts";
+import { requirePlan } from "../lib/plans";
 
 type Variables = { db: Kysely<KlikapaDatabase>; userId: string };
 type Env = { Bindings: { DB: D1Database; AI?: AiBinding }; Variables: Variables };
@@ -41,6 +42,9 @@ aiInsightsRoutes.get("/", async (c) => {
 
   const site = await validateSite(db, userId, siteId);
   if (!site) return c.json({ error: "Site not found", success: false }, 404);
+
+  const planCheck = await requirePlan(db, userId, 2);
+  if (!planCheck.allowed) return c.json({ error: "AI insights require the Growth plan", success: false, required_plan: "growth", current_plan: planCheck.plan }, 403);
 
   const now = new Date().toISOString();
   const ttlHours = getCacheTtlHours(range);
@@ -113,6 +117,9 @@ aiInsightsRoutes.post("/refresh", async (c) => {
 
   const site = await validateSite(db, userId, siteId);
   if (!site) return c.json({ error: "Site not found", success: false }, 404);
+
+  const planCheck = await requirePlan(db, userId, 2);
+  if (!planCheck.allowed) return c.json({ error: "AI insights require the Growth plan", success: false, required_plan: "growth", current_plan: planCheck.plan }, 403);
 
   // Delete cached insights for this site + range
   await db.deleteFrom("ai_insights")

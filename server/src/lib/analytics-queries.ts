@@ -23,20 +23,39 @@ export function parseFilters(query: string): { dimension: string; operator: stri
   return query.split(",").map((f) => {
     const [dimension, operator, ...rest] = f.split(":");
     return { dimension: dimension ?? "", operator: operator ?? "is", value: rest.join(":") };
-  }).filter((f) => f.dimension && f.value);
+  }).filter((f) => f.dimension && (f.value || f.operator === "exists" || f.operator === "not_exists"));
 }
+
+export type ParsedFilter = { dimension: string; operator: string; value: string };
 
 /**
  * Apply parsed filters to a Kysely query builder.
  */
-export function applyFilters(qb: any, filters: { dimension: string; operator: string; value: string }[]) {
+const VALID_DIMENSIONS = new Set([
+  "path", "country", "region", "city", "device_type",
+  "browser", "os", "referrer", "utm_source", "utm_medium", "utm_campaign",
+]);
+
+export function applyFilters(qb: any, filters?: ParsedFilter[], alias?: string) {
+  if (!filters || filters.length === 0) return qb;
+  const col = (dim: string) => alias ? `${alias}.${dim}` : dim;
   for (const f of filters) {
+    if (!VALID_DIMENSIONS.has(f.dimension)) continue;
+    const c = col(f.dimension);
     if (f.operator === "is") {
-      qb = qb.where(f.dimension, "=", f.value);
+      qb = qb.where(c, "=", f.value);
     } else if (f.operator === "is_not") {
-      qb = qb.where(f.dimension, "!=", f.value);
+      qb = qb.where(c, "!=", f.value);
     } else if (f.operator === "contains") {
-      qb = qb.where(f.dimension, "like", `%${f.value}%`);
+      qb = qb.where(c, "like", `%${f.value}%`);
+    } else if (f.operator === "not_contains") {
+      qb = qb.where(c, "not like", `%${f.value}%`);
+    } else if (f.operator === "starts_with") {
+      qb = qb.where(c, "like", `${f.value}%`);
+    } else if (f.operator === "exists") {
+      qb = qb.where(c, "is not", null).where(c, "!=", "");
+    } else if (f.operator === "not_exists") {
+      qb = qb.where((eb: any) => eb.or([eb(c, "is", null), eb(c, "=", "")]));
     }
   }
   return qb;

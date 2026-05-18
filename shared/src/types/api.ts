@@ -155,9 +155,39 @@ export interface RevenueByPaymentProvider {
   revenue: number;
 }
 
+export type FilterOperator =
+  | "is" | "is_not"
+  | "contains" | "not_contains"
+  | "starts_with"
+  | "exists" | "not_exists";
+
+export const FILTER_DIMENSIONS = [
+  { value: "path", label: "Page" },
+  { value: "country", label: "Country" },
+  { value: "region", label: "Region" },
+  { value: "city", label: "City" },
+  { value: "device_type", label: "Device" },
+  { value: "browser", label: "Browser" },
+  { value: "os", label: "OS" },
+  { value: "referrer", label: "Referrer" },
+  { value: "utm_source", label: "UTM Source" },
+  { value: "utm_medium", label: "UTM Medium" },
+  { value: "utm_campaign", label: "UTM Campaign" },
+] as const;
+
+export const FILTER_OPERATORS = [
+  { value: "is", label: "is" },
+  { value: "is_not", label: "is not" },
+  { value: "contains", label: "contains" },
+  { value: "not_contains", label: "does not contain" },
+  { value: "starts_with", label: "starts with" },
+  { value: "exists", label: "exists" },
+  { value: "not_exists", label: "does not exist" },
+] as const;
+
 export interface Filter {
   dimension: string;
-  operator: "is" | "is_not" | "contains";
+  operator: FilterOperator;
   value: string;
 }
 
@@ -255,7 +285,7 @@ export interface LoginPayload {
 }
 
 export interface AuthResponse {
-  user: { id: string; name: string; email: string };
+  user: { id: string; name: string; email: string; role: string };
   token: string;
 }
 
@@ -361,7 +391,12 @@ export interface InsightsResponse {
 }
 
 // Subscription/billing types
-export type PlanTier = "free" | "starter" | "growth";
+export type PlanTier = "micro" | "starter" | "growth";
+
+export interface SubscriptionUsage {
+  events: { used: number; limit: number };
+  sites: { used: number; limit: number };
+}
 
 export interface Subscription {
   id: string;
@@ -373,6 +408,7 @@ export interface Subscription {
   cancel_at_period_end: boolean;
   polar_subscription_id: string | null;
   polar_customer_id: string | null;
+  usage?: SubscriptionUsage;
 }
 
 export interface CheckoutSession {

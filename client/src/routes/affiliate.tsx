@@ -3,6 +3,7 @@ import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { fetchAffiliate, generateReferralCode, fetchAffiliateReferrals, fetchAffiliateStats } from "@/lib/api";
 import type { Affiliate, AffiliateStats, Referral } from "shared";
+import { PageHeader } from "@/components/page-header";
 
 export const Route = createFileRoute("/affiliate")({ component: AffiliatePage });
 
@@ -50,10 +51,10 @@ function AffiliatePage() {
   return (
     <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
       <div className="overview-scroll">
-        <div className="overview-header">
-          <h1 className="overview-title">Affiliate Program</h1>
-          <p className="overview-sub">Earn commissions by referring new users to RevKlik</p>
-        </div>
+        <PageHeader
+          title="Affiliate Program"
+          subtitle="Earn commissions by referring new users to RevKlik"
+        />
 
         <div style={{ maxWidth: 720 }}>
           {/* Referral Link Section */}
@@ -99,7 +100,7 @@ function AffiliatePage() {
           {loadingStats ? (
             <div className="spinner" />
           ) : stats ? (
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginBottom: 16 }}>
+            <div className="affiliate-stats-grid">
               <div style={{ background: "var(--bg2)", border: "1px solid var(--border)", borderRadius: 12, padding: 16 }}>
                 <div style={{ fontFamily: "var(--mono)", fontSize: 10, fontWeight: 600, color: "var(--text3)", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 4 }}>Total Referrals</div>
                 <div style={{ fontFamily: "var(--serif)", fontStyle: "italic", fontSize: 28, color: "var(--text)" }}>{stats.total_referrals}</div>

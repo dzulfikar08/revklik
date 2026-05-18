@@ -2,9 +2,9 @@ import type { KlikapaDatabase, StatsResponse, TimeSeriesPoint, TopPage, SourceEn
 import type { Kysely } from "kysely";
 import { sql } from "../db";
 import { categorizeChannel } from "../lib/webhook-utils";
+import type { ParsedFilter } from "../lib/analytics-queries";
+import { applyFilters } from "../lib/analytics-queries";
 
-// Referrer source SQL: extracts hostname from referrer URL and normalizes known social/referral domains.
-// This is used in getReferrers and getRevenueBySource so both display unified source names.
 const sourceSql = sql<string>`COALESCE(utm_source,
   CASE WHEN referrer IS NULL OR referrer = '' THEN 'direct'
   WHEN referrer LIKE '%ig_text_post_permalink%' OR referrer LIKE '%ig_text_feed_timeline%' THEN 'instagram'
@@ -31,20 +31,21 @@ export async function getOverviewStats(
   db: Kysely<KlikapaDatabase>,
   siteId: string,
   startIso: string,
+  filters?: ParsedFilter[],
 ): Promise<StatsResponse> {
   const [pv, vi, se, bo, rev, conv] = await Promise.all([
-    db.selectFrom("events").select(({ fn }) => [fn.count<number>("id").as("count")])
-      .where("site_id", "=", siteId).where("event_type", "=", "pageview").where("timestamp", ">=", startIso).executeTakeFirst(),
-    db.selectFrom("events").select(({ fn }) => [fn.count<number>("visitor_id").distinct().as("count")])
-      .where("site_id", "=", siteId).where("timestamp", ">=", startIso).executeTakeFirst(),
-    db.selectFrom("sessions").select(({ fn }) => [fn.count<number>("id").as("count")])
-      .where("site_id", "=", siteId).where("started_at", ">=", startIso).executeTakeFirst(),
-    db.selectFrom("sessions").select(({ fn }) => [fn.avg<number>("is_bounce").as("avg")])
-      .where("site_id", "=", siteId).where("started_at", ">=", startIso).executeTakeFirst(),
-    db.selectFrom("events").select(({ fn }) => [fn.sum<number>("revenue").as("total")])
-      .where("site_id", "=", siteId).where("revenue", ">", 0).where("timestamp", ">=", startIso).executeTakeFirst(),
-    db.selectFrom("events").select(({ fn }) => [fn.count<number>("id").as("count")])
-      .where("site_id", "=", siteId).where("event_type", "=", "conversion").where("timestamp", ">=", startIso).executeTakeFirst(),
+    applyFilters(db.selectFrom("events").select(({ fn }) => [fn.count<number>("id").as("count")])
+      .where("site_id", "=", siteId).where("event_type", "=", "pageview").where("timestamp", ">=", startIso), filters).executeTakeFirst(),
+    applyFilters(db.selectFrom("events").select(({ fn }) => [fn.count<number>("visitor_id").distinct().as("count")])
+      .where("site_id", "=", siteId).where("timestamp", ">=", startIso), filters).executeTakeFirst(),
+    applyFilters(db.selectFrom("sessions").select(({ fn }) => [fn.count<number>("id").as("count")])
+      .where("site_id", "=", siteId).where("started_at", ">=", startIso), filters).executeTakeFirst(),
+    applyFilters(db.selectFrom("sessions").select(({ fn }) => [fn.avg<number>("is_bounce").as("avg")])
+      .where("site_id", "=", siteId).where("started_at", ">=", startIso), filters).executeTakeFirst(),
+    applyFilters(db.selectFrom("events").select(({ fn }) => [fn.sum<number>("revenue").as("total")])
+      .where("site_id", "=", siteId).where("revenue", ">", 0).where("timestamp", ">=", startIso), filters).executeTakeFirst(),
+    applyFilters(db.selectFrom("events").select(({ fn }) => [fn.count<number>("id").as("count")])
+      .where("site_id", "=", siteId).where("event_type", "=", "conversion").where("timestamp", ">=", startIso), filters).executeTakeFirst(),
   ]);
 
   return {
@@ -63,18 +64,19 @@ export async function getTimeseries(
   siteId: string,
   startIso: string,
   isHourly: boolean,
+  filters?: ParsedFilter[],
 ): Promise<TimeSeriesPoint[]> {
   const tsDate = isHourly ? sql<string>`strftime('%Y-%m-%dT%H:00:00', ${sql.ref("timestamp")})` : sql<string>`date(${sql.ref("timestamp")})`;
   const tsGroup = isHourly ? sql`strftime('%Y-%m-%dT%H:00:00', ${sql.ref("timestamp")})` : sql`date(${sql.ref("timestamp")})`;
 
-  const tsRows = await db.selectFrom("events").select([
+  const tsRows = await applyFilters(db.selectFrom("events").select([
     ({ fn }) => fn.count<number>("id").as("pageviews"),
     ({ fn }) => fn.count<number>("visitor_id").distinct().as("visitors"),
     tsDate.as("date"),
-  ]).where("site_id", "=", siteId).where("event_type", "=", "pageview").where("timestamp", ">=", startIso)
+  ]).where("site_id", "=", siteId).where("event_type", "=", "pageview").where("timestamp", ">=", startIso), filters)
     .groupBy(tsGroup).orderBy("date", "asc").execute();
 
-  return tsRows.map((r) => ({
+  return tsRows.map((r: any) => ({
     date: String(r.date ?? ""),
     pageviews: Number(r.pageviews),
     visitors: Number(r.visitors),
@@ -86,12 +88,13 @@ export async function getTopPages(
   siteId: string,
   startIso: string,
   limit: number,
+  filters?: ParsedFilter[],
 ): Promise<TopPage[]> {
-  const pageRows = await db.selectFrom("events").select(["path", ({ fn }) => fn.count<number>("id").as("pageviews"), ({ fn }) => fn.count<number>("visitor_id").distinct().as("visitors")])
-    .where("site_id", "=", siteId).where("event_type", "=", "pageview").where("timestamp", ">=", startIso)
+  const pageRows = await applyFilters(db.selectFrom("events").select(["path", ({ fn }) => fn.count<number>("id").as("pageviews"), ({ fn }) => fn.count<number>("visitor_id").distinct().as("visitors")])
+    .where("site_id", "=", siteId).where("event_type", "=", "pageview").where("timestamp", ">=", startIso), filters)
     .groupBy("path").orderBy("pageviews", "desc").limit(limit).execute();
 
-  return pageRows.map((r) => ({
+  return pageRows.map((r: any) => ({
     path: r.path,
     pageviews: Number(r.pageviews),
     visitors: Number(r.visitors),
@@ -103,15 +106,16 @@ export async function getReferrers(
   siteId: string,
   startIso: string,
   limit: number,
+  filters?: ParsedFilter[],
 ): Promise<SourceEntry[]> {
-  const sourceRows = await db.selectFrom("events").select([
+  const sourceRows = await applyFilters(db.selectFrom("events").select([
     sourceSql.as("source"),
     ({ fn }) => fn.count<number>("visitor_id").distinct().as("visitors"),
-  ]).where("site_id", "=", siteId).where("timestamp", ">=", startIso)
+  ]).where("site_id", "=", siteId).where("timestamp", ">=", startIso), filters)
     .groupBy(sourceSql).orderBy("visitors", "desc").limit(limit).execute();
 
-  const totalSrc = sourceRows.reduce((s, r) => s + Number(r.visitors), 0);
-  return sourceRows.map((r) => ({
+  const totalSrc = sourceRows.reduce((s: number, r: any) => s + Number(r.visitors), 0);
+  return sourceRows.map((r: any) => ({
     source: String(r.source),
     visitors: Number(r.visitors),
     percentage: totalSrc > 0 ? Math.round((Number(r.visitors) / totalSrc) * 100) : 0,
@@ -122,39 +126,40 @@ export async function getDeviceBreakdown(
   db: Kysely<KlikapaDatabase>,
   siteId: string,
   startIso: string,
+  filters?: ParsedFilter[],
 ): Promise<{ devices: DeviceEntry[]; os: DeviceEntry[]; browsers: DeviceEntry[] }> {
   const [deviceRows, osRows, browserRows] = await Promise.all([
-    db.selectFrom("sessions").select([
+    applyFilters(db.selectFrom("sessions").select([
       sql<string>`COALESCE(device_type, 'unknown')`.as("device"),
       ({ fn }) => fn.count<number>("visitor_id").distinct().as("visitors"),
-    ]).where("site_id", "=", siteId).where("started_at", ">=", startIso)
+    ]).where("site_id", "=", siteId).where("started_at", ">=", startIso), filters)
       .groupBy("device_type").orderBy("visitors", "desc").limit(10).execute(),
-    db.selectFrom("sessions").select([
+    applyFilters(db.selectFrom("sessions").select([
       sql<string>`COALESCE(os, 'unknown')`.as("device"),
       ({ fn }) => fn.count<number>("visitor_id").distinct().as("visitors"),
-    ]).where("site_id", "=", siteId).where("started_at", ">=", startIso)
+    ]).where("site_id", "=", siteId).where("started_at", ">=", startIso), filters)
       .groupBy("os").orderBy("visitors", "desc").limit(10).execute(),
-    db.selectFrom("sessions").select([
+    applyFilters(db.selectFrom("sessions").select([
       sql<string>`COALESCE(browser, 'unknown')`.as("device"),
       ({ fn }) => fn.count<number>("visitor_id").distinct().as("visitors"),
-    ]).where("site_id", "=", siteId).where("started_at", ">=", startIso)
+    ]).where("site_id", "=", siteId).where("started_at", ">=", startIso), filters)
       .groupBy("browser").orderBy("visitors", "desc").limit(10).execute(),
   ]);
 
-  const totalDev = deviceRows.reduce((s, r) => s + Number(r.visitors), 0);
-  const devices: DeviceEntry[] = deviceRows.map((r) => ({
+  const totalDev = deviceRows.reduce((s: number, r: any) => s + Number(r.visitors), 0);
+  const devices: DeviceEntry[] = deviceRows.map((r: any) => ({
     device: String(r.device), visitors: Number(r.visitors),
     percentage: totalDev > 0 ? Math.round((Number(r.visitors) / totalDev) * 100) : 0,
   }));
 
-  const totalOs = osRows.reduce((s, r) => s + Number(r.visitors), 0);
-  const os: DeviceEntry[] = osRows.map((r) => ({
+  const totalOs = osRows.reduce((s: number, r: any) => s + Number(r.visitors), 0);
+  const os: DeviceEntry[] = osRows.map((r: any) => ({
     device: String(r.device), visitors: Number(r.visitors),
     percentage: totalOs > 0 ? Math.round((Number(r.visitors) / totalOs) * 100) : 0,
   }));
 
-  const totalBr = browserRows.reduce((s, r) => s + Number(r.visitors), 0);
-  const browsers: DeviceEntry[] = browserRows.map((r) => ({
+  const totalBr = browserRows.reduce((s: number, r: any) => s + Number(r.visitors), 0);
+  const browsers: DeviceEntry[] = browserRows.map((r: any) => ({
     device: String(r.device), visitors: Number(r.visitors),
     percentage: totalBr > 0 ? Math.round((Number(r.visitors) / totalBr) * 100) : 0,
   }));
@@ -167,11 +172,12 @@ export async function getGeoData(
   siteId: string,
   startIso: string,
   limit: number,
+  filters?: ParsedFilter[],
 ) {
-  return db.selectFrom("events")
+  return applyFilters(db.selectFrom("events")
     .select(["country", "region", "city", ({ fn }) => fn.count<number>("visitor_id").distinct().as("visitors")])
     .where("site_id", "=", siteId)
-    .where("timestamp", ">=", startIso)
+    .where("timestamp", ">=", startIso), filters)
     .groupBy(["country", "region", "city"])
     .orderBy("visitors", "desc")
     .limit(limit)
@@ -182,15 +188,16 @@ export async function getRevenueBySource(
   db: Kysely<KlikapaDatabase>,
   siteId: string,
   startIso: string,
+  filters?: ParsedFilter[],
 ): Promise<RevenueBySource[]> {
-  const rows = await db.selectFrom("events").select([
+  const rows = await applyFilters(db.selectFrom("events").select([
     sourceSql.as("source"),
     ({ fn }) => fn.sum<number>("revenue").as("revenue"),
     ({ fn }) => fn.count<number>("id").as("conversions"),
-  ]).where("site_id", "=", siteId).where("revenue", ">", 0).where("timestamp", ">=", startIso)
+  ]).where("site_id", "=", siteId).where("revenue", ">", 0).where("timestamp", ">=", startIso), filters)
     .groupBy(sourceSql).orderBy("revenue", "desc").limit(10).execute();
 
-  return rows.map((r) => ({
+  return rows.map((r: any) => ({
     source: String(r.source),
     revenue: Number(r.revenue ?? 0),
     conversions: Number(r.conversions ?? 0),
@@ -201,15 +208,16 @@ export async function getRevenueByCountry(
   db: Kysely<KlikapaDatabase>,
   siteId: string,
   startIso: string,
+  filters?: ParsedFilter[],
 ): Promise<RevenueByCountry[]> {
-  const rows = await db.selectFrom("events").select([
+  const rows = await applyFilters(db.selectFrom("events").select([
     sql<string>`COALESCE(country, 'unknown')`.as("country"),
     ({ fn }) => fn.sum<number>("revenue").as("revenue"),
     ({ fn }) => fn.count<number>("id").as("conversions"),
-  ]).where("site_id", "=", siteId).where("revenue", ">", 0).where("timestamp", ">=", startIso)
+  ]).where("site_id", "=", siteId).where("revenue", ">", 0).where("timestamp", ">=", startIso), filters)
     .groupBy("country").orderBy("revenue", "desc").limit(10).execute();
 
-  return rows.map((r) => ({
+  return rows.map((r: any) => ({
     country: String(r.country),
     revenue: Number(r.revenue ?? 0),
     conversions: Number(r.conversions ?? 0),
@@ -221,18 +229,19 @@ export async function getRevenueTimeseries(
   siteId: string,
   startIso: string,
   isHourly: boolean,
+  filters?: ParsedFilter[],
 ): Promise<RevenueTimeSeriesPoint[]> {
   const tsDate = isHourly ? sql<string>`strftime('%Y-%m-%dT%H:00:00', ${sql.ref("timestamp")})` : sql<string>`date(${sql.ref("timestamp")})`;
   const tsGroup = isHourly ? sql`strftime('%Y-%m-%dT%H:00:00', ${sql.ref("timestamp")})` : sql`date(${sql.ref("timestamp")})`;
 
-  const rows = await db.selectFrom("events").select([
+  const rows = await applyFilters(db.selectFrom("events").select([
     tsDate.as("date"),
     ({ fn }) => fn.sum<number>("revenue").as("revenue"),
     ({ fn }) => fn.count<number>("id").as("conversions"),
-  ]).where("site_id", "=", siteId).where("revenue", ">", 0).where("timestamp", ">=", startIso)
+  ]).where("site_id", "=", siteId).where("revenue", ">", 0).where("timestamp", ">=", startIso), filters)
     .groupBy(tsGroup).orderBy("date", "asc").execute();
 
-  return rows.map((r) => ({
+  return rows.map((r: any) => ({
     date: String(r.date ?? ""),
     revenue: Number(r.revenue ?? 0),
     conversions: Number(r.conversions ?? 0),
@@ -243,8 +252,9 @@ export async function getEntryPagesRevenue(
   db: Kysely<KlikapaDatabase>,
   siteId: string,
   startIso: string,
+  filters?: ParsedFilter[],
 ): Promise<EntryPageRevenue[]> {
-  const rows = await db.selectFrom("sessions")
+  const rows = await applyFilters(db.selectFrom("sessions")
     .innerJoin("events", "events.session_id", "sessions.id")
     .select([
       "sessions.entry_path as path",
@@ -254,7 +264,7 @@ export async function getEntryPagesRevenue(
     ])
     .where("sessions.site_id", "=", siteId)
     .where("sessions.started_at", ">=", startIso)
-    .where("events.site_id", "=", siteId)
+    .where("events.site_id", "=", siteId), filters)
     .groupBy("sessions.entry_path")
     .orderBy("revenue", "desc")
     .limit(20)
@@ -271,8 +281,9 @@ export async function getRevenueByPaymentMethod(
   db: Kysely<KlikapaDatabase>,
   siteId: string,
   startIso: string,
+  filters?: ParsedFilter[],
 ): Promise<RevenueByPaymentMethod[]> {
-  const rows = await db.selectFrom("events")
+  const rows = await applyFilters(db.selectFrom("events")
     .select([
       sql<string>`COALESCE(payment_method, 'unknown')`.as("method"),
       sql<number>`COUNT(*)`.as("count"),
@@ -280,7 +291,7 @@ export async function getRevenueByPaymentMethod(
     ])
     .where("site_id", "=", siteId)
     .where("revenue", ">", 0)
-    .where("timestamp", ">=", startIso)
+    .where("timestamp", ">=", startIso), filters)
     .groupBy("payment_method")
     .orderBy("revenue", "desc")
     .execute();
@@ -295,8 +306,9 @@ export async function getRevenueByPaymentProvider(
   db: Kysely<KlikapaDatabase>,
   siteId: string,
   startIso: string,
+  filters?: ParsedFilter[],
 ): Promise<RevenueByPaymentProvider[]> {
-  const rows = await db.selectFrom("events")
+  const rows = await applyFilters(db.selectFrom("events")
     .select([
       sql<string>`COALESCE(payment_provider, 'unknown')`.as("provider"),
       sql<number>`COUNT(*)`.as("count"),
@@ -304,7 +316,7 @@ export async function getRevenueByPaymentProvider(
     ])
     .where("site_id", "=", siteId)
     .where("revenue", ">", 0)
-    .where("timestamp", ">=", startIso)
+    .where("timestamp", ">=", startIso), filters)
     .groupBy("payment_provider")
     .orderBy("revenue", "desc")
     .execute();
@@ -319,11 +331,12 @@ export async function getChannelBreakdown(
   db: Kysely<KlikapaDatabase>,
   siteId: string,
   startIso: string,
+  filters?: ParsedFilter[],
 ): Promise<ChannelEntry[]> {
-  const rows = await db.selectFrom("events")
+  const rows = await applyFilters(db.selectFrom("events")
     .select(["referrer", "utm_source", "utm_medium", "visitor_id", "id", "revenue"])
     .where("site_id", "=", siteId)
-    .where("timestamp", ">=", startIso)
+    .where("timestamp", ">=", startIso), filters)
     .execute();
 
   const channelMap = new Map<string, { visitors: Set<string>; pageviews: number; revenue: number }>();

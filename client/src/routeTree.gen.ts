@@ -11,6 +11,8 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as RegisterRouteImport } from './routes/register'
+import { Route as ProfileRouteImport } from './routes/profile'
+import { Route as PaywallRouteImport } from './routes/paywall'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as IntegrationsRouteImport } from './routes/integrations'
 import { Route as ImportRouteImport } from './routes/import'
@@ -29,6 +31,16 @@ const SettingsRoute = SettingsRouteImport.update({
 const RegisterRoute = RegisterRouteImport.update({
   id: '/register',
   path: '/register',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ProfileRoute = ProfileRouteImport.update({
+  id: '/profile',
+  path: '/profile',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PaywallRoute = PaywallRouteImport.update({
+  id: '/paywall',
+  path: '/paywall',
   getParentRoute: () => rootRouteImport,
 } as any)
 const LoginRoute = LoginRouteImport.update({
@@ -83,6 +95,8 @@ export interface FileRoutesByFullPath {
   '/import': typeof ImportRoute
   '/integrations': typeof IntegrationsRoute
   '/login': typeof LoginRoute
+  '/paywall': typeof PaywallRoute
+  '/profile': typeof ProfileRoute
   '/register': typeof RegisterRoute
   '/settings': typeof SettingsRouteWithChildren
   '/docs/install': typeof DocsInstallRoute
@@ -96,6 +110,8 @@ export interface FileRoutesByTo {
   '/import': typeof ImportRoute
   '/integrations': typeof IntegrationsRoute
   '/login': typeof LoginRoute
+  '/paywall': typeof PaywallRoute
+  '/profile': typeof ProfileRoute
   '/register': typeof RegisterRoute
   '/settings': typeof SettingsRouteWithChildren
   '/docs/install': typeof DocsInstallRoute
@@ -110,6 +126,8 @@ export interface FileRoutesById {
   '/import': typeof ImportRoute
   '/integrations': typeof IntegrationsRoute
   '/login': typeof LoginRoute
+  '/paywall': typeof PaywallRoute
+  '/profile': typeof ProfileRoute
   '/register': typeof RegisterRoute
   '/settings': typeof SettingsRouteWithChildren
   '/docs/install': typeof DocsInstallRoute
@@ -125,6 +143,8 @@ export interface FileRouteTypes {
     | '/import'
     | '/integrations'
     | '/login'
+    | '/paywall'
+    | '/profile'
     | '/register'
     | '/settings'
     | '/docs/install'
@@ -138,6 +158,8 @@ export interface FileRouteTypes {
     | '/import'
     | '/integrations'
     | '/login'
+    | '/paywall'
+    | '/profile'
     | '/register'
     | '/settings'
     | '/docs/install'
@@ -151,6 +173,8 @@ export interface FileRouteTypes {
     | '/import'
     | '/integrations'
     | '/login'
+    | '/paywall'
+    | '/profile'
     | '/register'
     | '/settings'
     | '/docs/install'
@@ -165,6 +189,8 @@ export interface RootRouteChildren {
   ImportRoute: typeof ImportRoute
   IntegrationsRoute: typeof IntegrationsRoute
   LoginRoute: typeof LoginRoute
+  PaywallRoute: typeof PaywallRoute
+  ProfileRoute: typeof ProfileRoute
   RegisterRoute: typeof RegisterRoute
   SettingsRoute: typeof SettingsRouteWithChildren
   DocsInstallRoute: typeof DocsInstallRoute
@@ -185,6 +211,20 @@ declare module '@tanstack/react-router' {
       path: '/register'
       fullPath: '/register'
       preLoaderRoute: typeof RegisterRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/profile': {
+      id: '/profile'
+      path: '/profile'
+      fullPath: '/profile'
+      preLoaderRoute: typeof ProfileRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/paywall': {
+      id: '/paywall'
+      path: '/paywall'
+      fullPath: '/paywall'
+      preLoaderRoute: typeof PaywallRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/login': {
@@ -273,6 +313,8 @@ const rootRouteChildren: RootRouteChildren = {
   ImportRoute: ImportRoute,
   IntegrationsRoute: IntegrationsRoute,
   LoginRoute: LoginRoute,
+  PaywallRoute: PaywallRoute,
+  ProfileRoute: ProfileRoute,
   RegisterRoute: RegisterRoute,
   SettingsRoute: SettingsRouteWithChildren,
   DocsInstallRoute: DocsInstallRoute,

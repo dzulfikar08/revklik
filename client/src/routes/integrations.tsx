@@ -14,6 +14,7 @@ import { PROVIDERS, PAYMENT_PROVIDERS, MARKETPLACE_PROVIDERS } from "@/component
 import { MarketplaceOrdersSection } from "@/components/integrations/marketplace-orders";
 import { WebhookUrlSection } from "@/components/integrations/webhook-url-section";
 import { EventLogTable } from "@/components/integrations/event-log";
+import { PageHeader } from "@/components/page-header";
 
 export const Route = createFileRoute("/integrations")({ component: IntegrationsPage });
 
@@ -258,10 +259,11 @@ function IntegrationsPage() {
   return (
     <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
       <div className="overview-scroll">
-        <div className="overview-header">
-          <h1 className="overview-title">{t("integrations.title")}</h1>
-          <p className="overview-sub">{t("integrations.subtitle")}</p>
-        </div>
+        <PageHeader
+          title={t("integrations.title")}
+          subtitle={t("integrations.subtitle")}
+          backTo="/site/$siteId"
+        />
 
         {isLoading ? (
           <div style={{ display: "flex", justifyContent: "center", padding: 80 }}>

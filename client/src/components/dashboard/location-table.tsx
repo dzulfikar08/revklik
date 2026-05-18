@@ -1,5 +1,3 @@
-// Geographic data table
-
 import { useState, useMemo } from "react";
 import { t } from "@/lib/i18n";
 import { countryFlag } from "./icons";
@@ -7,7 +5,7 @@ import { countryFlag } from "./icons";
 type LocationTab = "country" | "region" | "city";
 type SortDir = "asc" | "desc";
 
-export function LocationTable({ geoData, onFilterCountry }: { geoData: any[]; onFilterCountry: (c: string | null) => void }) {
+export function LocationTable({ geoData, onCrossFilter }: { geoData: any[]; onCrossFilter: (dimension: string, value: string) => void }) {
   const [tab, setTab] = useState<LocationTab>("country");
   const [sortKey, setSortKey] = useState<"name" | "visitors">("visitors");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
@@ -39,6 +37,11 @@ export function LocationTable({ geoData, onFilterCountry }: { geoData: any[]; on
 
   const sortArrow = (key: "name" | "visitors") => sortKey === key ? (sortDir === "desc" ? " \u2193" : " \u2191") : "";
 
+  const handleRowClick = (row: { name: string; country: string | null }) => {
+    const dimension = tab === "country" ? "country" : tab === "region" ? "region" : "city";
+    onCrossFilter(dimension, row.name);
+  };
+
   return (
     <div className="data-table-card" style={{ border: "none", background: "transparent", display: "flex", flexDirection: "column", height: "100%" }}>
       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
@@ -67,7 +70,7 @@ export function LocationTable({ geoData, onFilterCountry }: { geoData: any[]; on
           </tr></thead>
           <tbody>
             {aggregated.map((row, i) => (
-              <tr key={i} style={{ cursor: "pointer" }} onClick={() => onFilterCountry(row.country)}>
+              <tr key={i} style={{ cursor: "pointer" }} onClick={() => handleRowClick(row)}>
                 <td style={{ fontSize: 13 }}>
                   {tab === "country" ? <>{countryFlag(row.name)} {row.name}</> : row.name}
                 </td>

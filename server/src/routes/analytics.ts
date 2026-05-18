@@ -4,7 +4,8 @@ import type { Kysely } from "kysely";
 import { sql, createDb } from "../db";
 import { getDateRange } from "../utils";
 import { getOverviewStats, getTimeseries, getTopPages, getReferrers, getDeviceBreakdown, getRevenueBySource, getRevenueByCountry, getRevenueTimeseries, getEntryPagesRevenue, getRevenueByPaymentMethod, getRevenueByPaymentProvider, getChannelBreakdown } from "../queries/analytics";
-import { validateSite, parseFilters, toCsv, buildFunnelSteps, buildDepthSteps, processScrollEvents, buildHeatmapData } from "../lib/analytics-queries";
+import { validateSite, parseFilters, applyFilters, toCsv, buildFunnelSteps, buildDepthSteps, processScrollEvents, buildHeatmapData } from "../lib/analytics-queries";
+import { requirePlan } from "../lib/plans";
 import type { FunnelStep } from "../lib/analytics-queries";
 
 type Variables = { db: Kysely<KlikapaDatabase>; userId: string };
@@ -29,25 +30,25 @@ analyticsRoutes.get("/dashboard", async (c) => {
   const isHourly = spanHours <= 48;
 
   const [stats, timeseries, topPages, sources, { devices, os, browsers }, recentSessions, profiles, revenueBySource, revenueByCountry, revenueTimeseries, entryPagesRevenue, revenueByMethod, revenueByProvider, channels] = await Promise.all([
-    getOverviewStats(db, siteId, startIso),
-    getTimeseries(db, siteId, startIso, isHourly),
-    getTopPages(db, siteId, startIso, 10),
-    getReferrers(db, siteId, startIso, 10),
-    getDeviceBreakdown(db, siteId, startIso),
-    db.selectFrom("sessions").select(["id", "visitor_id", "started_at", "country", "region", "city", "device_type", "browser", "os", "utm_source", "referrer", "page_count"])
-      .where("site_id", "=", siteId).where("started_at", ">=", startIso).orderBy("started_at", "desc").limit(100).execute(),
+    getOverviewStats(db, siteId, startIso, filters),
+    getTimeseries(db, siteId, startIso, isHourly, filters),
+    getTopPages(db, siteId, startIso, 10, filters),
+    getReferrers(db, siteId, startIso, 10, filters),
+    getDeviceBreakdown(db, siteId, startIso, filters),
+    applyFilters(db.selectFrom("sessions").select(["id", "visitor_id", "started_at", "country", "region", "city", "device_type", "browser", "os", "utm_source", "referrer", "page_count"])
+      .where("site_id", "=", siteId).where("started_at", ">=", startIso), filters).orderBy("started_at", "desc").limit(100).execute(),
     db.selectFrom("visitor_profiles").select(["id", "visitor_id", "name", "email", "phone", "first_seen", "last_seen", "country", "region", "city", "device_type", "browser", "os", "total_sessions", "total_pageviews", "total_revenue", "tags", "notes"])
       .where("site_id", "=", siteId).orderBy("last_seen", "desc").limit(50).execute(),
-    getRevenueBySource(db, siteId, startIso),
-    getRevenueByCountry(db, siteId, startIso),
-    getRevenueTimeseries(db, siteId, startIso, isHourly),
-    getEntryPagesRevenue(db, siteId, startIso),
-    getRevenueByPaymentMethod(db, siteId, startIso),
-    getRevenueByPaymentProvider(db, siteId, startIso),
-    getChannelBreakdown(db, siteId, startIso),
+    getRevenueBySource(db, siteId, startIso, filters),
+    getRevenueByCountry(db, siteId, startIso, filters),
+    getRevenueTimeseries(db, siteId, startIso, isHourly, filters),
+    getEntryPagesRevenue(db, siteId, startIso, filters),
+    getRevenueByPaymentMethod(db, siteId, startIso, filters),
+    getRevenueByPaymentProvider(db, siteId, startIso, filters),
+    getChannelBreakdown(db, siteId, startIso, filters),
   ]);
 
-  const sessionIds = recentSessions.map((s) => s.id);
+  const sessionIds = recentSessions.map((s: any) => s.id);
   const BATCH = 50;
   const allSessionEvents: { session_id: string; path: string; event_type: string; name: string | null; timestamp: string; revenue: number | null; props: string | null }[] = [];
   for (let i = 0; i < sessionIds.length; i += BATCH) {
@@ -65,7 +66,7 @@ analyticsRoutes.get("/dashboard", async (c) => {
   const journeys: VisitorJourney[] = [];
   for (const sess of recentSessions) {
     const events = eventsBySession.get(sess.id) ?? [];
-    const profile = profiles.find((p) => p.visitor_id === sess.visitor_id);
+    const profile = profiles.find((p: any) => p.visitor_id === sess.visitor_id);
     journeys.push({
       session_id: sess.id, visitor_id: sess.visitor_id,
       visitor_name: profile?.name ?? null, visitor_email: profile?.email ?? null,
@@ -213,15 +214,17 @@ analyticsRoutes.get("/geo", async (c) => {
   const userId = c.get("userId");
   const siteId = c.req.query("site_id");
   const range = c.req.query("range") || "7d";
+  const filtersParam = c.req.query("filters") || "";
+  const filters = parseFilters(filtersParam);
   if (!siteId) return c.json({ error: "site_id required", success: false }, 400);
   const site = await validateSite(db, userId, siteId);
   if (!site) return c.json({ error: "Site not found", success: false }, 404);
   const { start } = getDateRange(range);
   const startIso = start.toISOString();
-  const rows = await db.selectFrom("events")
+  const rows = await applyFilters(db.selectFrom("events")
     .select(["country", "region", "city", ({ fn }) => fn.count<number>("visitor_id").distinct().as("visitors")])
     .where("site_id", "=", siteId)
-    .where("timestamp", ">=", startIso)
+    .where("timestamp", ">=", startIso), filters)
     .groupBy(["country", "region", "city"])
     .orderBy("visitors", "desc")
     .limit(50)
@@ -230,7 +233,7 @@ analyticsRoutes.get("/geo", async (c) => {
   return c.json({ data: rows, success: true });
 });
 
-// Heatmap analytics
+// Heatmap analytics (Growth plan only)
 analyticsRoutes.get("/heatmap", async (c) => {
   const db = c.get("db");
   const userId = c.get("userId");
@@ -240,6 +243,9 @@ analyticsRoutes.get("/heatmap", async (c) => {
   if (!siteId) return c.json({ error: "site_id required", success: false }, 400);
   const site = await validateSite(db, userId, siteId);
   if (!site) return c.json({ error: "Site not found", success: false }, 404);
+
+  const planCheck = await requirePlan(db, userId, 2);
+  if (!planCheck.allowed) return c.json({ error: "Heatmaps require the Growth plan", success: false, required_plan: "growth", current_plan: planCheck.plan }, 403);
 
   const { start } = getDateRange(range);
   const startIso = start.toISOString();
@@ -263,7 +269,7 @@ analyticsRoutes.get("/heatmap", async (c) => {
   return c.json({ data: heatmapData, success: true });
 });
 
-// List session recordings
+// List session recordings (Growth plan only)
 analyticsRoutes.get("/recordings", async (c) => {
   const db = c.get("db");
   const userId = c.get("userId");
@@ -272,6 +278,9 @@ analyticsRoutes.get("/recordings", async (c) => {
   if (!siteId) return c.json({ error: "site_id required", success: false }, 400);
   const site = await validateSite(db, userId, siteId);
   if (!site) return c.json({ error: "Site not found", success: false }, 404);
+
+  const planCheck = await requirePlan(db, userId, 2);
+  if (!planCheck.allowed) return c.json({ error: "Session recordings require the Growth plan", success: false, required_plan: "growth", current_plan: planCheck.plan }, 403);
 
   const { start } = getDateRange(range);
   const startIso = start.toISOString();
@@ -302,11 +311,14 @@ analyticsRoutes.get("/recordings", async (c) => {
   return c.json({ data: recordings, success: true });
 });
 
-// Get single recording
+// Get single recording (Growth plan only)
 analyticsRoutes.get("/recordings/:id", async (c) => {
   const db = c.get("db");
   const userId = c.get("userId");
   const recordingId = c.req.param("id");
+
+  const planCheck = await requirePlan(db, userId, 2);
+  if (!planCheck.allowed) return c.json({ error: "Session recordings require the Growth plan", success: false, required_plan: "growth", current_plan: planCheck.plan }, 403);
 
   const row = await db.selectFrom("session_recordings")
     .selectAll()

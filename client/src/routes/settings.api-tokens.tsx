@@ -3,6 +3,7 @@ import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
 import { useState } from "react";
 import { fetchSites, fetchTokens, createApiToken, revokeApiToken } from "@/lib/api";
 import { toast } from "@/components/toast";
+import { PageHeader } from "@/components/page-header";
 
 const SCOPES = {
   SITES_READ: "sites:read",
@@ -358,17 +359,16 @@ function ApiTokensPage() {
   return (
     <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
       <div className="overview-scroll">
-        <div className="overview-header">
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-            <div>
-              <h1 className="overview-title">API Tokens</h1>
-              <p className="overview-sub">Create tokens to access the RevKlik API or CLI.</p>
-            </div>
+        <PageHeader
+          title="API Tokens"
+          subtitle="Create tokens to access the RevKlik API or CLI."
+          backTo="/settings"
+          action={
             <button className="btn-accent" onClick={() => setShowCreate(true)} style={{ fontSize: 13, padding: "8px 18px" }}>
               + Create Token
             </button>
-          </div>
-        </div>
+          }
+        />
 
         {/* Token list */}
         <div style={{ padding: "0 24px", maxWidth: 900 }}>

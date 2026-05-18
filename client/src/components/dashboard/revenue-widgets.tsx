@@ -6,7 +6,7 @@ import type { RevenueBySource, RevenueByCountry, RevenueTimeSeriesPoint, Channel
 
 type RevenueTab = "source" | "country" | "trend" | "method" | "provider";
 
-export function RevenueBreakdownWidget({ bySource, byCountry, trend, byMethod, byProvider }: { bySource: RevenueBySource[]; byCountry: RevenueByCountry[]; trend: RevenueTimeSeriesPoint[]; byMethod: RevenueByPaymentMethod[]; byProvider: RevenueByPaymentProvider[] }) {
+export function RevenueBreakdownWidget({ bySource, byCountry, trend, byMethod, byProvider, onCrossFilter }: { bySource: RevenueBySource[]; byCountry: RevenueByCountry[]; trend: RevenueTimeSeriesPoint[]; byMethod: RevenueByPaymentMethod[]; byProvider: RevenueByPaymentProvider[]; onCrossFilter?: (dimension: string, value: string) => void }) {
   const [tab, setTab] = useState<RevenueTab>("source");
 
   return (
@@ -91,7 +91,12 @@ export function RevenueBreakdownWidget({ bySource, byCountry, trend, byMethod, b
               </tr></thead>
               <tbody>
                 {(tab === "source" ? bySource : byCountry).map((r, i) => (
-                  <tr key={i}>
+                  <tr key={i} style={{ cursor: onCrossFilter ? "pointer" : undefined }} onClick={() => {
+                    if (onCrossFilter) {
+                      const val = (r as any).source || (r as any).country;
+                      onCrossFilter(tab === "source" ? "utm_source" : "country", val);
+                    }
+                  }}>
                     <td style={{ fontSize: 13 }}>{(r as any).source || (r as any).country}</td>
                     <td style={{ textAlign: "right", fontFamily: "var(--mono)", fontSize: 12 }}>${r.revenue.toFixed(2)}</td>
                     <td style={{ textAlign: "right", fontFamily: "var(--mono)", fontSize: 12 }}>{r.conversions}</td>

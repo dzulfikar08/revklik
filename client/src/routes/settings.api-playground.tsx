@@ -1,7 +1,8 @@
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 import { getActiveSiteId } from "@/lib/api";
 import { getItemSync } from "@/lib/mobile-storage";
 import { useState } from "react";
+import { PageHeader } from "@/components/page-header";
 
 export const Route = createFileRoute("/settings/api-playground")({
   component: APIPlaygroundPage,
@@ -54,7 +55,6 @@ function methodBadge(method: string) {
 }
 
 function APIPlaygroundPage() {
-  const navigate = useNavigate();
   const [selectedIdx, setSelectedIdx] = useState<number | null>(null);
   const [paramValues, setParamValues] = useState<Record<string, string>>({});
   const [requestBody, setRequestBody] = useState("");
@@ -166,42 +166,13 @@ function APIPlaygroundPage() {
 
   return (
     <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
-      {/* Header */}
-      <div style={{
-        padding: "16px 24px",
-        borderBottom: "1px solid var(--border)",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "space-between",
-      }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-          <button
-            className="btn-pill"
-            onClick={() => navigate({ to: "/settings" })}
-            style={{ fontSize: 11, padding: "4px 10px" }}
-          >
-            &larr; Settings
-          </button>
-          <h1 style={{
-            fontFamily: "var(--serif)",
-            fontStyle: "italic",
-            fontSize: 20,
-            color: "var(--text)",
-            margin: 0,
-          }}>
-            API Playground
-          </h1>
-        </div>
-        <span style={{
-          fontFamily: "var(--mono)",
-          fontSize: 11,
-          color: "var(--text3)",
-          background: "var(--bg3)",
-          padding: "4px 10px",
-          borderRadius: 6,
-        }}>
-          {baseUrl}
-        </span>
+      <div style={{ padding: "0 24px" }}>
+        <PageHeader
+          title="API Playground"
+          subtitle="Test API endpoints interactively"
+          backTo="/settings"
+          badge={baseUrl}
+        />
       </div>
 
       {/* Two-column layout */}

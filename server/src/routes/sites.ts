@@ -3,6 +3,7 @@ import type { KlikapaDatabase, CreateSitePayload, Site, SiteWithStats } from "sh
 import type { Kysely } from "kysely";
 import { generateId, generateApiKey, hashToken } from "../utils";
 import { sql } from "../db";
+import { getPlanLimits } from "../lib/plans";
 
 type Variables = { db: Kysely<KlikapaDatabase>; userId: string };
 
@@ -15,7 +16,14 @@ siteRoutes.get("/", async (c) => {
   const sites = await db.selectFrom("sites").select(["id", "name", "domain", "created_at"])
     .where("user_id", "=", userId).orderBy("created_at", "desc").execute();
 
-  const startIso = new Date(Date.now() - 7 * 86400000).toISOString();
+  const rangeParam = c.req.query("range") || "7d";
+  let startIso: string;
+  if (rangeParam.includes(",")) {
+    startIso = new Date(rangeParam.split(",")[0]!).toISOString();
+  } else {
+    const days: Record<string, number> = { "24h": 1, "7d": 7, "30d": 30, "90d": 90 };
+    startIso = new Date(Date.now() - (days[rangeParam] ?? 7) * 86400000).toISOString();
+  }
 
   const sitesWithStats: SiteWithStats[] = await Promise.all(
     sites.map(async (site) => {
@@ -49,6 +57,23 @@ siteRoutes.post("/", async (c) => {
   const userId = c.get("userId");
   const { name, domain } = await c.req.json<CreateSitePayload>();
   if (!name || !domain) return c.json({ error: "Name and domain required", success: false }, 400);
+
+  // Site limit enforcement (super_admins bypass limits)
+  const user = await db.selectFrom("users").select(["role"]).where("id", "=", userId).executeTakeFirst();
+  if (user?.role !== "super_admin") {
+    const sub = await db.selectFrom("subscriptions")
+      .select(["plan", "status", "current_period_end"])
+      .where("user_id", "=", userId).executeTakeFirst();
+    const plan = (sub?.status === "active" && (!sub.current_period_end || new Date(sub.current_period_end) >= new Date()))
+      ? sub.plan : "micro";
+    const limits = getPlanLimits(plan);
+    const siteCount = await db.selectFrom("sites")
+      .select(({ fn }) => fn.count<number>("id").as("cnt"))
+      .where("user_id", "=", userId).executeTakeFirst();
+    if (Number(siteCount?.cnt ?? 0) >= limits.sites) {
+      return c.json({ error: `Site limit reached (${limits.sites} for ${limits.name} plan). Upgrade to create more sites.`, success: false, quota: { limit: limits.sites, used: Number(siteCount?.cnt ?? 0), plan } }, 403);
+    }
+  }
 
   const siteId = generateId();
   await db.insertInto("sites").values({

@@ -9,7 +9,7 @@ const FUNNEL_COLORS = [
   "#8e4c15", "#874613", "#804011", "#793a0f", "#72340d",
 ];
 
-export function FunnelChartCustom({ steps, conversionRate, pages }: { steps: FunnelStep[]; conversionRate: number; pages: PageFunnel[] }) {
+export function FunnelChartCustom({ steps, conversionRate, pages, onCrossFilter }: { steps: FunnelStep[]; conversionRate: number; pages: PageFunnel[]; onCrossFilter?: (dimension: string, value: string) => void }) {
   const [hovered, setHovered] = useState<number | null>(null);
   const [selectedPage, setSelectedPage] = useState<string>("/");
 
@@ -77,7 +77,7 @@ export function FunnelChartCustom({ steps, conversionRate, pages }: { steps: Fun
         <div className="scroll-x" style={{ marginBottom: 8 }}>
           <div style={{ display: "inline-flex", gap: 2 }}>
             {pages.map((p) => (
-              <button key={p.path} onClick={() => setSelectedPage(p.path)} style={{
+              <button key={p.path} onClick={() => { setSelectedPage(p.path); onCrossFilter?.("path", p.path); }} style={{
                 fontSize: 10, padding: "3px 8px", borderRadius: 4, border: "none", cursor: "pointer",
                 fontFamily: "var(--mono)", whiteSpace: "nowrap",
                 background: selectedPage === p.path ? "var(--accent-dim)" : "transparent",

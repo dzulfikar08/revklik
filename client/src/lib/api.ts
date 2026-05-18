@@ -30,7 +30,7 @@ async function apiFetch<T>(path: string, opts?: RequestInit): Promise<T> {
 export const isLoggedIn = () => !!getItemSync("kp_token");
 export const getActiveSiteId = () => getItemSync("kp_active_site");
 export const setActiveSiteId = (id: string) => { setItem("kp_active_site", id); };
-export const getCurrentUser = () => { const r = getItemSync("kp_user"); return r ? JSON.parse(r) : null; };
+export const getCurrentUser = () => { try { const r = getItemSync("kp_user"); return r ? JSON.parse(r) : null; } catch { return null; } };
 
 export async function register(p: CreateUserPayload, refCode?: string): Promise<AuthResponse> {
   const path = refCode ? `/auth/register?ref=${encodeURIComponent(refCode)}` : "/auth/register";
@@ -47,26 +47,35 @@ export async function login(p: LoginPayload): Promise<AuthResponse> {
 
 export function logout() { removeItem("kp_token"); removeItem("kp_user"); removeItem("kp_active_site"); }
 
-export const fetchSites = () => apiFetch<SiteWithStats[]>("/sites");
+export const fetchSites = (range?: string, startDate?: string, endDate?: string) => {
+  const p = new URLSearchParams();
+  if (startDate && endDate) p.set("range", `${startDate},${endDate}`);
+  else if (range) p.set("range", range);
+  const qs = p.toString();
+  return apiFetch<SiteWithStats[]>(`/sites${qs ? `?${qs}` : ""}`);
+};
 export const createSite = (p: CreateSitePayload) => apiFetch<Site>("/sites", { method: "POST", body: JSON.stringify(p) });
 export const deleteSite = (id: string) => apiFetch<void>(`/sites/${id}`, { method: "DELETE" });
 export const fetchSiteSnippet = (id: string) => apiFetch<{ siteId: string; snippet: string }>(`/sites/${id}/snippet`);
-export const fetchDashboard = (siteId: string, range?: string, startDate?: string, endDate?: string) => {
+export const fetchDashboard = (siteId: string, range?: string, startDate?: string, endDate?: string, filters?: string) => {
   const p = new URLSearchParams({ site_id: siteId });
   if (startDate && endDate) p.set("range", `${startDate},${endDate}`);
   else if (range) p.set("range", range);
+  if (filters) p.set("filters", filters);
   return apiFetch<SiteDashboard>(`/analytics/dashboard?${p}`);
 };
 export const fetchVisitors = (siteId: string) => apiFetch<VisitorProfile[]>(`/analytics/visitors?site_id=${siteId}`);
-export const fetchFunnel = (siteId: string, range?: string) => {
+export const fetchFunnel = (siteId: string, range?: string, filters?: string) => {
   const p = new URLSearchParams({ site_id: siteId });
   if (range) p.set("range", range);
+  if (filters) p.set("filters", filters);
   return apiFetch<ScrollFunnel>(`/analytics/funnel?${p}`);
 };
 export const updateVisitor = (id: string, data: Partial<VisitorProfile>) => apiFetch<void>(`/analytics/visitors/${id}`, { method: "PATCH", body: JSON.stringify(data) });
-export const fetchGeo = (siteId: string, range?: string) => {
+export const fetchGeo = (siteId: string, range?: string, filters?: string) => {
   const p = new URLSearchParams({ site_id: siteId });
   if (range) p.set("range", range);
+  if (filters) p.set("filters", filters);
   return apiFetch<{ country: string | null; region: string | null; city: string | null; visitors: number }[]>(`/analytics/geo?${p}`);
 };
 

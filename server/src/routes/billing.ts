@@ -2,6 +2,8 @@ import { Hono } from "hono";
 import type { KlikapaDatabase } from "shared";
 import type { Kysely } from "kysely";
 import { generateId } from "../utils";
+import { PLANS, getPlanLimits, getFeatures } from "../lib/plans";
+import type { PlanTier } from "../lib/plans";
 
 type Variables = { db: Kysely<KlikapaDatabase>; userId: string };
 type Bindings = { POLAR_ACCESS_TOKEN?: string; POLAR_ORG_ID?: string; POLAR_WEBHOOK_SECRET?: string; POLAR_STARTER_PRODUCT_ID?: string; POLAR_GROWTH_PRODUCT_ID?: string };
@@ -11,13 +13,7 @@ export const billingRoutes = new Hono<BillingEnv>();
 
 const POLAR_API = "https://api.polar.sh/v1";
 
-const PLANS = {
-  micro: { name: "Micro", price: 1, events_per_month: 10000, sites: 1 },
-  starter: { name: "Starter", price: 4, events_per_month: 100000, sites: 3 },
-  growth: { name: "Growth", price: 12, events_per_month: 500000, sites: 10 },
-} as const;
-
-// Get current subscription
+// Get current subscription with usage info
 billingRoutes.get("/subscription", async (c) => {
   const db = c.get("db");
   const userId = c.get("userId");
@@ -27,6 +23,32 @@ billingRoutes.get("/subscription", async (c) => {
     .where("user_id", "=", userId)
     .executeTakeFirst();
 
+  const plan = (sub?.plan ?? "micro") as PlanTier;
+  const limits = getPlanLimits(plan);
+
+  // Count current month's usage
+  const monthStart = new Date();
+  monthStart.setUTCDate(1);
+  monthStart.setUTCHours(0, 0, 0, 0);
+  const monthStartIso = monthStart.toISOString();
+
+  const [eventCount, siteCount] = await Promise.all([
+    db.selectFrom("events")
+      .select(({ fn }) => fn.count<number>("id").as("cnt"))
+      .where("site_id", "in", db.selectFrom("sites").select("id").where("user_id", "=", userId))
+      .where("timestamp", ">=", monthStartIso)
+      .executeTakeFirst(),
+    db.selectFrom("sites")
+      .select(({ fn }) => fn.count<number>("id").as("cnt"))
+      .where("user_id", "=", userId)
+      .executeTakeFirst(),
+  ]);
+
+  const usage = {
+    events: { used: Number(eventCount?.cnt ?? 0), limit: limits.events_per_month },
+    sites: { used: Number(siteCount?.cnt ?? 0), limit: limits.sites },
+  };
+
   if (!sub) {
     return c.json({
       data: {
@@ -34,6 +56,7 @@ billingRoutes.get("/subscription", async (c) => {
         current_period_start: new Date().toISOString(),
         current_period_end: new Date(Date.now() + 30 * 86400000).toISOString(),
         cancel_at_period_end: false, polar_subscription_id: null, polar_customer_id: null,
+        usage,
       }, success: true,
     });
   }
@@ -44,6 +67,7 @@ billingRoutes.get("/subscription", async (c) => {
       plan: sub.plan as "micro" | "starter" | "growth",
       status: sub.status as "active" | "canceled" | "past_due" | "trialing",
       cancel_at_period_end: !!sub.cancel_at_period_end,
+      usage,
     }, success: true,
   });
 });
@@ -52,12 +76,12 @@ billingRoutes.get("/subscription", async (c) => {
 billingRoutes.get("/plans", async (c) => {
   const polarToken = c.env.POLAR_ACCESS_TOKEN || "";
   const plans = Object.entries(PLANS).map(([tier, info]) => ({
-    tier: tier as keyof typeof PLANS,
+    tier: tier as PlanTier,
     name: info.name,
     price: info.price,
     events_per_month: info.events_per_month,
     sites: info.sites,
-    features: getFeatures(tier as keyof typeof PLANS),
+    features: getFeatures(tier as PlanTier),
     checkout_url: null as string | null,
   }));
 
@@ -91,7 +115,7 @@ billingRoutes.post("/checkout", async (c) => {
   const polarToken = c.env.POLAR_ACCESS_TOKEN || "";
 
   const { plan, visitor_id, session_id } = await c.req.json<{ plan: string; visitor_id?: string; session_id?: string }>();
-  if (!plan || !PLANS[plan as keyof typeof PLANS]) {
+  if (!plan || !PLANS[plan as PlanTier]) {
     return c.json({ error: "Invalid plan", success: false }, 400);
   }
 
@@ -120,7 +144,7 @@ billingRoutes.post("/checkout", async (c) => {
         customer_email: user.email,
         customer_name: user.name,
         metadata: { user_id: userId, plan, klikapa_visitor_id: visitor_id || null, klikapa_session_id: session_id || null },
-        success_url: `https://revklik.com/success/{CHECKOUT_ID}`,
+        success_url: `https://app.revklik.com/?checkout=success`,
       }),
     });
 
@@ -160,13 +184,6 @@ billingRoutes.post("/cancel", async (c) => {
 
   return c.json({ success: true });
 });
-
-function getFeatures(tier: keyof typeof PLANS): string[] {
-  const base = ["Privacy-first analytics", "Cookieless tracking", "Visitor profiles", "UTM tracking", "CSV export"];
-  if (tier === "micro") return [...base, "1 site", "10K events/month", "<1KB script", "7-day retention"];
-  if (tier === "starter") return [...base, "3 sites", "100K events/month", "<1KB script", "30-day retention", "Funnel conversion", "Revenue attribution", "Real-time dashboard"];
-  return [...base, "10 sites", "500K events/month", "Full script", "90-day retention", "AI insights", "Heatmaps", "Session replays", "Integrations", "Priority support", "Team members"];
-}
 
 // Email alert preferences
 billingRoutes.get("/alerts", async (c) => {

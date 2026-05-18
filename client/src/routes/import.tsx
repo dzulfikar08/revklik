@@ -1,33 +1,24 @@
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { importPolarOrders, importOneDollarStats, getActiveSiteId, fetchSites } from "@/lib/api";
 import { toast } from "@/components/toast";
+import { PageHeader } from "@/components/page-header";
 
 export const Route = createFileRoute("/import")({ component: ImportPage });
 
 function ImportPage() {
-  const navigate = useNavigate();
   const siteId = getActiveSiteId() ?? "";
-  const { data: sites } = useQuery({ queryKey: ["sites"], queryFn: fetchSites });
+  const { data: sites } = useQuery({ queryKey: ["sites"], queryFn: () => fetchSites() });
   const [selectedSite, setSelectedSite] = useState(siteId);
 
   return (
     <div style={{ maxWidth: 680, margin: "0 auto", padding: "24px 16px" }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 4 }}>
-        <button onClick={() => navigate({ to: "/site/$siteId", params: { siteId: selectedSite } })} style={{
-          background: "none", border: "none", cursor: "pointer", color: "var(--text3)",
-          fontSize: 18, padding: 0, display: "flex", alignItems: "center",
-        }} title="Back to dashboard">
-          ←
-        </button>
-        <h1 style={{ fontFamily: "var(--serif)", fontStyle: "italic", fontSize: 28, color: "var(--text)", margin: 0 }}>
-          Import Data
-        </h1>
-      </div>
-      <p style={{ fontSize: 13, color: "var(--text3)", marginBottom: 24 }}>
-        Import historical analytics and payment data from external providers.
-      </p>
+      <PageHeader
+        title="Import Data"
+        subtitle="Import historical analytics and payment data from external providers."
+        backTo="/site/$siteId"
+      />
 
       <div style={{ marginBottom: 16 }}>
         <label style={{ fontSize: 12, color: "var(--text2)", display: "block", marginBottom: 4 }}>Import to site</label>
