@@ -1,4 +1,4 @@
-import type { SiteWithStats, AuthResponse, Site, CreateSitePayload, CreateUserPayload, LoginPayload, SiteDashboard, VisitorProfile, ScrollFunnel, Integration, CreateIntegrationPayload, WebhookEventLog, InsightsResponse, PredictionResponse, HeatmapData, RecordingSummary, RecordingDetail, Subscription, PlanInfo, TokenInfo, CreateTokenResponse, SearchQueryData } from "shared";
+import type { SiteWithStats, AuthResponse, Site, CreateSitePayload, CreateUserPayload, LoginPayload, SiteDashboard, VisitorProfile, ScrollFunnel, Integration, CreateIntegrationPayload, WebhookEventLog, InsightsResponse, PredictionResponse, HeatmapData, RecordingSummary, RecordingDetail, Subscription, PlanInfo, TokenInfo, CreateTokenResponse, SearchQueryData, CampaignPerformance } from "shared";
 import { toast } from "@/components/toast";
 import { getItem, setItem, removeItem, getItemSync } from "./mobile-storage";
 
@@ -71,6 +71,12 @@ export const fetchFunnel = (siteId: string, range?: string, filters?: string) =>
   if (filters) p.set("filters", filters);
   return apiFetch<ScrollFunnel>(`/analytics/funnel?${p}`);
 };
+export const fetchCampaigns = (siteId: string, range?: string, filters?: string) => {
+  const p = new URLSearchParams({ site_id: siteId });
+  if (range) p.set("range", range);
+  if (filters) p.set("filters", filters);
+  return apiFetch<CampaignPerformance[]>(`/analytics/campaigns?${p}`);
+};
 export const updateVisitor = (id: string, data: Partial<VisitorProfile>) => apiFetch<void>(`/analytics/visitors/${id}`, { method: "PATCH", body: JSON.stringify(data) });
 export const fetchGeo = (siteId: string, range?: string, filters?: string) => {
   const p = new URLSearchParams({ site_id: siteId });
@@ -128,6 +134,7 @@ export function connectSSE(
 ): () => void {
   let aborted = false;
   let reconnectTimer: ReturnType<typeof setTimeout>;
+  let attempt = 0;
 
   const connect = async () => {
     if (aborted) return;
@@ -137,33 +144,56 @@ export function connectSSE(
       const res = await fetch(`${API_BASE}/analytics/stream?site_id=${siteId}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
-      if (!res.ok || !res.body) { scheduleReconnect(); return; }
+      if (!res.ok || !res.body) {
+        if (res.status === 401 || res.status === 403 || res.status === 404) return;
+        scheduleReconnect();
+        return;
+      }
 
       const reader = res.body.getReader();
       const decoder = new TextDecoder();
       let buffer = "";
+      let eventType = "";
 
-      while (!aborted) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split("\n");
-        buffer = lines.pop() || "";
+      try {
+        while (!aborted) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split("\n");
+          buffer = lines.pop() || "";
 
-        let eventType = "";
-        for (const line of lines) {
-          if (line.startsWith("event: ")) eventType = line.slice(7);
-          else if (line.startsWith("data: ")) {
-            try { onEvent({ type: eventType, data: JSON.parse(line.slice(6)) }); } catch {}
-            eventType = "";
+          for (const line of lines) {
+            if (line.startsWith("event: ")) eventType = line.slice(7);
+            else if (line.startsWith("data: ")) {
+              try { onEvent({ type: eventType, data: JSON.parse(line.slice(6)) }); } catch {}
+              eventType = "";
+            }
           }
         }
+      } finally {
+        reader.cancel().catch(() => {});
+        reader.releaseLock();
       }
+      attempt = 0;
     } catch { /* ignore */ }
     if (!aborted) scheduleReconnect();
   };
 
-  const scheduleReconnect = () => { reconnectTimer = setTimeout(connect, 3000); };
+  const scheduleReconnect = () => {
+    if (typeof document !== "undefined" && document.hidden) {
+      const onVisible = () => {
+        document.removeEventListener("visibilitychange", onVisible);
+        attempt = 0;
+        connect();
+      };
+      document.addEventListener("visibilitychange", onVisible);
+      return;
+    }
+    const delay = Math.min(1000 * 2 ** attempt + Math.random() * 1000, 30000);
+    attempt++;
+    reconnectTimer = setTimeout(connect, delay);
+  };
 
   connect();
   return () => { aborted = true; clearTimeout(reconnectTimer); };
@@ -190,6 +220,7 @@ export async function exportData(siteId: string, type: string, format: string, r
 export const fetchSubscription = () => apiFetch<Subscription>("/billing/subscription");
 export const fetchPlans = () => apiFetch<PlanInfo[]>("/billing/plans");
 export const createCheckout = (plan: string) => apiFetch<{ url: string }>("/billing/checkout", { method: "POST", body: JSON.stringify({ plan }) });
+export const createPakasirCheckout = (plan: string) => apiFetch<{ url: string; order_id: string; amount: number; plan: string }>("/billing/checkout/pakasir", { method: "POST", body: JSON.stringify({ plan }) });
 export const cancelSubscription = () => apiFetch<void>("/billing/cancel", { method: "POST" });
 
 // Data import

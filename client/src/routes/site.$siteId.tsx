@@ -16,6 +16,7 @@ import { MetricCard, ChartCard } from "@/components/dashboard/metric-cards";
 import { DataTable } from "@/components/dashboard/data-table";
 import { FunnelChartCustom } from "@/components/dashboard/funnel-chart";
 import { JourneyCard } from "@/components/dashboard/journey";
+import { JourneySummaryTable } from "@/components/dashboard/journey-summary";
 import { HeatmapView } from "@/components/dashboard/heatmap";
 import { GlobeSummaryPanel, GlobeEventLog, GlobeMarkerPopup } from "@/components/dashboard/globe";
 import { ProfilePanel } from "@/components/dashboard/profile-panel";
@@ -25,6 +26,7 @@ import { RecordingsTable, RecordingPanel } from "@/components/dashboard/recordin
 import { LocationTable } from "@/components/dashboard/location-table";
 import { DeviceTable } from "@/components/dashboard/device-table";
 import { FilterBar } from "@/components/dashboard/filter-bar";
+import { CampaignTable } from "@/components/dashboard/campaign-table";
 import { DEFAULT_LAYOUT, EmptyState, CollapsibleSection, loadLayout, toMobileLayout } from "@/components/dashboard/helpers";
 import { parseFilterString, encodeFilterString, toggleFilter, matchesAllFilters } from "@/lib/filters";
 import "react-grid-layout/css/styles.css";
@@ -34,7 +36,7 @@ export const Route = createFileRoute("/site/$siteId")({ component: SiteDetailPag
 
 const RANGE_PRESETS = [{ key: "24h", label: "24h" }, { key: "7d", label: "7d" }, { key: "30d", label: "30d" }, { key: "90d", label: "90d" }];
 
-function DashboardGrid({ siteId, stats, isLoading, timeseries, topPages, sources, devices, osData, browsersData, geoData, funnelSteps, funnelRate, funnelPages, journeys, allJourneys, hasFilters, selectedJourney, setSelectedJourney, onCrossFilter, recordings, onSelectRecording, range, revenueBySource, revenueByCountry, revenueTimeseries, channels, entryPagesRevenue, revenueByMethod, revenueByProvider, editing, layout, onLayoutChange }: {
+function DashboardGrid({ siteId, stats, isLoading, timeseries, topPages, sources, devices, osData, browsersData, geoData, funnelSteps, funnelRate, funnelPages, journeys, allJourneys, hasFilters, selectedJourney, setSelectedJourney, onCrossFilter, recordings, onSelectRecording, range, filtersString, revenueBySource, revenueByCountry, revenueTimeseries, channels, entryPagesRevenue, revenueByMethod, revenueByProvider, editing, layout, onLayoutChange }: {
   siteId: string;
   stats: any;
   isLoading: boolean;
@@ -57,6 +59,7 @@ function DashboardGrid({ siteId, stats, isLoading, timeseries, topPages, sources
   recordings: RecordingSummary[];
   onSelectRecording: (r: RecordingDetail) => void;
   range: string;
+  filtersString: string;
   revenueBySource: RevenueBySource[];
   revenueByCountry: RevenueByCountry[];
   revenueTimeseries: RevenueTimeSeriesPoint[];
@@ -72,6 +75,7 @@ function DashboardGrid({ siteId, stats, isLoading, timeseries, topPages, sources
 
   const METRIC_KEYS = ["views", "visitors", "revenue", "conv", "rev_visitor", "bounce"] as const;
   const METRIC_LABELS: Record<string, string> = { views: t("metric.views"), visitors: t("metric.visitors"), revenue: t("metric.revenue"), conv: "Conv. rate", rev_visitor: "Rev/visitor", bounce: t("metric.bounce_rate") };
+  const [journeyView, setJourneyView] = useState<"summary" | "cards">("summary");
   const [hiddenMetrics, setHiddenMetrics] = useState<Set<string>>(() => {
     try { const s = localStorage.getItem("kp_hidden_metrics"); return s ? new Set(JSON.parse(s)) : new Set(); } catch { return new Set(); }
   });
@@ -179,10 +183,30 @@ function DashboardGrid({ siteId, stats, isLoading, timeseries, topPages, sources
           <div className="journeys-section" style={{ margin: 0 }}>
             <div className="journeys-header">
               <span className="journeys-title">{t("journeys.title")}</span>
-              <span className="journeys-count">{journeys.length}{hasFilters ? ` / ${allJourneys.length}` : ""}</span>
+              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                <button
+                  className={`btn-pill ${journeyView === "summary" ? "active" : ""}`}
+                  onClick={() => setJourneyView("summary")}
+                  style={{ fontSize: 10, padding: "2px 8px" }}
+                  title="Table view"
+                >
+                  &#9776;
+                </button>
+                <button
+                  className={`btn-pill ${journeyView === "cards" ? "active" : ""}`}
+                  onClick={() => setJourneyView("cards")}
+                  style={{ fontSize: 10, padding: "2px 8px" }}
+                  title="Card view"
+                >
+                  &#9638;
+                </button>
+                <span className="journeys-count">{journeys.length}{hasFilters ? ` / ${allJourneys.length}` : ""}</span>
+              </div>
             </div>
             {journeys.length === 0 ? (
               <div style={{ padding: 20, color: "var(--text3)", fontSize: 13, textAlign: "center" }}>{t("journeys.no_activity")}</div>
+            ) : journeyView === "summary" ? (
+              <JourneySummaryTable journeys={journeys} selectedJourney={selectedJourney} setSelectedJourney={setSelectedJourney} />
             ) : (
               <div className="journeys-list">
                 {journeys.map((j) => (
@@ -238,6 +262,11 @@ function DashboardGrid({ siteId, stats, isLoading, timeseries, topPages, sources
 
         <div key="predictions" style={widgetStyle("predictions")}>
           <PredictionsWidget siteId={siteId} />
+        </div>
+
+        <div key="campaigns" style={widgetStyle("campaigns")}>
+          <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 8, padding: "0 4px" }}>Campaign Performance</div>
+          <CampaignTable siteId={siteId} range={range} filters={filtersString} onCrossFilter={onCrossFilter} />
         </div>
       </GridLayout>
       )}
@@ -303,14 +332,17 @@ function SiteDetailPage() {
   });
 
   useEffect(() => {
-    if (!siteId || locationView !== "globe") return;
+    if (!siteId) return;
     const disconnect = connectSSE(siteId, (ev) => {
-      if (ev.type === "visitor" || ev.type === "stats") {
+      if (ev.type === "visitor") {
         queryClient.invalidateQueries({ queryKey: ["geo", siteId] });
+      }
+      if (ev.type === "stats") {
+        queryClient.invalidateQueries({ queryKey: ["dashboard", siteId] });
       }
     });
     return disconnect;
-  }, [siteId, queryClient, locationView]);
+  }, [siteId, queryClient]);
 
   useEffect(() => {
     if (!data || !Capacitor.isNativePlatform()) return;
@@ -450,6 +482,7 @@ function SiteDetailPage() {
           onCrossFilter={onCrossFilter}
           recordings={recordingsData ?? []} onSelectRecording={setSelectedRecording}
           range={range}
+          filtersString={filtersString}
           revenueBySource={revenueBySource} revenueByCountry={revenueByCountry} revenueTimeseries={revenueTimeseries}
           channels={channels} entryPagesRevenue={entryPagesRevenue} revenueByMethod={revenueByMethod} revenueByProvider={revenueByProvider}
           editing={editing} layout={layout} onLayoutChange={onLayoutChange} />

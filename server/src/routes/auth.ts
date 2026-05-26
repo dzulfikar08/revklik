@@ -48,6 +48,23 @@ authRoutes.post("/register", async (c) => {
     } catch { /* referral tracking failure should not block registration */ }
   }
 
+  // Create 7-day free trial subscription (Starter plan)
+  const now = new Date();
+  const trialEnd = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+  await db.insertInto("subscriptions").values({
+    id: generateId(),
+    user_id: userId,
+    plan: "starter",
+    status: "trialing",
+    current_period_start: now.toISOString(),
+    current_period_end: trialEnd.toISOString(),
+    cancel_at_period_end: 0,
+    polar_subscription_id: null,
+    polar_customer_id: null,
+    created_at: now.toISOString(),
+    updated_at: now.toISOString(),
+  }).execute();
+
   return c.json({ data: { user: { id: userId, name, email, role: email === superAdminEmail ? "super_admin" : "user" }, token: key }, success: true }, 201);
 });
 
@@ -120,9 +137,13 @@ authRoutes.get("/google/callback", async (c) => {
   const isSuperAdmin = profile.email === superAdminEmail;
 
   // Find existing user by google_id or email
-  const existingByGoogle = profile.sub ? await db.selectFrom("users").selectAll().where("google_id", "=", profile.sub).executeTakeFirst() : null;
-  const existingByEmail = await db.selectFrom("users").selectAll().where("email", "=", profile.email).executeTakeFirst();
-  const existingUser = existingByGoogle || existingByEmail;
+  const existingUser = await db.selectFrom("users")
+    .select(["id", "email", "name", "role", "google_id", "avatar_url"])
+    .where((eb) => eb.or([
+      profile.sub ? eb("google_id", "=", profile.sub) : eb("id", "=", "__never__"),
+      eb("email", "=", profile.email),
+    ]))
+    .executeTakeFirst();
 
   let userId: string;
   if (existingUser) {
@@ -146,6 +167,23 @@ authRoutes.get("/google/callback", async (c) => {
       avatar_url: profile.picture || null,
       role: isSuperAdmin ? "super_admin" : "user",
       created_at: new Date().toISOString(),
+    }).execute();
+
+    // Create 7-day free trial subscription (Starter plan)
+    const now = new Date();
+    const trialEnd = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+    await db.insertInto("subscriptions").values({
+      id: generateId(),
+      user_id: userId,
+      plan: "starter",
+      status: "trialing",
+      current_period_start: now.toISOString(),
+      current_period_end: trialEnd.toISOString(),
+      cancel_at_period_end: 0,
+      polar_subscription_id: null,
+      polar_customer_id: null,
+      created_at: now.toISOString(),
+      updated_at: now.toISOString(),
     }).execute();
   }
 

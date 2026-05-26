@@ -11,6 +11,7 @@ import { aiInsightsRoutes } from "./routes/ai-insights";
 import { integrationRoutes } from "./routes/integrations";
 import { webhookRoutes } from "./routes/webhooks";
 import { billingRoutes } from "./routes/billing";
+import { pakasirWebhookRoutes } from "./routes/pakasir-webhook";
 import { teamRoutes } from "./routes/team";
 import { pushTokenRoutes } from "./routes/push-tokens";
 import { widgetRoutes } from "./routes/widgets";
@@ -79,6 +80,24 @@ app.post("/auth/register", async (c) => {
     }).execute();
     const { key, prefix } = generateApiKey();
     await db.insertInto("api_keys").values({ id: generateId(), user_id: userId, key_hash: await hashToken(key), key_prefix: prefix, name: "default", created_at: new Date().toISOString() }).execute();
+
+    // Create 7-day free trial subscription (Starter plan)
+    const now = new Date();
+    const trialEnd = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+    await db.insertInto("subscriptions").values({
+        id: generateId(),
+        user_id: userId,
+        plan: "starter",
+        status: "trialing",
+        current_period_start: now.toISOString(),
+        current_period_end: trialEnd.toISOString(),
+        cancel_at_period_end: 0,
+        polar_subscription_id: null,
+        polar_customer_id: null,
+        created_at: now.toISOString(),
+        updated_at: now.toISOString(),
+    }).execute();
+
     return c.json({ data: { user: { id: userId, name, email }, token: key }, success: true }, 201);
 });
 app.post("/auth/login", async (c) => {
@@ -151,9 +170,13 @@ app.get("/auth/google/callback", async (c) => {
     const superAdminEmail = c.env.SUPER_ADMIN_EMAIL || "";
     const isSuperAdmin = profile.email === superAdminEmail;
     // Find existing user by google_id or email
-    const existingByGoogle = profile.sub ? await db.selectFrom("users").selectAll().where("google_id", "=", profile.sub).executeTakeFirst() : null;
-    const existingByEmail = await db.selectFrom("users").selectAll().where("email", "=", profile.email).executeTakeFirst();
-    const existingUser = existingByGoogle || existingByEmail;
+    const existingUser = await db.selectFrom("users")
+        .select(["id", "email", "name", "role", "google_id", "avatar_url"])
+        .where((eb) => eb.or([
+            profile.sub ? eb("google_id", "=", profile.sub) : eb("id", "=", "__never__"),
+            eb("email", "=", profile.email),
+        ]))
+        .executeTakeFirst();
     let userId;
     if (existingUser) {
         userId = existingUser.id;
@@ -177,6 +200,23 @@ app.get("/auth/google/callback", async (c) => {
             avatar_url: profile.picture || null,
             role: isSuperAdmin ? "super_admin" : "user",
             created_at: new Date().toISOString(),
+        }).execute();
+
+        // Create 7-day free trial subscription (Starter plan)
+        const now = new Date();
+        const trialEnd = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+        await db.insertInto("subscriptions").values({
+            id: generateId(),
+            user_id: userId,
+            plan: "starter",
+            status: "trialing",
+            current_period_start: now.toISOString(),
+            current_period_end: trialEnd.toISOString(),
+            cancel_at_period_end: 0,
+            polar_subscription_id: null,
+            polar_customer_id: null,
+            created_at: now.toISOString(),
+            updated_at: now.toISOString(),
         }).execute();
     }
     // Issue API key
@@ -214,18 +254,13 @@ app.get("/klikapa.js", async (c) => {
             const d1 = c.env.DB;
             if (d1) {
                 const db = createDb(d1);
-                const site = await db.selectFrom("sites")
-                    .select(["id", "user_id"])
-                    .where("id", "=", siteId)
+                const row = await db.selectFrom("sites")
+                    .innerJoin("subscriptions", "subscriptions.user_id", "sites.user_id")
+                    .select(["subscriptions.plan"])
+                    .where("sites.id", "=", siteId)
                     .executeTakeFirst();
-                if (site) {
-                    const sub = await db.selectFrom("subscriptions")
-                        .select(["plan"])
-                        .where("user_id", "=", site.user_id)
-                        .executeTakeFirst();
-                    if (sub && sub.plan === "growth")
-                        isFull = true;
-                }
+                if (row?.plan === "growth")
+                    isFull = true;
             }
         }
         catch { /* default to core */ }
@@ -353,6 +388,9 @@ app.post("/billing/webhook", async (c) => {
 });
 app.use("/billing/*", authMiddleware);
 app.route("/billing", billingRoutes);
+
+// Pakasir webhook (no auth — Pakasir calls this) — uses module in routes/pakasir-webhook.ts
+app.route("/billing/pakasir-webhook", pakasirWebhookRoutes);
 app.use("/team/*", authMiddleware);
 app.route("/team", teamRoutes);
 app.use("/push-tokens/*", authMiddleware);
@@ -407,6 +445,12 @@ app.post("/import/polar-orders", async (c) => {
         if (page === 1 && orders.length === 0) {
             return c.json({ success: true, data: { imported, skipped, debug: { status: res.status, keys: Object.keys(data), sample: JSON.stringify(data).slice(0, 500) } } });
         }
+        // Pre-fetch existing visitor IDs for duplicate detection
+        const existingVisitorIds = new Set();
+        const existingRows = await db.selectFrom("events").select(["visitor_id"])
+            .where("site_id", "=", site_id).where("visitor_id", "like", "polar_%")
+            .execute();
+        for (const r of existingRows) existingVisitorIds.add(r.visitor_id);
         for (const order of orders) {
             if (order.status !== "paid") {
                 skipped++;
@@ -414,13 +458,11 @@ app.post("/import/polar-orders", async (c) => {
             }
             const polarOrderId = order.id;
             const visitorId = `polar_${polarOrderId.replace(/[^a-zA-Z0-9]/g, "_")}`;
-            const existing = await db.selectFrom("events").select(["id"])
-                .where("site_id", "=", site_id).where("visitor_id", "=", visitorId)
-                .executeTakeFirst();
-            if (existing) {
+            if (existingVisitorIds.has(visitorId)) {
                 skipped++;
                 continue;
             }
+            existingVisitorIds.add(visitorId);
             const amount = (order.total_amount ?? 0) / 100;
             const country = order.customer?.billing_address?.country ?? order.billing_address?.country ?? null;
             const customerEmail = order.customer?.email ?? null;
@@ -469,21 +511,23 @@ app.post("/import/onedollarstats", async (c) => {
     const range = date_range || "all";
     let imported = 0;
     const pageQuery = { site_id: ods_site_id, metrics: ["visitors", "pageviews"], date_range: range, dimensions: ["time:day", "event:page"], order_by: [["time:day", "asc"]], pagination: { limit: 10000 } };
-    const pageRes = await fetch("https://api.onedollarstats.com/api", {
-        method: "POST", headers: { "x-api-key": api_key, "Content-Type": "application/json" }, body: JSON.stringify(pageQuery),
-    });
+    const [pageRes, countryRes, sourceRes] = await Promise.all([
+        fetch("https://api.onedollarstats.com/api", {
+            method: "POST", headers: { "x-api-key": api_key, "Content-Type": "application/json" }, body: JSON.stringify(pageQuery),
+        }),
+        fetch("https://api.onedollarstats.com/api", {
+            method: "POST", headers: { "x-api-key": api_key, "Content-Type": "application/json" },
+            body: JSON.stringify({ site_id: ods_site_id, metrics: ["visitors"], date_range: range, dimensions: ["time:day", "visit:country_name"], order_by: [["time:day", "asc"]], pagination: { limit: 10000 } }),
+        }),
+        fetch("https://api.onedollarstats.com/api", {
+            method: "POST", headers: { "x-api-key": api_key, "Content-Type": "application/json" },
+            body: JSON.stringify({ site_id: ods_site_id, metrics: ["visitors"], date_range: range, dimensions: ["time:day", "visit:source"], order_by: [["time:day", "asc"]], pagination: { limit: 10000 } }),
+        }),
+    ]);
     if (!pageRes.ok)
         return c.json({ error: `OneDollarStats API error: ${pageRes.status}`, success: false }, 502);
     const pageData = await pageRes.json();
-    const countryQuery = { site_id: ods_site_id, metrics: ["visitors"], date_range: range, dimensions: ["time:day", "visit:country_name"], order_by: [["time:day", "asc"]], pagination: { limit: 10000 } };
-    const countryRes = await fetch("https://api.onedollarstats.com/api", {
-        method: "POST", headers: { "x-api-key": api_key, "Content-Type": "application/json" }, body: JSON.stringify(countryQuery),
-    });
     const countryData = countryRes.ok ? await countryRes.json() : { results: [] };
-    const sourceQuery = { site_id: ods_site_id, metrics: ["visitors"], date_range: range, dimensions: ["time:day", "visit:source"], order_by: [["time:day", "asc"]], pagination: { limit: 10000 } };
-    const sourceRes = await fetch("https://api.onedollarstats.com/api", {
-        method: "POST", headers: { "x-api-key": api_key, "Content-Type": "application/json" }, body: JSON.stringify(sourceQuery),
-    });
     const sourceData = sourceRes.ok ? await sourceRes.json() : { results: [] };
     const countryByDate = new Map();
     for (const row of countryData.results) {
@@ -514,6 +558,7 @@ app.post("/import/onedollarstats", async (c) => {
         const daySources = sourceByDate.get(date) ?? new Map();
         const totalCountryVisitors = [...dayCountries.values()].reduce((s, v) => s + v, 0) || visitors;
         const eventsToCreate = Math.min(visitors, 50);
+        const batchValues = [];
         for (let i = 0; i < eventsToCreate; i++) {
             let country = null;
             if (dayCountries.size > 0) {
@@ -540,7 +585,7 @@ app.post("/import/onedollarstats", async (c) => {
             }
             const visitorId = `ods_${date}_${pagePath.replace(/[^a-zA-Z0-9]/g, "_")}_${i}`;
             const ts = `${date}T${String(12 + (i % 8)).padStart(2, "0")}:00:00Z`;
-            await db.insertInto("events").values({
+            batchValues.push({
                 id: generateId(), site_id, session_id: generateId(), visitor_id: visitorId,
                 timestamp: ts, event_type: "pageview", name: null, path: pagePath,
                 hostname: null, referrer, utm_source: null, utm_medium: null, utm_campaign: null,
@@ -548,8 +593,11 @@ app.post("/import/onedollarstats", async (c) => {
                 device_type: null, browser: null, os: null, revenue: null,
                 props: JSON.stringify({ source: "onedollarstats_import", ods_visitors: visitors, ods_pageviews: row.metrics[1] }),
                 fingerprint: null,
-            }).execute();
+            });
             imported++;
+        }
+        for (let b = 0; b < batchValues.length; b += 100) {
+            await db.insertInto("events").values(batchValues.slice(b, b + 100)).execute();
         }
     }
     return c.json({ success: true, data: { imported, note: "Created synthetic pageview events from aggregated ODS data" } });

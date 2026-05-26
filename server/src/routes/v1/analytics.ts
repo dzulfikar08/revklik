@@ -8,12 +8,27 @@ import { requireScope } from "../../middleware/scope-validator";
 
 export const v1AnalyticsRoutes = new Hono<PublicApiEnv>();
 
-function validateSite(db: Kysely<KlikapaDatabase>, userId: string, siteId: string) {
-  return db.selectFrom("sites").select(["id"]).where("id", "=", siteId)
+const siteAccessCache = new Map<string, { allowed: boolean; cachedAt: number }>();
+const SITE_ACCESS_TTL = 60_000;
+
+async function validateSite(db: Kysely<KlikapaDatabase>, userId: string, siteId: string) {
+  const key = `${userId}:${siteId}`;
+  const cached = siteAccessCache.get(key);
+  if (cached && (Date.now() - cached.cachedAt) < SITE_ACCESS_TTL) return cached.allowed;
+  const result = await db.selectFrom("sites").select(["id"]).where("id", "=", siteId)
     .where((eb) => eb.or([
       eb("user_id", "=", userId),
       eb.exists(eb.selectFrom("team_members").select("id").where("site_id", "=", siteId).where("user_id", "=", userId).where("accepted_at", "is not", null)),
     ])).executeTakeFirst();
+  const allowed = !!result;
+  siteAccessCache.set(key, { allowed, cachedAt: Date.now() });
+  if (siteAccessCache.size > 1200) {
+    const cutoff = Date.now() - SITE_ACCESS_TTL;
+    for (const [k, v] of siteAccessCache) {
+      if (v.cachedAt < cutoff) siteAccessCache.delete(k);
+    }
+  }
+  return allowed;
 }
 
 function validateSiteAccess(c: any, siteId: string) {
@@ -44,8 +59,7 @@ v1AnalyticsRoutes.get("/overview", requireScope("analytics:read"), async (c) => 
   const siteCheck = validateSiteAccess(c, siteId);
   if (!siteCheck.valid) return siteCheck.response;
 
-  const site = await validateSite(db, userId, siteId);
-  if (!site) return c.json({ error: "Site not found", success: false }, 404);
+  if (!(await validateSite(db, userId, siteId))) return c.json({ error: "Site not found", success: false }, 404);
 
   const { start } = getDateRange(range);
   const startIso = start.toISOString();
@@ -90,8 +104,7 @@ v1AnalyticsRoutes.get("/timeseries", requireScope("analytics:read"), async (c) =
   const siteCheck = validateSiteAccess(c, siteId);
   if (!siteCheck.valid) return siteCheck.response;
 
-  const site = await validateSite(db, userId, siteId);
-  if (!site) return c.json({ error: "Site not found", success: false }, 404);
+  if (!(await validateSite(db, userId, siteId))) return c.json({ error: "Site not found", success: false }, 404);
 
   const { start, end } = getDateRange(range);
   const startIso = start.toISOString();
@@ -129,8 +142,7 @@ v1AnalyticsRoutes.get("/pages", requireScope("analytics:read"), async (c) => {
   const siteCheck = validateSiteAccess(c, siteId);
   if (!siteCheck.valid) return siteCheck.response;
 
-  const site = await validateSite(db, userId, siteId);
-  if (!site) return c.json({ error: "Site not found", success: false }, 404);
+  if (!(await validateSite(db, userId, siteId))) return c.json({ error: "Site not found", success: false }, 404);
 
   const { start } = getDateRange(range);
   const startIso = start.toISOString();
@@ -164,8 +176,7 @@ v1AnalyticsRoutes.get("/referrers", requireScope("analytics:read"), async (c) =>
   const siteCheck = validateSiteAccess(c, siteId);
   if (!siteCheck.valid) return siteCheck.response;
 
-  const site = await validateSite(db, userId, siteId);
-  if (!site) return c.json({ error: "Site not found", success: false }, 404);
+  if (!(await validateSite(db, userId, siteId))) return c.json({ error: "Site not found", success: false }, 404);
 
   const { start } = getDateRange(range);
   const startIso = start.toISOString();
@@ -207,8 +218,7 @@ v1AnalyticsRoutes.get("/geo", requireScope("analytics:read"), async (c) => {
   const siteCheck = validateSiteAccess(c, siteId);
   if (!siteCheck.valid) return siteCheck.response;
 
-  const site = await validateSite(db, userId, siteId);
-  if (!site) return c.json({ error: "Site not found", success: false }, 404);
+  if (!(await validateSite(db, userId, siteId))) return c.json({ error: "Site not found", success: false }, 404);
 
   const { start } = getDateRange(range);
   const startIso = start.toISOString();
@@ -237,8 +247,7 @@ v1AnalyticsRoutes.get("/devices", requireScope("analytics:read"), async (c) => {
   const siteCheck = validateSiteAccess(c, siteId);
   if (!siteCheck.valid) return siteCheck.response;
 
-  const site = await validateSite(db, userId, siteId);
-  if (!site) return c.json({ error: "Site not found", success: false }, 404);
+  if (!(await validateSite(db, userId, siteId))) return c.json({ error: "Site not found", success: false }, 404);
 
   const { start } = getDateRange(range);
   const startIso = start.toISOString();
@@ -291,8 +300,7 @@ v1AnalyticsRoutes.get("/revenue", requireScope("analytics:read"), async (c) => {
   const siteCheck = validateSiteAccess(c, siteId);
   if (!siteCheck.valid) return siteCheck.response;
 
-  const site = await validateSite(db, userId, siteId);
-  if (!site) return c.json({ error: "Site not found", success: false }, 404);
+  if (!(await validateSite(db, userId, siteId))) return c.json({ error: "Site not found", success: false }, 404);
 
   const { start, end } = getDateRange(range);
   const startIso = start.toISOString();
@@ -354,6 +362,76 @@ v1AnalyticsRoutes.get("/revenue", requireScope("analytics:read"), async (c) => {
   return c.json({ data, success: true });
 });
 
+// GET /journeys?site_id=&range=&limit=
+v1AnalyticsRoutes.get("/journeys", requireScope("analytics:read"), async (c) => {
+  const db = c.get("db");
+  const userId = c.get("userId");
+  const siteId = c.req.query("site_id");
+  const range = c.req.query("range") || "7d";
+  const limit = Math.min(Number(c.req.query("limit") || 50), 100);
+
+  if (!siteId) return c.json({ error: "site_id required", success: false }, 400);
+
+  const siteCheck = validateSiteAccess(c, siteId);
+  if (!siteCheck.valid) return siteCheck.response;
+
+  if (!(await validateSite(db, userId, siteId))) return c.json({ error: "Site not found", success: false }, 404);
+
+  const { start } = getDateRange(range);
+  const startIso = start.toISOString();
+
+  const [recentSessions, profiles] = await Promise.all([
+    db.selectFrom("sessions").select(["id", "visitor_id", "started_at", "country", "region", "city", "device_type", "browser", "os", "utm_source", "referrer"])
+      .where("site_id", "=", siteId).where("started_at", ">=", startIso)
+      .orderBy("started_at", "desc").limit(limit).execute(),
+    db.selectFrom("visitor_profiles").select(["visitor_id", "name", "email"])
+      .where("site_id", "=", siteId).orderBy("last_seen", "desc").limit(50).execute(),
+  ]);
+
+  const sessionIds = recentSessions.map((s) => s.id);
+  const BATCH = 50;
+  const allSessionEvents: { session_id: string; path: string; event_type: string; name: string | null; timestamp: string; revenue: number | null; props: string | null }[] = [];
+  const batches: string[][] = [];
+  for (let i = 0; i < sessionIds.length; i += BATCH) {
+    batches.push(sessionIds.slice(i, i + BATCH));
+  }
+  const batchResults = await Promise.all(batches.map(batch =>
+    db.selectFrom("events").select(["session_id", "path", "event_type", "name", "timestamp", "revenue", "props"])
+      .where("session_id", "in", batch).where("site_id", "=", siteId).orderBy("timestamp", "asc").execute()
+  ));
+  for (const rows of batchResults) allSessionEvents.push(...rows);
+  const eventsBySession = new Map<string, typeof allSessionEvents>();
+  for (const e of allSessionEvents) {
+    if (!eventsBySession.has(e.session_id)) eventsBySession.set(e.session_id, []);
+    eventsBySession.get(e.session_id)!.push(e);
+  }
+
+  const data = recentSessions.map((sess) => {
+    const events = eventsBySession.get(sess.id) ?? [];
+    const profile = profiles.find((p) => p.visitor_id === sess.visitor_id);
+    return {
+      session_id: sess.id,
+      visitor_id: sess.visitor_id,
+      visitor_name: profile?.name ?? null,
+      visitor_email: profile?.email ?? null,
+      country: sess.country ?? null,
+      region: sess.region ?? null,
+      city: sess.city ?? null,
+      device_type: sess.device_type ?? null,
+      browser: sess.browser ?? null,
+      os: sess.os ?? null,
+      utm_source: sess.utm_source ?? null,
+      referrer: sess.referrer ?? null,
+      started_at: sess.started_at,
+      steps: events.map((e) => ({ path: e.path, event_type: e.event_type, name: e.name, timestamp: e.timestamp, revenue: e.revenue, props: e.props })),
+      total_revenue: events.reduce((s, e) => s + Number(e.revenue ?? 0), 0),
+      is_identified: !!(profile?.name || profile?.email),
+    };
+  });
+
+  return c.json({ data, success: true });
+});
+
 // GET /export?site_id=&range=&format=csv|json&type=events|visitors|sessions
 v1AnalyticsRoutes.get("/export", requireScope("analytics:export"), async (c) => {
   const db = c.get("db");
@@ -368,8 +446,7 @@ v1AnalyticsRoutes.get("/export", requireScope("analytics:export"), async (c) => 
   const siteCheck = validateSiteAccess(c, siteId);
   if (!siteCheck.valid) return siteCheck.response;
 
-  const site = await validateSite(db, userId, siteId);
-  if (!site) return c.json({ error: "Site not found", success: false }, 404);
+  if (!(await validateSite(db, userId, siteId))) return c.json({ error: "Site not found", success: false }, 404);
 
   const { start } = getDateRange(range);
   const startIso = start.toISOString();
@@ -419,4 +496,51 @@ v1AnalyticsRoutes.get("/export", requireScope("analytics:export"), async (c) => 
   }
   const csv = toCsv(rows as unknown as Record<string, unknown>[], ["id", "visitor_id", "session_id", "event_type", "name", "path", "hostname", "referrer", "utm_source", "utm_medium", "utm_campaign", "country", "region", "city", "device_type", "browser", "os", "revenue", "timestamp"]);
   return new Response(csv, { headers: { "Content-Type": "text/csv", "Content-Disposition": `attachment; filename="events-${siteId}-${range}.csv"` } });
+});
+
+// GET /campaigns?site_id=&range=
+v1AnalyticsRoutes.get("/campaigns", requireScope("analytics:read"), async (c) => {
+  const db = c.get("db");
+  const userId = c.get("userId");
+  const siteId = c.req.query("site_id");
+  const range = c.req.query("range") || "7d";
+
+  if (!siteId) return c.json({ error: "site_id required", success: false }, 400);
+
+  const siteCheck = validateSiteAccess(c, siteId);
+  if (!siteCheck.valid) return siteCheck.response;
+
+  if (!(await validateSite(db, userId, siteId))) return c.json({ error: "Site not found", success: false }, 404);
+
+  const { start } = getDateRange(range);
+  const startIso = start.toISOString();
+
+  const rows = await db.selectFrom("events")
+    .select([
+      "utm_source", "utm_medium", "utm_campaign",
+      sql<string>`count(distinct visitor_id)`.as("visitors"),
+      sql<string>`sum(case when event_type = 'pageview' then 1 else 0 end)`.as("pageviews"),
+      sql<string>`sum(case when event_type = 'conversion' then 1 else 0 end)`.as("conversions"),
+      sql<string>`coalesce(sum(revenue), 0)`.as("revenue"),
+    ])
+    .where("site_id", "=", siteId)
+    .where("timestamp", ">=", startIso)
+    .where("utm_source", "is not", null)
+    .groupBy(["utm_source", "utm_medium", "utm_campaign"])
+    .orderBy(sql`count(distinct visitor_id)`, "desc")
+    .limit(50)
+    .execute();
+
+  const data = rows.map((r) => ({
+    utm_source: r.utm_source ?? "(direct)",
+    utm_medium: r.utm_medium ?? "(none)",
+    utm_campaign: r.utm_campaign ?? "(none)",
+    visitors: Number(r.visitors),
+    pageviews: Number(r.pageviews),
+    conversions: Number(r.conversions),
+    revenue: Number(r.revenue),
+    conversionRate: Number(r.visitors) > 0 ? Math.round((Number(r.conversions) / Number(r.visitors)) * 10000) / 100 : 0,
+  }));
+
+  return c.json({ data, success: true });
 });

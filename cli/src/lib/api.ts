@@ -74,8 +74,15 @@ export async function whoami() {
   }>("GET", "/whoami");
 }
 
+let _sitesCache: Array<{ id: string; name: string; domain: string; created_at: string }> | null = null;
+
+export function invalidateSitesCache() { _sitesCache = null; }
+
 export async function listSites() {
-  return apiRequest<Array<{ id: string; name: string; domain: string; created_at: string }>>("GET", "/sites");
+  if (_sitesCache) return _sitesCache;
+  const sites = await apiRequest<Array<{ id: string; name: string; domain: string; created_at: string }>>("GET", "/sites");
+  _sitesCache = sites;
+  return sites;
 }
 
 export async function getAnalyticsOverview(siteId: string, range: string) {
@@ -115,6 +122,40 @@ export async function getAnalyticsRevenue(siteId: string, range: string) {
     byCountry: Array<{ country: string; revenue: number; conversions: number }>;
     timeseries: Array<{ date: string; revenue: number; conversions: number }>;
   }>("GET", "/analytics/revenue", { site_id: siteId, range });
+}
+
+export async function getAnalyticsEvents(siteId: string, range: string, limit: number, eventType?: string) {
+  const params: Record<string, string> = { site_id: siteId, range, type: "events", format: "json", limit: String(limit) };
+  if (eventType && eventType !== "all") params.event_type = eventType;
+  return apiRequest<Array<{
+    id: string; visitor_id: string; session_id: string; event_type: string;
+    name: string | null; path: string; hostname: string | null; referrer: string | null;
+    utm_source: string | null; utm_medium: string | null; utm_campaign: string | null;
+    country: string | null; region: string | null; city: string | null;
+    device_type: string | null; browser: string | null; os: string | null;
+    revenue: number | null; timestamp: string;
+  }>>("GET", "/analytics/export", params);
+}
+
+export async function getAnalyticsJourneys(siteId: string, range: string, limit: number) {
+  return apiRequest<Array<{
+    session_id: string;
+    visitor_id: string;
+    visitor_name: string | null;
+    visitor_email: string | null;
+    country: string | null;
+    region: string | null;
+    city: string | null;
+    device_type: string | null;
+    browser: string | null;
+    os: string | null;
+    utm_source: string | null;
+    referrer: string | null;
+    started_at: string;
+    steps: Array<{ path: string; event_type: string; name: string | null; timestamp: string; revenue: number | null; props: string | null }>;
+    total_revenue: number;
+    is_identified: boolean;
+  }>>("GET", "/analytics/journeys", { site_id: siteId, range, limit: String(limit) });
 }
 
 export async function listTokens() {

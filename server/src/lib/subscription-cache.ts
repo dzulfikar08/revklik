@@ -37,27 +37,21 @@ function evictIfNeeded() {
   for (let i = 0; i < evictCount; i++) siteMetaCache.delete(entries[i]![0]);
 }
 
+const superAdminCache = new Map<string, boolean>();
+const SUPER_ADMIN_TTL = 5 * 60_000;
+
 export async function enforceSiteQuota(
   db: Kysely<KlikapaDatabase>,
   siteId: string,
   requirePremium?: boolean,
 ): Promise<SiteEnforcementResult> {
-  // Check super_admin bypass
-  const site = await db.selectFrom("sites").select(["user_id"]).where("id", "=", siteId).executeTakeFirst();
-  if (site) {
-    const user = await db.selectFrom("users").select(["role"]).where("id", "=", site.user_id).executeTakeFirst();
-    if (user?.role === "super_admin") {
-      return { allowed: true, plan: "growth", eventsUsed: 0, eventsLimit: 999_999_999, periodEnd: "" };
-    }
-  }
-
   const now = Date.now();
   const cached = siteMetaCache.get(siteId);
 
   if (cached) {
     const ttl = cached.status === "active" ? ACTIVE_TTL_MS : INACTIVE_TTL_MS;
     if (now - cached.cachedAt < ttl) {
-      if (cached.status !== "active") {
+      if (cached.status !== "active" && cached.status !== "trialing") {
         return { allowed: false, reason: "subscription_inactive", plan: cached.plan, eventsUsed: cached.eventsUsed, eventsLimit: cached.eventLimit, periodEnd: cached.currentPeriodEnd };
       }
       if (cached.currentPeriodEnd && new Date(cached.currentPeriodEnd) < new Date()) {
@@ -73,10 +67,10 @@ export async function enforceSiteQuota(
     }
   }
 
-  // Cache miss: look up site owner's subscription
+  // Cache miss: look up site owner's subscription + check super_admin in one pass
   const row = await db.selectFrom("sites")
     .innerJoin("subscriptions", "subscriptions.user_id", "sites.user_id")
-    .select(["subscriptions.plan", "subscriptions.status", "subscriptions.current_period_end"])
+    .select(["sites.user_id", "subscriptions.plan", "subscriptions.status", "subscriptions.current_period_end"])
     .where("sites.id", "=", siteId)
     .executeTakeFirst();
 
@@ -85,13 +79,32 @@ export async function enforceSiteQuota(
   let periodEnd: string;
 
   if (!row) {
-    // No subscription row — check if site exists
-    const site = await db.selectFrom("sites").select(["user_id"]).where("id", "=", siteId).executeTakeFirst();
-    if (!site) return { allowed: false, reason: "no_subscription", plan: "micro", eventsUsed: 0, eventsLimit: 0, periodEnd: "" };
+    const siteRow = await db.selectFrom("sites").select(["user_id"]).where("id", "=", siteId).executeTakeFirst();
+    if (!siteRow) return { allowed: false, reason: "no_subscription", plan: "micro", eventsUsed: 0, eventsLimit: 0, periodEnd: "" };
+    // Check super_admin for sites without subscription
+    const saKey = siteRow.user_id;
+    const saCached = superAdminCache.get(saKey);
+    if (saCached) return { allowed: true, plan: "growth", eventsUsed: 0, eventsLimit: 999_999_999, periodEnd: "" };
+    const saUser = await db.selectFrom("users").select(["role"]).where("id", "=", saKey).executeTakeFirst();
+    if (saUser?.role === "super_admin") {
+      superAdminCache.set(saKey, true);
+      setTimeout(() => superAdminCache.delete(saKey), SUPER_ADMIN_TTL);
+      return { allowed: true, plan: "growth", eventsUsed: 0, eventsLimit: 999_999_999, periodEnd: "" };
+    }
     plan = "micro";
     status = "active";
     periodEnd = "";
   } else {
+    // Check super_admin bypass (with cache)
+    const saKey = row.user_id;
+    const saCached = superAdminCache.get(saKey);
+    if (saCached) return { allowed: true, plan: "growth", eventsUsed: 0, eventsLimit: 999_999_999, periodEnd: "" };
+    const saUser = await db.selectFrom("users").select(["role"]).where("id", "=", saKey).executeTakeFirst();
+    if (saUser?.role === "super_admin") {
+      superAdminCache.set(saKey, true);
+      setTimeout(() => superAdminCache.delete(saKey), SUPER_ADMIN_TTL);
+      return { allowed: true, plan: "growth", eventsUsed: 0, eventsLimit: 999_999_999, periodEnd: "" };
+    }
     plan = row.plan;
     status = row.status;
     periodEnd = row.current_period_end;
@@ -111,7 +124,7 @@ export async function enforceSiteQuota(
   evictIfNeeded();
   siteMetaCache.set(siteId, meta);
 
-  if (status !== "active") {
+  if (status !== "active" && status !== "trialing") {
     return { allowed: false, reason: "subscription_inactive", plan, eventsUsed, eventsLimit: eventLimit, periodEnd };
   }
   if (periodEnd && new Date(periodEnd) < new Date()) {

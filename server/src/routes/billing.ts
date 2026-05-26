@@ -6,12 +6,25 @@ import { PLANS, getPlanLimits, getFeatures } from "../lib/plans";
 import type { PlanTier } from "../lib/plans";
 
 type Variables = { db: Kysely<KlikapaDatabase>; userId: string };
-type Bindings = { POLAR_ACCESS_TOKEN?: string; POLAR_ORG_ID?: string; POLAR_WEBHOOK_SECRET?: string; POLAR_STARTER_PRODUCT_ID?: string; POLAR_GROWTH_PRODUCT_ID?: string };
+type Bindings = { POLAR_ACCESS_TOKEN?: string; POLAR_ORG_ID?: string; POLAR_WEBHOOK_SECRET?: string; POLAR_STARTER_PRODUCT_ID?: string; POLAR_GROWTH_PRODUCT_ID?: string; PAKASIR_API_KEY?: string };
 type BillingEnv = { Variables: Variables; Bindings: Bindings };
 
 export const billingRoutes = new Hono<BillingEnv>();
 
 const POLAR_API = "https://api.polar.sh/v1";
+
+// Cache Polar products to avoid calling the API on every /plans request
+let polarProductsCache: { data: any; cachedAt: number } | null = null;
+const POLAR_PRODUCTS_TTL = 5 * 60_000;
+
+// IDR pricing for Pakasir (approximate)
+const IDR_PRICES: Record<string, number> = {
+  micro: 16000,
+  starter: 64000,
+  growth: 192000,
+};
+
+const PAKASIR_SLUG = "revklik";
 
 // Get current subscription with usage info
 billingRoutes.get("/subscription", async (c) => {
@@ -19,7 +32,7 @@ billingRoutes.get("/subscription", async (c) => {
   const userId = c.get("userId");
 
   const sub = await db.selectFrom("subscriptions")
-    .selectAll()
+    .select(["id", "user_id", "plan", "status", "current_period_start", "current_period_end", "cancel_at_period_end", "polar_subscription_id", "polar_customer_id"])
     .where("user_id", "=", userId)
     .executeTakeFirst();
 
@@ -56,9 +69,18 @@ billingRoutes.get("/subscription", async (c) => {
         current_period_start: new Date().toISOString(),
         current_period_end: new Date(Date.now() + 30 * 86400000).toISOString(),
         cancel_at_period_end: false, polar_subscription_id: null, polar_customer_id: null,
-        usage,
+        usage, trial_days_remaining: null,
       }, success: true,
     });
+  }
+
+  // Calculate trial days remaining
+  let trialDaysRemaining: number | null = null;
+  if (sub.status === "trialing" && sub.current_period_end) {
+    const end = new Date(sub.current_period_end);
+    const now = new Date();
+    const diffMs = end.getTime() - now.getTime();
+    trialDaysRemaining = diffMs > 0 ? Math.ceil(diffMs / 86400000) : 0;
   }
 
   return c.json({
@@ -68,6 +90,7 @@ billingRoutes.get("/subscription", async (c) => {
       status: sub.status as "active" | "canceled" | "past_due" | "trialing",
       cancel_at_period_end: !!sub.cancel_at_period_end,
       usage,
+      trial_days_remaining: trialDaysRemaining,
     }, success: true,
   });
 });
@@ -88,10 +111,14 @@ billingRoutes.get("/plans", async (c) => {
   // If Polar token is configured, generate checkout links
   if (polarToken) {
     try {
-      const products = await fetch(`${POLAR_API}/products/?organization_id=${c.env.POLAR_ORG_ID || ""}`, {
-        headers: { Authorization: `Bearer ${polarToken}` },
-      }).then(r => r.json()).catch(() => ({} as Record<string, unknown>));
-
+      const now = Date.now();
+      if (!polarProductsCache || (now - polarProductsCache.cachedAt) > POLAR_PRODUCTS_TTL) {
+        const products = await fetch(`${POLAR_API}/products/?organization_id=${c.env.POLAR_ORG_ID || ""}`, {
+          headers: { Authorization: `Bearer ${polarToken}` },
+        }).then(r => r.json()).catch(() => ({} as Record<string, unknown>));
+        polarProductsCache = { data: products, cachedAt: now };
+      }
+      const products = polarProductsCache.data;
       if (Array.isArray((products as Record<string, unknown>)?.items)) {
         for (const plan of plans) {
           const product = (products as any).items.find((p: any) =>
@@ -157,13 +184,68 @@ billingRoutes.post("/checkout", async (c) => {
   }
 });
 
+// Create Pakasir checkout (QRIS for Indonesian users)
+billingRoutes.post("/checkout/pakasir", async (c) => {
+  const db = c.get("db");
+  const userId = c.get("userId");
+  const pakasirKey = c.env.PAKASIR_API_KEY || "";
+
+  const { plan } = await c.req.json<{ plan: string }>();
+  if (!plan || !PLANS[plan as PlanTier]) {
+    return c.json({ error: "Invalid plan", success: false }, 400);
+  }
+  if (!pakasirKey) {
+    return c.json({ error: "Pakasir not configured", success: false }, 500);
+  }
+
+  const amount = IDR_PRICES[plan];
+  if (!amount) {
+    return c.json({ error: "No IDR price for this plan", success: false }, 400);
+  }
+
+  // Get user email for order
+  const user = await db.selectFrom("users").select(["email", "name"]).where("id", "=", userId).executeTakeFirst();
+  if (!user) return c.json({ error: "User not found", success: false }, 404);
+
+  // Generate unique order ID
+  const orderId = `RVK-${userId.slice(0, 8)}-${Date.now().toString(36).toUpperCase()}`;
+  const successUrl = `https://app.revklik.com/?checkout=pakasir_success&plan=${plan}`;
+
+  // Use URL redirect method — simplest integration
+  const checkoutUrl = `https://app.pakasir.com/pay/${PAKASIR_SLUG}/${amount}?order_id=${orderId}&redirect=${encodeURIComponent(successUrl)}&qris_only=1`;
+
+  // Store pending order in DB for webhook verification
+  await db.insertInto("subscriptions").values({
+    id: generateId(),
+    user_id: userId,
+    plan: plan,
+    status: "pending",
+    current_period_start: new Date().toISOString(),
+    current_period_end: new Date(Date.now() + 30 * 86400000).toISOString(),
+    cancel_at_period_end: 0,
+    polar_subscription_id: null,
+    polar_customer_id: null,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  }).onConflict((oc) => oc.column("user_id").doUpdateSet({
+    plan: plan,
+    status: "pending",
+    updated_at: new Date().toISOString(),
+  })).execute();
+
+  return c.json({
+    data: { url: checkoutUrl, order_id: orderId, amount, plan },
+    success: true,
+  });
+});
+
 // Cancel subscription
 billingRoutes.post("/cancel", async (c) => {
   const db = c.get("db");
   const userId = c.get("userId");
   const polarToken = c.env.POLAR_ACCESS_TOKEN || "";
 
-  const sub = await db.selectFrom("subscriptions").selectAll().where("user_id", "=", userId).executeTakeFirst();
+  const sub = await db.selectFrom("subscriptions").select(["polar_subscription_id"]).where("user_id", "=", userId).executeTakeFirst();
   if (!sub || !sub.polar_subscription_id) {
     return c.json({ error: "No active paid subscription", success: false }, 404);
   }

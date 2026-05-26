@@ -1,5 +1,5 @@
 import { Command } from "commander";
-import { getAnalyticsOverview, getAnalyticsTimeseries, getAnalyticsPages, getAnalyticsReferrers, getAnalyticsGeo, getAnalyticsDevices, getAnalyticsRevenue, resolveSite } from "../lib/api.js";
+import { getAnalyticsOverview, getAnalyticsTimeseries, getAnalyticsPages, getAnalyticsReferrers, getAnalyticsGeo, getAnalyticsDevices, getAnalyticsRevenue, getAnalyticsJourneys, getAnalyticsEvents, resolveSite } from "../lib/api.js";
 import { printJson, printTable, printOverview, formatNumber, formatCurrency, formatPercent } from "../lib/output.js";
 import chalk from "chalk";
 
@@ -135,3 +135,127 @@ revenue.action(async (opts: { site: string; range: string }) => {
     process.exit(1);
   }
 });
+
+// revklik analytics events
+const eventsCmd = analyticsCommand.command("events").description("Raw event log");
+siteOption(eventsCmd);
+rangeOption(eventsCmd);
+eventsCmd
+  .option("-l, --limit <n>", "Max events to show", "50")
+  .option("-t, --type <type>", "Filter by event type (pageview, conversion, custom)", "all")
+  .action(async (opts: { site: string; range: string; limit: string; type: string }) => {
+    try {
+      const siteId = await resolveSite(opts.site);
+      const limit = Math.min(Number(opts.limit) || 50, 10000);
+      const events = await getAnalyticsEvents(siteId, opts.range, limit, opts.type);
+
+      if (opts.json || process.argv.includes("--json")) {
+        printJson(events);
+        return;
+      }
+
+      console.log(chalk.bold(`\nEvents — ${opts.range}\n`));
+      printTable(
+        ["Time", "Type", "Name", "Path", "Visitor", "Country", "Revenue"],
+        events.slice(0, limit).map(e => [
+          e.timestamp.slice(0, 16).replace("T", " "),
+          e.event_type,
+          (e.name || "-").length > 20 ? (e.name || "-").slice(0, 18) + ".." : (e.name || "-"),
+          e.path.length > 30 ? e.path.slice(0, 28) + ".." : e.path,
+          e.visitor_id.slice(0, 8),
+          e.country || "-",
+          e.revenue ? formatCurrency(e.revenue) : "-",
+        ])
+      );
+
+      // Show top custom event names
+      const customNames = new Map<string, number>();
+      for (const e of events) {
+        if (e.event_type === "custom" && e.name) {
+          customNames.set(e.name, (customNames.get(e.name) ?? 0) + 1);
+        }
+      }
+      if (customNames.size > 0) {
+        const sorted = [...customNames.entries()].sort((a, b) => b[1] - a[1]);
+        console.log(chalk.bold("\nCustom Event Names:"));
+        printTable(
+          ["Event Name", "Count", "%"],
+          sorted.map(([name, count]) => [
+            name,
+            formatNumber(count),
+            formatPercent(Math.round((count / events.filter(e => e.event_type === "custom").length) * 100)),
+          ])
+        );
+      }
+
+      const pageviews = events.filter(e => e.event_type === "pageview").length;
+      const conversions = events.filter(e => e.event_type === "conversion").length;
+      const custom = events.filter(e => e.event_type === "custom").length;
+      const totalRev = events.reduce((s, e) => s + (e.revenue ?? 0), 0);
+      console.log(chalk.gray(`\n  Total: ${events.length} events | Pageviews: ${pageviews} | Conversions: ${conversions} | Custom: ${custom} | Revenue: ${formatCurrency(totalRev)}`));
+    } catch (err: any) {
+      console.error(chalk.red(err.message));
+      process.exit(1);
+    }
+  });
+
+// revklik analytics journeys
+const journeysCmd = analyticsCommand.command("journeys").description("Customer journey summaries");
+siteOption(journeysCmd);
+rangeOption(journeysCmd);
+journeysCmd
+  .option("-l, --limit <n>", "Max journeys to show", "20")
+  .option("--sort <field>", "Sort by: date, steps, revenue, source, device", "steps")
+  .action(async (opts: { site: string; range: string; limit: string; sort: string }) => {
+    try {
+      const siteId = await resolveSite(opts.site);
+      const limit = Math.min(Number(opts.limit) || 20, 100);
+      const journeys = await getAnalyticsJourneys(siteId, opts.range, limit);
+
+      const rows = journeys.map(j => ({
+        visitor: j.visitor_name || j.visitor_id.slice(0, 12),
+        steps: j.steps.length,
+        source: j.utm_source || j.referrer || "direct",
+        device: j.device_type || "-",
+        revenue: j.total_revenue,
+        date: j.started_at.slice(0, 16).replace("T", " "),
+        country: j.country || "-",
+        identified: j.is_identified,
+      }));
+
+      const sortField = opts.sort as string;
+      rows.sort((a: any, b: any) => {
+        if (sortField === "steps" || sortField === "revenue") {
+          return (b[sortField] as number) - (a[sortField] as number);
+        }
+        return String(b[sortField]).localeCompare(String(a[sortField]));
+      });
+
+      if (opts.json || process.argv.includes("--json")) {
+        printJson(rows);
+        return;
+      }
+
+      console.log(chalk.bold(`\nCustomer Journeys — ${opts.range}\n`));
+      printTable(
+        ["Visitor", "Steps", "Source", "Device", "Revenue", "Date", "Country"],
+        rows.map(r => [
+          (r.visitor.length > 16 ? r.visitor.slice(0, 16) + ".." : r.visitor) + (r.identified ? " *" : ""),
+          String(r.steps),
+          r.source.length > 14 ? r.source.slice(0, 14) + ".." : r.source,
+          r.device,
+          formatCurrency(r.revenue),
+          r.date,
+          r.country,
+        ])
+      );
+
+      const totalRevenue = rows.reduce((s, r) => s + r.revenue, 0);
+      const avgSteps = rows.length > 0 ? (rows.reduce((s, r) => s + r.steps, 0) / rows.length).toFixed(1) : "0";
+      const conversions = journeys.filter(j => j.total_revenue > 0).length;
+      console.log(chalk.gray(`\n  Total: ${rows.length} journeys | Avg steps: ${avgSteps} | Revenue: ${formatCurrency(totalRevenue)} | Converting: ${conversions}`));
+    } catch (err: any) {
+      console.error(chalk.red(err.message));
+      process.exit(1);
+    }
+  });

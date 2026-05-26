@@ -8,6 +8,7 @@ import { t, toggleLang, getLang } from "@/lib/i18n";
 import { ToastContainer } from "@/components/toast";
 import { initPushNotifications } from "@/lib/push";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { TrialBanner } from "@/components/trial-banner";
 
 export const Route = createRootRoute({ component: RootLayout });
 
@@ -117,10 +118,11 @@ function RootLayout() {
 
   const authenticated = isLoggedIn();
   const isAuthPage = location.pathname === "/login" || location.pathname === "/register";
+  const isDemoPage = location.pathname === "/demo";
   const isPaywallPage = location.pathname === "/paywall";
 
   // ALL hooks must be called unconditionally (Rules of Hooks)
-  const { data: subscription, isLoading: subLoading } = useQuery<Subscription>({
+  const { data: subscription } = useQuery<Subscription>({
     queryKey: ["subscription"],
     queryFn: fetchSubscription,
     enabled: authenticated && !isAuthPage,
@@ -149,7 +151,12 @@ function RootLayout() {
     return () => document.removeEventListener("keydown", h);
   }, [moreOpen]);
 
-  const { data: sites } = useQuery({ queryKey: ["sites"], queryFn: () => fetchSites() });
+  const { data: sites } = useQuery({ queryKey: ["sites"], queryFn: () => fetchSites(), enabled: authenticated && !isAuthPage });
+
+  const routeState = useRouterState({ select: (s) => s.location });
+  const siteMatch = routeState.pathname.match(/^\/site\/([^/]+)/);
+  const siteId = siteMatch ? siteMatch[1]! : null;
+  const pathname = routeState.pathname;
 
   // Handle Google OAuth callback token from URL fragment
   useEffect(() => {
@@ -158,7 +165,6 @@ function RootLayout() {
     if (tm && tm[1]) {
       const token = decodeURIComponent(tm[1]!);
       setItem("kp_token", token).then(async () => {
-        // Fetch user info from server (token only in URL, no user data)
         try {
           const API_BASE = import.meta.env.VITE_API_BASE || (import.meta.env.DEV ? "http://localhost:3000/api" : "/api");
           const res = await fetch(`${API_BASE}/auth/me`, { headers: { Authorization: `Bearer ${token}` } });
@@ -168,59 +174,67 @@ function RootLayout() {
           }
         } catch { /* non-critical — user can still use the app */ }
         window.history.replaceState(null, "", window.location.pathname + window.location.search);
-        queryClient.invalidateQueries();
+        queryClient.invalidateQueries({ queryKey: ["subscription"] });
+        queryClient.invalidateQueries({ queryKey: ["sites"] });
         navigate({ to: "/" });
       });
     }
   }, []);
 
-  // Auth gate — use useEffect for navigation
-  const [authRedirect, setAuthRedirect] = useState(false);
+  // Auth gate
   useEffect(() => {
-    if (!authenticated && !isAuthPage) {
-      setAuthRedirect(true);
-      navigate({ to: "/login" });
+    if (!authenticated && !isAuthPage && !isDemoPage) {
+      const timer = setTimeout(() => navigate({ to: "/login" }), 0);
+      return () => clearTimeout(timer);
     }
-  }, [authenticated, isAuthPage, navigate]);
+  }, [authenticated, isAuthPage, isDemoPage, navigate]);
 
-  if (isAuthPage) return <div style={{ height: "100vh" }}><Outlet /></div>;
-  if (!authenticated) {
-    if (authRedirect || !authenticated) {
-      return (
-        <div style={{ height: "100vh", display: "flex", alignItems: "center", justifyContent: "center" }}>
-          <div className="spinner" />
-        </div>
-      );
-    }
-  }
-
-  // Subscription gate
+  // Subscription gate — all hooks MUST be before early returns (Rules of Hooks)
   const currentUser = getCurrentUser();
   const isSuperAdmin = currentUser?.role === "super_admin";
+  const hasSubData = subscription !== undefined;
   const isPaidActive = subscription && subscription.plan !== "micro" &&
     (subscription.status === "active" || subscription.status === "trialing");
 
-  // Redirect non-paying users to paywall (micro is the free tier, but requires active status)
   const [paywallRedirect, setPaywallRedirect] = useState(false);
   useEffect(() => {
+    if (!authenticated) return;
     if (isSuperAdmin) return;
     if (isPaywallPage) return;
-    if (subLoading) return;
+    if (!hasSubData) return;
     if (!isPaidActive) {
       setPaywallRedirect(true);
-      navigate({ to: "/paywall" });
+      if (location.pathname !== "/paywall") {
+        const timer = setTimeout(() => navigate({ to: "/paywall" }), 0);
+        return () => clearTimeout(timer);
+      }
     }
-  }, [isSuperAdmin, isPaywallPage, subLoading, isPaidActive, navigate]);
+  }, [authenticated, isSuperAdmin, isPaywallPage, hasSubData, isPaidActive, navigate, location.pathname]);
 
-  // Redirect paying users away from paywall
   useEffect(() => {
+    if (!authenticated) return;
     if (!isPaywallPage) return;
+    if (!hasSubData) return;
     if (isSuperAdmin || isPaidActive) {
-      navigate({ to: "/" });
+      if (location.pathname !== "/") {
+        const timer = setTimeout(() => navigate({ to: "/" }), 0);
+        return () => clearTimeout(timer);
+      }
     }
-  }, [isPaywallPage, isSuperAdmin, isPaidActive, navigate]);
+  }, [authenticated, isPaywallPage, hasSubData, isSuperAdmin, isPaidActive, navigate, location.pathname]);
 
-  if (!isSuperAdmin && !isPaywallPage && subLoading) {
+  // Early returns for conditional rendering — no hooks below this line
+  if (isDemoPage) return <div style={{ height: "100vh" }}><Outlet /></div>;
+  if (isAuthPage) return <div style={{ height: "100vh" }}><Outlet /></div>;
+  if (!authenticated) {
+    return (
+      <div style={{ height: "100vh", display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <div className="spinner" />
+      </div>
+    );
+  }
+
+  if (!isSuperAdmin && !isPaywallPage && !hasSubData) {
     return (
       <div style={{ height: "100vh", display: "flex", alignItems: "center", justifyContent: "center" }}>
         <div className="spinner" />
@@ -234,10 +248,8 @@ function RootLayout() {
 
   const sitesList = sites ?? [];
 
-  const routeState = useRouterState({ select: (s) => s.location });
-  const siteMatch = routeState.pathname.match(/^\/site\/([^/]+)/);
-  const siteId = siteMatch ? siteMatch[1]! : null;
-  const pathname = routeState.pathname;
+  const showTrial = !isSuperAdmin && !isPaywallPage &&
+    subscription?.status === "trialing" && (subscription.trial_days_remaining ?? 0) > 0;
 
   const bottomNavItems = [
     { key: "home", label: "Sites", to: "/" },
@@ -279,7 +291,7 @@ function RootLayout() {
           )}
         </div>
         <div className="topnav-right">
-          <button className="btn-pill topnav-lang" onClick={() => { toggleLang(); queryClient.invalidateQueries(); window.location.reload(); }}>
+          <button className="btn-pill topnav-lang" onClick={() => { toggleLang(); window.location.reload(); }}>
             {getLang() === "en" ? "ID" : "EN"}
           </button>
           <button className="btn-pill topnav-profile" onClick={() => navigate({ to: "/profile" })}>
@@ -288,6 +300,7 @@ function RootLayout() {
           <NavMenu navigate={navigate} queryClient={queryClient} />
         </div>
       </header>
+      {showTrial && <TrialBanner days={subscription!.trial_days_remaining!} onUpgrade={() => navigate({ to: "/paywall" })} />}
       <TooltipProvider delayDuration={200}>
         <main style={{ flex: 1, overflow: "auto", display: "flex", flexDirection: "column" }}>
           <Outlet />
