@@ -1,0 +1,5 @@
+sample.log
+sample1m.log
+stats.csv
+*.log
+*.csv
