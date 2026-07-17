@@ -440,6 +440,8 @@ v1AnalyticsRoutes.get("/export", requireScope("analytics:export"), async (c) => 
   const format = c.req.query("format") || "csv";
   const type = c.req.query("type") || "events";
   const range = c.req.query("range") || "30d";
+  const eventType = c.req.query("event_type") || c.req.query("eventType") || "";
+  const exportLimit = Math.min(Math.max(Number(c.req.query("limit")) || 10000, 1), 10000);
 
   if (!siteId) return c.json({ error: "site_id required", success: false }, 400);
 
@@ -482,14 +484,13 @@ v1AnalyticsRoutes.get("/export", requireScope("analytics:export"), async (c) => 
     return new Response(csv, { headers: { "Content-Type": "text/csv", "Content-Disposition": `attachment; filename="sessions-${siteId}-${range}.csv"` } });
   }
 
-  // Default: events
-  const rows = await db.selectFrom("events")
+  // Default: events (server-side event_type filter + limit — avoids shipping 10k rows)
+  let eventsQuery = db.selectFrom("events")
     .select(["id", "visitor_id", "session_id", "event_type", "name", "path", "hostname", "referrer", "utm_source", "utm_medium", "utm_campaign", "country", "region", "city", "device_type", "browser", "os", "revenue", "timestamp"])
     .where("site_id", "=", siteId)
-    .where("timestamp", ">=", startIso)
-    .orderBy("timestamp", "desc")
-    .limit(10000)
-    .execute();
+    .where("timestamp", ">=", startIso);
+  if (eventType) eventsQuery = eventsQuery.where("event_type", "=", eventType as any);
+  const rows = await eventsQuery.orderBy("timestamp", "desc").limit(exportLimit).execute();
 
   if (format === "json") {
     return c.json({ data: rows, success: true });

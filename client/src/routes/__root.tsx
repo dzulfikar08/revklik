@@ -14,7 +14,7 @@ export const Route = createRootRoute({ component: RootLayout });
 
 function SiteSwitcher({ sites, currentSiteId, onNavigate }: {
   sites: { id: string; name: string }[];
-  currentSiteId: string;
+  currentSiteId: string | null;
   onNavigate: (siteId: string | null) => void;
 }) {
   const [open, setOpen] = useState(false);
@@ -272,7 +272,7 @@ function RootLayout() {
             <img src="/revklik.webp" alt="" className="topnav-logo-icon" />
             <span className="topnav-logo-text">RevKlik</span>
           </button>
-          {siteId && sitesList.length > 0 && (
+          {sitesList.length > 0 && pathname !== "/" && (
             <>
               <div className="topnav-divider" />
               <SiteSwitcher
