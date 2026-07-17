@@ -5,7 +5,7 @@ import {
   fetchIntegrations, createIntegration, updateIntegration,
   deleteIntegration, testIntegration,
   fetchPaymentProviders, createPaymentProvider, deletePaymentProvider,
-  getActiveSiteId, getGSCAuthUrl, syncGSC,
+  getActiveSiteId, setActiveSiteId, fetchSites, getGSCAuthUrl, syncGSC,
   getShopeeAuthUrl, getTokopediaAuthUrl,
 } from "@/lib/api";
 import type { Integration, IntegrationType } from "shared";
@@ -198,6 +198,12 @@ function IntegrationsPage() {
     enabled: !!siteId,
   });
 
+  // Sites for the inline picker shown when no site is active yet.
+  const { data: sites } = useQuery({
+    queryKey: ["sites"],
+    queryFn: () => fetchSites(),
+  });
+
   const deleteMut = useMutation({
     mutationFn: ({ id, type, providerSiteId }: { id: string; type: string; providerSiteId?: string }) => {
       if (PAYMENT_PROVIDERS.includes(type) && providerSiteId) {
@@ -218,8 +224,17 @@ function IntegrationsPage() {
 
   if (!siteId) {
     return (
-      <div className="empty-state" style={{ flex: 1 }}>
+      <div className="empty-state" style={{ flex: 1, alignItems: "center" }}>
         <p>{t("sites.select_site")}</p>
+        <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 12, minWidth: 280 }}>
+          {(sites ?? []).map((s) => (
+            <button key={s.id} className="btn-pill" style={{ justifyContent: "flex-start" }}
+              onClick={() => { setActiveSiteId(s.id); window.location.reload(); }}>
+              {s.name}
+            </button>
+          ))}
+          {sites && sites.length === 0 && <p style={{ opacity: 0.6 }}>No sites yet.</p>}
+        </div>
       </div>
     );
   }
