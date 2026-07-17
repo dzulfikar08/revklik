@@ -110,6 +110,34 @@ export async function verifyLemonSqueezySignature(
   return timingSafeEqual(computed, signatureHeader);
 }
 
+// Polar webhooks: same scheme as Stripe (Webhook-Signature: t=<ts>,v1=<hex>), but the
+// secret is a plain string (not the base64 whsec_ form Stripe uses).
+export async function verifyPolarSignature(
+  payload: string,
+  signatureHeader: string,
+  secret: string,
+): Promise<boolean> {
+  const parts = signatureHeader.split(",");
+  let timestamp = "";
+  let v1Signature = "";
+  for (const part of parts) {
+    const eqIdx = part.indexOf("=");
+    if (eqIdx === -1) continue;
+    const key = part.slice(0, eqIdx);
+    const value = part.slice(eqIdx + 1);
+    if (key === "t") timestamp = value;
+    else if (key === "v1") v1Signature = value;
+  }
+  if (!timestamp || !v1Signature) return false;
+
+  const signedPayload = `${timestamp}.${payload}`;
+  const enc = new TextEncoder();
+  const key = await crypto.subtle.importKey("raw", enc.encode(secret), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
+  const sig = await crypto.subtle.sign("HMAC", key, enc.encode(signedPayload));
+  const computed = Array.from(new Uint8Array(sig), (b) => b.toString(16).padStart(2, "0")).join("");
+  return timingSafeEqual(computed, v1Signature);
+}
+
 export function mapStripePaymentMethod(type: string): string {
   const map: Record<string, string> = {
     card: "Credit Card",

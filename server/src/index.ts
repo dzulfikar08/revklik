@@ -18,6 +18,7 @@ import { midtransWebhookRoutes } from "./routes/webhooks-midtrans";
 import { xenditWebhookRoutes } from "./routes/webhooks-xendit";
 import { stripeWebhookRoutes } from "./routes/webhooks-stripe";
 import { lemonsqueezyWebhookRoutes } from "./routes/webhooks-lemonsqueezy";
+import { polarWebhookRoutes } from "./routes/webhooks-polar";
 import { paymentProviderRoutes } from "./routes/payment-providers";
 import { billingRoutes } from "./routes/billing";
 import { teamRoutes } from "./routes/team";
@@ -117,6 +118,7 @@ app.route("/webhooks/midtrans", midtransWebhookRoutes);
 app.route("/webhooks/xendit", xenditWebhookRoutes);
 app.route("/webhooks/stripe", stripeWebhookRoutes);
 app.route("/webhooks/lemonsqueezy", lemonsqueezyWebhookRoutes);
+app.route("/webhooks/polar", polarWebhookRoutes);
 
 app.use("/payment-providers/*", authMiddleware);
 app.route("/payment-providers", paymentProviderRoutes);

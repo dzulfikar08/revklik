@@ -4,6 +4,7 @@ import { whoamiCommand } from "./commands/whoami.js";
 import { sitesCommand } from "./commands/sites.js";
 import { analyticsCommand } from "./commands/analytics.js";
 import { tokensCommand } from "./commands/tokens.js";
+import { gscCommand } from "./commands/gsc.js";
 import { getConfig } from "./lib/config.js";
 
 const program = new Command();
@@ -11,7 +12,7 @@ const program = new Command();
 program
   .name("revklik")
   .description("RevKlik analytics CLI — query your analytics from the terminal")
-  .version("1.0.0")
+  .version("1.2.0")
   .option("--json", "Output raw JSON")
   .option("--verbose", "Show debug information")
   .hook("preAction", (thisCommand, actionCommand) => {
@@ -28,5 +29,6 @@ program.addCommand(whoamiCommand);
 program.addCommand(sitesCommand);
 program.addCommand(analyticsCommand);
 program.addCommand(tokensCommand);
+program.addCommand(gscCommand);
 
 program.parse();

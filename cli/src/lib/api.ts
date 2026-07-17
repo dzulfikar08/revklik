@@ -49,6 +49,41 @@ export async function apiRequest<T>(method: string, path: string, params?: Recor
   return data.data as T;
 }
 
+// GSC routes live under /api/gsc/* (NOT /api/v1/*), so they need their own request helper.
+export async function gscRequest<T>(method: string, path: string, params?: Record<string, string>): Promise<T> {
+  const token = getToken();
+  const base = getApiBase();
+
+  const url = new URL(`${base}/gsc${path}`);
+  if (params) {
+    for (const [k, v] of Object.entries(params)) {
+      url.searchParams.set(k, v);
+    }
+  }
+
+  const res = await fetch(url.toString(), {
+    method,
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    },
+  });
+
+  const text = await res.text();
+  let data: any;
+  try {
+    data = JSON.parse(text);
+  } catch {
+    throw new Error(`API returned non-JSON response (${res.status}): ${text.slice(0, 200)}`);
+  }
+
+  if (!res.ok || data.success === false) {
+    throw new ApiError(res.status, data);
+  }
+
+  return data.data as T;
+}
+
 // Resolve a site identifier (full ID, partial ID, or domain) to a full site ID
 export async function resolveSite(input: string): Promise<string> {
   // If it looks like a full UUID, return as-is
@@ -174,4 +209,15 @@ export async function createToken(params: { name: string; type: "account" | "sit
 
 export async function revokeToken(id: string) {
   return apiRequest<void>("DELETE", `/tokens/${id}`);
+}
+
+// Google Search Console — stored search query performance (server returns last 30d).
+export type GscRow = { query: string; date: string; clicks: number; impressions: number; ctr: number; position: number };
+
+export async function getGscQueries(siteId: string) {
+  return gscRequest<GscRow[]>("GET", "/queries", { site_id: siteId });
+}
+
+export async function syncGsc(siteId: string) {
+  return gscRequest<{ synced: number }>("POST", "/sync", { site_id: siteId });
 }
