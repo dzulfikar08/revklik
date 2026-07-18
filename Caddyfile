@@ -1,0 +1,30 @@
+# Replace {$DOMAIN} at deploy: e.g. api.revklik.com
+# Caddy auto-provisions HTTPS (Let's Encrypt / ZeroSSL).
+
+{$DOMAIN} {
+	encode zstd gzip
+
+	# Preserve real client IP for geoip (read X-Forwarded-For leftmost untrusted hop).
+	reverse_proxy api:8787 {
+		header_up X-Real-IP {remote_host}
+		header_up X-Forwarded-For {remote_host}
+	}
+
+	# Long-lived SSE streams for /api/analytics/stream.
+	@api_stream {
+		path /api/analytics/stream
+	}
+	handle @api_stream {
+		flush_interval -1
+		reverse_proxy api:8787
+	}
+
+	request_body {
+		max_size 10MB
+	}
+
+	log {
+		output stdout
+		format console
+	}
+}

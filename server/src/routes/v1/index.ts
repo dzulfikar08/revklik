@@ -2,10 +2,10 @@ import { Hono } from "hono";
 import type { PublicApiEnv } from "../../middleware/public-auth";
 import { publicAuthMiddleware } from "../../middleware/public-auth";
 import { rateLimiterMiddleware } from "../../middleware/rate-limiter";
-import { v1WhoamiRoutes } from "./whoami";
-import { v1SitesRoutes } from "./sites";
 import { v1AnalyticsRoutes } from "./analytics";
+import { v1SitesRoutes } from "./sites";
 import { v1TokensRoutes } from "./tokens";
+import { v1WhoamiRoutes } from "./whoami";
 
 export const v1Routes = new Hono<PublicApiEnv>();
 v1Routes.use("*", publicAuthMiddleware);

@@ -1,33 +1,33 @@
-import { RevKlikClient, RevKlikError } from "./client";
-import { SitesResource } from "./resources/sites";
+import { RevKlikClient } from "./client";
 import { AnalyticsResource } from "./resources/analytics";
+import { SitesResource } from "./resources/sites";
 import { TokensResource } from "./resources/tokens";
 
-export { RevKlikClient, RevKlikError } from "./client";
 export type { RevKlikClientOptions } from "./client";
-export { SitesResource } from "./resources/sites";
+export { RevKlikClient, RevKlikError } from "./client";
 export { AnalyticsResource } from "./resources/analytics";
+export { SitesResource } from "./resources/sites";
 export { TokensResource } from "./resources/tokens";
 
 // Re-export all types
 export type {
-  Site,
-  StatsResponse,
-  TimeSeriesPoint,
-  TopPage,
-  SourceEntry,
-  GeoEntry,
-  DeviceEntry,
-  DeviceBreakdown,
-  RevenueBySource,
-  RevenueByCountry,
-  RevenueTimeSeriesPoint,
-  RevenueResponse,
-  WhoamiResponse,
-  TokenInfo,
-  CreateTokenRequest,
-  CreateTokenResponse,
-  RevokeTokenResponse,
+	CreateTokenRequest,
+	CreateTokenResponse,
+	DeviceBreakdown,
+	DeviceEntry,
+	GeoEntry,
+	RevenueByCountry,
+	RevenueBySource,
+	RevenueResponse,
+	RevenueTimeSeriesPoint,
+	RevokeTokenResponse,
+	Site,
+	SourceEntry,
+	StatsResponse,
+	TimeSeriesPoint,
+	TokenInfo,
+	TopPage,
+	WhoamiResponse,
 } from "./types";
 
 import type { WhoamiResponse } from "./types";
@@ -49,21 +49,21 @@ import type { WhoamiResponse } from "./types";
  * ```
  */
 export class RevKlik {
-  public readonly sites: SitesResource;
-  public readonly analytics: AnalyticsResource;
-  public readonly tokens: TokensResource;
+	public readonly sites: SitesResource;
+	public readonly analytics: AnalyticsResource;
+	public readonly tokens: TokensResource;
 
-  private client: RevKlikClient;
+	private client: RevKlikClient;
 
-  constructor(options: { token: string; baseUrl?: string }) {
-    this.client = new RevKlikClient(options);
-    this.sites = new SitesResource(this.client);
-    this.analytics = new AnalyticsResource(this.client);
-    this.tokens = new TokensResource(this.client);
-  }
+	constructor(options: { token: string; baseUrl?: string }) {
+		this.client = new RevKlikClient(options);
+		this.sites = new SitesResource(this.client);
+		this.analytics = new AnalyticsResource(this.client);
+		this.tokens = new TokensResource(this.client);
+	}
 
-  /** Get information about the authenticated token and user. */
-  whoami(): Promise<WhoamiResponse> {
-    return this.client.request<WhoamiResponse>("GET", "/whoami");
-  }
+	/** Get information about the authenticated token and user. */
+	whoami(): Promise<WhoamiResponse> {
+		return this.client.request<WhoamiResponse>("GET", "/whoami");
+	}
 }

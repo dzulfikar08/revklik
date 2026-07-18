@@ -2,25 +2,30 @@ const FROM = "RevKlik <noreply@revklik.com>";
 // Send email using Cloudflare Email Service Workers binding
 // Requires "send_email" binding in wrangler.jsonc
 export async function sendEmail(payload, emailBinding) {
-    if (!emailBinding)
-        return false;
-    try {
-        await emailBinding.send({
-            to: payload.to,
-            from: FROM,
-            subject: payload.subject,
-            html: payload.html,
-            text: payload.text || payload.subject,
-        });
-        return true;
-    }
-    catch {
-        return false;
-    }
+	if (!emailBinding) return false;
+	try {
+		await emailBinding.send({
+			to: payload.to,
+			from: FROM,
+			subject: payload.subject,
+			html: payload.html,
+			text: payload.text || payload.subject,
+		});
+		return true;
+	} catch {
+		return false;
+	}
 }
-export async function sendMilestoneAlert(db, siteId, useremail, metric, value, emailBinding) {
-    const subject = `KlikApa — ${metric} reached ${value.toLocaleString()}`;
-    const html = `
+export async function sendMilestoneAlert(
+	_db,
+	_siteId,
+	useremail,
+	metric,
+	value,
+	emailBinding,
+) {
+	const subject = `KlikApa — ${metric} reached ${value.toLocaleString()}`;
+	const html = `
     <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; max-width: 480px; margin: 0 auto; padding: 24px; background: #0a0a0a; color: #e8e4de; border-radius: 12px;">
       <h2 style="font-size: 20px; margin: 0 0 16px; color: #d4882a;">${metric} Milestone</h2>
       <p style="font-size: 15px; line-height: 1.6; margin: 0 0 12px;">Your site just reached <strong style="color: #d4882a;">${value.toLocaleString()} ${metric.toLowerCase()}</strong>.</p>
@@ -28,12 +33,22 @@ export async function sendMilestoneAlert(db, siteId, useremail, metric, value, e
       <p style="font-size: 12px; color: #6b6560; margin-top: 20px;">You're receiving this because you enabled email alerts for this site.</p>
     </div>
   `;
-    await sendEmail({ to: useremail, subject, html }, emailBinding);
+	await sendEmail({ to: useremail, subject, html }, emailBinding);
 }
-export async function sendWeeklyReport(useremail, siteName, stats, emailBinding) {
-    const topPagesHtml = stats.topPages.map(p => `<tr><td style="padding: 6px 12px; border-bottom: 1px solid #222; font-size: 13px;">${p.path}</td><td style="padding: 6px 12px; border-bottom: 1px solid #222; font-size: 13px; text-align: right; font-family: monospace;">${p.views.toLocaleString()}</td></tr>`).join("");
-    const subject = `KlikApa — Weekly report for ${siteName}`;
-    const html = `
+export async function sendWeeklyReport(
+	useremail,
+	siteName,
+	stats,
+	emailBinding,
+) {
+	const topPagesHtml = stats.topPages
+		.map(
+			(p) =>
+				`<tr><td style="padding: 6px 12px; border-bottom: 1px solid #222; font-size: 13px;">${p.path}</td><td style="padding: 6px 12px; border-bottom: 1px solid #222; font-size: 13px; text-align: right; font-family: monospace;">${p.views.toLocaleString()}</td></tr>`,
+		)
+		.join("");
+	const subject = `KlikApa — Weekly report for ${siteName}`;
+	const html = `
     <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; max-width: 520px; margin: 0 auto; padding: 24px; background: #0a0a0a; color: #e8e4de; border-radius: 12px;">
       <h2 style="font-size: 20px; margin: 0 0 16px; color: #d4882a;">Weekly Report</h2>
       <p style="font-size: 15px; margin: 0 0 20px;">Here's your weekly summary for <strong>${siteName}</strong>.</p>
@@ -56,5 +71,5 @@ export async function sendWeeklyReport(useremail, siteName, stats, emailBinding)
       <p style="font-size: 12px; color: #6b6560; margin-top: 20px;">You're receiving this because you enabled weekly reports.</p>
     </div>
   `;
-    await sendEmail({ to: useremail, subject, html }, emailBinding);
+	await sendEmail({ to: useremail, subject, html }, emailBinding);
 }

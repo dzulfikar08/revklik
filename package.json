@@ -1,54 +1,55 @@
 {
-  "name": "klikapa",
-  "version": "0.5.1",
-  "description": "A monorepo template built with Bun, Hono, Vite, and React",
-  "author": "Steve Simkins",
-  "license": "MIT",
-  "homepage": "https://github.com/stevedylandev/bhvr",
-  "packageManager": "bun@1.2.4",
-  "workspaces": [
-    "./server",
-    "./client",
-    "./shared",
-    "./cli",
-    "./sdk"
-  ],
-  "scripts": {
-    "dev": "turbo dev",
-    "dev:client": "turbo dev --filter=client",
-    "dev:server": "turbo dev --filter=server",
-    "build": "turbo build",
-    "build:client": "turbo build --filter=client",
-    "build:server": "turbo build --filter=server",
-    "lint": "biome lint .",
-    "type-check": "turbo type-check",
-    "test": "turbo test",
-    "postinstall": "turbo build --filter=shared --filter=server",
-    "format": "biome format . --write",
-    "deploy": "turbo build && wrangler deploy --minify",
-    "cf-dev": "wrangler dev"
-  },
-  "keywords": [
-    "bun",
-    "hono",
-    "react",
-    "vite",
-    "monorepo",
-    "turbo"
-  ],
-  "devDependencies": {
-    "@biomejs/biome": "^2.4.15",
-    "@cloudflare/workers-types": "^4.20260511.1",
-    "bun-types": "latest",
-    "turbo": "^2.6.3",
-    "wrangler": "^4.90.1"
-  },
-  "peerDependencies": {
-    "typescript": "^5.8.3"
-  },
-  "dependencies": {
-    "@radix-ui/react-tooltip": "^1.2.8",
-    "kysely": "^0.29.0",
-    "kysely-bun-worker": "^1.2.1"
-  }
+	"name": "klikapa",
+	"version": "0.5.1",
+	"description": "A monorepo template built with Bun, Hono, Vite, and React",
+	"author": "Steve Simkins",
+	"license": "MIT",
+	"homepage": "https://github.com/stevedylandev/bhvr",
+	"packageManager": "bun@1.3.14",
+	"workspaces": [
+		"./server",
+		"./client",
+		"./shared",
+		"./cli",
+		"./sdk"
+	],
+	"scripts": {
+		"dev": "concurrently \"bun run dev:wrangler\" \"bun run dev:client\" --names \"wrangler,vite\" --prefix-colors \"cyan,green\"",
+		"dev:wrangler": "wrangler dev --local",
+		"dev:client": "cd client && bun run dev",
+		"dev:server": "turbo dev --filter=server",
+		"build": "turbo build",
+		"build:client": "turbo build --filter=client",
+		"build:server": "turbo build --filter=server",
+		"lint": "biome lint .",
+		"type-check": "turbo type-check",
+		"test": "turbo test",
+		"postinstall": "turbo build --filter=shared --filter=server",
+		"format": "biome format . --write",
+		"deploy": "turbo build && wrangler deploy --minify",
+		"cf-dev": "wrangler dev"
+	},
+	"keywords": [
+		"bun",
+		"hono",
+		"react",
+		"vite",
+		"monorepo",
+		"turbo"
+	],
+	"devDependencies": {
+		"@biomejs/biome": "^2.5.4",
+		"@cloudflare/workers-types": "^5.20260717.1",
+		"@types/bun": "^1.3.14",
+		"concurrently": "^10.0.3",
+		"turbo": "^2.10.5",
+		"wrangler": "^4.112.0"
+	},
+	"peerDependencies": {
+		"typescript": "~7.0.2"
+	},
+	"dependencies": {
+		"@radix-ui/react-tooltip": "^1.2.12",
+		"kysely": "^0.29.3"
+	}
 }

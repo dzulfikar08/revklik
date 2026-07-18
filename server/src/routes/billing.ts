@@ -1,316 +1,414 @@
 import { Hono } from "hono";
-import type { KlikapaDatabase } from "shared";
-import type { Kysely } from "kysely";
-import { generateId } from "../utils";
-import { PLANS, getPlanLimits, getFeatures } from "../lib/plans";
 import type { PlanTier } from "../lib/plans";
+import { getFeatures, getPlanLimits, PLANS } from "../lib/plans";
+import type { Env } from "../types";
+import { generateId } from "../utils";
 
-type Variables = { db: Kysely<KlikapaDatabase>; userId: string };
-type Bindings = { POLAR_ACCESS_TOKEN?: string; POLAR_ORG_ID?: string; POLAR_WEBHOOK_SECRET?: string; POLAR_STARTER_PRODUCT_ID?: string; POLAR_GROWTH_PRODUCT_ID?: string; PAKASIR_API_KEY?: string };
-type BillingEnv = { Variables: Variables; Bindings: Bindings };
-
-export const billingRoutes = new Hono<BillingEnv>();
+export const billingRoutes = new Hono<Env>();
 
 const POLAR_API = "https://api.polar.sh/v1";
 
 // Cache Polar products to avoid calling the API on every /plans request
-let polarProductsCache: { data: any; cachedAt: number } | null = null;
+let polarProductsCache: {
+	data: { items?: Array<{ name?: string; checkout_url?: string }> };
+	cachedAt: number;
+} | null = null;
 const POLAR_PRODUCTS_TTL = 5 * 60_000;
 
 // IDR pricing for Pakasir (approximate)
 const IDR_PRICES: Record<string, number> = {
-  micro: 16000,
-  starter: 64000,
-  growth: 192000,
+	micro: 16000,
+	starter: 64000,
+	growth: 192000,
 };
 
 const PAKASIR_SLUG = "revklik";
 
 // Get current subscription with usage info
 billingRoutes.get("/subscription", async (c) => {
-  const db = c.get("db");
-  const userId = c.get("userId");
+	const db = c.get("db");
+	const userId = c.get("userId");
 
-  const sub = await db.selectFrom("subscriptions")
-    .select(["id", "user_id", "plan", "status", "current_period_start", "current_period_end", "cancel_at_period_end", "polar_subscription_id", "polar_customer_id"])
-    .where("user_id", "=", userId)
-    .executeTakeFirst();
+	const sub = await db
+		.selectFrom("subscriptions")
+		.select([
+			"id",
+			"user_id",
+			"plan",
+			"status",
+			"current_period_start",
+			"current_period_end",
+			"cancel_at_period_end",
+			"polar_subscription_id",
+			"polar_customer_id",
+		])
+		.where("user_id", "=", userId)
+		.executeTakeFirst();
 
-  const plan = (sub?.plan ?? "micro") as PlanTier;
-  const limits = getPlanLimits(plan);
+	const plan = (sub?.plan ?? "micro") as PlanTier;
+	const limits = getPlanLimits(plan);
 
-  // Count current month's usage
-  const monthStart = new Date();
-  monthStart.setUTCDate(1);
-  monthStart.setUTCHours(0, 0, 0, 0);
-  const monthStartIso = monthStart.toISOString();
+	// Count current month's usage
+	const monthStart = new Date();
+	monthStart.setUTCDate(1);
+	monthStart.setUTCHours(0, 0, 0, 0);
+	const monthStartIso = monthStart.toISOString();
 
-  const [eventCount, siteCount] = await Promise.all([
-    db.selectFrom("events")
-      .select(({ fn }) => fn.count<number>("id").as("cnt"))
-      .where("site_id", "in", db.selectFrom("sites").select("id").where("user_id", "=", userId))
-      .where("timestamp", ">=", monthStartIso)
-      .executeTakeFirst(),
-    db.selectFrom("sites")
-      .select(({ fn }) => fn.count<number>("id").as("cnt"))
-      .where("user_id", "=", userId)
-      .executeTakeFirst(),
-  ]);
+	const [eventCount, siteCount] = await Promise.all([
+		db
+			.selectFrom("events")
+			.select(({ fn }) => fn.count<number>("id").as("cnt"))
+			.where(
+				"site_id",
+				"in",
+				db.selectFrom("sites").select("id").where("user_id", "=", userId),
+			)
+			.where("timestamp", ">=", monthStartIso)
+			.executeTakeFirst(),
+		db
+			.selectFrom("sites")
+			.select(({ fn }) => fn.count<number>("id").as("cnt"))
+			.where("user_id", "=", userId)
+			.executeTakeFirst(),
+	]);
 
-  const usage = {
-    events: { used: Number(eventCount?.cnt ?? 0), limit: limits.events_per_month },
-    sites: { used: Number(siteCount?.cnt ?? 0), limit: limits.sites },
-  };
+	const usage = {
+		events: {
+			used: Number(eventCount?.cnt ?? 0),
+			limit: limits.events_per_month,
+		},
+		sites: { used: Number(siteCount?.cnt ?? 0), limit: limits.sites },
+	};
 
-  if (!sub) {
-    return c.json({
-      data: {
-        id: "", user_id: userId, plan: "micro" as const, status: "active" as const,
-        current_period_start: new Date().toISOString(),
-        current_period_end: new Date(Date.now() + 30 * 86400000).toISOString(),
-        cancel_at_period_end: false, polar_subscription_id: null, polar_customer_id: null,
-        usage, trial_days_remaining: null,
-      }, success: true,
-    });
-  }
+	if (!sub) {
+		return c.json({
+			data: {
+				id: "",
+				user_id: userId,
+				plan: "micro" as const,
+				status: "active" as const,
+				current_period_start: new Date().toISOString(),
+				current_period_end: new Date(Date.now() + 30 * 86400000).toISOString(),
+				cancel_at_period_end: false,
+				polar_subscription_id: null,
+				polar_customer_id: null,
+				usage,
+				trial_days_remaining: null,
+			},
+			success: true,
+		});
+	}
 
-  // Calculate trial days remaining
-  let trialDaysRemaining: number | null = null;
-  if (sub.status === "trialing" && sub.current_period_end) {
-    const end = new Date(sub.current_period_end);
-    const now = new Date();
-    const diffMs = end.getTime() - now.getTime();
-    trialDaysRemaining = diffMs > 0 ? Math.ceil(diffMs / 86400000) : 0;
-  }
+	// Calculate trial days remaining
+	let trialDaysRemaining: number | null = null;
+	if (sub.status === "trialing" && sub.current_period_end) {
+		const end = new Date(sub.current_period_end);
+		const now = new Date();
+		const diffMs = end.getTime() - now.getTime();
+		trialDaysRemaining = diffMs > 0 ? Math.ceil(diffMs / 86400000) : 0;
+	}
 
-  return c.json({
-    data: {
-      ...sub,
-      plan: sub.plan as "micro" | "starter" | "growth",
-      status: sub.status as "active" | "canceled" | "past_due" | "trialing",
-      cancel_at_period_end: !!sub.cancel_at_period_end,
-      usage,
-      trial_days_remaining: trialDaysRemaining,
-    }, success: true,
-  });
+	return c.json({
+		data: {
+			...sub,
+			plan: sub.plan as "micro" | "starter" | "growth",
+			status: sub.status as "active" | "canceled" | "past_due" | "trialing",
+			cancel_at_period_end: !!sub.cancel_at_period_end,
+			usage,
+			trial_days_remaining: trialDaysRemaining,
+		},
+		success: true,
+	});
 });
 
 // Get available plans with checkout URLs
 billingRoutes.get("/plans", async (c) => {
-  const polarToken = c.env.POLAR_ACCESS_TOKEN || "";
-  const plans = Object.entries(PLANS).map(([tier, info]) => ({
-    tier: tier as PlanTier,
-    name: info.name,
-    price: info.price,
-    events_per_month: info.events_per_month,
-    sites: info.sites,
-    features: getFeatures(tier as PlanTier),
-    checkout_url: null as string | null,
-  }));
+	const polarToken = c.env.POLAR_ACCESS_TOKEN || "";
+	const plans = Object.entries(PLANS).map(([tier, info]) => ({
+		tier: tier as PlanTier,
+		name: info.name,
+		price: info.price,
+		events_per_month: info.events_per_month,
+		sites: info.sites,
+		features: getFeatures(tier as PlanTier),
+		checkout_url: null as string | null,
+	}));
 
-  // If Polar token is configured, generate checkout links
-  if (polarToken) {
-    try {
-      const now = Date.now();
-      if (!polarProductsCache || (now - polarProductsCache.cachedAt) > POLAR_PRODUCTS_TTL) {
-        const products = await fetch(`${POLAR_API}/products/?organization_id=${c.env.POLAR_ORG_ID || ""}`, {
-          headers: { Authorization: `Bearer ${polarToken}` },
-        }).then(r => r.json()).catch(() => ({} as Record<string, unknown>));
-        polarProductsCache = { data: products, cachedAt: now };
-      }
-      const products = polarProductsCache.data;
-      if (Array.isArray((products as Record<string, unknown>)?.items)) {
-        for (const plan of plans) {
-          const product = (products as any).items.find((p: any) =>
-            p.name?.toLowerCase().includes(plan.tier)
-          );
-          if (product?.checkout_url) {
-            plan.checkout_url = product.checkout_url;
-          }
-        }
-      }
-    } catch { /* Polar API unavailable */ }
-  }
+	// If Polar token is configured, generate checkout links
+	if (polarToken) {
+		try {
+			const now = Date.now();
+			if (
+				!polarProductsCache ||
+				now - polarProductsCache.cachedAt > POLAR_PRODUCTS_TTL
+			) {
+				const products = await fetch(
+					`${POLAR_API}/products/?organization_id=${c.env.POLAR_ORG_ID || ""}`,
+					{
+						headers: { Authorization: `Bearer ${polarToken}` },
+					},
+				)
+					.then((r) => r.json())
+					.catch(() => ({}) as Record<string, unknown>);
+				polarProductsCache = { data: products as { items?: Array<{ name?: string; checkout_url?: string }> }, cachedAt: now };
+			}
+			const products = polarProductsCache?.data;
+			if (products && Array.isArray(products.items)) {
+				for (const plan of plans) {
+					const product = products.items.find((p) =>
+						p.name?.toLowerCase().includes(plan.tier),
+					);
+					if (product?.checkout_url) {
+						plan.checkout_url = product.checkout_url;
+					}
+				}
+			}
+		} catch {
+			/* Polar API unavailable */
+		}
+	}
 
-  return c.json({ data: plans, success: true });
+	return c.json({ data: plans, success: true });
 });
 
 // Create Polar checkout session
 billingRoutes.post("/checkout", async (c) => {
-  const db = c.get("db");
-  const userId = c.get("userId");
-  const polarToken = c.env.POLAR_ACCESS_TOKEN || "";
+	const db = c.get("db");
+	const userId = c.get("userId");
+	const polarToken = c.env.POLAR_ACCESS_TOKEN || "";
 
-  const { plan, visitor_id, session_id } = await c.req.json<{ plan: string; visitor_id?: string; session_id?: string }>();
-  if (!plan || !PLANS[plan as PlanTier]) {
-    return c.json({ error: "Invalid plan", success: false }, 400);
-  }
+	const { plan, visitor_id, session_id } = await c.req.json<{
+		plan: string;
+		visitor_id?: string;
+		session_id?: string;
+	}>();
+	if (!plan || !PLANS[plan as PlanTier]) {
+		return c.json({ error: "Invalid plan", success: false }, 400);
+	}
 
-  // All plans are paid — no checkout skip needed
+	// All plans are paid — no checkout skip needed
 
-  // Get user email for Polar customer
-  const user = await db.selectFrom("users").select(["email", "name"]).where("id", "=", userId).executeTakeFirst();
-  if (!user) return c.json({ error: "User not found", success: false }, 404);
+	// Get user email for Polar customer
+	const user = await db
+		.selectFrom("users")
+		.select(["email", "name"])
+		.where("id", "=", userId)
+		.executeTakeFirst();
+	if (!user) return c.json({ error: "User not found", success: false }, 404);
 
-  // If Polar token not configured, return direct link placeholder
-  if (!polarToken) {
-    return c.json({
-      data: { url: `https://polar.sh/revklik/checkout?plan=${plan}` },
-      success: true,
-    });
-  }
+	// If Polar token not configured, return direct link placeholder
+	if (!polarToken) {
+		return c.json({
+			data: { url: `https://polar.sh/revklik/checkout?plan=${plan}` },
+			success: true,
+		});
+	}
 
-  try {
-    // Polar API: POST /v1/checkouts/session with products array
-    const productId = (c.env as any)[`POLAR_${plan.toUpperCase()}_PRODUCT_ID`] || "";
-    const res = await fetch(`${POLAR_API}/checkouts/session`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${polarToken}` },
-      body: JSON.stringify({
-        products: productId ? [productId] : [],
-        customer_email: user.email,
-        customer_name: user.name,
-        metadata: { user_id: userId, plan, klikapa_visitor_id: visitor_id || null, klikapa_session_id: session_id || null },
-        success_url: `https://app.revklik.com/?checkout=success`,
-      }),
-    });
+	try {
+		// Polar API: POST /v1/checkouts/session with products array
+		const polarProductIds: Record<string, string | undefined> = {
+			micro: c.env.POLAR_MICRO_PRODUCT_ID,
+			starter: c.env.POLAR_STARTER_PRODUCT_ID,
+			growth: c.env.POLAR_GROWTH_PRODUCT_ID,
+		};
+		const productId = polarProductIds[plan] || "";
+		const res = await fetch(`${POLAR_API}/checkouts/session`, {
+			method: "POST",
+			headers: {
+				"Content-Type": "application/json",
+				Authorization: `Bearer ${polarToken}`,
+			},
+			body: JSON.stringify({
+				products: productId ? [productId] : [],
+				customer_email: user.email,
+				customer_name: user.name,
+				metadata: {
+					user_id: userId,
+					plan,
+					klikapa_visitor_id: visitor_id || null,
+					klikapa_session_id: session_id || null,
+				},
+				success_url: `https://app.revklik.com/?checkout=success`,
+			}),
+		});
 
-    const session = await res.json() as { url?: string };
-    if (!session.url) throw new Error("No checkout URL returned");
+		const session = (await res.json()) as { url?: string };
+		if (!session.url) throw new Error("No checkout URL returned");
 
-    return c.json({ data: { url: session.url }, success: true });
-  } catch (err: any) {
-    return c.json({ error: err.message || "Checkout creation failed", success: false }, 500);
-  }
+		return c.json({ data: { url: session.url }, success: true });
+	} catch (err) {
+		return c.json(
+			{ error: err instanceof Error ? err.message : String(err) || "Checkout creation failed", success: false },
+			500,
+		);
+	}
 });
 
 // Create Pakasir checkout (QRIS for Indonesian users)
 billingRoutes.post("/checkout/pakasir", async (c) => {
-  const db = c.get("db");
-  const userId = c.get("userId");
-  const pakasirKey = c.env.PAKASIR_API_KEY || "";
+	const db = c.get("db");
+	const userId = c.get("userId");
+	const pakasirKey = c.env.PAKASIR_API_KEY || "";
 
-  const { plan } = await c.req.json<{ plan: string }>();
-  if (!plan || !PLANS[plan as PlanTier]) {
-    return c.json({ error: "Invalid plan", success: false }, 400);
-  }
-  if (!pakasirKey) {
-    return c.json({ error: "Pakasir not configured", success: false }, 500);
-  }
+	const { plan } = await c.req.json<{ plan: string }>();
+	if (!plan || !PLANS[plan as PlanTier]) {
+		return c.json({ error: "Invalid plan", success: false }, 400);
+	}
+	if (!pakasirKey) {
+		return c.json({ error: "Pakasir not configured", success: false }, 500);
+	}
 
-  const amount = IDR_PRICES[plan];
-  if (!amount) {
-    return c.json({ error: "No IDR price for this plan", success: false }, 400);
-  }
+	const amount = IDR_PRICES[plan];
+	if (!amount) {
+		return c.json({ error: "No IDR price for this plan", success: false }, 400);
+	}
 
-  // Get user email for order
-  const user = await db.selectFrom("users").select(["email", "name"]).where("id", "=", userId).executeTakeFirst();
-  if (!user) return c.json({ error: "User not found", success: false }, 404);
+	// Get user email for order
+	const user = await db
+		.selectFrom("users")
+		.select(["email", "name"])
+		.where("id", "=", userId)
+		.executeTakeFirst();
+	if (!user) return c.json({ error: "User not found", success: false }, 404);
 
-  // Generate unique order ID
-  const orderId = `RVK-${userId.slice(0, 8)}-${Date.now().toString(36).toUpperCase()}`;
-  const successUrl = `https://app.revklik.com/?checkout=pakasir_success&plan=${plan}`;
+	// Generate unique order ID
+	const orderId = `RVK-${userId.slice(0, 8)}-${Date.now().toString(36).toUpperCase()}`;
+	const successUrl = `https://app.revklik.com/?checkout=pakasir_success&plan=${plan}`;
 
-  // Use URL redirect method — simplest integration
-  const checkoutUrl = `https://app.pakasir.com/pay/${PAKASIR_SLUG}/${amount}?order_id=${orderId}&redirect=${encodeURIComponent(successUrl)}&qris_only=1`;
+	// Use URL redirect method — simplest integration
+	const checkoutUrl = `https://app.pakasir.com/pay/${PAKASIR_SLUG}/${amount}?order_id=${orderId}&redirect=${encodeURIComponent(successUrl)}&qris_only=1`;
 
-  // Store pending order in DB for webhook verification
-  await db.insertInto("subscriptions").values({
-    id: generateId(),
-    user_id: userId,
-    plan: plan,
-    status: "pending",
-    current_period_start: new Date().toISOString(),
-    current_period_end: new Date(Date.now() + 30 * 86400000).toISOString(),
-    cancel_at_period_end: 0,
-    polar_subscription_id: null,
-    polar_customer_id: null,
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-  }).onConflict((oc) => oc.column("user_id").doUpdateSet({
-    plan: plan,
-    status: "pending",
-    updated_at: new Date().toISOString(),
-  })).execute();
+	// Store pending order in DB for webhook verification
+	await db
+		.insertInto("subscriptions")
+		.values({
+			id: generateId(),
+			user_id: userId,
+			plan: plan,
+			status: "pending",
+			current_period_start: new Date().toISOString(),
+			current_period_end: new Date(Date.now() + 30 * 86400000).toISOString(),
+			cancel_at_period_end: 0,
+			polar_subscription_id: null,
+			polar_customer_id: null,
+			created_at: new Date().toISOString(),
+			updated_at: new Date().toISOString(),
+		})
+		.onConflict((oc) =>
+			oc.column("user_id").doUpdateSet({
+				plan: plan,
+				status: "pending",
+				updated_at: new Date().toISOString(),
+			}),
+		)
+		.execute();
 
-  return c.json({
-    data: { url: checkoutUrl, order_id: orderId, amount, plan },
-    success: true,
-  });
+	return c.json({
+		data: { url: checkoutUrl, order_id: orderId, amount, plan },
+		success: true,
+	});
 });
 
 // Cancel subscription
 billingRoutes.post("/cancel", async (c) => {
-  const db = c.get("db");
-  const userId = c.get("userId");
-  const polarToken = c.env.POLAR_ACCESS_TOKEN || "";
+	const db = c.get("db");
+	const userId = c.get("userId");
+	const polarToken = c.env.POLAR_ACCESS_TOKEN || "";
 
-  const sub = await db.selectFrom("subscriptions").select(["polar_subscription_id"]).where("user_id", "=", userId).executeTakeFirst();
-  if (!sub || !sub.polar_subscription_id) {
-    return c.json({ error: "No active paid subscription", success: false }, 404);
-  }
+	const sub = await db
+		.selectFrom("subscriptions")
+		.select(["polar_subscription_id"])
+		.where("user_id", "=", userId)
+		.executeTakeFirst();
+	if (!sub?.polar_subscription_id) {
+		return c.json(
+			{ error: "No active paid subscription", success: false },
+			404,
+		);
+	}
 
-  if (polarToken) {
-    try {
-      await fetch(`${POLAR_API}/subscriptions/${sub.polar_subscription_id}/cancel`, {
-        method: "POST",
-        headers: { Authorization: `Bearer ${polarToken}` },
-      });
-    } catch { /* Polar API error */ }
-  }
+	if (polarToken) {
+		try {
+			await fetch(
+				`${POLAR_API}/subscriptions/${sub.polar_subscription_id}/cancel`,
+				{
+					method: "POST",
+					headers: { Authorization: `Bearer ${polarToken}` },
+				},
+			);
+		} catch {
+			/* Polar API error */
+		}
+	}
 
-  await db.updateTable("subscriptions").set({
-    cancel_at_period_end: 1,
-    updated_at: new Date().toISOString(),
-  }).where("user_id", "=", userId).execute();
+	await db
+		.updateTable("subscriptions")
+		.set({
+			cancel_at_period_end: 1,
+			updated_at: new Date().toISOString(),
+		})
+		.where("user_id", "=", userId)
+		.execute();
 
-  return c.json({ success: true });
+	return c.json({ success: true });
 });
 
 // Email alert preferences
 billingRoutes.get("/alerts", async (c) => {
-  const db = c.get("db");
-  const userId = c.get("userId");
-  const user = await db.selectFrom("users").select(["id"]).where("id", "=", userId).executeTakeFirst();
-  if (!user) return c.json({ error: "User not found", success: false }, 404);
+	const db = c.get("db");
+	const userId = c.get("userId");
+	const user = await db
+		.selectFrom("users")
+		.select(["id"])
+		.where("id", "=", userId)
+		.executeTakeFirst();
+	if (!user) return c.json({ error: "User not found", success: false }, 404);
 
-  // Store alert prefs in a simple JSON column approach — use integration table as proxy
-  // For now, return defaults
-  return c.json({
-    data: {
-      weekly_report: true,
-      milestone_alerts: true,
-      conversion_alerts: false,
-    }, success: true,
-  });
+	// Store alert prefs in a simple JSON column approach — use integration table as proxy
+	// For now, return defaults
+	return c.json({
+		data: {
+			weekly_report: true,
+			milestone_alerts: true,
+			conversion_alerts: false,
+		},
+		success: true,
+	});
 });
 
 billingRoutes.post("/alerts", async (c) => {
-  const db = c.get("db");
-  const userId = c.get("userId");
-  const prefs = await c.req.json();
-  // Alert preferences stored in user metadata (simplified)
-  return c.json({ data: prefs, success: true });
+	const _db = c.get("db");
+	const _userId = c.get("userId");
+	const prefs = await c.req.json();
+	// Alert preferences stored in user metadata (simplified)
+	return c.json({ data: prefs, success: true });
 });
 
 // Send test email
 billingRoutes.post("/test-email", async (c) => {
-  const db = c.get("db");
-  const userId = c.get("userId");
-  const user = await db.selectFrom("users").select(["email", "name"]).where("id", "=", userId).executeTakeFirst();
-  if (!user) return c.json({ error: "User not found", success: false }, 404);
+	const db = c.get("db");
+	const userId = c.get("userId");
+	const user = await db
+		.selectFrom("users")
+		.select(["email", "name"])
+		.where("id", "=", userId)
+		.executeTakeFirst();
+	if (!user) return c.json({ error: "User not found", success: false }, 404);
 
-  const emailBinding = (c.env as any).EMAIL;
-  const { sendEmail } = await import("../lib/email");
-  const ok = await sendEmail({
-    to: user.email,
-    subject: "RevKlik — Email alerts active",
-    html: `<div style="font-family: sans-serif; max-width: 480px; margin: 0 auto; padding: 24px; background: #0a0a0a; color: #e8e4de; border-radius: 12px;">
+	const emailBinding = c.env.EMAIL;
+	const { sendEmail } = await import("../lib/email");
+	const ok = await sendEmail(
+		{
+			to: user.email,
+			subject: "RevKlik — Email alerts active",
+			html: `<div style="font-family: sans-serif; max-width: 480px; margin: 0 auto; padding: 24px; background: #0a0a0a; color: #e8e4de; border-radius: 12px;">
       <h2 style="color: #d4882a; margin: 0 0 12px;">Email Alerts Active</h2>
       <p style="line-height: 1.6;">Hey ${user.name}, your email alerts are now configured. You'll receive weekly reports and milestone notifications.</p>
       <p style="font-size: 12px; color: #6b6560; margin-top: 20px;">You can manage your preferences in the RevKlik dashboard.</p>
     </div>`,
-  }, emailBinding);
+		},
+		emailBinding,
+	);
 
-  return c.json({ data: { sent: ok }, success: ok });
+	return c.json({ data: { sent: ok }, success: ok });
 });

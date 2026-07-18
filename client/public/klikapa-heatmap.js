@@ -23,7 +23,7 @@
 
   // ---- Click heatmap ----
   if (consent.heatmap) {
-    d.addEventListener("click", function (e) {
+    d.addEventListener("click", (e) => {
       var sw = d.documentElement.scrollWidth || 1;
       var sh = d.documentElement.scrollHeight || 1;
       var x = Math.round((e.clientX + w.scrollX) / sw * 100);
@@ -52,7 +52,7 @@
       if (depth > maxScroll) maxScroll = depth;
     }
     var scrollT;
-    w.addEventListener("scroll", function () {
+    w.addEventListener("scroll", () => {
       clearTimeout(scrollT);
       scrollT = setTimeout(trackScrollDepth, 400);
     }, { passive: true });
@@ -65,7 +65,7 @@
         send(HM_EP, { s: SITE_ID, sid: sid, vid: vid, p: w.location.pathname, t: "scroll", ms: maxScroll, vh: vh, dh: dh });
       }
     }
-    d.addEventListener("visibilitychange", function () { if (d.hidden) sendScrollDepth(); });
+    d.addEventListener("visibilitychange", () => { if (d.hidden) sendScrollDepth(); });
     w.addEventListener("beforeunload", sendScrollDepth);
   }
 
@@ -92,30 +92,30 @@
     }
 
     // Click events
-    d.addEventListener("click", function (e) {
+    d.addEventListener("click", (e) => {
       addEvent("c", { x: e.clientX, y: e.clientY, tg: e.target.tagName ? e.target.tagName.toLowerCase() : "" });
     }, true);
 
     // Scroll events
     var recScrollT;
-    w.addEventListener("scroll", function () {
+    w.addEventListener("scroll", () => {
       clearTimeout(recScrollT);
-      recScrollT = setTimeout(function () {
+      recScrollT = setTimeout(() => {
         addEvent("s", { y: w.scrollY, x: w.scrollX });
       }, 300);
     }, { passive: true });
 
     // Resize events
     var recResizeT;
-    w.addEventListener("resize", function () {
+    w.addEventListener("resize", () => {
       clearTimeout(recResizeT);
-      recResizeT = setTimeout(function () {
+      recResizeT = setTimeout(() => {
         addEvent("r", { w: w.innerWidth, h: w.innerHeight });
       }, 300);
     });
 
     // DOM mutations
-    var observer = new MutationObserver(function (mutations) {
+    var observer = new MutationObserver((mutations) => {
       var changes = [];
       for (var i = 0; i < mutations.length && changes.length < 5; i++) {
         var m = mutations[i];
@@ -143,6 +143,6 @@
 
     // Flush on unload
     w.addEventListener("beforeunload", flushRecording);
-    d.addEventListener("visibilitychange", function () { if (d.hidden) flushRecording(); });
+    d.addEventListener("visibilitychange", () => { if (d.hidden) flushRecording(); });
   }
 })(window, document);

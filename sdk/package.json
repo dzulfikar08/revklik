@@ -1,39 +1,39 @@
 {
-  "name": "@revklik/sdk",
-  "version": "0.1.0",
-  "type": "module",
-  "main": "./dist/index.cjs",
-  "module": "./dist/index.js",
-  "types": "./dist/index.d.ts",
-  "exports": {
-    ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.js",
-      "require": "./dist/index.cjs"
-    }
-  },
-  "scripts": {
-    "build": "tsup",
-    "dev": "tsup --watch"
-  },
-  "dependencies": {},
-  "devDependencies": {
-    "tsup": "^8.0.0",
-    "typescript": "^5.0.0"
-  },
-  "files": [
-    "dist"
-  ],
-  "engines": {
-    "node": ">=18"
-  },
-  "keywords": [
-    "analytics",
-    "sdk",
-    "revklik",
-    "klikapa",
-    "privacy",
-    "web-analytics"
-  ],
-  "license": "MIT"
+	"name": "@revklik/sdk",
+	"version": "0.1.0",
+	"type": "module",
+	"main": "./dist/index.cjs",
+	"module": "./dist/index.js",
+	"types": "./dist/index.d.ts",
+	"exports": {
+		".": {
+			"types": "./dist/index.d.ts",
+			"import": "./dist/index.js",
+			"require": "./dist/index.cjs"
+		}
+	},
+	"scripts": {
+		"build": "tsup && tsc --declaration --emitDeclarationOnly",
+		"dev": "tsup --watch"
+	},
+	"dependencies": {},
+	"devDependencies": {
+		"tsup": "^8.5.1",
+		"typescript": "^7.0.2"
+	},
+	"files": [
+		"dist"
+	],
+	"engines": {
+		"node": ">=20.19"
+	},
+	"keywords": [
+		"analytics",
+		"sdk",
+		"revklik",
+		"klikapa",
+		"privacy",
+		"web-analytics"
+	],
+	"license": "MIT"
 }

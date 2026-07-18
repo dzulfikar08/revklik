@@ -1,0 +1,11 @@
+**/node_modules
+**/target
+**/dist
+**/.turbo
+**/.wrangler
+**/.playwright-mcp
+.git
+*.mmdb
+**/.env
+**/ios
+**/android

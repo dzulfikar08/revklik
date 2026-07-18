@@ -6,7 +6,7 @@
   const ENDPOINT = new URL(el.src).origin + "/api/track";
 
   // Session & visitor
-  let sid = sessionStorage.getItem("_kp_sid") || (sessionStorage.setItem("_kp_sid", crypto.randomUUID()), sessionStorage.getItem("_kp_sid"));
+  const sid = sessionStorage.getItem("_kp_sid") || (sessionStorage.setItem("_kp_sid", crypto.randomUUID()), sessionStorage.getItem("_kp_sid"));
   let vid = localStorage.getItem("_kp_vid") || (localStorage.setItem("_kp_vid", crypto.randomUUID()), localStorage.getItem("_kp_vid"));
 
   // Device detection
@@ -64,9 +64,9 @@
     if (!queue.length) return;
     var batch = queue.splice(0);
     var payload = JSON.stringify(batch);
-    fetch(ENDPOINT, { method: "POST", body: payload, keepalive: true, headers: { "Content-Type": "application/json" } }).then(function(r) {
-      if (r.ok) r.json().then(function(d) { if (d.vid && d.vid !== vid) { vid = d.vid; localStorage.setItem("_kp_vid", vid); } });
-    }).catch(function() {});
+    fetch(ENDPOINT, { method: "POST", body: payload, keepalive: true, headers: { "Content-Type": "application/json" } }).then((r) => {
+      if (r.ok) r.json().then((d) => { if (d.vid && d.vid !== vid) { vid = d.vid; localStorage.setItem("_kp_vid", vid); } });
+    }).catch(() => {});
   }
 
   // Page view
@@ -114,7 +114,7 @@
       sentinel.style.cssText = "position:absolute;left:0;width:1px;height:1px;pointer-events:none;visibility:hidden;";
       sentinel.style.top = Math.round(d.documentElement.scrollHeight * saTh) + "px";
       d.body.appendChild(sentinel);
-      var saObs = new IntersectionObserver(function(entries) {
+      var saObs = new IntersectionObserver((entries) => {
         if (!saDone && entries[0] && entries[0].isIntersecting) {
           saDone = true;
           send({ t: "e", n: "scroll_depth", p: lastPath, pr: { depth: Math.round(saTh * 100) } });
