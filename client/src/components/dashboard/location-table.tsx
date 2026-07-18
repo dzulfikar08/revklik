@@ -9,7 +9,7 @@ export function LocationTable({
 	geoData,
 	onCrossFilter,
 }: {
-	geoData: any[];
+	geoData: { country: string | null; region: string | null; city: string | null; visitors: number }[];
 	onCrossFilter: (dimension: string, value: string) => void;
 }) {
 	const [tab, setTab] = useState<LocationTab>("country");

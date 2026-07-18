@@ -134,7 +134,7 @@ function DashboardGrid({
 	devices: DeviceEntry[];
 	osData: DeviceEntry[];
 	browsersData: DeviceEntry[];
-	geoData: any[];
+	geoData: { country: string | null; region: string | null; city: string | null; visitors: number }[];
 	funnelSteps: FunnelStep[];
 	funnelRate: number;
 	funnelPages: PageFunnel[];
@@ -391,7 +391,7 @@ function DashboardGrid({
 									mono: true,
 								},
 							]}
-							onRowClick={(row: any) => onCrossFilter("path", String(row.path))}
+							onRowClick={(row) => onCrossFilter("path", String(row.path))}
 						/>
 					</div>
 
@@ -418,7 +418,7 @@ function DashboardGrid({
 								{ key: "source", label: t("table.source") },
 								{ key: "_pct", label: "Share", align: "right", mono: true },
 							]}
-							onRowClick={(row: any) =>
+							onRowClick={(row) =>
 								onCrossFilter("utm_source", String(row._raw_source))
 							}
 						/>
@@ -766,7 +766,7 @@ function SiteDetailPage() {
 	const journeys = useMemo(() => {
 		if (!hasFilters) return allJourneys;
 		return allJourneys.filter((j) => {
-			const journeyObj: Record<string, any> = {
+			const journeyObj: Record<string, unknown> = {
 				country: j.country,
 				region: j.region,
 				city: j.city,

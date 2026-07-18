@@ -28,7 +28,7 @@ siteRoutes.get("/", async (c) => {
 	const rangeParam = c.req.query("range") || "7d";
 	let startIso: string;
 	if (rangeParam.includes(",")) {
-		startIso = new Date(rangeParam.split(",")[0]!).toISOString();
+		startIso = new Date(rangeParam.split(",")[0] ?? "").toISOString();
 	} else {
 		const days: Record<string, number> = {
 			"24h": 1,

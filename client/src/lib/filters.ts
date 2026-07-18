@@ -53,7 +53,7 @@ export function formatFilterLabel(rule: Filter): string {
 	return `${dimensionLabel(rule.dimension)} ${operatorLabel(rule.operator)} ${rule.value}`;
 }
 
-export function matchesRule(rule: Filter, obj: Record<string, any>): boolean {
+export function matchesRule(rule: Filter, obj: Record<string, unknown>): boolean {
 	const val = obj[rule.dimension];
 	if (rule.operator === "exists") return val != null && val !== "";
 	if (rule.operator === "not_exists") return val == null || val === "";
@@ -71,7 +71,7 @@ export function matchesRule(rule: Filter, obj: Record<string, any>): boolean {
 }
 
 export function matchesAllFilters(
-	obj: Record<string, any>,
+	obj: Record<string, unknown>,
 	filters: Filter[],
 ): boolean {
 	return filters.every((f) => matchesRule(f, obj));

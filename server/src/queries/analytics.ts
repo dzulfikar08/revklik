@@ -566,13 +566,15 @@ export async function getChannelBreakdown(
 			row.utm_source,
 			row.utm_medium,
 		);
-		if (!channelMap.has(channel))
-			channelMap.set(channel, {
+		let entry = channelMap.get(channel);
+		if (!entry) {
+			entry = {
 				visitors: new Set(),
 				pageviews: 0,
 				revenue: 0,
-			});
-		const entry = channelMap.get(channel)!;
+			};
+			channelMap.set(channel, entry);
+		}
 		entry.visitors.add(row.visitor_id);
 		entry.pageviews++;
 		if (row.revenue) entry.revenue += Number(row.revenue);

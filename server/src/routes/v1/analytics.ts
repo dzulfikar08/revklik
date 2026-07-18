@@ -1,4 +1,4 @@
-import { Hono } from "hono";
+import { Hono, type Context } from "hono";
 import type { Kysely } from "kysely";
 import type { KlikapaDatabase } from "shared";
 import { sql } from "../../db";
@@ -52,7 +52,10 @@ async function validateSite(
 	return allowed;
 }
 
-function validateSiteAccess(c: any, siteId: string) {
+function validateSiteAccess(
+	c: Context<PublicApiEnv>,
+	siteId: string,
+): { valid: true; response: null } | { valid: false; response: Response } {
 	const tokenSiteId = c.get("tokenSiteId");
 	if (tokenSiteId && tokenSiteId !== siteId) {
 		return {

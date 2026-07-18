@@ -355,11 +355,12 @@ journeysCmd
 				}));
 
 				const sortField = opts.sort as string;
-				rows.sort((a: any, b: any) => {
-					if (sortField === "steps" || sortField === "revenue") {
-						return (b[sortField] as number) - (a[sortField] as number);
+				rows.sort((a, b) => {
+					const k = sortField as keyof typeof a;
+					if (k === "steps" || k === "revenue") {
+						return Number(b[k]) - Number(a[k]);
 					}
-					return String(b[sortField]).localeCompare(String(a[sortField]));
+					return String(b[k]).localeCompare(String(a[k]));
 				});
 
 				if (opts.json || process.argv.includes("--json")) {

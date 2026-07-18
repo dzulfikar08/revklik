@@ -62,7 +62,8 @@ trackRoutes.post("/track", async (c) => {
 	if (payloads.length === 0)
 		return c.json({ error: "empty payload", success: false }, 400);
 
-	const first = payloads[0]!;
+	const first = payloads[0];
+	if (!first) return c.json({ error: "empty payload", success: false }, 400);
 	const siteId = first.s;
 	if (!siteId)
 		return c.json({ error: "site_id required", success: false }, 400);

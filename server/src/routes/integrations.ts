@@ -175,7 +175,8 @@ integrationRoutes.post("/", async (c) => {
 		.where("id", "=", id)
 		.executeTakeFirst();
 
-	return c.json({ data: rowToIntegration(row!), success: true }, 201);
+	if (!row) return c.json({ error: "Integration not found", success: false }, 404);
+	return c.json({ data: rowToIntegration(row), success: true }, 201);
 });
 
 // PATCH /:id - Update integration
@@ -228,7 +229,8 @@ integrationRoutes.patch("/:id", async (c) => {
 		.where("id", "=", integrationId)
 		.executeTakeFirst();
 
-	return c.json({ data: rowToIntegration(row!), success: true });
+	if (!row) return c.json({ error: "Integration not found", success: false }, 404);
+	return c.json({ data: rowToIntegration(row), success: true });
 });
 
 // DELETE /:id - Delete integration

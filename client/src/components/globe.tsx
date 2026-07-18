@@ -242,14 +242,14 @@ export function Globe({
 				globe.destroy();
 			};
 
-			(canvas as any).__cleanup = () => {
+			(canvas as HTMLCanvasElement & { __cleanup?: () => void }).__cleanup = () => {
 				prevDestroy();
 				ro.disconnect();
 			};
 		});
 
 		return () => {
-			const cleanup = (canvas as any).__cleanup;
+			const cleanup = (canvas as HTMLCanvasElement & { __cleanup?: () => void }).__cleanup;
 			if (cleanup) cleanup();
 			cancelAnimationFrame(rafRef.current);
 			if (overlay) {
@@ -261,7 +261,8 @@ export function Globe({
 
 	const handleCanvasClick = (e: React.MouseEvent<HTMLCanvasElement>) => {
 		if (!onMarkerClick || !activeMarkers.length) return;
-		const canvas = canvasRef.current!;
+		const canvas = canvasRef.current;
+		if (!canvas) return;
 		const rect = canvas.getBoundingClientRect();
 		const clickX = (e.clientX - rect.left) * (canvas.width / rect.width);
 		const clickY = (e.clientY - rect.top) * (canvas.height / rect.height);
@@ -354,8 +355,8 @@ export function geoToMarkers(
 	return geo
 		.filter((g) => g.city && CITY_COORDS[g.city])
 		.map((g) => {
-			const [lat, lng] = CITY_COORDS[g.city!]!;
+			const [lat, lng] = CITY_COORDS[g.city ?? ""] ?? [0, 0];
 			const size = Math.min(0.15, Math.max(0.02, g.visitors * 0.004));
-			return { lat, lng, size, city: g.city! };
+			return { lat, lng, size, city: g.city ?? "" };
 		});
 }

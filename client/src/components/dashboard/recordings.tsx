@@ -245,13 +245,13 @@ export function RecordingPanel({
 		const d = ev.d as Record<string, unknown>;
 		switch (ev.type) {
 			case "interaction":
-				return `Click at (${(d as any).x}, ${(d as any).y}) on <${(d as any).tg || "??"}>`;
+				return `Click at (${d.x}, ${d.y}) on <${d.tg || "??"}>`;
 			case "scroll":
-				return `Scroll to y=${(d as any).y}`;
+				return `Scroll to y=${d.y}`;
 			case "mutation":
-				return `DOM change: ${((d as any).changes || []).length} mutation(s)`;
+				return `DOM change: ${Array.isArray(d.changes) ? d.changes.length : 0} mutation(s)`;
 			case "resize":
-				return `Resize to ${(d as any).w}x${(d as any).h}`;
+				return `Resize to ${d.w}x${d.h}`;
 			default:
 				return "Unknown event";
 		}

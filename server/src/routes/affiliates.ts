@@ -14,7 +14,7 @@ function generateReferralCode(): string {
 	const bytes = new Uint8Array(8);
 	crypto.getRandomValues(bytes);
 	for (let i = 0; i < 8; i++) {
-		code += chars[bytes[i]! % chars.length];
+		code += chars[(bytes[i] ?? 0) % chars.length] ?? "";
 	}
 	return code;
 }

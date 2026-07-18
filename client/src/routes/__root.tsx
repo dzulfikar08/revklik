@@ -247,7 +247,7 @@ function RootLayout() {
 
 	const routeState = useRouterState({ select: (s) => s.location });
 	const siteMatch = routeState.pathname.match(/^\/site\/([^/]+)/);
-	const siteId = siteMatch ? siteMatch[1]! : null;
+	const siteId = siteMatch ? siteMatch[1] ?? "" : null;
 	const pathname = routeState.pathname;
 
 	// Handle Google OAuth callback token from URL fragment
@@ -255,7 +255,7 @@ function RootLayout() {
 		const hash = window.location.hash;
 		const tm = hash.match(/token=([^&]+)/);
 		if (tm?.[1]) {
-			const token = decodeURIComponent(tm[1]!);
+			const token = decodeURIComponent(tm[1] ?? "");
 			setItem("kp_token", token).then(async () => {
 				try {
 					const API_BASE =

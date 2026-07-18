@@ -63,8 +63,8 @@ const NAMES_LAST = [
 export function nameFromVisitorId(id: string): string {
 	let h = 0;
 	for (let i = 0; i < id.length; i++) h = ((h << 5) - h + id.charCodeAt(i)) | 0;
-	const first = NAMES_FIRST[Math.abs(h) % NAMES_FIRST.length]!;
-	const last = NAMES_LAST[Math.abs(h >> 8) % NAMES_LAST.length]!;
+	const first = NAMES_FIRST[Math.abs(h) % NAMES_FIRST.length] ?? "";
+	const last = NAMES_LAST[Math.abs(h >> 8) % NAMES_LAST.length] ?? "";
 	return `${first} ${last}`;
 }
 

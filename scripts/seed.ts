@@ -122,11 +122,13 @@ function weightedPick<T extends { weight: number }>(
 		r -= item.weight;
 		if (r <= 0) return item;
 	}
-	return pool[pool.length - 1]!;
+	const last = pool[pool.length - 1];
+	if (!last) throw new Error("weightedPick: empty pool");
+	return last;
 }
 
 function pickPath(): string {
-	const pool = PATHS.map((p, i) => ({ path: p, weight: PAGES_WEIGHTS[i]! }));
+	const pool = PATHS.map((p, i) => ({ path: p, weight: PAGES_WEIGHTS[i] ?? 0 }));
 	return weightedPick(pool).path;
 }
 
@@ -135,7 +137,9 @@ function uid(): string {
 }
 
 function randFrom<T>(arr: T[]): T {
-	return arr[Math.floor(Math.random() * arr.length)]!;
+	const v = arr[Math.floor(Math.random() * arr.length)];
+	if (!v) throw new Error("randFrom: empty array");
+	return v;
 }
 
 function randInt(min: number, max: number): number {
@@ -236,7 +240,7 @@ for (let d = 0; d < DAYS; d++) {
 		const geo = weightedPick(COUNTRIES);
 		const browser = weightedPick(BROWSERS).name;
 		const device = weightedPick(DEVICES).name;
-		const os = randFrom(OS_MAP[device]!);
+		const os = randFrom(OS_MAP[device] ?? []);
 		const ref = weightedPick(REFERRERS);
 		const isNewVisitor = Math.random() > 0.3;
 		const visitorId =
@@ -279,7 +283,7 @@ for (let d = 0; d < DAYS; d++) {
 				timestamp: evTime.toISOString(),
 				event_type: "pageview",
 				name: null,
-				path: paths[p]!,
+				path: paths[p] ?? "",
 				hostname: "klikapa-landing.pages.dev",
 				referrer: ref.source === "direct" ? null : `https://${ref.source}`,
 				utm_source: ref.utm ?? null,
@@ -382,7 +386,7 @@ for (let d = 0; d < DAYS; d++) {
 					).toISOString(),
 					event_type: "custom",
 					name: "click",
-					path: paths[p]!,
+					path: paths[p] ?? "",
 					hostname: null,
 					referrer: null,
 					utm_source: null,
@@ -450,8 +454,8 @@ for (let d = 0; d < DAYS; d++) {
 			visitor_id: visitorId,
 			started_at: sessionStart.toISOString(),
 			ended_at: sessionEnd.toISOString(),
-			entry_path: paths[0]!,
-			exit_path: paths[paths.length - 1]!,
+			entry_path: paths[0] ?? "",
+			exit_path: paths[paths.length - 1] ?? "",
 			referrer: ref.source === "direct" ? null : `https://${ref.source}`,
 			utm_source: ref.utm ?? null,
 			utm_medium: ref.utm ? "social" : null,

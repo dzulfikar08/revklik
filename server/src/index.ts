@@ -345,14 +345,31 @@ export default {
 					break;
 				}
 
-				const data: any = await res.json();
-				const orders: any[] =
+				type PolarOrder = {
+					id: string;
+					status?: string;
+					customer?: { email?: string };
+					customer_email?: string;
+				};
+				type Pagination = { max_page?: number; total_pages?: number };
+				const data = (await res.json()) as {
+					items?: PolarOrder[];
+					data?: PolarOrder[] | { items?: PolarOrder[]; pagination?: Pagination };
+					result?: { items?: PolarOrder[] };
+					pagination?: Pagination;
+					meta?: Pagination;
+				};
+				const dd = data.data;
+				const orders: PolarOrder[] =
 					data.items ??
-					data.data?.items ??
+					(Array.isArray(dd) ? dd : dd?.items) ??
 					data.result?.items ??
-					(Array.isArray(data.data) ? data.data : []);
-				const pagination =
-					data.pagination ?? data.data?.pagination ?? data.meta ?? {};
+					[];
+				const pagination: Pagination =
+					data.pagination ??
+					(!Array.isArray(dd) ? dd?.pagination : undefined) ??
+					data.meta ??
+					{};
 				hasMore = page < (pagination.max_page ?? pagination.total_pages ?? 1);
 
 				for (const order of orders) {

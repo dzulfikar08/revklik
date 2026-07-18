@@ -7,7 +7,7 @@ const SITE_ID = "92f66934-e8d8-40ca-8058-3f8b4d899697";
 const remote = process.argv.includes("--remote");
 const flag = remote ? "--remote" : "--local";
 
-async function d1query(sql: string): Promise<any[]> {
+async function d1query(sql: string): Promise<Array<Record<string, unknown>>> {
 	const p = Bun.spawnSync({
 		cmd: [
 			"npx",
@@ -102,8 +102,8 @@ async function seed() {
 	);
 	console.log(`Found ${sessRows.length} sessions`);
 
-	const sessionLines = sessRows.map((s: any) => {
-		const isBounce = s.pcount <= 1 ? 1 : 0;
+	const sessionLines = sessRows.map((s) => {
+		const isBounce = Number(s.pcount) <= 1 ? 1 : 0;
 		return `INSERT INTO sessions (id,site_id,visitor_id,started_at,ended_at,entry_path,exit_path,referrer,utm_source,utm_medium,utm_campaign,country,region,city,device_type,browser,os,page_count,is_bounce) VALUES ('${s.session_id}','${SITE_ID}','${s.visitor_id}','${s.started}','${s.ended}',${s.entry ? `'${s.entry}'` : "NULL"},${s.exitp ? `'${s.exitp}'` : "NULL"},${s.ref && s.ref !== "" ? `'${s.ref}'` : "NULL"},${s.usrc ? `'${s.usrc}'` : "NULL"},NULL,NULL,${s.country ? `'${s.country}'` : "NULL"},${s.region ? `'${s.region}'` : "NULL"},${s.city ? `'${s.city}'` : "NULL"},${s.device_type ? `'${s.device_type}'` : "NULL"},${s.browser ? `'${s.browser}'` : "NULL"},${s.os ? `'${s.os}'` : "NULL"},${s.pcount},${isBounce});`;
 	});
 

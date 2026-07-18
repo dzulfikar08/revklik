@@ -125,7 +125,7 @@ export function RevenueBreakdownWidget({
 										borderRadius: 8,
 										fontSize: 12,
 									}}
-									formatter={(v: any) => [
+									formatter={(v: number) => [
 										`$${Number(v).toFixed(2)}`,
 										"Revenue",
 									]}

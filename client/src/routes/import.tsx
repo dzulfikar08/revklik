@@ -55,7 +55,7 @@ function ImportPage() {
 						fontFamily: "var(--sans)",
 					}}
 				>
-					{sites?.map((s: any) => (
+					{sites?.map((s) => (
 						<option key={s.id} value={s.id}>
 							{s.name} ({s.domain})
 						</option>
@@ -85,13 +85,13 @@ function PolarImportCard({ siteId }: { siteId: string }) {
 		mutationFn: () =>
 			importPolarOrders(siteId, polarToken, polarOrgId || undefined),
 		onSuccess: (data) => {
-			setResult(data as any);
+			setResult(data);
 			setError("");
 			toast(
-				(data as any).imported > 0
-					? `Imported ${(data as any).imported} Polar orders`
+				data.imported > 0
+					? `Imported ${data.imported} Polar orders`
 					: "No new orders found",
-				(data as any).imported > 0 ? "success" : "info",
+				data.imported > 0 ? "success" : "info",
 			);
 		},
 		onError: (err) => {
@@ -444,13 +444,13 @@ function OneDollarStatsImportCard({ siteId }: { siteId: string }) {
 	const mut = useMutation({
 		mutationFn: () => importOneDollarStats(siteId, apiKey, odsDomain),
 		onSuccess: (data) => {
-			setResult(data as any);
+			setResult(data);
 			setError("");
 			toast(
-				(data as any).imported > 0
-					? `Imported ${(data as any).imported} events from OneDollarStats`
+				data.imported > 0
+					? `Imported ${data.imported} events from OneDollarStats`
 					: "No new data found",
-				(data as any).imported > 0 ? "success" : "info",
+				data.imported > 0 ? "success" : "info",
 			);
 		},
 		onError: (err) => {

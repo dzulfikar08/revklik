@@ -173,7 +173,7 @@ export function ChartCard({
 								tickLine={false}
 								axisLine={false}
 								width={40}
-								tickFormatter={(v: any) => `$${v}`}
+								tickFormatter={(v: number) => `$${v}`}
 							/>
 						)}
 						<RechartsTooltip
