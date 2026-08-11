@@ -129,6 +129,26 @@ export const deleteSite = (id: string) =>
 	apiFetch<void>(`/sites/${id}`, { method: "DELETE" });
 export const fetchSiteSnippet = (id: string) =>
 	apiFetch<{ siteId: string; snippet: string }>(`/sites/${id}/snippet`);
+
+// Self-traffic exclusion (fingerprint blocklist)
+export const fetchMyFingerprint = (siteId: string) =>
+	apiFetch<{ fingerprint: string }>(`/sites/${siteId}/my-fingerprint`);
+export const fetchExclusions = (siteId: string) =>
+	apiFetch<string[]>(`/sites/${siteId}/exclusions`);
+export const addExclusion = (siteId: string, fingerprint?: string) =>
+	apiFetch<string[]>(`/sites/${siteId}/exclusions`, {
+		method: "POST",
+		body: JSON.stringify(fingerprint ? { fingerprint } : {}),
+	});
+export const removeExclusion = (siteId: string, fp: string) =>
+	apiFetch<string[]>(`/sites/${siteId}/exclusions/${fp}`, {
+		method: "DELETE",
+	});
+export const purgeMyVisits = (siteId: string, fingerprint?: string) =>
+	apiFetch<{ events: number; sessions: number; profiles: number }>(
+		`/sites/${siteId}/purge`,
+		{ method: "POST", body: JSON.stringify(fingerprint ? { fingerprint } : {}) },
+	);
 export const fetchDashboard = (
 	siteId: string,
 	range?: string,

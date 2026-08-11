@@ -60,6 +60,7 @@ export interface SiteTable {
 	created_at: string;
 	share_token?: string | null;
 	public_dashboard?: number;
+	excluded_fingerprints?: string | null;
 }
 
 export interface UserTable {

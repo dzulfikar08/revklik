@@ -124,6 +124,7 @@ export interface Site {
 	name: string;
 	domain: string;
 	created_at: string;
+	excluded_fingerprints?: string[];
 }
 
 export interface SiteWithStats extends Site {

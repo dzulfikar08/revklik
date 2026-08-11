@@ -696,5 +696,15 @@ export async function migrateDatabase(d1: D1Database): Promise<void> {
 		/* table may already exist */
 	}
 
+	// Self-traffic exclusion: per-site fingerprint blocklist (JSON text array)
+	for (const stmt of [
+		"ALTER TABLE sites ADD COLUMN excluded_fingerprints TEXT",
+	]) {
+		try {
+			await d1.prepare(stmt).run();
+		} catch {
+			/* column may already exist */
+		}
+	}
 	migrationRan = true;
 }

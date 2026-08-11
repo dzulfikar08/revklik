@@ -315,7 +315,7 @@ export function Globe({
 				onPointerDown={(e) => {
 					if (paused) return;
 					pointerInteracting.current = e.clientX;
-					canvasRef.current?.style.cursor = "grabbing";
+					if (canvasRef.current) canvasRef.current.style.cursor = "grabbing";
 				}}
 				onPointerUp={() => {
 					pointerInteracting.current = null;

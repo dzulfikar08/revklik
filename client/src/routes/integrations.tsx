@@ -133,7 +133,7 @@ function ConfigModal({
 			const payload: Record<string, unknown> = { name };
 			if (Object.keys(configToUpdate).length > 0)
 				payload.config = configToUpdate;
-			return updateIntegration(integration?.id, payload);
+			return updateIntegration(integration?.id ?? "", payload);
 		},
 		onSuccess: () => {
 			queryClient.invalidateQueries({ queryKey: ["integrations"] });

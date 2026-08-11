@@ -126,7 +126,7 @@ function DashboardGrid({
 	onLayoutChange,
 }: {
 	siteId: string;
-	stats: StatsResponse;
+	stats?: StatsResponse;
 	isLoading: boolean;
 	timeseries: TimeSeriesPoint[];
 	topPages: TopPage[];
@@ -540,6 +540,8 @@ function DashboardGrid({
 							byMethod={revenueByMethod}
 							byProvider={revenueByProvider}
 							onCrossFilter={onCrossFilter}
+						journeys={journeys}
+						onSelectCustomer={setSelectedJourney}
 						/>
 					</div>
 

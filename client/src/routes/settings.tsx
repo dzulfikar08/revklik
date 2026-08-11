@@ -3,6 +3,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { PageHeader } from "@/components/page-header";
 import {
+	addExclusion,
 	createAnnotation,
 	createEmailReport,
 	createSegment,
@@ -11,9 +12,12 @@ import {
 	deleteSegment,
 	fetchAnnotations,
 	fetchEmailReports,
+	fetchExclusions,
 	fetchSegments,
 	fetchShareStatus,
 	getActiveSiteId,
+	purgeMyVisits,
+	removeExclusion,
 	togglePublicDashboard,
 	updateEmailReport,
 } from "@/lib/api";
@@ -513,6 +517,136 @@ function PublicDashboardSection() {
 	);
 }
 
+function ExcludeTrafficSection() {
+	const siteId = getActiveSiteId() ?? "";
+	const qc = useQueryClient();
+	const [msg, setMsg] = useState<string | null>(null);
+
+	const { data: exclusions = [] } = useQuery({
+		queryKey: ["exclusions", siteId],
+		queryFn: () => fetchExclusions(siteId),
+		enabled: !!siteId,
+	});
+
+	const addMut = useMutation({
+		mutationFn: () => addExclusion(siteId),
+		onSuccess: (list) => {
+			qc.setQueryData(["exclusions", siteId], list);
+			setMsg("This device is now excluded — future visits won't be tracked.");
+		},
+	});
+	const removeMut = useMutation({
+		mutationFn: (fp: string) => removeExclusion(siteId, fp),
+		onSuccess: (list) => qc.setQueryData(["exclusions", siteId], list),
+	});
+	const purgeMut = useMutation({
+		mutationFn: () => purgeMyVisits(siteId),
+		onSuccess: (r) =>
+			setMsg(
+				`Purged ${r.events} events, ${r.sessions} sessions, ${r.profiles} visitor profiles.`,
+			),
+	});
+
+	return (
+		<div>
+			<div style={{ fontSize: 12, color: "var(--text3)", marginBottom: 12 }}>
+				Exclude your own browser/device from tracking. Uses a fingerprint
+				(IP + user-agent + language), so it applies per browser + network.
+				Run once on each device you develop from.
+			</div>
+			<div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 12 }}>
+				<button
+					type="button"
+					className="btn-accent"
+					style={{ fontSize: 12, padding: "6px 14px" }}
+					onClick={() => {
+						setMsg(null);
+						addMut.mutate();
+					}}
+				>
+					Exclude this device
+				</button>
+				<button
+					type="button"
+					className="btn-pill"
+					style={{ fontSize: 12, padding: "6px 14px" }}
+					onClick={() => {
+						if (
+							window.confirm(
+								"Delete ALL past visits from this device's fingerprint? This cannot be undone.",
+							)
+						) {
+							setMsg(null);
+							purgeMut.mutate();
+						}
+					}}
+				>
+					Purge my past visits
+				</button>
+			</div>
+			{msg && (
+				<div
+					style={{
+						fontSize: 12,
+						color: "var(--green)",
+						marginBottom: 12,
+						fontFamily: "var(--mono)",
+					}}
+				>
+					{msg}
+				</div>
+			)}
+			{exclusions.length > 0 && (
+				<div>
+					<div
+						style={{
+							fontSize: 11,
+							color: "var(--text3)",
+							marginBottom: 6,
+							textTransform: "uppercase",
+							letterSpacing: 0.5,
+						}}
+					>
+						Excluded fingerprints ({exclusions.length})
+					</div>
+					{exclusions.map((fp) => (
+						<div
+							key={fp}
+							style={{
+								display: "flex",
+								alignItems: "center",
+								gap: 8,
+								marginBottom: 4,
+							}}
+						>
+							<code
+								style={{
+									fontSize: 10,
+									color: "var(--text2)",
+									flex: 1,
+									overflow: "hidden",
+									textOverflow: "ellipsis",
+									whiteSpace: "nowrap",
+								}}
+							>
+								{fp.slice(0, 24)}…{fp.slice(-8)}
+							</code>
+							<button
+								type="button"
+								className="btn-pill"
+								style={{ fontSize: 10, padding: "2px 8px" }}
+								onClick={() => removeMut.mutate(fp)}
+							>
+								Remove
+							</button>
+						</div>
+					))}
+				</div>
+			)}
+		</div>
+	);
+}
+
 function SettingsPage() {
 	const siteId = getActiveSiteId();
 
@@ -543,6 +677,10 @@ function SettingsPage() {
 				<div style={{ maxWidth: 720 }}>
 					<Section title="Public Dashboard">
 						<PublicDashboardSection />
+					</Section>
+
+					<Section title="Exclude My Traffic">
+						<ExcludeTrafficSection />
 					</Section>
 
 					<Section title="Saved Segments">

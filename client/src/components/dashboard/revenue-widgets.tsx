@@ -17,9 +17,11 @@ import type {
 	RevenueByPaymentProvider,
 	RevenueBySource,
 	RevenueTimeSeriesPoint,
+	VisitorJourney,
 } from "shared";
+import { avatarUrl, nameFromVisitorId } from "./icons";
 
-type RevenueTab = "source" | "country" | "trend" | "method" | "provider";
+type RevenueTab = "source" | "country" | "trend" | "method" | "provider" | "customers";
 
 export function RevenueBreakdownWidget({
 	bySource,
@@ -27,16 +29,25 @@ export function RevenueBreakdownWidget({
 	trend,
 	byMethod,
 	byProvider,
+	journeys,
 	onCrossFilter,
+	onSelectCustomer,
 }: {
 	bySource: RevenueBySource[];
 	byCountry: RevenueByCountry[];
 	trend: RevenueTimeSeriesPoint[];
 	byMethod: RevenueByPaymentMethod[];
 	byProvider: RevenueByPaymentProvider[];
+	journeys?: VisitorJourney[];
 	onCrossFilter?: (dimension: string, value: string) => void;
+	onSelectCustomer?: (journey: VisitorJourney) => void;
 }) {
 	const [tab, setTab] = useState<RevenueTab>("source");
+	const [buyerFilter, setBuyerFilter] = useState<{
+		dim: "utm_source" | "country";
+		value: string;
+		label: string;
+	} | null>(null);
 
 	return (
 		<div
@@ -67,7 +78,8 @@ export function RevenueBreakdownWidget({
 							["country", "Country"],
 							["trend", "Trend"],
 							["method", "Method"],
-							["provider", "Provider"],
+						["provider", "Provider"],
+						["customers", "Customers"],
 						] as [RevenueTab, string][]
 					).map(([key, label]) => (
 						<button type="button"
@@ -125,10 +137,10 @@ export function RevenueBreakdownWidget({
 										borderRadius: 8,
 										fontSize: 12,
 									}}
-									formatter={(v: number) => [
-										`$${Number(v).toFixed(2)}`,
-										"Revenue",
-									]}
+								formatter={(v) => [
+									`$${Number(v ?? 0).toFixed(2)}`,
+									"Revenue",
+								]}
 								/>
 								<Area
 									type="monotone"
@@ -240,7 +252,135 @@ export function RevenueBreakdownWidget({
 							</tbody>
 						</table>
 					</div>
-				)
+			)
+			) : tab === "customers" ? (
+				(() => {
+					const buyers = (journeys ?? [])
+						.filter((j) => j.total_revenue > 0)
+						.filter((j) =>
+							!buyerFilter
+								? true
+								: buyerFilter.dim === "utm_source"
+									? (j.utm_source ?? "") === buyerFilter.value
+									: (j.country ?? "") === buyerFilter.value,
+						)
+						.sort((a, b) => b.total_revenue - a.total_revenue);
+					if (buyers.length === 0)
+						return (
+							<div
+								style={{
+									padding: 16,
+									color: "var(--text3)",
+									fontSize: 12,
+									textAlign: "center",
+								}}
+							>
+								No paying customers in this range
+							</div>
+						);
+					return (
+						<div style={{ flex: 1, overflowY: "auto" }}>
+							{buyerFilter && (
+								<div
+									style={{
+										display: "flex",
+										alignItems: "center",
+										gap: 6,
+										marginBottom: 6,
+										fontSize: 11,
+									}}
+								>
+									<span style={{ color: "var(--text3)" }}>
+										Filtered by{" "}
+										{buyerFilter.dim === "utm_source"
+											? "source"
+											: "country"}
+										:
+									</span>
+									<span style={{ color: "var(--accent)" }}>
+										{buyerFilter.label}
+									</span>
+									<button
+										type="button"
+										className="btn-pill"
+										style={{ fontSize: 10, padding: "1px 6px" }}
+										onClick={() => setBuyerFilter(null)}
+									>
+										clear
+									</button>
+								</div>
+							)}
+							{buyers.map((j) => {
+								const name =
+									j.visitor_name || nameFromVisitorId(j.visitor_id);
+								return (
+									<button
+										type="button"
+										key={j.session_id}
+										onClick={() => onSelectCustomer?.(j)}
+										style={{
+											display: "flex",
+											alignItems: "center",
+											gap: 8,
+											width: "100%",
+											padding: "6px 4px",
+											background: "transparent",
+											border: "none",
+											cursor: "pointer",
+											borderBottom: "1px solid var(--border)",
+										}}
+									>
+										<img
+											src={avatarUrl(name)}
+											alt=""
+											style={{
+												width: 22,
+												height: 22,
+												borderRadius: "50%",
+												background: "var(--bg3)",
+												flexShrink: 0,
+											}}
+										/>
+										<span
+											style={{
+												flex: 1,
+												textAlign: "left",
+												fontSize: 12,
+												color: "var(--text)",
+												overflow: "hidden",
+												textOverflow: "ellipsis",
+												whiteSpace: "nowrap",
+											}}
+										>
+											{name}
+										</span>
+										{j.country && (
+											<span
+												style={{ fontSize: 11, color: "var(--text3)" }}
+											>
+												{j.country}
+											</span>
+										)}
+										<span
+											style={{
+												fontFamily: "var(--mono)",
+												fontSize: 11,
+												color: "var(--green)",
+											}}
+										>
+											${j.total_revenue.toFixed(2)}
+										</span>
+										<span
+											style={{ fontSize: 10, color: "var(--text4)" }}
+										>
+											{j.steps.length} steps
+										</span>
+									</button>
+								);
+							})}
+						</div>
+					);
+				})()
 			) : (tab === "source" ? bySource : byCountry).length === 0 ? (
 				<div
 					style={{
@@ -266,17 +406,23 @@ export function RevenueBreakdownWidget({
 							{(tab === "source" ? bySource : byCountry).map((r) => (
 								<tr
 									key={"source" in r ? r.source : r.country}
-									style={{ cursor: onCrossFilter ? "pointer" : undefined }}
+									style={{ cursor: onCrossFilter || onSelectCustomer ? "pointer" : undefined }}
 									onClick={() => {
-										if (onCrossFilter) {
-											const val = "source" in r ? r.source : r.country;
-											onCrossFilter(
-												tab === "source" ? "utm_source" : "country",
-												val,
-											);
+										const val = "source" in r ? r.source : r.country;
+										const dim = tab === "source" ? "utm_source" : "country";
+										if (onSelectCustomer) {
+											// Drill into the Customers tab pre-filtered to this row.
+											setBuyerFilter({
+												dim: dim as "utm_source" | "country",
+												value: val,
+												label: val,
+											});
+											setTab("customers");
+											return;
 										}
+										if (onCrossFilter) onCrossFilter(dim, val);
 									}}
-								>
+							>
 									<td style={{ fontSize: 13 }}>
 										{"source" in r ? r.source : r.country}
 									</td>

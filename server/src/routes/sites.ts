@@ -8,7 +8,8 @@ import type {
 } from "shared";
 import { sql } from "../db";
 import { getPlanLimits } from "../lib/plans";
-import { generateId } from "../utils";
+import { fingerprintFromRequest, generateId } from "../utils";
+import { invalidateExcludedCache } from "./track";
 
 type Variables = { db: Kysely<KlikapaDatabase>; userId: string };
 
@@ -196,4 +197,140 @@ siteRoutes.get("/:siteId/snippet", async (c) => {
   window.klikapa_endpoint = "${origin}/api/track";
 </script>`;
 	return c.json({ data: { siteId, snippet }, success: true });
+});
+// ---------- Self-traffic exclusion (fingerprint blocklist) ----------
+
+function parseExcluded(raw: string | null | undefined): string[] {
+	if (!raw) return [];
+	try {
+		const v = JSON.parse(raw);
+		return Array.isArray(v) ? v.filter((x) => typeof x === "string") : [];
+	} catch {
+		return [];
+	}
+}
+
+async function loadSiteForOwner(
+	db: Kysely<KlikapaDatabase>,
+	userId: string,
+	siteId: string,
+) {
+	return db
+		.selectFrom("sites")
+		.select(["id", "excluded_fingerprints"])
+		.where("id", "=", siteId)
+		.where("user_id", "=", userId)
+		.executeTakeFirst();
+}
+
+// Compute the caller's current fingerprint (same algorithm as ingest).
+siteRoutes.get("/:siteId/my-fingerprint", async (c) => {
+	const db = c.get("db");
+	const userId = c.get("userId");
+	const siteId = c.req.param("siteId");
+	const site = await loadSiteForOwner(db, userId, siteId);
+	if (!site) return c.json({ error: "Site not found", success: false }, 404);
+	const fingerprint = await fingerprintFromRequest(c.req.raw);
+	return c.json({ data: { fingerprint }, success: true });
+});
+
+siteRoutes.get("/:siteId/exclusions", async (c) => {
+	const db = c.get("db");
+	const userId = c.get("userId");
+	const siteId = c.req.param("siteId");
+	const site = await loadSiteForOwner(db, userId, siteId);
+	if (!site) return c.json({ error: "Site not found", success: false }, 404);
+	return c.json({
+		data: parseExcluded(site.excluded_fingerprints),
+		success: true,
+	});
+});
+
+siteRoutes.post("/:siteId/exclusions", async (c) => {
+	const db = c.get("db");
+	const userId = c.get("userId");
+	const siteId = c.req.param("siteId");
+	const site = await loadSiteForOwner(db, userId, siteId);
+	if (!site) return c.json({ error: "Site not found", success: false }, 404);
+
+	const body = await c.req.json().catch(() => ({}));
+	// Body may pass { fingerprint }; otherwise derive from the current request.
+	let fingerprint: string =
+		typeof body?.fingerprint === "string" && body.fingerprint.length > 0
+			? body.fingerprint
+			: await fingerprintFromRequest(c.req.raw);
+	if (!fingerprint)
+		return c.json({ error: "Could not resolve fingerprint", success: false }, 400);
+
+	const list = parseExcluded(site.excluded_fingerprints);
+	if (!list.includes(fingerprint)) list.push(fingerprint);
+	await db
+		.updateTable("sites")
+		.set({ excluded_fingerprints: JSON.stringify(list) })
+		.where("id", "=", siteId)
+		.execute();
+	invalidateExcludedCache(siteId);
+	return c.json({ data: list, success: true });
+});
+
+siteRoutes.delete("/:siteId/exclusions/:fp", async (c) => {
+	const db = c.get("db");
+	const userId = c.get("userId");
+	const siteId = c.req.param("siteId");
+	const fp = c.req.param("fp");
+	const site = await loadSiteForOwner(db, userId, siteId);
+	if (!site) return c.json({ error: "Site not found", success: false }, 404);
+	const list = parseExcluded(site.excluded_fingerprints).filter(
+		(x) => x !== fp,
+	);
+	await db
+		.updateTable("sites")
+		.set({ excluded_fingerprints: JSON.stringify(list) })
+		.where("id", "=", siteId)
+		.execute();
+	invalidateExcludedCache(siteId);
+	return c.json({ data: list, success: true });
+});
+
+// Purge all historical data for a fingerprint (events / sessions / visitor_profiles).
+siteRoutes.post("/:siteId/purge", async (c) => {
+	const db = c.get("db");
+	const userId = c.get("userId");
+	const siteId = c.req.param("siteId");
+	const site = await loadSiteForOwner(db, userId, siteId);
+	if (!site) return c.json({ error: "Site not found", success: false }, 404);
+
+	const body = await c.req.json().catch(() => ({}));
+	const fingerprint: string =
+		typeof body?.fingerprint === "string" && body.fingerprint.length > 0
+			? body.fingerprint
+			: await fingerprintFromRequest(c.req.raw);
+	if (!fingerprint)
+		return c.json({ error: "Could not resolve fingerprint", success: false }, 400);
+
+	const [events, sessions, profiles] = await Promise.all([
+		db
+			.deleteFrom("events")
+			.where("site_id", "=", siteId)
+			.where("fingerprint", "=", fingerprint)
+			.executeTakeFirst(),
+		db
+			.deleteFrom("sessions")
+			.where("site_id", "=", siteId)
+			.where("fingerprint", "=", fingerprint)
+			.executeTakeFirst(),
+		db
+			.deleteFrom("visitor_profiles")
+			.where("site_id", "=", siteId)
+			.where("fingerprint", "=", fingerprint)
+			.executeTakeFirst(),
+	]);
+	return c.json({
+		data: {
+			events: Number(events.numDeletedRows ?? 0),
+			sessions: Number(sessions.numDeletedRows ?? 0),
+			profiles: Number(profiles.numDeletedRows ?? 0),
+		},
+		success: true,
+	});
 });

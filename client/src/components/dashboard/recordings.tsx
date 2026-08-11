@@ -437,7 +437,7 @@ export function RecordingPanel({
 						)
 						.map((ev) => (
 							<div
-								key={ev.timestamp}
+							key={ev.t}
 								style={{
 									position: "absolute",
 									left: totalMs > 0 ? `${(ev.t / totalMs) * 100}%` : "0%",
@@ -476,7 +476,7 @@ export function RecordingPanel({
 				<div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
 					{visibleEvents.map((ev, i) => (
 						<div
-							key={ev.timestamp}
+						key={`${ev.t}-${i}`}
 							style={{
 								display: "flex",
 								alignItems: "center",

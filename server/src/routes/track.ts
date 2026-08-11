@@ -41,6 +41,47 @@ function rateLimit(key: string, limit: number, windowMs: number): boolean {
 	return entry.count <= limit;
 }
 
+// Per-site excluded-fingerprint cache (self-traffic blocklist).
+// Workers isolate memory; cache is best-effort with a short TTL.
+const excludedCache = new Map<string, { fps: Set<string>; exp: number }>();
+const EXCLUDED_TTL_MS = 60_000;
+
+async function isExcludedFingerprint(
+	db: Kysely<KlikapaDatabase>,
+	siteId: string,
+	fingerprint: string,
+): Promise<boolean> {
+	if (!fingerprint) return false;
+	const now = Date.now();
+	const cached = excludedCache.get(siteId);
+	if (cached && now < cached.exp) {
+		return cached.fps.has(fingerprint);
+	}
+	const row = await db
+		.selectFrom("sites")
+		.select(["excluded_fingerprints"])
+		.where("id", "=", siteId)
+		.executeTakeFirst();
+	const fps = new Set<string>();
+	if (row?.excluded_fingerprints) {
+		try {
+			const v = JSON.parse(row.excluded_fingerprints);
+			if (Array.isArray(v))
+				for (const x of v) if (typeof x === "string") fps.add(x);
+		} catch {
+			/* ignore malformed */
+		}
+	}
+	excludedCache.set(siteId, { fps, exp: now + EXCLUDED_TTL_MS });
+	return fps.has(fingerprint);
+}
+
+/** Invalidate the excluded-fingerprint cache (call when a site's blocklist changes). */
+export function invalidateExcludedCache(siteId?: string): void {
+	if (siteId) excludedCache.delete(siteId);
+	else excludedCache.clear();
+}
+
 trackRoutes.post("/track", async (c) => {
 	const ip = c.req.header("cf-connecting-ip") || "unknown";
 	if (!rateLimit(ip, 120, 60_000)) {
@@ -119,6 +160,11 @@ trackRoutes.post("/track", async (c) => {
 		if (existing && existing.visitor_id !== first.vid) {
 			resolvedVid = existing.visitor_id;
 		}
+	}
+
+	// Self-traffic exclusion: drop events from blocklisted fingerprints.
+	if (fingerprint && (await isExcludedFingerprint(db, siteId, fingerprint))) {
+		return c.json({ success: true, excluded: true }, { status: 202 });
 	}
 
 	const seenSids = new Set<string>();
