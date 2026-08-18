@@ -66,9 +66,9 @@ function RegisterPage() {
 					/>
 					<h1
 						style={{
-							fontFamily: "var(--serif)",
-							fontStyle: "italic",
-							fontWeight: 400,
+							fontFamily: "var(--sans)",
+							
+							fontWeight: 600,
 							fontSize: 28,
 							color: "var(--text)",
 							marginBottom: 6,

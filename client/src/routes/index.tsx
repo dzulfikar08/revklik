@@ -295,8 +295,8 @@ function OverviewPage() {
 							>
 								<div
 									style={{
-										fontFamily: "var(--serif)",
-										fontStyle: "italic",
+										fontFamily: "var(--sans)",
+										
 										fontSize: 18,
 										color: "var(--text)",
 									}}

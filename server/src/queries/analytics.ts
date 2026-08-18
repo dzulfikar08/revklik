@@ -17,7 +17,6 @@ import type {
 import { sql } from "../db";
 import type { ParsedFilter } from "../lib/analytics-queries";
 import { applyFilters } from "../lib/analytics-queries";
-import { categorizeChannel } from "../lib/webhook-utils";
 
 const sourceSql = sql<string>`COALESCE(utm_source,
   CASE WHEN referrer IS NULL OR referrer = '' THEN 'direct'
@@ -41,76 +40,84 @@ const sourceSql = sql<string>`COALESCE(utm_source,
     END
   END)`;
 
+/**
+ * Generate continuous bucket keys (UTC) between start and end so charts can
+ * render empty days/hours as 0 instead of dropping them.
+ */
+function bucketKeys(
+	startIso: string,
+	endIso: string | undefined,
+	isHourly: boolean,
+): string[] {
+	const stepMs = isHourly ? 3_600_000 : 86_400_000;
+	const startMs = new Date(startIso).getTime();
+	const endMs = Math.min(
+		endIso ? new Date(endIso).getTime() : Date.now(),
+		Date.now(),
+	);
+	const keys: string[] = [];
+	for (let t = startMs; t < endMs; t += stepMs) {
+		const d = new Date(t);
+		keys.push(
+			isHourly
+				? `${d.toISOString().slice(0, 13)}:00:00`
+				: d.toISOString().slice(0, 10),
+		);
+	}
+	return keys;
+}
+
 export async function getOverviewStats(
 	db: Kysely<KlikapaDatabase>,
 	siteId: string,
 	startIso: string,
 	filters?: ParsedFilter[],
+	endIso?: string,
 ): Promise<StatsResponse> {
-	const [pv, vi, se, bo, rev, conv] = await Promise.all([
-		applyFilters(
-			db
-				.selectFrom("events")
-				.select(({ fn }) => [fn.count<number>("id").as("count")])
-				.where("site_id", "=", siteId)
-				.where("event_type", "=", "pageview")
-				.where("timestamp", ">=", startIso),
-			filters,
-		).executeTakeFirst(),
-		applyFilters(
-			db
-				.selectFrom("events")
-				.select(({ fn }) => [
-					fn.count<number>("visitor_id").distinct().as("count"),
-				])
-				.where("site_id", "=", siteId)
-				.where("timestamp", ">=", startIso),
-			filters,
-		).executeTakeFirst(),
-		applyFilters(
-			db
-				.selectFrom("sessions")
-				.select(({ fn }) => [fn.count<number>("id").as("count")])
-				.where("site_id", "=", siteId)
-				.where("started_at", ">=", startIso),
-			filters,
-		).executeTakeFirst(),
-		applyFilters(
-			db
-				.selectFrom("sessions")
-				.select(({ fn }) => [fn.avg<number>("is_bounce").as("avg")])
-				.where("site_id", "=", siteId)
-				.where("started_at", ">=", startIso),
-			filters,
-		).executeTakeFirst(),
-		applyFilters(
-			db
-				.selectFrom("events")
-				.select(({ fn }) => [fn.sum<number>("revenue").as("total")])
-				.where("site_id", "=", siteId)
-				.where("revenue", ">", 0)
-				.where("timestamp", ">=", startIso),
-			filters,
-		).executeTakeFirst(),
-		applyFilters(
-			db
-				.selectFrom("events")
-				.select(({ fn }) => [fn.count<number>("id").as("count")])
-				.where("site_id", "=", siteId)
-				.where("event_type", "=", "conversion")
-				.where("timestamp", ">=", startIso),
-			filters,
-		).executeTakeFirst(),
+	let eventQ = db
+		.selectFrom("events")
+		.select([
+			sql<number>`COUNT(CASE WHEN event_type = 'pageview' THEN 1 END)`.as(
+				"pageviews",
+			),
+			({ fn }) => fn.count<number>("visitor_id").distinct().as("visitors"),
+			sql<number>`COALESCE(SUM(CASE WHEN revenue > 0 THEN revenue END), 0)`.as(
+				"revenue",
+			),
+			sql<number>`COUNT(CASE WHEN event_type = 'conversion' THEN 1 END)`.as(
+				"conversions",
+			),
+		])
+		.where("site_id", "=", siteId)
+		.where("timestamp", ">=", startIso);
+	if (endIso) eventQ = eventQ.where("timestamp", "<", endIso);
+
+	let sessionQ = db
+		.selectFrom("sessions")
+		.select([
+			({ fn }) => fn.count<number>("id").as("sessions"),
+			({ fn }) => fn.avg<number>("is_bounce").as("bounce"),
+			sql<number>`AVG(CASE WHEN ended_at IS NOT NULL THEN (julianday(ended_at) - julianday(started_at)) * 86400 END)`.as(
+				"avg_duration",
+			),
+		])
+		.where("site_id", "=", siteId)
+		.where("started_at", ">=", startIso);
+	if (endIso) sessionQ = sessionQ.where("started_at", "<", endIso);
+
+	const [ev, se] = await Promise.all([
+		applyFilters(eventQ, filters).executeTakeFirst(),
+		applyFilters(sessionQ, filters).executeTakeFirst(),
 	]);
 
 	return {
-		pageviews: Number(pv?.count ?? 0),
-		visitors: Number(vi?.count ?? 0),
-		sessions: Number(se?.count ?? 0),
-		bounceRate: Math.round(Number(bo?.avg ?? 0) * 100),
-		avgDuration: 0,
-		revenue: Number(rev?.total ?? 0),
-		conversions: Number(conv?.count ?? 0),
+		pageviews: Number(ev?.pageviews ?? 0),
+		visitors: Number(ev?.visitors ?? 0),
+		sessions: Number(se?.sessions ?? 0),
+		bounceRate: Math.round(Number(se?.bounce ?? 0) * 100),
+		avgDuration: Math.round(Number(se?.avg_duration ?? 0)),
+		revenue: Number(ev?.revenue ?? 0),
+		conversions: Number(ev?.conversions ?? 0),
 	};
 }
 
@@ -120,6 +127,7 @@ export async function getTimeseries(
 	startIso: string,
 	isHourly: boolean,
 	filters?: ParsedFilter[],
+	endIso?: string,
 ): Promise<TimeSeriesPoint[]> {
 	const tsDate = isHourly
 		? sql<string>`strftime('%Y-%m-%dT%H:00:00', ${sql.ref("timestamp")})`
@@ -128,28 +136,32 @@ export async function getTimeseries(
 		? sql`strftime('%Y-%m-%dT%H:00:00', ${sql.ref("timestamp")})`
 		: sql`date(${sql.ref("timestamp")})`;
 
-	const tsRows = await applyFilters(
-		db
-			.selectFrom("events")
-			.select([
-				({ fn }) => fn.count<number>("id").as("pageviews"),
-				({ fn }) => fn.count<number>("visitor_id").distinct().as("visitors"),
-				tsDate.as("date"),
-			])
-			.where("site_id", "=", siteId)
-			.where("event_type", "=", "pageview")
-			.where("timestamp", ">=", startIso),
-		filters,
-	)
+	let q = db
+		.selectFrom("events")
+		.select([
+			tsDate.as("date"),
+			({ fn }) => fn.count<number>("id").as("pageviews"),
+			({ fn }) => fn.count<number>("visitor_id").distinct().as("visitors"),
+		])
+		.where("site_id", "=", siteId)
+		.where("event_type", "=", "pageview")
+		.where("timestamp", ">=", startIso);
+	if (endIso) q = q.where("timestamp", "<", endIso);
+
+	const tsRows = await applyFilters(q, filters)
 		.groupBy(tsGroup)
 		.orderBy("date", "asc")
 		.execute();
 
-	return tsRows.map((r) => ({
-		date: String(r.date ?? ""),
-		pageviews: Number(r.pageviews),
-		visitors: Number(r.visitors),
-	}));
+	const byKey = new Map(tsRows.map((r) => [String(r.date ?? ""), r]));
+	return bucketKeys(startIso, endIso, isHourly).map((key) => {
+		const row = byKey.get(key);
+		return {
+			date: key,
+			pageviews: Number(row?.pageviews ?? 0),
+			visitors: Number(row?.visitors ?? 0),
+		};
+	});
 }
 
 export async function getTopPages(
@@ -158,20 +170,21 @@ export async function getTopPages(
 	startIso: string,
 	limit: number,
 	filters?: ParsedFilter[],
+	endIso?: string,
 ): Promise<TopPage[]> {
-	const pageRows = await applyFilters(
-		db
-			.selectFrom("events")
-			.select([
-				"path",
-				({ fn }) => fn.count<number>("id").as("pageviews"),
-				({ fn }) => fn.count<number>("visitor_id").distinct().as("visitors"),
-			])
-			.where("site_id", "=", siteId)
-			.where("event_type", "=", "pageview")
-			.where("timestamp", ">=", startIso),
-		filters,
-	)
+	let q = db
+		.selectFrom("events")
+		.select([
+			"path",
+			({ fn }) => fn.count<number>("id").as("pageviews"),
+			({ fn }) => fn.count<number>("visitor_id").distinct().as("visitors"),
+		])
+		.where("site_id", "=", siteId)
+		.where("event_type", "=", "pageview")
+		.where("timestamp", ">=", startIso);
+	if (endIso) q = q.where("timestamp", "<", endIso);
+
+	const pageRows = await applyFilters(q, filters)
 		.groupBy("path")
 		.orderBy("pageviews", "desc")
 		.limit(limit)
@@ -190,18 +203,19 @@ export async function getReferrers(
 	startIso: string,
 	limit: number,
 	filters?: ParsedFilter[],
+	endIso?: string,
 ): Promise<SourceEntry[]> {
-	const sourceRows = await applyFilters(
-		db
-			.selectFrom("events")
-			.select([
-				sourceSql.as("source"),
-				({ fn }) => fn.count<number>("visitor_id").distinct().as("visitors"),
-			])
-			.where("site_id", "=", siteId)
-			.where("timestamp", ">=", startIso),
-		filters,
-	)
+	let q = db
+		.selectFrom("events")
+		.select([
+			sourceSql.as("source"),
+			({ fn }) => fn.count<number>("visitor_id").distinct().as("visitors"),
+		])
+		.where("site_id", "=", siteId)
+		.where("timestamp", ">=", startIso);
+	if (endIso) q = q.where("timestamp", "<", endIso);
+
+	const sourceRows = await applyFilters(q, filters)
 		.groupBy(sourceSql)
 		.orderBy("visitors", "desc")
 		.limit(limit)
@@ -224,93 +238,58 @@ export async function getDeviceBreakdown(
 	siteId: string,
 	startIso: string,
 	filters?: ParsedFilter[],
+	endIso?: string,
 ): Promise<{
 	devices: DeviceEntry[];
 	os: DeviceEntry[];
 	browsers: DeviceEntry[];
 }> {
+	const base = (col: string) => {
+		let q = db
+			.selectFrom("sessions")
+			.select([
+				sql<string>`COALESCE(${sql.ref(col)}, 'unknown')`.as("device"),
+				({ fn }) => fn.count<number>("visitor_id").distinct().as("visitors"),
+			])
+			.where("site_id", "=", siteId)
+			.where("started_at", ">=", startIso);
+		if (endIso) q = q.where("started_at", "<", endIso);
+		return q;
+	};
+
 	const [deviceRows, osRows, browserRows] = await Promise.all([
-		applyFilters(
-			db
-				.selectFrom("sessions")
-				.select([
-					sql<string>`COALESCE(device_type, 'unknown')`.as("device"),
-					({ fn }) => fn.count<number>("visitor_id").distinct().as("visitors"),
-				])
-				.where("site_id", "=", siteId)
-				.where("started_at", ">=", startIso),
-			filters,
-		)
+		applyFilters(base("device_type"), filters)
 			.groupBy("device_type")
 			.orderBy("visitors", "desc")
 			.limit(10)
 			.execute(),
-		applyFilters(
-			db
-				.selectFrom("sessions")
-				.select([
-					sql<string>`COALESCE(os, 'unknown')`.as("device"),
-					({ fn }) => fn.count<number>("visitor_id").distinct().as("visitors"),
-				])
-				.where("site_id", "=", siteId)
-				.where("started_at", ">=", startIso),
-			filters,
-		)
+		applyFilters(base("os"), filters)
 			.groupBy("os")
 			.orderBy("visitors", "desc")
 			.limit(10)
 			.execute(),
-		applyFilters(
-			db
-				.selectFrom("sessions")
-				.select([
-					sql<string>`COALESCE(browser, 'unknown')`.as("device"),
-					({ fn }) => fn.count<number>("visitor_id").distinct().as("visitors"),
-				])
-				.where("site_id", "=", siteId)
-				.where("started_at", ">=", startIso),
-			filters,
-		)
+		applyFilters(base("browser"), filters)
 			.groupBy("browser")
 			.orderBy("visitors", "desc")
 			.limit(10)
 			.execute(),
 	]);
 
-	const totalDev = deviceRows.reduce(
-		(s: number, r) => s + Number(r.visitors),
-		0,
-	);
-	const devices: DeviceEntry[] = deviceRows.map((r) => ({
-		device: String(r.device),
-		visitors: Number(r.visitors),
-		percentage:
-			totalDev > 0 ? Math.round((Number(r.visitors) / totalDev) * 100) : 0,
-	}));
+	const toEntries = (rows: { device: string; visitors: number | bigint }[]) => {
+		const total = rows.reduce((s: number, r) => s + Number(r.visitors), 0);
+		return rows.map((r) => ({
+			device: String(r.device),
+			visitors: Number(r.visitors),
+			percentage:
+				total > 0 ? Math.round((Number(r.visitors) / total) * 100) : 0,
+		}));
+	};
 
-	const totalOs = osRows.reduce(
-		(s: number, r) => s + Number(r.visitors),
-		0,
-	);
-	const os: DeviceEntry[] = osRows.map((r) => ({
-		device: String(r.device),
-		visitors: Number(r.visitors),
-		percentage:
-			totalOs > 0 ? Math.round((Number(r.visitors) / totalOs) * 100) : 0,
-	}));
-
-	const totalBr = browserRows.reduce(
-		(s: number, r) => s + Number(r.visitors),
-		0,
-	);
-	const browsers: DeviceEntry[] = browserRows.map((r) => ({
-		device: String(r.device),
-		visitors: Number(r.visitors),
-		percentage:
-			totalBr > 0 ? Math.round((Number(r.visitors) / totalBr) * 100) : 0,
-	}));
-
-	return { devices, os, browsers };
+	return {
+		devices: toEntries(deviceRows),
+		os: toEntries(osRows),
+		browsers: toEntries(browserRows),
+	};
 }
 
 export async function getGeoData(
@@ -319,20 +298,21 @@ export async function getGeoData(
 	startIso: string,
 	limit: number,
 	filters?: ParsedFilter[],
+	endIso?: string,
 ) {
-	return applyFilters(
-		db
-			.selectFrom("events")
-			.select([
-				"country",
-				"region",
-				"city",
-				({ fn }) => fn.count<number>("visitor_id").distinct().as("visitors"),
-			])
-			.where("site_id", "=", siteId)
-			.where("timestamp", ">=", startIso),
-		filters,
-	)
+	let q = db
+		.selectFrom("events")
+		.select([
+			"country",
+			"region",
+			"city",
+			({ fn }) => fn.count<number>("visitor_id").distinct().as("visitors"),
+		])
+		.where("site_id", "=", siteId)
+		.where("timestamp", ">=", startIso);
+	if (endIso) q = q.where("timestamp", "<", endIso);
+
+	return applyFilters(q, filters)
 		.groupBy(["country", "region", "city"])
 		.orderBy("visitors", "desc")
 		.limit(limit)
@@ -344,20 +324,21 @@ export async function getRevenueBySource(
 	siteId: string,
 	startIso: string,
 	filters?: ParsedFilter[],
+	endIso?: string,
 ): Promise<RevenueBySource[]> {
-	const rows = await applyFilters(
-		db
-			.selectFrom("events")
-			.select([
-				sourceSql.as("source"),
-				({ fn }) => fn.sum<number>("revenue").as("revenue"),
-				({ fn }) => fn.count<number>("id").as("conversions"),
-			])
-			.where("site_id", "=", siteId)
-			.where("revenue", ">", 0)
-			.where("timestamp", ">=", startIso),
-		filters,
-	)
+	let q = db
+		.selectFrom("events")
+		.select([
+			sourceSql.as("source"),
+			({ fn }) => fn.sum<number>("revenue").as("revenue"),
+			({ fn }) => fn.count<number>("id").as("conversions"),
+		])
+		.where("site_id", "=", siteId)
+		.where("revenue", ">", 0)
+		.where("timestamp", ">=", startIso);
+	if (endIso) q = q.where("timestamp", "<", endIso);
+
+	const rows = await applyFilters(q, filters)
 		.groupBy(sourceSql)
 		.orderBy("revenue", "desc")
 		.limit(10)
@@ -375,20 +356,21 @@ export async function getRevenueByCountry(
 	siteId: string,
 	startIso: string,
 	filters?: ParsedFilter[],
+	endIso?: string,
 ): Promise<RevenueByCountry[]> {
-	const rows = await applyFilters(
-		db
-			.selectFrom("events")
-			.select([
-				sql<string>`COALESCE(country, 'unknown')`.as("country"),
-				({ fn }) => fn.sum<number>("revenue").as("revenue"),
-				({ fn }) => fn.count<number>("id").as("conversions"),
-			])
-			.where("site_id", "=", siteId)
-			.where("revenue", ">", 0)
-			.where("timestamp", ">=", startIso),
-		filters,
-	)
+	let q = db
+		.selectFrom("events")
+		.select([
+			sql<string>`COALESCE(country, 'unknown')`.as("country"),
+			({ fn }) => fn.sum<number>("revenue").as("revenue"),
+			({ fn }) => fn.count<number>("id").as("conversions"),
+		])
+		.where("site_id", "=", siteId)
+		.where("revenue", ">", 0)
+		.where("timestamp", ">=", startIso);
+	if (endIso) q = q.where("timestamp", "<", endIso);
+
+	const rows = await applyFilters(q, filters)
 		.groupBy("country")
 		.orderBy("revenue", "desc")
 		.limit(10)
@@ -407,6 +389,7 @@ export async function getRevenueTimeseries(
 	startIso: string,
 	isHourly: boolean,
 	filters?: ParsedFilter[],
+	endIso?: string,
 ): Promise<RevenueTimeSeriesPoint[]> {
 	const tsDate = isHourly
 		? sql<string>`strftime('%Y-%m-%dT%H:00:00', ${sql.ref("timestamp")})`
@@ -415,28 +398,32 @@ export async function getRevenueTimeseries(
 		? sql`strftime('%Y-%m-%dT%H:00:00', ${sql.ref("timestamp")})`
 		: sql`date(${sql.ref("timestamp")})`;
 
-	const rows = await applyFilters(
-		db
-			.selectFrom("events")
-			.select([
-				tsDate.as("date"),
-				({ fn }) => fn.sum<number>("revenue").as("revenue"),
-				({ fn }) => fn.count<number>("id").as("conversions"),
-			])
-			.where("site_id", "=", siteId)
-			.where("revenue", ">", 0)
-			.where("timestamp", ">=", startIso),
-		filters,
-	)
+	let q = db
+		.selectFrom("events")
+		.select([
+			tsDate.as("date"),
+			({ fn }) => fn.sum<number>("revenue").as("revenue"),
+			({ fn }) => fn.count<number>("id").as("conversions"),
+		])
+		.where("site_id", "=", siteId)
+		.where("revenue", ">", 0)
+		.where("timestamp", ">=", startIso);
+	if (endIso) q = q.where("timestamp", "<", endIso);
+
+	const rows = await applyFilters(q, filters)
 		.groupBy(tsGroup)
 		.orderBy("date", "asc")
 		.execute();
 
-	return rows.map((r) => ({
-		date: String(r.date ?? ""),
-		revenue: Number(r.revenue ?? 0),
-		conversions: Number(r.conversions ?? 0),
-	}));
+	const byKey = new Map(rows.map((r) => [String(r.date ?? ""), r]));
+	return bucketKeys(startIso, endIso, isHourly).map((key) => {
+		const row = byKey.get(key);
+		return {
+			date: key,
+			revenue: Number(row?.revenue ?? 0),
+			conversions: Number(row?.conversions ?? 0),
+		};
+	});
 }
 
 export async function getEntryPagesRevenue(
@@ -444,26 +431,27 @@ export async function getEntryPagesRevenue(
 	siteId: string,
 	startIso: string,
 	filters?: ParsedFilter[],
+	endIso?: string,
 ): Promise<EntryPageRevenue[]> {
-	const rows = await applyFilters(
-		db
-			.selectFrom("sessions")
-			.innerJoin("events", "events.session_id", "sessions.id")
-			.select([
-				"sessions.entry_path as path",
-				sql<number>`COUNT(DISTINCT sessions.id)`.as("sessions"),
-				sql<number>`COUNT(DISTINCT CASE WHEN events.event_type = 'conversion' OR events.event_type = 'payment' THEN events.id END)`.as(
-					"conversions",
-				),
-				sql<number>`COALESCE(SUM(CASE WHEN events.revenue > 0 THEN events.revenue END), 0)`.as(
-					"revenue",
-				),
-			])
-			.where("sessions.site_id", "=", siteId)
-			.where("sessions.started_at", ">=", startIso)
-			.where("events.site_id", "=", siteId),
-		filters,
-	)
+	let q = db
+		.selectFrom("sessions")
+		.innerJoin("events", "events.session_id", "sessions.id")
+		.select([
+			"sessions.entry_path as path",
+			sql<number>`COUNT(DISTINCT sessions.id)`.as("sessions"),
+			sql<number>`COUNT(DISTINCT CASE WHEN events.event_type = 'conversion' OR events.event_type = 'payment' THEN events.id END)`.as(
+				"conversions",
+			),
+			sql<number>`COALESCE(SUM(CASE WHEN events.revenue > 0 THEN events.revenue END), 0)`.as(
+				"revenue",
+			),
+		])
+		.where("sessions.site_id", "=", siteId)
+		.where("sessions.started_at", ">=", startIso)
+		.where("events.site_id", "=", siteId);
+	if (endIso) q = q.where("sessions.started_at", "<", endIso);
+
+	const rows = await applyFilters(q, filters)
 		.groupBy("sessions.entry_path")
 		.orderBy("revenue", "desc")
 		.limit(20)
@@ -481,20 +469,21 @@ export async function getRevenueByPaymentMethod(
 	siteId: string,
 	startIso: string,
 	filters?: ParsedFilter[],
+	endIso?: string,
 ): Promise<RevenueByPaymentMethod[]> {
-	const rows = await applyFilters(
-		db
-			.selectFrom("events")
-			.select([
-				sql<string>`COALESCE(payment_method, 'unknown')`.as("method"),
-				sql<number>`COUNT(*)`.as("count"),
-				sql<number>`COALESCE(SUM(revenue), 0)`.as("revenue"),
-			])
-			.where("site_id", "=", siteId)
-			.where("revenue", ">", 0)
-			.where("timestamp", ">=", startIso),
-		filters,
-	)
+	let q = db
+		.selectFrom("events")
+		.select([
+			sql<string>`COALESCE(payment_method, 'unknown')`.as("method"),
+			sql<number>`COUNT(*)`.as("count"),
+			sql<number>`COALESCE(SUM(revenue), 0)`.as("revenue"),
+		])
+		.where("site_id", "=", siteId)
+		.where("revenue", ">", 0)
+		.where("timestamp", ">=", startIso);
+	if (endIso) q = q.where("timestamp", "<", endIso);
+
+	const rows = await applyFilters(q, filters)
 		.groupBy("payment_method")
 		.orderBy("revenue", "desc")
 		.execute();
@@ -510,20 +499,21 @@ export async function getRevenueByPaymentProvider(
 	siteId: string,
 	startIso: string,
 	filters?: ParsedFilter[],
+	endIso?: string,
 ): Promise<RevenueByPaymentProvider[]> {
-	const rows = await applyFilters(
-		db
-			.selectFrom("events")
-			.select([
-				sql<string>`COALESCE(payment_provider, 'unknown')`.as("provider"),
-				sql<number>`COUNT(*)`.as("count"),
-				sql<number>`COALESCE(SUM(revenue), 0)`.as("revenue"),
-			])
-			.where("site_id", "=", siteId)
-			.where("revenue", ">", 0)
-			.where("timestamp", ">=", startIso),
-		filters,
-	)
+	let q = db
+		.selectFrom("events")
+		.select([
+			sql<string>`COALESCE(payment_provider, 'unknown')`.as("provider"),
+			sql<number>`COUNT(*)`.as("count"),
+			sql<number>`COALESCE(SUM(revenue), 0)`.as("revenue"),
+		])
+		.where("site_id", "=", siteId)
+		.where("revenue", ">", 0)
+		.where("timestamp", ">=", startIso);
+	if (endIso) q = q.where("timestamp", "<", endIso);
+
+	const rows = await applyFilters(q, filters)
 		.groupBy("payment_provider")
 		.orderBy("revenue", "desc")
 		.execute();
@@ -539,56 +529,57 @@ export async function getChannelBreakdown(
 	siteId: string,
 	startIso: string,
 	filters?: ParsedFilter[],
+	endIso?: string,
 ): Promise<ChannelEntry[]> {
-	const rows = await applyFilters(
-		db
-			.selectFrom("events")
-			.select([
-				"referrer",
-				"utm_source",
-				"utm_medium",
-				"visitor_id",
-				"id",
+	// Mirrors categorizeChannel() — kept in SQL so we aggregate server-side
+	// instead of shipping every raw event row to the Worker.
+	const channelExpr = sql<string>`CASE
+		WHEN utm_medium IN ('cpc', 'ppc', 'paid') THEN 'Paid'
+		WHEN utm_medium = 'email' THEN 'Email'
+		WHEN utm_medium IN ('social', 'social-media') THEN 'Social Media'
+		WHEN referrer IS NULL OR referrer = '' THEN 'Direct'
+		WHEN LOWER(referrer) LIKE '%facebook.com%'
+			OR LOWER(referrer) LIKE '%twitter.com%'
+			OR LOWER(referrer) LIKE '%x.com%'
+			OR LOWER(referrer) LIKE '%instagram.com%'
+			OR LOWER(referrer) LIKE '%tiktok.com%'
+			OR LOWER(referrer) LIKE '%linkedin.com%'
+			OR LOWER(referrer) LIKE '%youtube.com%'
+			OR LOWER(referrer) LIKE '%reddit.com%' THEN 'Social Media'
+		WHEN LOWER(referrer) LIKE '%google.com%'
+			OR LOWER(referrer) LIKE '%bing.com%'
+			OR LOWER(referrer) LIKE '%yahoo.com%'
+			OR LOWER(referrer) LIKE '%baidu.com%'
+			OR LOWER(referrer) LIKE '%duckduckgo.com%'
+			OR LOWER(referrer) LIKE '%yandex.com%'
+			OR LOWER(referrer) LIKE '%google.co.id%' THEN 'Organic Search'
+		ELSE 'Referral'
+	END`;
+
+	let q = db
+		.selectFrom("events")
+		.select([
+			channelExpr.as("channel"),
+			({ fn }) => fn.count<number>("visitor_id").distinct().as("visitors"),
+			({ fn }) => fn.count<number>("id").as("pageviews"),
+			sql<number>`COALESCE(SUM(CASE WHEN revenue > 0 THEN revenue END), 0)`.as(
 				"revenue",
-			])
-			.where("site_id", "=", siteId)
-			.where("timestamp", ">=", startIso),
-		filters,
-	).execute();
+			),
+		])
+		.where("site_id", "=", siteId)
+		.where("timestamp", ">=", startIso);
+	if (endIso) q = q.where("timestamp", "<", endIso);
 
-	const channelMap = new Map<
-		string,
-		{ visitors: Set<string>; pageviews: number; revenue: number }
-	>();
-	for (const row of rows) {
-		const channel = categorizeChannel(
-			row.referrer,
-			row.utm_source,
-			row.utm_medium,
-		);
-		let entry = channelMap.get(channel);
-		if (!entry) {
-			entry = {
-				visitors: new Set(),
-				pageviews: 0,
-				revenue: 0,
-			};
-			channelMap.set(channel, entry);
-		}
-		entry.visitors.add(row.visitor_id);
-		entry.pageviews++;
-		if (row.revenue) entry.revenue += Number(row.revenue);
-	}
+	const rows = await applyFilters(q, filters).groupBy(channelExpr).execute();
 
-	const totalVisitors =
-		[...channelMap.values()].reduce((s, e) => s + e.visitors.size, 0) || 1;
-	return [...channelMap.entries()]
-		.map(([channel, data]) => ({
-			channel,
-			visitors: data.visitors.size,
-			pageviews: data.pageviews,
-			revenue: data.revenue,
-			percentage: Math.round((data.visitors.size / totalVisitors) * 100),
+	const totalVisitors = rows.reduce((s, r) => s + Number(r.visitors), 0) || 1;
+	return rows
+		.map((r) => ({
+			channel: String(r.channel),
+			visitors: Number(r.visitors),
+			pageviews: Number(r.pageviews),
+			revenue: Number(r.revenue ?? 0),
+			percentage: Math.round((Number(r.visitors) / totalVisitors) * 100),
 		}))
 		.sort((a, b) => b.visitors - a.visitors);
 }

@@ -44,8 +44,8 @@ function Section({
 		>
 			<h3
 				style={{
-					fontFamily: "var(--serif)",
-					fontStyle: "italic",
+					fontFamily: "var(--sans)",
+					
 					fontSize: 18,
 					color: "var(--text)",
 					marginBottom: 16,

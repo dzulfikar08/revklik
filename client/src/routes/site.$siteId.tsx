@@ -18,7 +18,9 @@ import type {
 	RevenueByPaymentProvider,
 	RevenueBySource,
 	RevenueTimeSeriesPoint,
+	SiteDashboard,
 	SourceEntry,
+	StatsChange,
 	StatsResponse,
 	TimeSeriesPoint,
 	TopPage,
@@ -93,6 +95,7 @@ const RANGE_PRESETS = [
 function DashboardGrid({
 	siteId,
 	stats,
+	compare,
 	isLoading,
 	timeseries,
 	topPages,
@@ -127,6 +130,7 @@ function DashboardGrid({
 }: {
 	siteId: string;
 	stats?: StatsResponse;
+	compare?: SiteDashboard["compare"];
 	isLoading: boolean;
 	timeseries: TimeSeriesPoint[];
 	topPages: TopPage[];
@@ -134,7 +138,12 @@ function DashboardGrid({
 	devices: DeviceEntry[];
 	osData: DeviceEntry[];
 	browsersData: DeviceEntry[];
-	geoData: { country: string | null; region: string | null; city: string | null; visitors: number }[];
+	geoData: {
+		country: string | null;
+		region: string | null;
+		city: string | null;
+		visitors: number;
+	}[];
 	funnelSteps: FunnelStep[];
 	funnelRate: number;
 	funnelPages: PageFunnel[];
@@ -160,6 +169,41 @@ function DashboardGrid({
 	onLayoutChange: (layout: Layout) => void;
 }) {
 	const { width, containerRef, mounted } = useContainerWidth();
+
+	// Rate-metric deltas (conv. rate, rev/visitor) computed from prev-period parts
+	const rateChange = (
+		curNum: number,
+		curDen: number,
+		prevNum: number | undefined,
+		prevDen: number | undefined,
+	): StatsChange | undefined => {
+		if (prevNum === undefined || !prevDen) return undefined;
+		const cur = curDen > 0 ? curNum / curDen : 0;
+		const prev = prevNum / prevDen;
+		if (prev === 0)
+			return { current: cur, previous: 0, changePct: cur === 0 ? 0 : null };
+		return {
+			current: cur,
+			previous: prev,
+			changePct: Math.round(((cur - prev) / prev) * 100),
+		};
+	};
+	const convRateChange = stats
+		? rateChange(
+				stats.conversions,
+				stats.visitors,
+				compare?.conversions?.previous,
+				compare?.visitors?.previous,
+			)
+		: undefined;
+	const revPerVisitorChange = stats
+		? rateChange(
+				stats.revenue,
+				stats.visitors,
+				compare?.revenue?.previous,
+				compare?.visitors?.previous,
+			)
+		: undefined;
 
 	const METRIC_KEYS = [
 		"views",
@@ -266,18 +310,21 @@ function DashboardGrid({
 								<MetricCard
 									label={t("metric.views")}
 									value={stats?.pageviews?.toLocaleString() ?? "0"}
+									change={compare?.pageviews}
 								/>
 							)}
 							{!hiddenMetrics.has("visitors") && (
 								<MetricCard
 									label={t("metric.visitors")}
 									value={stats?.visitors?.toLocaleString() ?? "0"}
+									change={compare?.visitors}
 								/>
 							)}
 							{!hiddenMetrics.has("revenue") && (
 								<MetricCard
 									label={t("metric.revenue")}
 									value={`$${(stats?.revenue ?? 0).toFixed(2)}`}
+									change={compare?.revenue}
 								/>
 							)}
 							{!hiddenMetrics.has("conv") && (
@@ -288,6 +335,7 @@ function DashboardGrid({
 											? `${(((stats?.conversions ?? 0) / stats.visitors) * 100).toFixed(2)}%`
 											: "0%"
 									}
+									change={convRateChange}
 								/>
 							)}
 							{!hiddenMetrics.has("rev_visitor") && (
@@ -298,12 +346,15 @@ function DashboardGrid({
 											? `$${((stats?.revenue ?? 0) / stats.visitors).toFixed(2)}`
 											: "$0"
 									}
+									change={revPerVisitorChange}
 								/>
 							)}
 							{!hiddenMetrics.has("bounce") && (
 								<MetricCard
 									label={t("metric.bounce_rate")}
 									value={`${stats?.bounceRate ?? 0}%`}
+									change={compare?.bounceRate}
+									invertChange
 								/>
 							)}
 						</div>
@@ -311,7 +362,8 @@ function DashboardGrid({
 							ref={popoverRef}
 							style={{ position: "absolute", top: 6, right: 8, zIndex: 20 }}
 						>
-							<button type="button"
+							<button
+								type="button"
 								onClick={() => setShowMetricsPopover(!showMetricsPopover)}
 								style={{
 									background: "none",
@@ -458,7 +510,8 @@ function DashboardGrid({
 							<div className="journeys-header">
 								<span className="journeys-title">{t("journeys.title")}</span>
 								<div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-									<button type="button"
+									<button
+										type="button"
 										className={`btn-pill ${journeyView === "summary" ? "active" : ""}`}
 										onClick={() => setJourneyView("summary")}
 										style={{ fontSize: 10, padding: "2px 8px" }}
@@ -466,7 +519,8 @@ function DashboardGrid({
 									>
 										&#9776;
 									</button>
-									<button type="button"
+									<button
+										type="button"
 										className={`btn-pill ${journeyView === "cards" ? "active" : ""}`}
 										onClick={() => setJourneyView("cards")}
 										style={{ fontSize: 10, padding: "2px 8px" }}
@@ -540,8 +594,8 @@ function DashboardGrid({
 							byMethod={revenueByMethod}
 							byProvider={revenueByProvider}
 							onCrossFilter={onCrossFilter}
-						journeys={journeys}
-						onSelectCustomer={setSelectedJourney}
+							journeys={journeys}
+							onSelectCustomer={setSelectedJourney}
 						/>
 					</div>
 
@@ -813,7 +867,8 @@ function SiteDetailPage() {
 		>
 			<div className="range-bar">
 				{RANGE_PRESETS.map((r) => (
-					<button type="button"
+					<button
+						type="button"
 						key={r.key}
 						className={`btn-pill ${!showCustom && range === r.key ? "active" : ""}`}
 						onClick={() => {
@@ -832,7 +887,8 @@ function SiteDetailPage() {
 						margin: "0 2px",
 					}}
 				/>
-				<button type="button"
+				<button
+					type="button"
 					className={`btn-pill ${showCustom ? "active" : ""}`}
 					onClick={() => setShowCustom(!showCustom)}
 				>
@@ -863,7 +919,8 @@ function SiteDetailPage() {
 							placeholder="End"
 						/>
 						{customStart && customEnd && (
-							<button type="button"
+							<button
+								type="button"
 								className="btn-accent"
 								style={{ fontSize: 12, padding: "6px 14px" }}
 								onClick={() => {}}
@@ -875,7 +932,8 @@ function SiteDetailPage() {
 				)}
 				<div style={{ flex: 1 }} />
 				{editing && (
-					<button type="button"
+					<button
+						type="button"
 						className="btn-pill range-overflow-btn"
 						style={{ fontSize: 11, padding: "4px 10px", color: "var(--text3)" }}
 						onClick={() => {
@@ -886,7 +944,8 @@ function SiteDetailPage() {
 						Reset Layout
 					</button>
 				)}
-				<button type="button"
+				<button
+					type="button"
 					className="btn-pill range-overflow-btn"
 					style={{
 						fontSize: 11,
@@ -897,28 +956,32 @@ function SiteDetailPage() {
 				>
 					{editing ? "Done" : "Edit Layout"}
 				</button>
-				<button type="button"
+				<button
+					type="button"
 					className="btn-pill range-overflow-btn"
 					onClick={() => navigate({ to: "/import" })}
 					title="Import data"
 				>
 					&uarr; Import
 				</button>
-				<button type="button"
+				<button
+					type="button"
 					className="btn-pill range-overflow-btn"
 					onClick={() => navigate({ to: "/docs/install" })}
 					title="Install Guide"
 				>
 					Install
 				</button>
-				<button type="button"
+				<button
+					type="button"
 					className="btn-pill range-overflow-btn"
 					onClick={() => exportData(siteId, "events", "csv", range)}
 					title="Export CSV"
 				>
 					&darr; CSV
 				</button>
-				<button type="button"
+				<button
+					type="button"
 					className="btn-pill range-overflow-btn"
 					onClick={() => navigate({ to: "/settings" })}
 					title="Settings"
@@ -926,7 +989,8 @@ function SiteDetailPage() {
 					Settings
 				</button>
 				<div className="location-tabs">
-					<button type="button"
+					<button
+						type="button"
 						className={`location-tab ${locationView === "cards" ? "active" : ""}`}
 						onClick={() => {
 							setLocationView("cards");
@@ -935,7 +999,8 @@ function SiteDetailPage() {
 					>
 						Cards
 					</button>
-					<button type="button"
+					<button
+						type="button"
 						className={`location-tab ${locationView === "globe" ? "active" : ""}`}
 						onClick={() => {
 							setLocationView("globe");
@@ -944,7 +1009,8 @@ function SiteDetailPage() {
 					>
 						Globe
 					</button>
-					<button type="button"
+					<button
+						type="button"
 						className={`location-tab ${locationView === "heatmap" ? "active" : ""}`}
 						onClick={() => {
 							setLocationView("heatmap");
@@ -1019,6 +1085,7 @@ function SiteDetailPage() {
 				<DashboardGrid
 					siteId={siteId}
 					stats={stats}
+					compare={data?.compare}
 					isLoading={isLoading}
 					timeseries={timeseries}
 					topPages={topPages}

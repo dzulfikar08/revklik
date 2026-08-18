@@ -37,8 +37,8 @@ html {
 	--border: #1f1e24;
 	--border2: #2a2930;
 	--hover: rgba(255, 255, 255, 0.03);
-	--serif: "Instrument Serif", Georgia, serif;
-	--sans: "General Sans", system-ui, sans-serif;
+	--serif: var(--sans);
+	--sans: "Hanken Grotesque", system-ui, sans-serif;
 	--mono: "IBM Plex Mono", monospace;
 }
 
@@ -56,22 +56,7 @@ body,
 }
 
 body::before {
-	content: "";
-	position: fixed;
-	inset: 0;
-	background:
-		radial-gradient(
-			ellipse 80% 60% at 15% 10%,
-			rgba(212, 136, 42, 0.03) 0%,
-			transparent 50%
-		),
-		radial-gradient(
-			ellipse 60% 50% at 85% 85%,
-			rgba(139, 92, 246, 0.02) 0%,
-			transparent 50%
-		);
-	pointer-events: none;
-	z-index: 0;
+	display: none;
 }
 
 #root {
@@ -201,9 +186,9 @@ select:focus {
 }
 
 .topnav-logo-text {
-	font-family: var(--serif);
+	font-family: var(--sans);
 	font-weight: 400;
-	font-style: italic;
+	
 	font-size: 20px;
 	color: var(--text);
 	letter-spacing: -0.02em;
@@ -248,7 +233,7 @@ select:focus {
 	line-height: 1.4;
 }
 .trial-banner-text strong {
-	color: #34d399;
+	color: var(--green);
 	font-weight: 600;
 }
 .trial-banner-upgrade {
@@ -256,7 +241,7 @@ select:focus {
 	font-weight: 600;
 	padding: 4px 14px;
 	border-radius: 100px;
-	background: #34d399;
+	background: var(--green);
 	color: #0c0b0e;
 	border: none;
 	cursor: pointer;
@@ -481,7 +466,7 @@ select:focus {
 	right: 8px;
 	background: var(--bg2);
 	border: 1px solid var(--border);
-	border-radius: 16px;
+	border-radius: 12px;
 	padding: 8px 0;
 	z-index: 200;
 	animation: fadeUp 0.2s ease;
@@ -620,9 +605,9 @@ select:focus {
 }
 
 .overview-title {
-	font-family: var(--serif);
+	font-family: var(--sans);
 	font-weight: 400;
-	font-style: italic;
+	
 	font-size: 32px;
 	color: var(--text);
 	letter-spacing: -0.02em;
@@ -709,9 +694,9 @@ select:focus {
 }
 
 .page-header-title {
-	font-family: var(--serif);
+	font-family: var(--sans);
 	font-weight: 400;
-	font-style: italic;
+	
 	font-size: 24px;
 	color: var(--text);
 	letter-spacing: -0.02em;
@@ -781,7 +766,7 @@ select:focus {
 .site-card {
 	background: var(--bg2);
 	border: 1px solid var(--border);
-	border-radius: 16px;
+	border-radius: 12px;
 	overflow: hidden;
 	transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
 	cursor: pointer;
@@ -789,12 +774,7 @@ select:focus {
 }
 
 .site-card:hover {
-	border-color: var(--accent);
-	transform: translateY(-3px);
-	box-shadow:
-		0 8px 30px rgba(0, 0, 0, 0.3),
-		0 0 0 1px var(--accent-mid),
-		0 0 40px rgba(212, 136, 42, 0.06);
+	border-color: var(--accent-mid);
 }
 
 .site-card-header {
@@ -805,9 +785,9 @@ select:focus {
 }
 
 .site-card-name {
-	font-family: var(--serif);
+	font-family: var(--sans);
 	font-weight: 400;
-	font-style: italic;
+	
 	font-size: 20px;
 	color: var(--text);
 	letter-spacing: -0.01em;
@@ -865,7 +845,7 @@ select:focus {
 .add-site-card {
 	background: var(--bg2);
 	border: 1px dashed var(--border2);
-	border-radius: 16px;
+	border-radius: 12px;
 	display: flex;
 	flex-direction: column;
 	align-items: center;
@@ -993,9 +973,9 @@ select:focus {
 }
 
 .globe-title {
-	font-family: var(--serif);
+	font-family: var(--sans);
 	font-weight: 400;
-	font-style: italic;
+	
 	font-size: 16px;
 	color: var(--text);
 }
@@ -1414,7 +1394,7 @@ select:focus {
 	max-height: 500px;
 	background: var(--bg2);
 	border: 1px solid var(--border2);
-	border-radius: 14px;
+	border-radius: 12px;
 	overflow: hidden;
 	display: flex;
 	flex-direction: column;
@@ -1430,8 +1410,8 @@ select:focus {
 }
 
 .globe-popup-city {
-	font-family: var(--serif);
-	font-style: italic;
+	font-family: var(--sans);
+	
 	font-size: 18px;
 	color: var(--text);
 	flex: 1;
@@ -1485,8 +1465,8 @@ select:focus {
 	display: flex;
 	align-items: center;
 	justify-content: center;
-	font-family: var(--serif);
-	font-style: italic;
+	font-family: var(--sans);
+	
 	font-size: 14px;
 	background: var(--bg3);
 	color: var(--text3);
@@ -1668,9 +1648,9 @@ select:focus {
 }
 
 .journeys-title {
-	font-family: var(--serif);
+	font-family: var(--sans);
 	font-weight: 400;
-	font-style: italic;
+	
 	font-size: 18px;
 	color: var(--text);
 }
@@ -1697,7 +1677,7 @@ select:focus {
 }
 
 .funnel-title {
-	font-family: var(--serif);
+	font-family: var(--sans);
 	font-size: 16px;
 	font-weight: 400;
 	letter-spacing: -0.01em;
@@ -2008,8 +1988,8 @@ select:focus {
 }
 
 .profile-ellipsis {
-	font-family: var(--serif);
-	font-style: italic;
+	font-family: var(--sans);
+	
 	font-size: 18px;
 	overflow: hidden;
 	text-overflow: ellipsis;
@@ -2195,7 +2175,7 @@ select:focus {
 		max-width: calc(100vw - 24px);
 		max-height: 70vh;
 		margin: 0 12px;
-		border-radius: 16px;
+		border-radius: 12px;
 	}
 
 	/* Topnav: compact for mobile */

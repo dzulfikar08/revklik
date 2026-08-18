@@ -108,7 +108,7 @@ export function PredictionsWidget({ siteId }: { siteId: string }) {
 													p.conversion_probability >= 70
 														? "var(--green)"
 														: p.conversion_probability >= 40
-															? "#f59e0b"
+															? "var(--accent)"
 															: "var(--text3)",
 												fontWeight: 600,
 											}}

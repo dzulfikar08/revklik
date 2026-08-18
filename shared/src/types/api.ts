@@ -52,6 +52,13 @@ export interface StatsResponse {
 	conversions: number;
 }
 
+export interface StatsChange {
+	current: number;
+	previous: number;
+	/** % change vs previous period; null when previous = 0 and current > 0 */
+	changePct: number | null;
+}
+
 export interface TimeSeriesPoint {
 	date: string;
 	pageviews: number;
@@ -247,6 +254,19 @@ export interface Annotation {
 
 export interface SiteDashboard {
 	stats: StatsResponse;
+	/** Period-over-period deltas: current range vs the equal window before it */
+	compare?: Partial<
+		Record<
+			| "pageviews"
+			| "visitors"
+			| "sessions"
+			| "bounceRate"
+			| "avgDuration"
+			| "revenue"
+			| "conversions",
+			StatsChange
+		>
+	>;
 	timeseries: TimeSeriesPoint[];
 	topPages: TopPage[];
 	sources: SourceEntry[];

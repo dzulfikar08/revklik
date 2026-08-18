@@ -13,7 +13,7 @@ const typeIcons: Record<InsightType, string> = {
 const typeColors: Record<InsightType, string> = {
 	revenue_drivers: "#34d399",
 	geo_opportunities: "#60a5fa",
-	funnel_optimization: "#f59e0b",
+	funnel_optimization: "var(--accent)",
 	traffic_roi: "#a78bfa",
 	revenue_prediction: "#fb923c",
 };

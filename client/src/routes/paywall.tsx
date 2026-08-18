@@ -198,8 +198,8 @@ function PaywallPage() {
 									>
 										<span
 											style={{
-												fontFamily: "var(--serif)",
-												fontStyle: "italic",
+												fontFamily: "var(--sans)",
+												
 												fontSize: 36,
 												color: "var(--text)",
 											}}

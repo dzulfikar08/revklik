@@ -269,11 +269,15 @@ export function ProfilePanel({
 						</Tip>
 					</div>
 					<div
-						style={{
-							borderTop: "1px solid var(--border)",
-							marginTop: 12,
-							paddingTop: 12,
-						}}
+					style={{
+						borderTop: "1px solid var(--border)",
+						marginTop: 12,
+						paddingTop: 12,
+						flex: 1,
+						minHeight: 0,
+						display: "flex",
+						flexDirection: "column",
+					}}
 					>
 						<span
 							style={{
@@ -287,7 +291,14 @@ export function ProfilePanel({
 						>
 							Journey
 						</span>
-						<div style={{ maxHeight: 300, overflowY: "auto", marginTop: 8 }}>
+					<div
+						style={{
+							flex: 1,
+							minHeight: 0,
+							overflowY: "auto",
+							marginTop: 8,
+						}}
+					>
 							<JourneyTimeline journey={journey} />
 						</div>
 					</div>

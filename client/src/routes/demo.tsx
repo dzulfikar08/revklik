@@ -11,7 +11,7 @@ export const Route = createFileRoute("/demo")({ component: DemoPage });
 
 const ctaBtn: React.CSSProperties = {
 	background: "var(--accent)",
-	color: "#fff",
+	color: "var(--bg)",
 	border: "none",
 	padding: "8px 20px",
 	borderRadius: 8,
@@ -34,7 +34,7 @@ function MetricCard({
 	return (
 		<div
 			style={{
-				background: "var(--card)",
+				background: "var(--bg2)",
 				border: "1px solid var(--border)",
 				borderRadius: 12,
 				padding: 20,
@@ -56,7 +56,7 @@ function MetricCard({
 					fontSize: 28,
 					fontWeight: 700,
 					color: "var(--text)",
-					fontFamily: "var(--serif)",
+					fontFamily: "var(--sans)",
 				}}
 			>
 				{value}
@@ -133,8 +133,8 @@ function DemoPage() {
 					/>
 					<span
 						style={{
-							fontFamily: "var(--serif)",
-							fontStyle: "italic",
+							fontFamily: "var(--sans)",
+							
 							fontWeight: 500,
 							fontSize: 16,
 						}}
@@ -164,7 +164,7 @@ function DemoPage() {
 				<div
 					style={{
 						background:
-							"linear-gradient(135deg, var(--accent) 0%, #7c3aed 100%)",
+							"var(--accent)",
 						borderRadius: 12,
 						padding: "28px 32px",
 						marginBottom: 24,
@@ -173,8 +173,8 @@ function DemoPage() {
 				>
 					<h2
 						style={{
-							fontFamily: "var(--serif)",
-							fontStyle: "italic",
+							fontFamily: "var(--sans)",
+							
 							fontWeight: 400,
 							fontSize: 22,
 							marginBottom: 8,
@@ -248,7 +248,7 @@ function DemoPage() {
 				>
 					<div
 						style={{
-							background: "var(--card)",
+							background: "var(--bg2)",
 							border: "1px solid var(--border)",
 							borderRadius: 12,
 							padding: 20,
@@ -299,7 +299,7 @@ function DemoPage() {
 
 					<div
 						style={{
-							background: "var(--card)",
+							background: "var(--bg2)",
 							border: "1px solid var(--border)",
 							borderRadius: 12,
 							padding: 20,
@@ -350,7 +350,7 @@ function DemoPage() {
 				>
 					<div
 						style={{
-							background: "var(--card)",
+							background: "var(--bg2)",
 							border: "1px solid var(--border)",
 							borderRadius: 12,
 							padding: 20,
@@ -390,7 +390,7 @@ function DemoPage() {
 
 					<div
 						style={{
-							background: "var(--card)",
+							background: "var(--bg2)",
 							border: "1px solid var(--border)",
 							borderRadius: 12,
 							padding: 20,
@@ -462,7 +462,7 @@ function DemoPage() {
 						<div
 							key={f.title}
 							style={{
-								background: "var(--card)",
+								background: "var(--bg2)",
 								border: "1px solid var(--border)",
 								borderRadius: 12,
 								padding: 20,

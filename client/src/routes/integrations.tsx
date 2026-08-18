@@ -53,8 +53,8 @@ function ProviderIcon({
 				display: "flex",
 				alignItems: "center",
 				justifyContent: "center",
-				fontFamily: "var(--serif)",
-				fontStyle: "italic",
+				fontFamily: "var(--sans)",
+				
 				fontWeight: 400,
 				fontSize: 20,
 				background: bgColor,
@@ -218,8 +218,8 @@ function ConfigModal({
 						<div>
 							<div
 								style={{
-									fontFamily: "var(--serif)",
-									fontStyle: "italic",
+									fontFamily: "var(--sans)",
+									
 									fontSize: 20,
 									color: "var(--text)",
 								}}
@@ -557,8 +557,8 @@ function IntegrationsPage() {
 												<div>
 													<div
 														style={{
-															fontFamily: "var(--serif)",
-															fontStyle: "italic",
+															fontFamily: "var(--sans)",
+															
 															fontSize: 18,
 															color: "var(--text)",
 														}}

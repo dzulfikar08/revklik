@@ -10,18 +10,28 @@ import {
 	XAxis,
 	YAxis,
 } from "recharts";
-import type { RevenueTimeSeriesPoint } from "shared";
+import type { RevenueTimeSeriesPoint, StatsChange } from "shared";
 import { t } from "@/lib/i18n";
 
 export function MetricCard({
 	label,
 	value,
 	loading,
+	change,
+	invertChange,
 }: {
 	label: string;
 	value: string;
 	loading?: boolean;
+	/** Period-over-period delta; renders ▲/▼ badge under the value */
+	change?: StatsChange;
+	/** true when a decrease is good (e.g. bounce rate) */
+	invertChange?: boolean;
 }) {
+	const pct = change?.changePct ?? null;
+	const showDelta = !loading && change !== undefined && pct !== null;
+	const deltaGood =
+		pct === null || pct === 0 ? null : invertChange ? pct < 0 : pct > 0;
 	return (
 		<div className="metric-card">
 			<span className="metric-label">{label}</span>
@@ -37,7 +47,30 @@ export function MetricCard({
 					}}
 				/>
 			) : (
-				<span className="metric-value">{value}</span>
+				<>
+					<span className="metric-value">{value}</span>
+					{showDelta && change && pct !== null && (
+						<span
+							title={`vs ${change.previous.toLocaleString()} previous period`}
+							style={{
+								display: "inline-flex",
+								alignItems: "center",
+								gap: 3,
+								marginTop: 2,
+								fontSize: 11,
+								fontFamily: "var(--mono)",
+								color:
+									deltaGood === null
+										? "var(--text3)"
+										: deltaGood
+											? "var(--green)"
+											: "var(--red)",
+							}}
+						>
+							{pct > 0 ? "▲" : pct < 0 ? "▼" : "–"} {Math.abs(pct)}%
+						</span>
+					)}
+				</>
 			)}
 		</div>
 	);
@@ -246,11 +279,11 @@ export function ChartCard({
 														gap: 12,
 													}}
 												>
-													<span style={{ color: "#f59e0b" }}>Revenue</span>
+													<span style={{ color: "var(--green)" }}>Revenue</span>
 													<span
 														style={{
 															fontFamily: "var(--mono)",
-															color: "#f59e0b",
+															color: "var(--green)",
 														}}
 													>
 														${rev.toFixed(2)}

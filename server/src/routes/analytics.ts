@@ -55,8 +55,33 @@ analyticsRoutes.get("/dashboard", async (c) => {
 
 	const { start, end } = getDateRange(range);
 	const startIso = start.toISOString();
+	const endIso = end.toISOString();
 	const spanHours = (end.getTime() - start.getTime()) / (1000 * 60 * 60);
 	const isHourly = spanHours <= 48;
+	const prevStartIso = new Date(
+		start.getTime() - (end.getTime() - start.getTime()),
+	).toISOString();
+
+	let recentSessionsQ = db
+		.selectFrom("sessions")
+		.select([
+			"id",
+			"visitor_id",
+			"started_at",
+			"country",
+			"region",
+			"city",
+			"device_type",
+			"browser",
+			"os",
+			"utm_source",
+			"referrer",
+			"page_count",
+		])
+		.where("site_id", "=", siteId)
+		.where("started_at", ">=", startIso);
+	if (endIso)
+		recentSessionsQ = recentSessionsQ.where("started_at", "<", endIso);
 
 	const [
 		stats,
@@ -73,33 +98,14 @@ analyticsRoutes.get("/dashboard", async (c) => {
 		revenueByMethod,
 		revenueByProvider,
 		channels,
+		prevStats,
 	] = await Promise.all([
-		getOverviewStats(db, siteId, startIso, filters),
-		getTimeseries(db, siteId, startIso, isHourly, filters),
-		getTopPages(db, siteId, startIso, 10, filters),
-		getReferrers(db, siteId, startIso, 10, filters),
-		getDeviceBreakdown(db, siteId, startIso, filters),
-		applyFilters(
-			db
-				.selectFrom("sessions")
-				.select([
-					"id",
-					"visitor_id",
-					"started_at",
-					"country",
-					"region",
-					"city",
-					"device_type",
-					"browser",
-					"os",
-					"utm_source",
-					"referrer",
-					"page_count",
-				])
-				.where("site_id", "=", siteId)
-				.where("started_at", ">=", startIso),
-			filters,
-		)
+		getOverviewStats(db, siteId, startIso, filters, endIso),
+		getTimeseries(db, siteId, startIso, isHourly, filters, endIso),
+		getTopPages(db, siteId, startIso, 10, filters, endIso),
+		getReferrers(db, siteId, startIso, 10, filters, endIso),
+		getDeviceBreakdown(db, siteId, startIso, filters, endIso),
+		applyFilters(recentSessionsQ, filters)
 			.orderBy("started_at", "desc")
 			.limit(100)
 			.execute(),
@@ -129,14 +135,35 @@ analyticsRoutes.get("/dashboard", async (c) => {
 			.orderBy("last_seen", "desc")
 			.limit(50)
 			.execute(),
-		getRevenueBySource(db, siteId, startIso, filters),
-		getRevenueByCountry(db, siteId, startIso, filters),
-		getRevenueTimeseries(db, siteId, startIso, isHourly, filters),
-		getEntryPagesRevenue(db, siteId, startIso, filters),
-		getRevenueByPaymentMethod(db, siteId, startIso, filters),
-		getRevenueByPaymentProvider(db, siteId, startIso, filters),
-		getChannelBreakdown(db, siteId, startIso, filters),
+		getRevenueBySource(db, siteId, startIso, filters, endIso),
+		getRevenueByCountry(db, siteId, startIso, filters, endIso),
+		getRevenueTimeseries(db, siteId, startIso, isHourly, filters, endIso),
+		getEntryPagesRevenue(db, siteId, startIso, filters, endIso),
+		getRevenueByPaymentMethod(db, siteId, startIso, filters, endIso),
+		getRevenueByPaymentProvider(db, siteId, startIso, filters, endIso),
+		getChannelBreakdown(db, siteId, startIso, filters, endIso),
+		getOverviewStats(db, siteId, prevStartIso, filters, startIso),
 	]);
+
+	// Period-over-period comparison (current range vs the equal window before it)
+	const pctChange = (current: number, previous: number): number | null => {
+		if (previous === 0) return current === 0 ? 0 : null;
+		return Math.round(((current - previous) / previous) * 100);
+	};
+	const metric = (cur: number, prev: number) => ({
+		current: cur,
+		previous: prev,
+		changePct: pctChange(cur, prev),
+	});
+	const compare: SiteDashboard["compare"] = {
+		pageviews: metric(stats.pageviews, prevStats.pageviews),
+		visitors: metric(stats.visitors, prevStats.visitors),
+		sessions: metric(stats.sessions, prevStats.sessions),
+		bounceRate: metric(stats.bounceRate, prevStats.bounceRate),
+		avgDuration: metric(stats.avgDuration, prevStats.avgDuration),
+		revenue: metric(stats.revenue, prevStats.revenue),
+		conversions: metric(stats.conversions, prevStats.conversions),
+	};
 
 	const sessionIds = recentSessions.map((s) => s.id);
 	const BATCH = 50;
@@ -208,6 +235,7 @@ analyticsRoutes.get("/dashboard", async (c) => {
 
 	const dashboard: SiteDashboard = {
 		stats,
+		compare,
 		timeseries,
 		topPages,
 		sources,
@@ -235,17 +263,27 @@ analyticsRoutes.get("/sparkline", async (c) => {
 	const site = await validateSite(db, userId, siteId);
 	if (!site) return c.json({ error: "Site not found", success: false }, 404);
 
+	const tsDay = sql`date(${sql.ref("timestamp")})`;
+	const startIso = new Date(Date.now() - 7 * 86_400_000).toISOString();
 	const rows = await db
 		.selectFrom("events")
-		.select([({ fn }) => fn.count<number>("id").as("count"), "timestamp"])
+		.select([({ fn }) => fn.count<number>("id").as("count"), tsDay.as("day")])
 		.where("site_id", "=", siteId)
 		.where("event_type", "=", "pageview")
-		.where("timestamp", ">=", new Date(Date.now() - 7 * 86400000).toISOString())
-		.groupBy(sql`date(${sql.ref("timestamp")})`)
-		.orderBy("timestamp", "asc")
+		.where("timestamp", ">=", startIso)
+		.groupBy(tsDay)
+		.orderBy("day", "asc")
 		.execute();
 
-	return c.json({ data: rows.map((r) => Number(r.count)), success: true });
+	// Zero-fill 7 continuous days — position-based sparkline needs fixed length
+	const byDay = new Map(
+		rows.map((r) => [String(r.day ?? ""), Number(r.count)]),
+	);
+	const data: number[] = [];
+	for (let t = new Date(startIso).getTime(); t < Date.now(); t += 86_400_000) {
+		data.push(byDay.get(new Date(t).toISOString().slice(0, 10)) ?? 0);
+	}
+	return c.json({ data, success: true });
 });
 
 analyticsRoutes.get("/funnel", async (c) => {
@@ -930,7 +968,12 @@ analyticsRoutes.get("/export", async (c) => {
 		eventsQuery = eventsQuery.where(
 			"event_type",
 			"=",
-			eventType as "pageview" | "custom" | "conversion" | "payment" | "subscription",
+			eventType as
+				| "pageview"
+				| "custom"
+				| "conversion"
+				| "payment"
+				| "subscription",
 		);
 	const rows = await eventsQuery
 		.orderBy("timestamp", "desc")

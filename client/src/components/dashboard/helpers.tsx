@@ -43,8 +43,8 @@ export function EmptyState({ siteId }: { siteId: string }) {
 			<div style={{ textAlign: "center", marginTop: -80, maxWidth: 480 }}>
 				<div
 					style={{
-						fontFamily: "var(--serif)",
-						fontStyle: "italic",
+						fontFamily: "var(--sans)",
+						
 						fontSize: 28,
 						color: "var(--text)",
 						marginBottom: 8,

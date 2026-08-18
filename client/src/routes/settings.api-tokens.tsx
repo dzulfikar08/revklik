@@ -163,8 +163,8 @@ function CreateTokenModal({ onClose }: { onClose: () => void }) {
 				>
 					<div
 						style={{
-							fontFamily: "var(--serif)",
-							fontStyle: "italic",
+							fontFamily: "var(--sans)",
+							
 							fontSize: 20,
 							color: "var(--text)",
 						}}
@@ -547,8 +547,8 @@ function TokenRow({
 				>
 					<span
 						style={{
-							fontFamily: "var(--serif)",
-							fontStyle: "italic",
+							fontFamily: "var(--sans)",
+							
 							fontSize: 16,
 							color: "var(--text)",
 						}}
@@ -771,8 +771,8 @@ function ApiTokensPage() {
 							</div>
 							<div
 								style={{
-									fontFamily: "var(--serif)",
-									fontStyle: "italic",
+									fontFamily: "var(--sans)",
+									
 									fontSize: 18,
 									color: "var(--text2)",
 									marginBottom: 8,
@@ -830,8 +830,8 @@ function ApiTokensPage() {
 					>
 						<div
 							style={{
-								fontFamily: "var(--serif)",
-								fontStyle: "italic",
+								fontFamily: "var(--sans)",
+								
 								fontSize: 18,
 								color: "var(--text)",
 								marginBottom: 16,

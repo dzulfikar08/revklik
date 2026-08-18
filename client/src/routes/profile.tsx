@@ -31,8 +31,8 @@ function Section({
 		>
 			<h3
 				style={{
-					fontFamily: "var(--serif)",
-					fontStyle: "italic",
+					fontFamily: "var(--sans)",
+					
 					fontSize: 18,
 					color: "var(--text)",
 					marginBottom: 16,
@@ -207,8 +207,8 @@ function ProfilePage() {
 									display: "flex",
 									alignItems: "center",
 									justifyContent: "center",
-									fontFamily: "var(--serif)",
-									fontStyle: "italic",
+									fontFamily: "var(--sans)",
+									
 									fontSize: 20,
 									color: "var(--accent)",
 									overflow: "hidden",

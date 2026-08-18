@@ -84,8 +84,8 @@ function AffiliatePage() {
 					>
 						<h3
 							style={{
-								fontFamily: "var(--serif)",
-								fontStyle: "italic",
+								fontFamily: "var(--sans)",
+								
 								fontSize: 18,
 								color: "var(--text)",
 								marginBottom: 12,
@@ -174,8 +174,8 @@ function AffiliatePage() {
 								</div>
 								<div
 									style={{
-										fontFamily: "var(--serif)",
-										fontStyle: "italic",
+										fontFamily: "var(--sans)",
+										
 										fontSize: 28,
 										color: "var(--text)",
 									}}
@@ -206,8 +206,8 @@ function AffiliatePage() {
 								</div>
 								<div
 									style={{
-										fontFamily: "var(--serif)",
-										fontStyle: "italic",
+										fontFamily: "var(--sans)",
+										
 										fontSize: 28,
 										color: "var(--green)",
 									}}
@@ -238,8 +238,8 @@ function AffiliatePage() {
 								</div>
 								<div
 									style={{
-										fontFamily: "var(--serif)",
-										fontStyle: "italic",
+										fontFamily: "var(--sans)",
+										
 										fontSize: 28,
 										color: "var(--text)",
 									}}
@@ -270,8 +270,8 @@ function AffiliatePage() {
 								</div>
 								<div
 									style={{
-										fontFamily: "var(--serif)",
-										fontStyle: "italic",
+										fontFamily: "var(--sans)",
+										
 										fontSize: 28,
 										color: "var(--accent)",
 									}}
@@ -295,8 +295,8 @@ function AffiliatePage() {
 						>
 							<h3
 								style={{
-									fontFamily: "var(--serif)",
-									fontStyle: "italic",
+									fontFamily: "var(--sans)",
+									
 									fontSize: 18,
 									color: "var(--text)",
 									marginBottom: 12,
@@ -347,8 +347,8 @@ function AffiliatePage() {
 					>
 						<h3
 							style={{
-								fontFamily: "var(--serif)",
-								fontStyle: "italic",
+								fontFamily: "var(--sans)",
+								
 								fontSize: 18,
 								color: "var(--text)",
 								marginBottom: 12,

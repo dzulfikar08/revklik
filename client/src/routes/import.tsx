@@ -151,8 +151,8 @@ function PolarImportCard({ siteId }: { siteId: string }) {
 				<div>
 					<div
 						style={{
-							fontFamily: "var(--serif)",
-							fontStyle: "italic",
+							fontFamily: "var(--sans)",
+							
 							fontSize: 18,
 							color: "var(--text)",
 						}}
@@ -496,8 +496,8 @@ function OneDollarStatsImportCard({ siteId }: { siteId: string }) {
 				<div>
 					<div
 						style={{
-							fontFamily: "var(--serif)",
-							fontStyle: "italic",
+							fontFamily: "var(--sans)",
+							
 							fontSize: 18,
 							color: "var(--text)",
 						}}
