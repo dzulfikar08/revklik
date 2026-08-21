@@ -460,7 +460,7 @@ fn tool_gsc_sync() -> Tool {
             "required": ["site_id"]
         }),
         handler: |client, params| {
-            call_handler(client, |c| c.post("/gsc/sync", Some(params)))
+            call_handler(client, |c| c.request("POST", "/gsc/sync", Some(params), None))
         },
     }
 }

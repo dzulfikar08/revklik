@@ -77,8 +77,14 @@ def parse_tool_endpoints(tools_src: str) -> list[tuple[str, str, str]]:
     """
     endpoints = []
 
-    # Direct method calls with a literal path: c.get("/v1/...", ...)
+    # Direct method calls with a literal path: c.get("/v1/sites", None)  → captures method + literal path
     for m in re.finditer(r'c\.(get|post|put|patch|delete)\("((?:/v1|/gsc)/[^"]*)"', tools_src):
+        method = m.group(1).upper()
+        raw_path = m.group(2)
+        endpoints.append((method, raw_path, "direct"))
+
+    # c.request("METHOD", "/path", ...) calls (used for custom method+path combos)
+    for m in re.finditer(r'c\.request\(\s*"([A-Z]+)"\s*,\s*"((?:/v1|/gsc)/[^"]*)"', tools_src):
         method = m.group(1).upper()
         raw_path = m.group(2)
         endpoints.append((method, raw_path, "direct"))
