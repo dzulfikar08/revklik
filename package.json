@@ -27,7 +27,10 @@
 		"postinstall": "turbo build --filter=shared --filter=server",
 		"format": "biome format . --write",
 		"deploy": "turbo build && wrangler deploy --minify",
-		"cf-dev": "wrangler dev"
+		"cf-dev": "wrangler dev",
+		"mcp:rust:build": "cargo build --manifest-path mcp-server-rust/Cargo.toml --release",
+		"mcp:rust:test": "cargo test --manifest-path mcp-server-rust/Cargo.toml",
+		"mcp:rust:check": "rustfmt --edition 2021 --check mcp-server-rust/src/*.rs && cargo clippy --manifest-path mcp-server-rust/Cargo.toml --all-targets -- -D warnings && cargo test --manifest-path mcp-server-rust/Cargo.toml --quiet && bash mcp-server-rust/tests/smoke.sh && bash mcp-server-rust/tests/drift-check.sh"
 	},
 	"keywords": [
 		"bun",
