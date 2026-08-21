@@ -132,6 +132,7 @@ function NavMenu({
 
 	const items = [
 		{ label: "Profile", to: "/profile" },
+		{ label: "Integrations", to: "/integrations" },
 		{ label: "Affiliate", to: "/affiliate" },
 		{ label: "Settings", to: "/settings" },
 		{ label: "API Playground", to: "/settings/api-playground" },
@@ -598,6 +599,14 @@ function RootLayout() {
 						}}
 					>
 						Affiliate
+					</button>
+					<button type="button"
+						onClick={() => {
+							navigate({ to: "/integrations" });
+							setMoreOpen(false);
+						}}
+					>
+						Integrations
 					</button>
 					<button type="button"
 						onClick={() => {
