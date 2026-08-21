@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-cd "$(dirname "$0")/client"
+cd "$(dirname "$0")/apps/app"
 
 echo "Building web assets (VITE_API_BASE=https://app.revklik.com/api)..."
 VITE_API_BASE=https://app.revklik.com/api npx vite build
