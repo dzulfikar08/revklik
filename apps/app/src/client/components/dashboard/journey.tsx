@@ -48,6 +48,39 @@ function StepIcon({ type }: { type: string }) {
 	return <span style={{ color: "var(--text3)", fontSize: 13 }}>&#9679;</span>;
 }
 
+// Inline key=value chips for event properties not otherwise surfaced.
+// Values can get long (hrefs) — tooltip carries the full value, chip is truncated.
+function PropChips({ props }: { props: Record<string, string> }) {
+	const entries = Object.entries(props).filter(([, v]) => v !== "" && v != null);
+	if (entries.length === 0) return null;
+	return (
+		<>
+			{entries.map(([k, v]) => (
+				<Tip key={k} text={`${k}: ${v}`}>
+					<span
+						style={{
+							color: "var(--text3)",
+							fontSize: 11,
+							background: "var(--bg2)",
+							borderRadius: 4,
+							padding: "1px 5px",
+							marginLeft: 6,
+							maxWidth: 160,
+							overflow: "hidden",
+							textOverflow: "ellipsis",
+							whiteSpace: "nowrap",
+							display: "inline-block",
+							verticalAlign: "middle",
+						}}
+					>
+						{k}={v.length > 24 ? `${v.slice(0, 24)}…` : v}
+					</span>
+				</Tip>
+			))}
+		</>
+	);
+}
+
 function StepLabel({ step }: { step: VisitorJourney["steps"][number] }) {
 	const props = parseProps(step.props);
 	if (step.event_type === "pageview") {
@@ -76,10 +109,19 @@ function StepLabel({ step }: { step: VisitorJourney["steps"][number] }) {
 	if (step.event_type === "custom" && step.name === "click") {
 		const label = props.label ?? "unknown";
 		const tag = props.tag ?? "";
+		const { label: _l, tag: _t, href, ...rest } = props;
 		return (
 			<span style={{ color: "var(--text)" }}>
 				Clicked <span style={{ color: "var(--accent)", fontWeight: 500 }}>"{label}"</span>{" "}
 				<span style={{ color: "var(--text3)", fontSize: 11 }}>&lt;{tag}&gt;</span>
+				{href && (
+					<Tip text={href}>
+						<span style={{ color: "var(--text4)", fontSize: 11, marginLeft: 6 }}>
+							→ {href.length > 40 ? `${href.slice(0, 40)}…` : href}
+						</span>
+					</Tip>
+				)}
+				<PropChips props={rest} />
 			</span>
 		);
 	}
@@ -91,10 +133,16 @@ function StepLabel({ step }: { step: VisitorJourney["steps"][number] }) {
 		return (
 			<span style={{ color: "var(--green)", fontWeight: 600 }}>
 				Conversion: {step.name} {step.revenue ? `$${step.revenue}` : ""}
+				<PropChips props={props} />
 			</span>
 		);
 	}
-	return <span style={{ color: "var(--text2)" }}>{step.name || step.event_type}</span>;
+	return (
+		<span style={{ color: "var(--text2)" }}>
+			{step.name || step.event_type}
+			<PropChips props={props} />
+		</span>
+	);
 }
 
 export function JourneyTimeline({ journey }: { journey: VisitorJourney }) {
