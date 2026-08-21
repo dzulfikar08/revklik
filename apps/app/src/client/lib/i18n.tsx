@@ -40,6 +40,11 @@ const translations: Record<Lang, Record<string, string>> = {
 		"sites.tracked": "website dilacak · 7 hari terakhir",
 		"sites.waiting": "Menunggu pengunjung",
 		"sites.script_hint": "Tambahkan script tag ini ke website Anda untuk mulai mengumpulkan data",
+		"sites.agent_title": "Setup dengan AI agent",
+		"sites.agent_hint":
+			"Copas prompt ini ke Claude Code, Cursor, atau agent lain — agent Anda yang pasang tracker-nya dengan benar.",
+		"sites.copy_agent_prompt": "Copy prompt untuk agent",
+		"sites.full_docs": "Dokumentasi lengkap:",
 		"sites.select_site": "Pilih website dari header",
 
 		// Dashboard metrics
@@ -176,6 +181,11 @@ const translations: Record<Lang, Record<string, string>> = {
 		"sites.tracked": "sites tracked · Last 7 days",
 		"sites.waiting": "Waiting for visitors",
 		"sites.script_hint": "Add this script tag to your website to start collecting data",
+		"sites.agent_title": "Set up with an AI agent",
+		"sites.agent_hint":
+			"Paste this prompt into Claude Code, Cursor, or any other agent — it installs the tracker correctly for you.",
+		"sites.copy_agent_prompt": "Copy agent prompt",
+		"sites.full_docs": "Full documentation:",
 		"sites.select_site": "Select a site from the header",
 		"metric.views": "Views",
 		"metric.visitors": "Visitors",

@@ -26,7 +26,14 @@ export const DEFAULT_LAYOUT = [
 
 export function EmptyState({ siteId }: { siteId: string }) {
 	const [copied, setCopied] = useState(false);
+	const [promptCopied, setPromptCopied] = useState(false);
 	const snippet = `<script defer data-site-id="${siteId}" src="${window.location.origin}/klikapa.js"></script>`;
+	const agentPrompt = `Install RevKlik analytics on this website.
+
+Site ID: ${siteId}
+
+Fetch and follow the full setup guide, then implement it:
+https://revklik.com/docs.txt`;
 
 	return (
 		<div
@@ -93,6 +100,91 @@ export function EmptyState({ siteId }: { siteId: string }) {
 				>
 					{copied ? t("common.copied") : t("common.copy_script")}
 				</button>
+				<div
+					style={{
+						marginTop: 28,
+						width: "100%",
+						textAlign: "left",
+					}}
+				>
+					<div
+						style={{
+							fontFamily: "var(--mono)",
+							fontSize: 11,
+							fontWeight: 600,
+							textTransform: "uppercase",
+							letterSpacing: "0.08em",
+							color: "var(--text2)",
+							marginBottom: 8,
+						}}
+					>
+						{t("sites.agent_title")}
+					</div>
+					<p
+						style={{
+							color: "var(--text3)",
+							fontSize: 13,
+							lineHeight: 1.6,
+							marginBottom: 12,
+						}}
+					>
+						{t("sites.agent_hint")}
+					</p>
+					<div
+						style={{
+							background: "var(--bg2)",
+							border: "1px solid var(--border)",
+							borderRadius: 10,
+							padding: "14px 18px",
+							fontFamily: "var(--mono)",
+							fontSize: 11,
+							color: "var(--text2)",
+							lineHeight: 1.8,
+							whiteSpace: "pre-wrap",
+							wordBreak: "break-word",
+							marginBottom: 12,
+						}}
+					>
+						{agentPrompt}
+					</div>
+					<button
+						type="button"
+						className="btn-pill"
+						onClick={() => {
+							navigator.clipboard.writeText(agentPrompt);
+							setPromptCopied(true);
+							setTimeout(() => setPromptCopied(false), 2000);
+						}}
+					>
+						{promptCopied ? t("common.copied") : t("sites.copy_agent_prompt")}
+					</button>
+				</div>
+				<div
+					style={{
+						marginTop: 16,
+						fontSize: 12,
+						color: "var(--text3)",
+					}}
+				>
+					{t("sites.full_docs")}{" "}
+					<a
+						href="https://revklik.com/docs.txt"
+						target="_blank"
+						rel="noopener"
+						style={{ color: "var(--accent)" }}
+					>
+						docs.txt
+					</a>
+					{" · "}
+					<a
+						href="https://revklik.com/docs.html"
+						target="_blank"
+						rel="noopener"
+						style={{ color: "var(--accent)" }}
+					>
+						docs.html
+					</a>
+				</div>
 			</div>
 		</div>
 	);
