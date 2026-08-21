@@ -1,0 +1,12 @@
+{
+	"$schema": "./node_modules/oxfmt/configuration_schema.json",
+	"useTabs": true,
+	"singleQuote": false,
+	"ignorePatterns": [
+		"**/*.gen.ts",
+		"apps/app/public/**",
+		"scripts/loadtest/**",
+		"apps/app/ios/**",
+		"apps/app/android/**"
+	]
+}

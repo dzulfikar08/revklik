@@ -1,55 +1,31 @@
 {
-	"name": "klikapa",
-	"version": "0.5.1",
-	"description": "A monorepo template built with Bun, Hono, Vite, and React",
-	"author": "Steve Simkins",
-	"license": "MIT",
-	"homepage": "https://github.com/stevedylandev/bhvr",
+	"name": "revklik",
+	"version": "0.6.0",
+	"private": true,
+	"type": "module",
 	"packageManager": "bun@1.3.14",
-	"workspaces": [
-		"./server",
-		"./client",
-		"./shared",
-		"./cli",
-		"./sdk"
-	],
+	"workspaces": ["apps/*", "packages/*"],
 	"scripts": {
-		"dev": "concurrently \"bun run dev:wrangler\" \"bun run dev:client\" --names \"wrangler,vite\" --prefix-colors \"cyan,green\"",
-		"dev:wrangler": "wrangler dev --local",
-		"dev:client": "cd client && bun run dev",
-		"dev:server": "turbo dev --filter=server",
-		"build": "turbo build",
-		"build:client": "turbo build --filter=client",
-		"build:server": "turbo build --filter=server",
-		"lint": "biome lint .",
-		"type-check": "turbo type-check",
-		"test": "turbo test",
-		"postinstall": "turbo build --filter=shared --filter=server",
-		"format": "biome format . --write",
-		"deploy": "turbo build && wrangler deploy --minify",
-		"cf-dev": "wrangler dev"
+		"dev": "bun --filter @revklik/app dev",
+		"build": "bun --filter @revklik/app build",
+		"preview": "bun --filter @revklik/app preview",
+		"deploy": "bun --filter @revklik/app deploy",
+		"typecheck": "bun --filter @revklik/app typecheck && bun --filter @revklik/shared typecheck && bun --filter @revklik/sdk typecheck && bun --filter @revklik/cli typecheck",
+		"lint": "oxlint .",
+		"fmt": "oxfmt .",
+		"fmt:check": "oxfmt --check .",
+		"build:sdk": "bun --filter @revklik/sdk build",
+		"build:cli": "bun --filter @revklik/cli build",
+		"mobile:prepare": "bun --filter @revklik/app mobile:prepare",
+		"mobile:ios": "bun --filter @revklik/app mobile:ios",
+		"mobile:android": "bun --filter @revklik/app mobile:android"
 	},
-	"keywords": [
-		"bun",
-		"hono",
-		"react",
-		"vite",
-		"monorepo",
-		"turbo"
-	],
 	"devDependencies": {
-		"@biomejs/biome": "^2.5.4",
-		"@cloudflare/workers-types": "^5.20260717.1",
-		"@types/bun": "^1.3.14",
-		"concurrently": "^10.0.3",
-		"turbo": "^2.10.5",
-		"wrangler": "^4.112.0"
+		"oxfmt": "^0.62.0",
+		"oxlint": "^1.78.0"
 	},
-	"peerDependencies": {
-		"typescript": "~7.0.2"
+	"engines": {
+		"node": ">=20"
 	},
-	"dependencies": {
-		"@radix-ui/react-tooltip": "^1.2.12",
-		"kysely": "^0.29.3"
-	}
+	"trustedDependencies": ["workerd", "esbuild"]
 }

@@ -1,0 +1,36 @@
+{
+	// KEEP the deployed worker name "klikapa" — renaming creates a new Worker
+	// and orphans all secrets, the workers.dev URL, and the cron attachments.
+	"$schema": "../node_modules/wrangler/config-schema.json",
+	"name": "klikapa",
+	"main": "src/worker/index.ts",
+	"compatibility_date": "2025-05-25",
+	"compatibility_flags": ["nodejs_compat"],
+	"assets": {
+		"directory": "./dist/client",
+		"not_found_handling": "single-page-application",
+		"binding": "ASSETS",
+		// Only /api/* invokes the worker: klikapa-*.js tracker scripts are
+		// high-volume static fetches from customer sites and must be served
+		// directly by the assets runtime.
+		"run_worker_first": ["/api/*"]
+	},
+	"d1_databases": [
+		{
+			"binding": "DB",
+			"database_name": "klikapa-db",
+			"database_id": "06842ad9-7e94-49db-a207-7a58683092d7"
+		}
+	],
+	"send_email": [
+		{
+			"name": "EMAIL"
+		}
+	],
+	"ai": {
+		"binding": "AI"
+	},
+	"triggers": {
+		"crons": ["0 */6 * * *", "0 5 * * *"]
+	}
+}

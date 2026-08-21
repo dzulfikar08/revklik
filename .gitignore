@@ -45,10 +45,10 @@ bun.lockb
 .wrangler
 
 # Capacitor native build artifacts
-client/android/app/build
-client/ios/Pods
-client/ios/build
-client/ios/DerivedData
+apps/app/android/app/build
+apps/app/ios/Pods
+apps/app/ios/build
+apps/app/ios/DerivedData
 
 # Mobile debug builds
 *.apk
@@ -57,11 +57,11 @@ client/ios/DerivedData
 tsconfig.tsbuildinfo
 
 # Capacitor local env
-client/.env.mobile
+apps/app/.env.mobile
 
 # Test / tool artifacts
 .playwright-mcp/
 .serena/
 
-# Working screenshots (root-level only; source PNGs live under client/android/)
+# Working screenshots (root-level only; source PNGs live under apps/app/android/)
 /*.png
