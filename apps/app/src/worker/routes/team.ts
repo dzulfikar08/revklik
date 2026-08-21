@@ -10,8 +10,7 @@ teamRoutes.get("/", async (c) => {
 	const db = c.get("db");
 	const userId = c.get("userId");
 	const siteId = c.req.query("site_id");
-	if (!siteId)
-		return c.json({ error: "site_id required", success: false }, 400);
+	if (!siteId) return c.json({ error: "site_id required", success: false }, 400);
 
 	// Verify user owns the site
 	const site = await db
@@ -21,22 +20,11 @@ teamRoutes.get("/", async (c) => {
 		.executeTakeFirst();
 	if (!site) return c.json({ error: "Site not found", success: false }, 404);
 	if (site.user_id !== userId)
-		return c.json(
-			{ error: "Only site owner can manage team", success: false },
-			403,
-		);
+		return c.json({ error: "Only site owner can manage team", success: false }, 403);
 
 	const members = await db
 		.selectFrom("team_members")
-		.select([
-			"id",
-			"site_id",
-			"user_id",
-			"role",
-			"invited_by",
-			"invited_at",
-			"accepted_at",
-		])
+		.select(["id", "site_id", "user_id", "role", "invited_by", "invited_at", "accepted_at"])
 		.where("site_id", "=", siteId)
 		.orderBy("invited_at", "asc")
 		.execute();
@@ -81,10 +69,7 @@ teamRoutes.post("/invite", async (c) => {
 
 	if (!site_id || !email)
 		return c.json({ error: "site_id and email required", success: false }, 400);
-	const validRole =
-		role === "admin" || role === "editor" || role === "viewer"
-			? role
-			: "viewer";
+	const validRole = role === "admin" || role === "editor" || role === "viewer" ? role : "viewer";
 
 	const site = await db
 		.selectFrom("sites")
@@ -120,8 +105,7 @@ teamRoutes.post("/invite", async (c) => {
 		.where("site_id", "=", site_id)
 		.where("user_id", "=", invitee.id)
 		.executeTakeFirst();
-	if (existing)
-		return c.json({ error: "User already a team member", success: false }, 409);
+	if (existing) return c.json({ error: "User already a team member", success: false }, 409);
 
 	const id = generateId();
 	await db
@@ -167,18 +151,14 @@ teamRoutes.patch("/:memberId", async (c) => {
 	const memberId = c.req.param("memberId");
 	const { role } = await c.req.json<{ role: string }>();
 
-	const validRole =
-		role === "admin" || role === "editor" || role === "viewer"
-			? role
-			: "viewer";
+	const validRole = role === "admin" || role === "editor" || role === "viewer" ? role : "viewer";
 
 	const member = await db
 		.selectFrom("team_members")
 		.select(["id", "site_id"])
 		.where("id", "=", memberId)
 		.executeTakeFirst();
-	if (!member)
-		return c.json({ error: "Member not found", success: false }, 404);
+	if (!member) return c.json({ error: "Member not found", success: false }, 404);
 
 	const site = await db
 		.selectFrom("sites")
@@ -186,10 +166,7 @@ teamRoutes.patch("/:memberId", async (c) => {
 		.where("id", "=", member.site_id)
 		.executeTakeFirst();
 	if (!site || site.user_id !== userId)
-		return c.json(
-			{ error: "Only owner can update roles", success: false },
-			403,
-		);
+		return c.json({ error: "Only owner can update roles", success: false }, 403);
 
 	await db
 		.updateTable("team_members")
@@ -210,8 +187,7 @@ teamRoutes.delete("/:memberId", async (c) => {
 		.select(["id", "site_id"])
 		.where("id", "=", memberId)
 		.executeTakeFirst();
-	if (!member)
-		return c.json({ error: "Member not found", success: false }, 404);
+	if (!member) return c.json({ error: "Member not found", success: false }, 404);
 
 	const site = await db
 		.selectFrom("sites")
@@ -219,10 +195,7 @@ teamRoutes.delete("/:memberId", async (c) => {
 		.where("id", "=", member.site_id)
 		.executeTakeFirst();
 	if (!site || site.user_id !== userId)
-		return c.json(
-			{ error: "Only owner can remove members", success: false },
-			403,
-		);
+		return c.json({ error: "Only owner can remove members", success: false }, 403);
 
 	await db.deleteFrom("team_members").where("id", "=", memberId).execute();
 	return c.json({ success: true });

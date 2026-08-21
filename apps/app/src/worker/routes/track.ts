@@ -1,20 +1,9 @@
 import { Hono } from "hono";
 import type { Kysely } from "kysely";
-import type {
-	IdentifyPayload,
-	KlikapaDatabase,
-	TrackEventPayload,
-} from "@revklik/shared";
+import type { IdentifyPayload, KlikapaDatabase, TrackEventPayload } from "@revklik/shared";
 import { sql } from "../db";
-import {
-	enforceSiteQuota,
-	incrementCachedCount,
-} from "../lib/subscription-cache";
-import {
-	countryFromTimezone,
-	fingerprintFromRequest,
-	generateId,
-} from "../utils";
+import { enforceSiteQuota, incrementCachedCount } from "../lib/subscription-cache";
+import { countryFromTimezone, fingerprintFromRequest, generateId } from "../utils";
 
 type Variables = { db: Kysely<KlikapaDatabase> };
 
@@ -66,8 +55,7 @@ async function isExcludedFingerprint(
 	if (row?.excluded_fingerprints) {
 		try {
 			const v = JSON.parse(row.excluded_fingerprints);
-			if (Array.isArray(v))
-				for (const x of v) if (typeof x === "string") fps.add(x);
+			if (Array.isArray(v)) for (const x of v) if (typeof x === "string") fps.add(x);
 		} catch {
 			/* ignore malformed */
 		}
@@ -93,21 +81,18 @@ trackRoutes.post("/track", async (c) => {
 
 	// Cloudflare geo — prefer cf object for country/region/city, fall back to header
 	const cf = (c.req.raw as Request & { cf?: Record<string, unknown> }).cf;
-	let cfCountry: string | null =
-		(cf?.country as string) ?? c.req.header("cf-ipcountry") ?? null;
+	let cfCountry: string | null = (cf?.country as string) ?? c.req.header("cf-ipcountry") ?? null;
 	const cfRegion = (cf?.region as string) ?? null;
 	const cfCity = (cf?.city as string) ?? null;
 
 	// Support batch (array) or single event
 	const payloads: TrackEventPayload[] = Array.isArray(raw) ? raw : [raw];
-	if (payloads.length === 0)
-		return c.json({ error: "empty payload", success: false }, 400);
+	if (payloads.length === 0) return c.json({ error: "empty payload", success: false }, 400);
 
 	const first = payloads[0];
 	if (!first) return c.json({ error: "empty payload", success: false }, 400);
 	const siteId = first.s;
-	if (!siteId)
-		return c.json({ error: "site_id required", success: false }, 400);
+	if (!siteId) return c.json({ error: "site_id required", success: false }, 400);
 
 	const site = await db
 		.selectFrom("sites")
@@ -174,15 +159,8 @@ trackRoutes.post("/track", async (c) => {
 		seenSids.add(payload.sid);
 		const sessionInc = isNewSession ? 1 : 0;
 
-		const ts = payload.ts
-			? new Date(payload.ts).toISOString()
-			: new Date().toISOString();
-		const eventType =
-			payload.t === "p"
-				? "pageview"
-				: payload.t === "c"
-					? "conversion"
-					: "custom";
+		const ts = payload.ts ? new Date(payload.ts).toISOString() : new Date().toISOString();
+		const eventType = payload.t === "p" ? "pageview" : payload.t === "c" ? "conversion" : "custom";
 		const vid = fingerprint ? resolvedVid : payload.vid;
 
 		await db
@@ -281,8 +259,7 @@ trackRoutes.post("/track", async (c) => {
 					browser: browser ?? undefined,
 					os: os ?? undefined,
 					total_pageviews: sql`total_pageviews + ${pvInc}`,
-					total_sessions:
-						sessionInc > 0 ? sql`total_sessions + ${sessionInc}` : undefined,
+					total_sessions: sessionInc > 0 ? sql`total_sessions + ${sessionInc}` : undefined,
 					total_revenue: rvInc > 0 ? sql`total_revenue + ${rvInc}` : undefined,
 				}),
 			)
@@ -302,17 +279,11 @@ trackRoutes.post("/identify", async (c) => {
 	const payload: IdentifyPayload = await c.req.json();
 	const siteId = payload.s;
 	if (!siteId || !payload.vid)
-		return c.json(
-			{ error: "site_id and visitor_id required", success: false },
-			400,
-		);
+		return c.json({ error: "site_id and visitor_id required", success: false }, 400);
 
 	const enforcement = await enforceSiteQuota(db, siteId);
 	if (!enforcement.allowed) {
-		return c.json(
-			{ success: true, reason: enforcement.reason },
-			{ status: 202 },
-		);
+		return c.json({ success: true, reason: enforcement.reason }, { status: 202 });
 	}
 
 	const fingerprint = await fingerprintFromRequest(c.req.raw);
@@ -371,10 +342,7 @@ trackRoutes.post("/track/heatmap", async (c) => {
 
 	const enforcement = await enforceSiteQuota(db, siteId, true);
 	if (!enforcement.allowed) {
-		return c.json(
-			{ success: true, reason: enforcement.reason },
-			{ status: 202 },
-		);
+		return c.json({ success: true, reason: enforcement.reason }, { status: 202 });
 	}
 
 	const path = body.p || "/";
@@ -413,10 +381,7 @@ trackRoutes.post("/track/heatmap", async (c) => {
 			})
 			.execute();
 	} else {
-		return c.json(
-			{ error: "Invalid type, expected click or scroll", success: false },
-			400,
-		);
+		return c.json({ error: "Invalid type, expected click or scroll", success: false }, 400);
 	}
 
 	return c.json({ success: true }, { status: 202 });
@@ -437,10 +402,7 @@ trackRoutes.post("/track/recording", async (c) => {
 	if (!Array.isArray(body.chunk) || body.chunk.length === 0)
 		return c.json({ error: "chunk required", success: false }, 400);
 	if (body.chunk.length > 200)
-		return c.json(
-			{ error: "chunk too large (max 200 events)", success: false },
-			400,
-		);
+		return c.json({ error: "chunk too large (max 200 events)", success: false }, 400);
 
 	const site = await db
 		.selectFrom("sites")
@@ -451,10 +413,7 @@ trackRoutes.post("/track/recording", async (c) => {
 
 	const enforcement = await enforceSiteQuota(db, siteId, true);
 	if (!enforcement.allowed) {
-		return c.json(
-			{ success: true, reason: enforcement.reason },
-			{ status: 202 },
-		);
+		return c.json({ success: true, reason: enforcement.reason }, { status: 202 });
 	}
 
 	const path = body.p || "/";
@@ -557,12 +516,10 @@ trackRoutes.post("/track/payment", async (c) => {
 		.where("event_type", "=", "conversion")
 		.where("props", "like", `%"transaction_id":"${transaction_id}"%`)
 		.executeTakeFirst();
-	if (existing)
-		return c.json({ success: true, event_id: existing.id, duplicate: true });
+	if (existing) return c.json({ success: true, event_id: existing.id, duplicate: true });
 
 	const cf = (c.req.raw as Request & { cf?: Record<string, unknown> }).cf;
-	const cfCountry =
-		(cf?.country as string) ?? c.req.header("cf-ipcountry") ?? null;
+	const cfCountry = (cf?.country as string) ?? c.req.header("cf-ipcountry") ?? null;
 	const cfRegion = (cf?.region as string) ?? null;
 	const cfCity = (cf?.city as string) ?? null;
 
@@ -593,9 +550,7 @@ trackRoutes.post("/track/payment", async (c) => {
 	}
 
 	const sessionId = body.sid || generateId();
-	const ts = body.timestamp
-		? new Date(body.timestamp).toISOString()
-		: new Date().toISOString();
+	const ts = body.timestamp ? new Date(body.timestamp).toISOString() : new Date().toISOString();
 	const eventId = generateId();
 
 	await db

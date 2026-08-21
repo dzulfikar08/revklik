@@ -26,44 +26,28 @@ export class AnalyticsResource {
 
 	/** Get timeseries data (pageviews and visitors by date). */
 	timeseries(siteId: string, range: string): Promise<TimeSeriesPoint[]> {
-		return this.client.request<TimeSeriesPoint[]>(
-			"GET",
-			"/analytics/timeseries",
-			{
-				site_id: siteId,
-				range,
-			},
-		);
+		return this.client.request<TimeSeriesPoint[]>("GET", "/analytics/timeseries", {
+			site_id: siteId,
+			range,
+		});
 	}
 
 	/** Get top pages by pageviews. */
-	pages(
-		siteId: string,
-		range: string,
-		params?: AnalyticsListParams,
-	): Promise<TopPage[]> {
+	pages(siteId: string, range: string, params?: AnalyticsListParams): Promise<TopPage[]> {
 		const q: Record<string, string> = { site_id: siteId, range };
 		if (params?.limit) q.limit = String(params.limit);
 		return this.client.request<TopPage[]>("GET", "/analytics/pages", q);
 	}
 
 	/** Get referrer/source breakdown. */
-	referrers(
-		siteId: string,
-		range: string,
-		params?: AnalyticsListParams,
-	): Promise<SourceEntry[]> {
+	referrers(siteId: string, range: string, params?: AnalyticsListParams): Promise<SourceEntry[]> {
 		const q: Record<string, string> = { site_id: siteId, range };
 		if (params?.limit) q.limit = String(params.limit);
 		return this.client.request<SourceEntry[]>("GET", "/analytics/referrers", q);
 	}
 
 	/** Get geographic breakdown (country, region, city). */
-	geo(
-		siteId: string,
-		range: string,
-		params?: AnalyticsListParams,
-	): Promise<GeoEntry[]> {
+	geo(siteId: string, range: string, params?: AnalyticsListParams): Promise<GeoEntry[]> {
 		const q: Record<string, string> = { site_id: siteId, range };
 		if (params?.limit) q.limit = String(params.limit);
 		return this.client.request<GeoEntry[]>("GET", "/analytics/geo", q);

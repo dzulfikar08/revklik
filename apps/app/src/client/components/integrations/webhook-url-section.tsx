@@ -42,7 +42,8 @@ export function WebhookUrlSection({ provider }: { provider: string }) {
 				>
 					{url}
 				</code>
-				<button type="button"
+				<button
+					type="button"
 					className="btn-pill"
 					style={{ fontSize: 10, padding: "2px 8px", whiteSpace: "nowrap" }}
 					onClick={() => {
@@ -55,9 +56,8 @@ export function WebhookUrlSection({ provider }: { provider: string }) {
 				</button>
 			</div>
 			<div style={{ fontSize: 10, color: "var(--text4)", marginTop: 4 }}>
-				Paste this URL in your{" "}
-				{provider.charAt(0).toUpperCase() + provider.slice(1)} dashboard webhook
-				settings.
+				Paste this URL in your {provider.charAt(0).toUpperCase() + provider.slice(1)} dashboard
+				webhook settings.
 			</div>
 		</div>
 	);

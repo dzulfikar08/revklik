@@ -18,13 +18,7 @@ const typeColors: Record<InsightType, string> = {
 	revenue_prediction: "#fb923c",
 };
 
-export function AiInsightsCard({
-	siteId,
-	range,
-}: {
-	siteId: string;
-	range: string;
-}) {
+export function AiInsightsCard({ siteId, range }: { siteId: string; range: string }) {
 	const qc = useQueryClient();
 	const { data, isLoading, error } = useQuery({
 		queryKey: ["insights", siteId, range],
@@ -34,8 +28,7 @@ export function AiInsightsCard({
 
 	const refresh = useMutation({
 		mutationFn: () => refreshInsights(siteId, range),
-		onSuccess: () =>
-			qc.invalidateQueries({ queryKey: ["insights", siteId, range] }),
+		onSuccess: () => qc.invalidateQueries({ queryKey: ["insights", siteId, range] }),
 	});
 
 	if (error) return null;
@@ -78,12 +71,13 @@ export function AiInsightsCard({
 								fontFamily: "var(--mono)",
 							}}
 						>
-							{data.data_summary.total_events.toLocaleString()} events &middot;
-							${(data.data_summary.total_revenue / 100).toFixed(2)} revenue
+							{data.data_summary.total_events.toLocaleString()} events &middot; $
+							{(data.data_summary.total_revenue / 100).toFixed(2)} revenue
 						</span>
 					)}
 				</div>
-				<button type="button"
+				<button
+					type="button"
 					onClick={() => refresh.mutate()}
 					disabled={refresh.isPending}
 					style={{

@@ -78,11 +78,12 @@ export function RevenueBreakdownWidget({
 							["country", "Country"],
 							["trend", "Trend"],
 							["method", "Method"],
-						["provider", "Provider"],
-						["customers", "Customers"],
+							["provider", "Provider"],
+							["customers", "Customers"],
 						] as [RevenueTab, string][]
 					).map(([key, label]) => (
-						<button type="button"
+						<button
+							type="button"
 							key={key}
 							onClick={() => setTab(key)}
 							style={{
@@ -116,10 +117,7 @@ export function RevenueBreakdownWidget({
 				) : (
 					<div style={{ flex: 1, minHeight: 0 }}>
 						<ResponsiveContainer width="100%" height="100%">
-							<AreaChart
-								data={trend}
-								margin={{ top: 4, right: 4, left: -10, bottom: 0 }}
-							>
+							<AreaChart data={trend} margin={{ top: 4, right: 4, left: -10, bottom: 0 }}>
 								<CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
 								<XAxis
 									dataKey="date"
@@ -137,10 +135,7 @@ export function RevenueBreakdownWidget({
 										borderRadius: 8,
 										fontSize: 12,
 									}}
-								formatter={(v) => [
-									`$${Number(v ?? 0).toFixed(2)}`,
-									"Revenue",
-								]}
+									formatter={(v) => [`$${Number(v ?? 0).toFixed(2)}`, "Revenue"]}
 								/>
 								<Area
 									type="monotone"
@@ -252,7 +247,7 @@ export function RevenueBreakdownWidget({
 							</tbody>
 						</table>
 					</div>
-			)
+				)
 			) : tab === "customers" ? (
 				(() => {
 					const buyers = (journeys ?? [])
@@ -291,15 +286,9 @@ export function RevenueBreakdownWidget({
 									}}
 								>
 									<span style={{ color: "var(--text3)" }}>
-										Filtered by{" "}
-										{buyerFilter.dim === "utm_source"
-											? "source"
-											: "country"}
-										:
+										Filtered by {buyerFilter.dim === "utm_source" ? "source" : "country"}:
 									</span>
-									<span style={{ color: "var(--accent)" }}>
-										{buyerFilter.label}
-									</span>
+									<span style={{ color: "var(--accent)" }}>{buyerFilter.label}</span>
 									<button
 										type="button"
 										className="btn-pill"
@@ -311,8 +300,7 @@ export function RevenueBreakdownWidget({
 								</div>
 							)}
 							{buyers.map((j) => {
-								const name =
-									j.visitor_name || nameFromVisitorId(j.visitor_id);
+								const name = j.visitor_name || nameFromVisitorId(j.visitor_id);
 								return (
 									<button
 										type="button"
@@ -355,11 +343,7 @@ export function RevenueBreakdownWidget({
 											{name}
 										</span>
 										{j.country && (
-											<span
-												style={{ fontSize: 11, color: "var(--text3)" }}
-											>
-												{j.country}
-											</span>
+											<span style={{ fontSize: 11, color: "var(--text3)" }}>{j.country}</span>
 										)}
 										<span
 											style={{
@@ -370,9 +354,7 @@ export function RevenueBreakdownWidget({
 										>
 											${j.total_revenue.toFixed(2)}
 										</span>
-										<span
-											style={{ fontSize: 10, color: "var(--text4)" }}
-										>
+										<span style={{ fontSize: 10, color: "var(--text4)" }}>
 											{j.steps.length} steps
 										</span>
 									</button>
@@ -422,10 +404,8 @@ export function RevenueBreakdownWidget({
 										}
 										if (onCrossFilter) onCrossFilter(dim, val);
 									}}
-							>
-									<td style={{ fontSize: 13 }}>
-										{"source" in r ? r.source : r.country}
-									</td>
+								>
+									<td style={{ fontSize: 13 }}>{"source" in r ? r.source : r.country}</td>
 									<td
 										style={{
 											textAlign: "right",
@@ -481,9 +461,7 @@ export function ChannelBreakdownWidget({ data }: { data: ChannelEntry[] }) {
 						fontSize: 12,
 					}}
 				>
-					<span style={{ width: 100, color: "var(--text2)", flexShrink: 0 }}>
-						{d.channel}
-					</span>
+					<span style={{ width: 100, color: "var(--text2)", flexShrink: 0 }}>{d.channel}</span>
 					<div
 						style={{
 							flex: 1,

@@ -18,20 +18,20 @@
 
 ## 1. Competitive Positioning Summary
 
-| Dimension | RevKlik (Us) | DataFast |
-|-----------|-------------|----------|
-| **Script Size** | < 1KB | 4KB |
-| **Tracking Model** | Cookieless-first | Cookie-based (cookieless variant available) |
-| **Infrastructure** | Cloudflare Workers (edge-native) | Tinybird (managed ClickHouse) |
-| **Starting Price** | $1/month | $9/month |
-| **Founder Brand** | Indie, Indonesian market focus | Marc Lou (200K+ followers, Product Hunt Maker of the Year) |
-| **Heatmaps** | Yes (built-in) | No |
-| **Session Replay** | Yes (built-in) | No |
-| **Payment Integrations** | Polar only | Stripe, LemonSqueezy, Polar, Paddle, Shopify, WooCommerce + generic API |
-| **Mobile App** | Yes (Capacitor) | Yes (native iOS/Android, Feb 2026) |
-| **AI Features** | Llama 3.1 insights via Workers AI | Revenue predictions, AI funnel analysis |
-| **API** | Public v1 REST API + CLI | Full REST API + playground + npm package |
-| **Market** | Indonesia-first, global potential | Global, indie-hacker focused |
+| Dimension                | RevKlik (Us)                      | DataFast                                                                |
+| ------------------------ | --------------------------------- | ----------------------------------------------------------------------- |
+| **Script Size**          | < 1KB                             | 4KB                                                                     |
+| **Tracking Model**       | Cookieless-first                  | Cookie-based (cookieless variant available)                             |
+| **Infrastructure**       | Cloudflare Workers (edge-native)  | Tinybird (managed ClickHouse)                                           |
+| **Starting Price**       | $1/month                          | $9/month                                                                |
+| **Founder Brand**        | Indie, Indonesian market focus    | Marc Lou (200K+ followers, Product Hunt Maker of the Year)              |
+| **Heatmaps**             | Yes (built-in)                    | No                                                                      |
+| **Session Replay**       | Yes (built-in)                    | No                                                                      |
+| **Payment Integrations** | Polar only                        | Stripe, LemonSqueezy, Polar, Paddle, Shopify, WooCommerce + generic API |
+| **Mobile App**           | Yes (Capacitor)                   | Yes (native iOS/Android, Feb 2026)                                      |
+| **AI Features**          | Llama 3.1 insights via Workers AI | Revenue predictions, AI funnel analysis                                 |
+| **API**                  | Public v1 REST API + CLI          | Full REST API + playground + npm package                                |
+| **Market**               | Indonesia-first, global potential | Global, indie-hacker focused                                            |
 
 ### Killer Differentiator
 
@@ -45,52 +45,52 @@ DataFast explicitly lacks heatmaps and session replay, telling users to "use alo
 
 ### Priority 1: Revenue Attribution Ecosystem (Core to Our Value Prop)
 
-| Feature | Description | Effort | Impact |
-|---------|-------------|--------|--------|
-| Multi-payment provider support | Integrate Stripe, LemonSqueezy, Paddle beyond Polar | High | Critical |
-| Indonesian payment gateways | Midtrans, Xendit, DOKU integration | High | Critical (ID market) |
-| Entry Pages Revenue | Which landing pages bring traffic AND revenue | Medium | High |
-| Renewal Revenue Tracking | Track subscription renewals separately | Medium | High |
-| UTM Filtering | Filter analytics by UTM source/medium/campaign | Medium | High |
-| Channel Grouping | Auto-categorize traffic sources (Organic, Social, Email, etc.) | Medium | High |
-| Currency Conversion | Display revenue in user's preferred currency | Low | Medium |
-| Revenue Predictions (AI) | Score visitors by conversion probability | High | High |
+| Feature                        | Description                                                    | Effort | Impact               |
+| ------------------------------ | -------------------------------------------------------------- | ------ | -------------------- |
+| Multi-payment provider support | Integrate Stripe, LemonSqueezy, Paddle beyond Polar            | High   | Critical             |
+| Indonesian payment gateways    | Midtrans, Xendit, DOKU integration                             | High   | Critical (ID market) |
+| Entry Pages Revenue            | Which landing pages bring traffic AND revenue                  | Medium | High                 |
+| Renewal Revenue Tracking       | Track subscription renewals separately                         | Medium | High                 |
+| UTM Filtering                  | Filter analytics by UTM source/medium/campaign                 | Medium | High                 |
+| Channel Grouping               | Auto-categorize traffic sources (Organic, Social, Email, etc.) | Medium | High                 |
+| Currency Conversion            | Display revenue in user's preferred currency                   | Low    | Medium               |
+| Revenue Predictions (AI)       | Score visitors by conversion probability                       | High   | High                 |
 
 ### Priority 2: Dashboard & Analytics Features
 
-| Feature | Description | Effort | Impact |
-|---------|-------------|--------|--------|
-| Advanced Filters | is/is not/contains operators on any dimension | Medium | High |
-| Saved Segments | Save filter combinations as reusable segments | Medium | High |
-| Notes/Annotations | Pin annotations on analytics charts | Low | Medium |
-| Public Dashboard | Share analytics publicly via link | Low | High |
-| Email Reports | Automated summary reports to inbox | Medium | High |
-| Color Schemes | Customizable dashboard colors | Low | Low |
-| Real-time 3D Globe | Interactive globe with visitor data | High | Medium |
+| Feature            | Description                                   | Effort | Impact |
+| ------------------ | --------------------------------------------- | ------ | ------ |
+| Advanced Filters   | is/is not/contains operators on any dimension | Medium | High   |
+| Saved Segments     | Save filter combinations as reusable segments | Medium | High   |
+| Notes/Annotations  | Pin annotations on analytics charts           | Low    | Medium |
+| Public Dashboard   | Share analytics publicly via link             | Low    | High   |
+| Email Reports      | Automated summary reports to inbox            | Medium | High   |
+| Color Schemes      | Customizable dashboard colors                 | Low    | Low    |
+| Real-time 3D Globe | Interactive globe with visitor data           | High   | Medium |
 
 ### Priority 3: Integrations & Developer Ecosystem
 
-| Feature | Description | Effort | Impact |
-|---------|-------------|--------|--------|
-| Google Search Console | Keyword revenue attribution | High | High |
-| X/Twitter integration | Track tweets driving traffic/revenue | Medium | Medium |
-| GitHub integration | Commit history overlaid on charts | Medium | Medium |
-| Meta Ads ROAS | Ad spend + attributed revenue in dashboard | High | High |
-| API Playground | Interactive API testing UI | Medium | Medium |
-| npm Package | API access via npm module | Low | Medium |
-| HTML attribute tracking | `data-revklik-goal` on any element, zero JS | Low | High |
-| Scroll tracking via attributes | `data-revklik-scroll` with configurable threshold | Low | Medium |
-| Platform install guides | Webflow, WordPress, Ghost, Wix, etc. | Low | High |
+| Feature                        | Description                                       | Effort | Impact |
+| ------------------------------ | ------------------------------------------------- | ------ | ------ |
+| Google Search Console          | Keyword revenue attribution                       | High   | High   |
+| X/Twitter integration          | Track tweets driving traffic/revenue              | Medium | Medium |
+| GitHub integration             | Commit history overlaid on charts                 | Medium | Medium |
+| Meta Ads ROAS                  | Ad spend + attributed revenue in dashboard        | High   | High   |
+| API Playground                 | Interactive API testing UI                        | Medium | Medium |
+| npm Package                    | API access via npm module                         | Low    | Medium |
+| HTML attribute tracking        | `data-revklik-goal` on any element, zero JS       | Low    | High   |
+| Scroll tracking via attributes | `data-revklik-scroll` with configurable threshold | Low    | Medium |
+| Platform install guides        | Webflow, WordPress, Ghost, Wix, etc.              | Low    | High   |
 
 ### Priority 4: Business & Growth
 
-| Feature | Description | Effort | Impact |
-|---------|-------------|--------|--------|
-| Free trial (14-day) | Full feature access, no credit card | Low | High |
-| Affiliate program | Commission for referrals | Medium | High |
-| Platform-specific guides | 20+ platform installation docs | Low | Medium |
-| Proxy guides (ad blocker bypass) | 13+ platform-specific proxy guides | Low | Medium |
-| Data retention policy | 3-5 year retention tiers | Low | Medium |
+| Feature                          | Description                         | Effort | Impact |
+| -------------------------------- | ----------------------------------- | ------ | ------ |
+| Free trial (14-day)              | Full feature access, no credit card | Low    | High   |
+| Affiliate program                | Commission for referrals            | Medium | High   |
+| Platform-specific guides         | 20+ platform installation docs      | Low    | Medium |
+| Proxy guides (ad blocker bypass) | 13+ platform-specific proxy guides  | Low    | Medium |
+| Data retention policy            | 3-5 year retention tiers            | Low    | Medium |
 
 ---
 
@@ -135,29 +135,29 @@ Instead of integrating each e-wallet and bank individually, we integrate the top
 
 #### Tier 1: Must-Have (Highest Indonesian Market Coverage)
 
-| Provider | Coverage | API Quality | Webhooks | Recurring | Effort |
-|----------|----------|-------------|----------|-----------|--------|
+| Provider     | Coverage                           | API Quality                | Webhooks           | Recurring                   | Effort    |
+| ------------ | ---------------------------------- | -------------------------- | ------------------ | --------------------------- | --------- |
 | **Midtrans** | 95%+ of Indonesian payment methods | Excellent (SNAP-compliant) | Yes (configurable) | Yes (full subscription API) | 2-3 weeks |
-| **Xendit** | 90%+ of Indonesian payment methods | Excellent (versioned API) | Yes (event-based) | Yes (recurring plans API) | 2-3 weeks |
+| **Xendit**   | 90%+ of Indonesian payment methods | Excellent (versioned API)  | Yes (event-based)  | Yes (recurring plans API)   | 2-3 weeks |
 
 > **Midtrans + Xendit together cover essentially every Indonesian payment method.** Both support Bank Indonesia's SNAP standard, so the callback formats are similar.
 
 #### Tier 2: Should-Have (Additional Coverage)
 
-| Provider | Coverage | API Quality | Webhooks | Recurring | Effort |
-|----------|----------|-------------|----------|-----------|--------|
-| **DOKU** | 85%+ (oldest gateway, SNAP + non-SNAP) | Good | Yes (callbacks) | Limited | 1-2 weeks |
-| **NICEPAY** | 80%+ (strong e-wallet aggregation) | Good (SNAP) | Yes | Yes | 1-2 weeks |
-| **Flip** | Focus on VA + disbursement | Good (v2/v3) | Yes | No | 1 week |
+| Provider    | Coverage                               | API Quality  | Webhooks        | Recurring | Effort    |
+| ----------- | -------------------------------------- | ------------ | --------------- | --------- | --------- |
+| **DOKU**    | 85%+ (oldest gateway, SNAP + non-SNAP) | Good         | Yes (callbacks) | Limited   | 1-2 weeks |
+| **NICEPAY** | 80%+ (strong e-wallet aggregation)     | Good (SNAP)  | Yes             | Yes       | 1-2 weeks |
+| **Flip**    | Focus on VA + disbursement             | Good (v2/v3) | Yes             | No        | 1 week    |
 
 #### Tier 3: Direct Platform Integrations
 
-| Provider | Type | API | Effort |
-|----------|------|-----|--------|
-| **Shopee** | E-commerce marketplace | Open Platform API | 2-3 weeks |
-| **Tokopedia/TikTok Shop** | E-commerce marketplace | Developer API | 2-3 weeks |
-| **WooCommerce ID** | E-commerce platform (~27K stores in ID) | WooCommerce REST API | 1-2 weeks |
-| **QRIS Direct** | Universal QR payment | Via aggregators | Included in Tier 1 |
+| Provider                  | Type                                    | API                  | Effort             |
+| ------------------------- | --------------------------------------- | -------------------- | ------------------ |
+| **Shopee**                | E-commerce marketplace                  | Open Platform API    | 2-3 weeks          |
+| **Tokopedia/TikTok Shop** | E-commerce marketplace                  | Developer API        | 2-3 weeks          |
+| **WooCommerce ID**        | E-commerce platform (~27K stores in ID) | WooCommerce REST API | 1-2 weeks          |
+| **QRIS Direct**           | Universal QR payment                    | Via aggregators      | Included in Tier 1 |
 
 ### 4.3 Implementation Details
 
@@ -199,35 +199,35 @@ Revenue attribution:
 ```html
 <!-- User adds this alongside RevKlik tracking script -->
 <script>
-  // Midtrans: pass analytics session into custom fields
-  snap.pay(token, {
-    custom_field1: revklik.getSessionId(),
-    custom_field2: revklik.getUtmSource(),
-    custom_field3: revklik.getUtmCampaign()
-  });
+	// Midtrans: pass analytics session into custom fields
+	snap.pay(token, {
+		custom_field1: revklik.getSessionId(),
+		custom_field2: revklik.getUtmSource(),
+		custom_field3: revklik.getUtmCampaign(),
+	});
 
-  // Xendit: pass metadata into invoice
-  xendit.createInvoice({
-    metadata: {
-      revklik_session: revklik.getSessionId(),
-      revklik_utm_source: revklik.getUtmSource()
-    }
-  });
+	// Xendit: pass metadata into invoice
+	xendit.createInvoice({
+		metadata: {
+			revklik_session: revklik.getSessionId(),
+			revklik_utm_source: revklik.getUtmSource(),
+		},
+	});
 </script>
 ```
 
 ### 4.4 What This Unlocks for Indonesian Users
 
-| Feature | Value |
-|---------|-------|
-| **Revenue by payment method** | "70% of revenue comes via GoPay, 20% QRIS, 10% VA" |
-| **Revenue by e-wallet** | Compare GoPay vs OVO vs ShopeePay revenue |
-| **Revenue by bank** | "BCA VA drives 60% of bank transfer revenue" |
-| **QRIS performance** | Track QR code payment revenue across all wallets |
-| **BNPL revenue** | Track Kredivo/Akulaku installment revenue |
-| **Subscription revenue** | Track recurring Midtrans/Xendit subscriptions |
-| **Marketplace revenue** | Revenue from Shopee/Tokopedia orders |
-| **Indonesian Rupiah (IDR) native** | All revenue in IDR, with USD conversion option |
+| Feature                            | Value                                              |
+| ---------------------------------- | -------------------------------------------------- |
+| **Revenue by payment method**      | "70% of revenue comes via GoPay, 20% QRIS, 10% VA" |
+| **Revenue by e-wallet**            | Compare GoPay vs OVO vs ShopeePay revenue          |
+| **Revenue by bank**                | "BCA VA drives 60% of bank transfer revenue"       |
+| **QRIS performance**               | Track QR code payment revenue across all wallets   |
+| **BNPL revenue**                   | Track Kredivo/Akulaku installment revenue          |
+| **Subscription revenue**           | Track recurring Midtrans/Xendit subscriptions      |
+| **Marketplace revenue**            | Revenue from Shopee/Tokopedia orders               |
+| **Indonesian Rupiah (IDR) native** | All revenue in IDR, with USD conversion option     |
 
 ---
 

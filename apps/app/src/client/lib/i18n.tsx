@@ -28,8 +28,7 @@ const translations: Record<Lang, Record<string, string>> = {
 		"sites.add": "Tambah Website",
 		"sites.domain": "Domain",
 		"sites.name": "Nama",
-		"sites.empty":
-			"Belum ada website. Tambahkan domain Anda untuk mulai melacak.",
+		"sites.empty": "Belum ada website. Tambahkan domain Anda untuk mulai melacak.",
 		"sites.visitors": "pengunjung",
 		"sites.pageviews": "pageview",
 		"sites.revenue": "revenue",
@@ -40,8 +39,7 @@ const translations: Record<Lang, Record<string, string>> = {
 		"sites.last_7d": "7 hari terakhir",
 		"sites.tracked": "website dilacak · 7 hari terakhir",
 		"sites.waiting": "Menunggu pengunjung",
-		"sites.script_hint":
-			"Tambahkan script tag ini ke website Anda untuk mulai mengumpulkan data",
+		"sites.script_hint": "Tambahkan script tag ini ke website Anda untuk mulai mengumpulkan data",
 		"sites.select_site": "Pilih website dari header",
 
 		// Dashboard metrics
@@ -177,8 +175,7 @@ const translations: Record<Lang, Record<string, string>> = {
 		"sites.last_7d": "Last 7 days",
 		"sites.tracked": "sites tracked · Last 7 days",
 		"sites.waiting": "Waiting for visitors",
-		"sites.script_hint":
-			"Add this script tag to your website to start collecting data",
+		"sites.script_hint": "Add this script tag to your website to start collecting data",
 		"sites.select_site": "Select a site from the header",
 		"metric.views": "Views",
 		"metric.visitors": "Visitors",
@@ -244,8 +241,7 @@ const translations: Record<Lang, Record<string, string>> = {
 		"integrations.disconnect": "Disconnect",
 		"integrations.test_success": "Connection successful!",
 		"integrations.test_failed": "Connection failed",
-		"integrations.subtitle":
-			"Connect your marketing tools to sync visitor and conversion data",
+		"integrations.subtitle": "Connect your marketing tools to sync visitor and conversion data",
 		"integrations.disabled": "Disabled",
 		"integrations.connect": "Connect",
 		"integrations.no_events": "No events yet",
@@ -264,9 +260,7 @@ const translations: Record<Lang, Record<string, string>> = {
 };
 
 let currentLang: Lang =
-	(typeof localStorage !== "undefined" &&
-		(localStorage.getItem("kp_lang") as Lang)) ||
-	"en";
+	(typeof localStorage !== "undefined" && (localStorage.getItem("kp_lang") as Lang)) || "en";
 
 export function getLang(): Lang {
 	return currentLang;

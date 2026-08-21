@@ -30,8 +30,7 @@ export function MetricCard({
 }) {
 	const pct = change?.changePct ?? null;
 	const showDelta = !loading && change !== undefined && pct !== null;
-	const deltaGood =
-		pct === null || pct === 0 ? null : invertChange ? pct < 0 : pct > 0;
+	const deltaGood = pct === null || pct === 0 ? null : invertChange ? pct < 0 : pct > 0;
 	return (
 		<div className="metric-card">
 			<span className="metric-label">{label}</span>
@@ -60,11 +59,7 @@ export function MetricCard({
 								fontSize: 11,
 								fontFamily: "var(--mono)",
 								color:
-									deltaGood === null
-										? "var(--text3)"
-										: deltaGood
-											? "var(--green)"
-											: "var(--red)",
+									deltaGood === null ? "var(--text3)" : deltaGood ? "var(--green)" : "var(--red)",
 							}}
 						>
 							{pct > 0 ? "▲" : pct < 0 ? "▼" : "–"} {Math.abs(pct)}%
@@ -144,26 +139,17 @@ export function ChartCard({
 			});
 		}
 	}
-	const chartData = [...baseMap.values()].sort((a, b) =>
-		a.date < b.date ? -1 : 1,
-	);
+	const chartData = [...baseMap.values()].sort((a, b) => (a.date < b.date ? -1 : 1));
 
 	return (
 		<div className="chart-wrap">
 			<div className="chart-label">{t("chart.pageviews_visitors")}</div>
 			<div style={{ height: 180 }}>
 				<ResponsiveContainer width="100%" height="100%">
-					<ComposedChart
-						data={chartData}
-						margin={{ top: 4, right: 4, bottom: 0, left: -4 }}
-					>
+					<ComposedChart data={chartData} margin={{ top: 4, right: 4, bottom: 0, left: -4 }}>
 						<defs>
 							<linearGradient id="gpv" x1="0" y1="0" x2="0" y2="1">
-								<stop
-									offset="0%"
-									stopColor="var(--accent)"
-									stopOpacity={0.18}
-								/>
+								<stop offset="0%" stopColor="var(--accent)" stopOpacity={0.18} />
 								<stop offset="100%" stopColor="var(--accent)" stopOpacity={0} />
 							</linearGradient>
 							<linearGradient id="gvs" x1="0" y1="0" x2="0" y2="1">
@@ -248,9 +234,7 @@ export function ChartCard({
 											}}
 										>
 											<span>Visitors</span>
-											<span style={{ fontFamily: "var(--mono)" }}>
-												{vis.toLocaleString()}
-											</span>
+											<span style={{ fontFamily: "var(--mono)" }}>{vis.toLocaleString()}</span>
 										</div>
 										<div
 											style={{
@@ -297,9 +281,7 @@ export function ChartCard({
 													}}
 												>
 													<span>Conversions</span>
-													<span style={{ fontFamily: "var(--mono)" }}>
-														{conv}
-													</span>
+													<span style={{ fontFamily: "var(--mono)" }}>{conv}</span>
 												</div>
 												<div
 													style={{
@@ -309,9 +291,7 @@ export function ChartCard({
 													}}
 												>
 													<span>Rev/visitor</span>
-													<span style={{ fontFamily: "var(--mono)" }}>
-														${revPerVis.toFixed(2)}
-													</span>
+													<span style={{ fontFamily: "var(--mono)" }}>${revPerVis.toFixed(2)}</span>
 												</div>
 												<div
 													style={{
@@ -321,9 +301,7 @@ export function ChartCard({
 													}}
 												>
 													<span>Conv. rate</span>
-													<span style={{ fontFamily: "var(--mono)" }}>
-														{convRate.toFixed(2)}%
-													</span>
+													<span style={{ fontFamily: "var(--mono)" }}>{convRate.toFixed(2)}%</span>
 												</div>
 											</>
 										)}

@@ -109,7 +109,8 @@ export function DeviceIcon({ device }: { device: string }) {
 				strokeWidth="2"
 				strokeLinecap="round"
 				strokeLinejoin="round"
-			 aria-hidden="true">
+				aria-hidden="true"
+			>
 				<rect x="4" y="2" width="16" height="20" rx="2" ry="2" />
 				<line x1="12" y1="18" x2="12.01" y2="18" />
 			</svg>
@@ -124,7 +125,8 @@ export function DeviceIcon({ device }: { device: string }) {
 			strokeWidth="2"
 			strokeLinecap="round"
 			strokeLinejoin="round"
-		 aria-hidden="true">
+			aria-hidden="true"
+		>
 			<rect x="2" y="3" width="20" height="14" rx="2" ry="2" />
 			<line x1="8" y1="21" x2="16" y2="21" />
 			<line x1="12" y1="17" x2="12" y2="21" />
@@ -189,7 +191,8 @@ export function OSIcon({ os }: { os: string }) {
 			strokeWidth="2"
 			strokeLinecap="round"
 			strokeLinejoin="round"
-		 aria-hidden="true">
+			aria-hidden="true"
+		>
 			<rect x="2" y="3" width="20" height="14" rx="2" ry="2" />
 			<line x1="8" y1="21" x2="16" y2="21" />
 			<line x1="12" y1="17" x2="12" y2="21" />
@@ -243,7 +246,8 @@ export function BrowserIcon({ browser }: { browser: string }) {
 			fill="none"
 			stroke="currentColor"
 			strokeWidth="2"
-		 aria-hidden="true">
+			aria-hidden="true"
+		>
 			<circle cx="12" cy="12" r="10" />
 			<line x1="2" y1="12" x2="22" y2="12" />
 			<path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10A15.3 15.3 0 0 1 12 2z" />

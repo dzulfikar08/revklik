@@ -20,10 +20,7 @@ export function requireScope(scope: string) {
 		if (tokenSiteId) {
 			const requestedSiteId = c.req.query("site_id") || c.req.param("siteId");
 			if (requestedSiteId && requestedSiteId !== tokenSiteId) {
-				return c.json(
-					{ error: "Token not valid for this site", success: false },
-					403,
-				);
+				return c.json({ error: "Token not valid for this site", success: false }, 403);
 			}
 		}
 

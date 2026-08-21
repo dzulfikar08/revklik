@@ -19,10 +19,8 @@ export function MarketplaceOrdersSection({
 	const [syncing, setSyncing] = useState(false);
 	const queryClient = useQueryClient();
 
-	const fetchOrders =
-		provider === "shopee" ? fetchShopeeOrders : fetchTokopediaOrders;
-	const syncOrders =
-		provider === "shopee" ? syncShopeeOrders : syncTokopediaOrders;
+	const fetchOrders = provider === "shopee" ? fetchShopeeOrders : fetchTokopediaOrders;
+	const syncOrders = provider === "shopee" ? syncShopeeOrders : syncTokopediaOrders;
 
 	const { data: orders, isLoading } = useQuery({
 		queryKey: ["marketplace-orders", provider, siteId],
@@ -48,7 +46,8 @@ export function MarketplaceOrdersSection({
 	return (
 		<div style={{ margin: "0 22px 16px" }}>
 			<div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
-				<button type="button"
+				<button
+					type="button"
 					className="btn-pill"
 					style={{ fontSize: 12, padding: "6px 14px" }}
 					onClick={handleSync}
@@ -56,7 +55,8 @@ export function MarketplaceOrdersSection({
 				>
 					{syncing ? "Syncing..." : "Sync Orders"}
 				</button>
-				<button type="button"
+				<button
+					type="button"
 					className="btn-pill"
 					style={{ fontSize: 12, padding: "6px 14px" }}
 					onClick={() => setExpanded(!expanded)}
@@ -96,9 +96,7 @@ export function MarketplaceOrdersSection({
 								<tbody>
 									{(orders ?? []).slice(0, 20).map((o) => (
 										<tr key={o.id}>
-											<td style={{ fontFamily: "var(--mono)", fontSize: 11 }}>
-												{o.order_sn}
-											</td>
+											<td style={{ fontFamily: "var(--mono)", fontSize: 11 }}>{o.order_sn}</td>
 											<td style={{ fontFamily: "var(--mono)", fontSize: 11 }}>
 												{Number(o.amount).toLocaleString("id-ID", {
 													style: "currency",
@@ -115,15 +113,13 @@ export function MarketplaceOrdersSection({
 														background:
 															o.status === "completed" || o.status === "SHIPPED"
 																? "var(--green-dim)"
-																: o.status === "cancelled" ||
-																		o.status === "CANCELLED"
+																: o.status === "cancelled" || o.status === "CANCELLED"
 																	? "var(--crit-dim)"
 																	: "var(--accent-dim)",
 														color:
 															o.status === "completed" || o.status === "SHIPPED"
 																? "var(--green)"
-																: o.status === "cancelled" ||
-																		o.status === "CANCELLED"
+																: o.status === "cancelled" || o.status === "CANCELLED"
 																	? "var(--crit)"
 																	: "var(--accent)",
 													}}

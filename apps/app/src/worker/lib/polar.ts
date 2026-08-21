@@ -64,19 +64,15 @@ export async function processPolarOrder(
 	const isRefund = order.status === "refunded";
 	const amount = isRefund ? 0 : (order.total_amount ?? 0) / 100;
 	const country =
-		order.customer?.billing_address?.country ??
-		order.billing_address?.country ??
-		null;
+		order.customer?.billing_address?.country ?? order.billing_address?.country ?? null;
 	const customerEmail = order.customer?.email ?? null;
 	const customerName = order.customer?.name ?? order.billing_name ?? null;
 	const ts = order.created_at ?? new Date().toISOString();
 	const productName = order.product?.name ?? null;
 	const billingReason = order.billing_reason ?? "purchase";
-	const isRecurring = [
-		"subscription_create",
-		"subscription_cycle",
-		"subscription_update",
-	].includes(billingReason);
+	const isRecurring = ["subscription_create", "subscription_cycle", "subscription_update"].includes(
+		billingReason,
+	);
 
 	await db
 		.insertInto("events")

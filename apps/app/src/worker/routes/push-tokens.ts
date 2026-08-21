@@ -16,17 +16,11 @@ pushTokenRoutes.post("/", async (c) => {
 	}>();
 
 	if (!device_token || !platform) {
-		return c.json(
-			{ error: "device_token and platform required", success: false },
-			400,
-		);
+		return c.json({ error: "device_token and platform required", success: false }, 400);
 	}
 
 	// Upsert: remove old token if exists, insert new
-	await db
-		.deleteFrom("push_tokens")
-		.where("device_token", "=", device_token)
-		.execute();
+	await db.deleteFrom("push_tokens").where("device_token", "=", device_token).execute();
 	await db
 		.insertInto("push_tokens")
 		.values({

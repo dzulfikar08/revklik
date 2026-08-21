@@ -5,11 +5,7 @@ import * as React from "react";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import { Input } from "@/components/ui/input";
-import {
-	Popover,
-	PopoverContent,
-	PopoverTrigger,
-} from "@/components/ui/popover";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 
 interface DateTimePickerProps {
 	value: string; // ISO string like "2025-05-13T09:30"
@@ -29,10 +25,7 @@ export function DateTimePicker({
 		<div className="flex items-center gap-1">
 			<Popover open={open} onOpenChange={setOpen}>
 				<PopoverTrigger asChild>
-					<Button
-						variant="outline"
-						className="w-[130px] justify-between font-normal text-xs h-8"
-					>
+					<Button variant="outline" className="w-[130px] justify-between font-normal text-xs h-8">
 						{date ? format(date, "MMM d, yyyy") : placeholder}
 						<ChevronDownIcon className="size-3.5 opacity-50" />
 					</Button>
@@ -58,9 +51,7 @@ export function DateTimePicker({
 				step="60"
 				value={value ? value.slice(11, 16) : "00:00"}
 				onChange={(e) => {
-					const d = value
-						? value.slice(0, 10)
-						: format(new Date(), "yyyy-MM-dd");
+					const d = value ? value.slice(0, 10) : format(new Date(), "yyyy-MM-dd");
 					onChange(`${d}T${e.target.value}`);
 				}}
 				className="w-[90px] h-8 text-xs appearance-none bg-background [&::-webkit-calendar-picker-indicator]:hidden [&::-webkit-calendar-picker-indicator]:appearance-none"

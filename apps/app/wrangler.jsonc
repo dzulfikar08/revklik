@@ -13,24 +13,24 @@
 		// Only /api/* invokes the worker: klikapa-*.js tracker scripts are
 		// high-volume static fetches from customer sites and must be served
 		// directly by the assets runtime.
-		"run_worker_first": ["/api/*"]
+		"run_worker_first": ["/api/*"],
 	},
 	"d1_databases": [
 		{
 			"binding": "DB",
 			"database_name": "klikapa-db",
-			"database_id": "06842ad9-7e94-49db-a207-7a58683092d7"
-		}
+			"database_id": "06842ad9-7e94-49db-a207-7a58683092d7",
+		},
 	],
 	"send_email": [
 		{
-			"name": "EMAIL"
-		}
+			"name": "EMAIL",
+		},
 	],
 	"ai": {
-		"binding": "AI"
+		"binding": "AI",
 	},
 	"triggers": {
-		"crons": ["0 */6 * * *", "0 5 * * *"]
-	}
+		"crons": ["0 */6 * * *", "0 5 * * *"],
+	},
 }

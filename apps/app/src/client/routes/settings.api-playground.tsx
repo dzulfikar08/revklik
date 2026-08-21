@@ -261,20 +261,17 @@ function APIPlaygroundPage() {
 								borderRadius: 0,
 								padding: "8px 12px",
 								cursor: "pointer",
-								background:
-									selectedIdx === idx ? "var(--accent-dim)" : "transparent",
+								background: selectedIdx === idx ? "var(--accent-dim)" : "transparent",
 								transition: "background 0.15s ease",
 							}}
 							onMouseEnter={(e) => {
 								if (selectedIdx !== idx) {
-									(e.currentTarget as HTMLButtonElement).style.background =
-										"var(--bg3)";
+									(e.currentTarget as HTMLButtonElement).style.background = "var(--bg3)";
 								}
 							}}
 							onMouseLeave={(e) => {
 								if (selectedIdx !== idx) {
-									(e.currentTarget as HTMLButtonElement).style.background =
-										"transparent";
+									(e.currentTarget as HTMLButtonElement).style.background = "transparent";
 								}
 							}}
 						>
@@ -300,11 +297,7 @@ function APIPlaygroundPage() {
 									{ep.path}
 								</span>
 							</div>
-							<div
-								style={{ fontSize: 11, color: "var(--text3)", paddingLeft: 2 }}
-							>
-								{ep.desc}
-							</div>
+							<div style={{ fontSize: 11, color: "var(--text3)", paddingLeft: 2 }}>{ep.desc}</div>
 						</button>
 					))}
 				</div>
@@ -407,8 +400,7 @@ function APIPlaygroundPage() {
 								)}
 
 								{/* Request body for POST/DELETE */}
-								{(selected.method === "POST" ||
-									selected.method === "DELETE") && (
+								{(selected.method === "POST" || selected.method === "DELETE") && (
 									<div style={{ marginBottom: 12 }}>
 										<label
 											htmlFor="request-body"
@@ -465,10 +457,7 @@ function APIPlaygroundPage() {
 									>
 										{loading ? (
 											<>
-												<span
-													className="spinner"
-													style={{ width: 14, height: 14 }}
-												/>
+												<span className="spinner" style={{ width: 14, height: 14 }} />
 												Sending...
 											</>
 										) : (
@@ -478,9 +467,7 @@ function APIPlaygroundPage() {
 
 									{/* Status + timing */}
 									{status !== null && (
-										<div
-											style={{ display: "flex", alignItems: "center", gap: 12 }}
-										>
+										<div style={{ display: "flex", alignItems: "center", gap: 12 }}>
 											<span
 												style={{
 													fontFamily: "var(--mono)",
@@ -516,9 +503,7 @@ function APIPlaygroundPage() {
 							</div>
 
 							{/* Response viewer */}
-							<div
-								style={{ flex: 1, overflow: "hidden", padding: "16px 24px" }}
-							>
+							<div style={{ flex: 1, overflow: "hidden", padding: "16px 24px" }}>
 								{response !== null ? (
 									<pre
 										style={{

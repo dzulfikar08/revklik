@@ -39,11 +39,7 @@ export function FilterBar({
 	const handleRemove = (rule: Filter) => {
 		const updated = rules.filter(
 			(r) =>
-				!(
-					r.dimension === rule.dimension &&
-					r.operator === rule.operator &&
-					r.value === rule.value
-				),
+				!(r.dimension === rule.dimension && r.operator === rule.operator && r.value === rule.value),
 		);
 		onFiltersChange(encodeFilterString(updated));
 	};
@@ -74,13 +70,12 @@ export function FilterBar({
 					color: "var(--text3)",
 				}}
 			>
-				{rules.length > 0
-					? `${rules.length} filter${rules.length > 1 ? "s" : ""}`
-					: "Filter"}
+				{rules.length > 0 ? `${rules.length} filter${rules.length > 1 ? "s" : ""}` : "Filter"}
 			</span>
 
 			{rules.map((r) => (
-				<button type="button"
+				<button
+					type="button"
 					key={`${r.dimension}:${r.operator}:${r.value}`}
 					className="btn-pill"
 					style={{
@@ -100,7 +95,8 @@ export function FilterBar({
 			))}
 
 			{rules.length > 0 && (
-				<button type="button"
+				<button
+					type="button"
 					className="btn-pill"
 					style={{ fontSize: 10, padding: "3px 8px", color: "var(--text3)" }}
 					onClick={handleClear}
@@ -118,7 +114,8 @@ export function FilterBar({
 				}}
 			>
 				{!showBuilder ? (
-					<button type="button"
+					<button
+						type="button"
 						className="btn-pill"
 						style={{ fontSize: 11, padding: "4px 10px", color: "var(--text2)" }}
 						onClick={() => setShowBuilder(true)}
@@ -127,22 +124,14 @@ export function FilterBar({
 					</button>
 				) : (
 					<div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-						<select
-							value={newDim}
-							onChange={(e) => setNewDim(e.target.value)}
-							style={selectStyle}
-						>
+						<select value={newDim} onChange={(e) => setNewDim(e.target.value)} style={selectStyle}>
 							{FILTER_DIMENSIONS.map((d) => (
 								<option key={d.value} value={d.value}>
 									{d.label}
 								</option>
 							))}
 						</select>
-						<select
-							value={newOp}
-							onChange={(e) => setNewOp(e.target.value)}
-							style={selectStyle}
-						>
+						<select value={newOp} onChange={(e) => setNewOp(e.target.value)} style={selectStyle}>
 							{FILTER_OPERATORS.map((o) => (
 								<option key={o.value} value={o.value}>
 									{o.label}
@@ -158,7 +147,8 @@ export function FilterBar({
 								onKeyDown={(e) => e.key === "Enter" && handleAdd()}
 							/>
 						)}
-						<button type="button"
+						<button
+							type="button"
 							className="btn-accent"
 							style={{ fontSize: 11, padding: "4px 10px" }}
 							onClick={handleAdd}
@@ -166,7 +156,8 @@ export function FilterBar({
 						>
 							Apply
 						</button>
-						<button type="button"
+						<button
+							type="button"
 							className="btn-pill"
 							style={{
 								fontSize: 11,

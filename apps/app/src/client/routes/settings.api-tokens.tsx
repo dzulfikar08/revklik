@@ -3,12 +3,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { PageHeader } from "@/components/page-header";
 import { toast } from "@/components/toast";
-import {
-	createApiToken,
-	fetchSites,
-	fetchTokens,
-	revokeApiToken,
-} from "@/lib/api";
+import { createApiToken, fetchSites, fetchTokens, revokeApiToken } from "@/lib/api";
 
 const SCOPES = {
 	SITES_READ: "sites:read",
@@ -94,9 +89,7 @@ function CreateTokenModal({ onClose }: { onClose: () => void }) {
 
 	const handleTypeChange = (newType: "account" | "site") => {
 		setType(newType);
-		setScopes(
-			newType === "account" ? DEFAULT_ACCOUNT_SCOPES : DEFAULT_SITE_SCOPES,
-		);
+		setScopes(newType === "account" ? DEFAULT_ACCOUNT_SCOPES : DEFAULT_SITE_SCOPES);
 	};
 
 	const toggleScope = (scope: string) => {
@@ -164,7 +157,7 @@ function CreateTokenModal({ onClose }: { onClose: () => void }) {
 					<div
 						style={{
 							fontFamily: "var(--sans)",
-							
+
 							fontSize: 20,
 							color: "var(--text)",
 						}}
@@ -323,10 +316,8 @@ function CreateTokenModal({ onClose }: { onClose: () => void }) {
 										borderRadius: 10,
 										cursor: "pointer",
 										border: `1px solid ${type === "account" ? "var(--accent)" : "var(--border)"}`,
-										background:
-											type === "account" ? "var(--accent-dim)" : "var(--bg)",
-										color:
-											type === "account" ? "var(--accent)" : "var(--text2)",
+										background: type === "account" ? "var(--accent-dim)" : "var(--bg)",
+										color: type === "account" ? "var(--accent)" : "var(--text2)",
 										fontFamily: "var(--sans)",
 										fontSize: 13,
 										textAlign: "left",
@@ -352,8 +343,7 @@ function CreateTokenModal({ onClose }: { onClose: () => void }) {
 										borderRadius: 10,
 										cursor: "pointer",
 										border: `1px solid ${type === "site" ? "var(--accent)" : "var(--border)"}`,
-										background:
-											type === "site" ? "var(--accent-dim)" : "var(--bg)",
+										background: type === "site" ? "var(--accent-dim)" : "var(--bg)",
 										color: type === "site" ? "var(--accent)" : "var(--text2)",
 										fontFamily: "var(--sans)",
 										fontSize: 13,
@@ -440,9 +430,7 @@ function CreateTokenModal({ onClose }: { onClose: () => void }) {
 											padding: "8px 12px",
 											borderRadius: 8,
 											cursor: "pointer",
-											background: scopes.includes(scope.key)
-												? "var(--accent-dim)"
-												: "transparent",
+											background: scopes.includes(scope.key) ? "var(--accent-dim)" : "transparent",
 											border: `1px solid ${scopes.includes(scope.key) ? "rgba(99,102,241,.2)" : "var(--border)"}`,
 											transition: "all 0.15s ease",
 										}}
@@ -464,9 +452,7 @@ function CreateTokenModal({ onClose }: { onClose: () => void }) {
 											>
 												{scope.label}
 											</div>
-											<div style={{ fontSize: 11, color: "var(--text3)" }}>
-												{scope.desc}
-											</div>
+											<div style={{ fontSize: 11, color: "var(--text3)" }}>{scope.desc}</div>
 										</div>
 									</label>
 								))}
@@ -479,18 +465,10 @@ function CreateTokenModal({ onClose }: { onClose: () => void }) {
 								type="button"
 								className="btn-accent"
 								onClick={() => createMut.mutate()}
-								disabled={
-									createMut.isPending ||
-									!name ||
-									(type === "site" && !selectedSiteId)
-								}
+								disabled={createMut.isPending || !name || (type === "site" && !selectedSiteId)}
 								style={{
 									opacity:
-										createMut.isPending ||
-										!name ||
-										(type === "site" && !selectedSiteId)
-											? 0.6
-											: 1,
+										createMut.isPending || !name || (type === "site" && !selectedSiteId) ? 0.6 : 1,
 									fontSize: 13,
 									padding: "8px 18px",
 								}}
@@ -513,17 +491,10 @@ function CreateTokenModal({ onClose }: { onClose: () => void }) {
 	);
 }
 
-function TokenRow({
-	token,
-	onRevoke,
-}: {
-	token: TokenInfo;
-	onRevoke: (id: string) => void;
-}) {
+function TokenRow({ token, onRevoke }: { token: TokenInfo; onRevoke: (id: string) => void }) {
 	const [confirming, setConfirming] = useState(false);
 	const typeColor = token.type === "account" ? "var(--accent)" : "var(--green)";
-	const typeBg =
-		token.type === "account" ? "var(--accent-dim)" : "var(--green-dim)";
+	const typeBg = token.type === "account" ? "var(--accent-dim)" : "var(--green-dim)";
 
 	return (
 		<div
@@ -548,7 +519,7 @@ function TokenRow({
 					<span
 						style={{
 							fontFamily: "var(--sans)",
-							
+
 							fontSize: 16,
 							color: "var(--text)",
 						}}
@@ -584,9 +555,7 @@ function TokenRow({
 						{token.prefix}...
 					</span>
 				</div>
-				<div
-					style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 4 }}
-				>
+				<div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 4 }}>
 					{token.scopes.map((scope) => (
 						<span
 							key={scope}
@@ -751,9 +720,7 @@ function ApiTokensPage() {
 				{/* Token list */}
 				<div style={{ padding: "0 24px", maxWidth: 900 }}>
 					{isLoading ? (
-						<div
-							style={{ display: "flex", justifyContent: "center", padding: 80 }}
-						>
+						<div style={{ display: "flex", justifyContent: "center", padding: 80 }}>
 							<div className="spinner" />
 						</div>
 					) : tokenList.length === 0 ? (
@@ -766,13 +733,11 @@ function ApiTokensPage() {
 								border: "1px solid var(--border)",
 							}}
 						>
-							<div style={{ fontSize: 40, marginBottom: 12, opacity: 0.3 }}>
-								&#123;&#125;
-							</div>
+							<div style={{ fontSize: 40, marginBottom: 12, opacity: 0.3 }}>&#123;&#125;</div>
 							<div
 								style={{
 									fontFamily: "var(--sans)",
-									
+
 									fontSize: 18,
 									color: "var(--text2)",
 									marginBottom: 8,
@@ -808,11 +773,7 @@ function ApiTokensPage() {
 							}}
 						>
 							{tokenList.map((token) => (
-								<TokenRow
-									key={token.id}
-									token={token}
-									onRevoke={(id) => revokeMut.mutate(id)}
-								/>
+								<TokenRow key={token.id} token={token} onRevoke={(id) => revokeMut.mutate(id)} />
 							))}
 						</div>
 					)}
@@ -831,7 +792,7 @@ function ApiTokensPage() {
 						<div
 							style={{
 								fontFamily: "var(--sans)",
-								
+
 								fontSize: 18,
 								color: "var(--text)",
 								marginBottom: 16,
@@ -872,9 +833,7 @@ function ApiTokensPage() {
 									<button
 										type="button"
 										onClick={() => {
-											navigator.clipboard.writeText(
-												"npm install -g @revklik/cli",
-											);
+											navigator.clipboard.writeText("npm install -g @revklik/cli");
 											toast("Copied", "success");
 										}}
 										style={{

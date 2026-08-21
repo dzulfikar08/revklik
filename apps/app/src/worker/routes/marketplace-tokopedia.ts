@@ -33,8 +33,7 @@ tokopediaRoutes.use("/sync/*", async (c, next) => {
 		return c.json({ error: "Unauthorized", success: false }, 401);
 	const token = authHeader.slice(7);
 	const db = c.get("db");
-	if (!db)
-		return c.json({ error: "Database unavailable", success: false }, 503);
+	if (!db) return c.json({ error: "Database unavailable", success: false }, 503);
 	const keyHash = await hashToken(token);
 	const apiKey = await db
 		.selectFrom("api_keys")
@@ -52,8 +51,7 @@ tokopediaRoutes.use("/orders/*", async (c, next) => {
 		return c.json({ error: "Unauthorized", success: false }, 401);
 	const token = authHeader.slice(7);
 	const db = c.get("db");
-	if (!db)
-		return c.json({ error: "Database unavailable", success: false }, 503);
+	if (!db) return c.json({ error: "Database unavailable", success: false }, 503);
 	const keyHash = await hashToken(token);
 	const apiKey = await db
 		.selectFrom("api_keys")
@@ -66,11 +64,7 @@ tokopediaRoutes.use("/orders/*", async (c, next) => {
 });
 
 /** Validate user owns the site */
-async function validateSite(
-	db: Kysely<KlikapaDatabase>,
-	userId: string,
-	siteId: string,
-) {
+async function validateSite(db: Kysely<KlikapaDatabase>, userId: string, siteId: string) {
 	return db
 		.selectFrom("sites")
 		.select(["id", "domain"])
@@ -94,8 +88,7 @@ async function validateSite(
 // GET /auth - Start Tokopedia OAuth flow
 tokopediaRoutes.get("/auth", async (c) => {
 	const siteId = c.req.query("site_id");
-	if (!siteId)
-		return c.json({ error: "site_id required", success: false }, 400);
+	if (!siteId) return c.json({ error: "site_id required", success: false }, 400);
 
 	const clientId = c.env.TOKOPEDIA_CLIENT_ID || "";
 	const redirectUri = `${new URL(c.req.url).origin}/api/marketplace/tokopedia/callback`;
@@ -109,9 +102,7 @@ tokopediaRoutes.get("/auth", async (c) => {
 		state,
 	});
 
-	return c.redirect(
-		`https://accounts.tokopedia.com/oauth/authorize?${params.toString()}`,
-	);
+	return c.redirect(`https://accounts.tokopedia.com/oauth/authorize?${params.toString()}`);
 });
 
 // GET /callback - Handle Tokopedia OAuth callback
@@ -121,8 +112,7 @@ tokopediaRoutes.get("/callback", async (c) => {
 
 	const code = c.req.query("code");
 	const stateStr = c.req.query("state");
-	if (!code || !stateStr)
-		return c.json({ error: "Missing code or state", success: false }, 400);
+	if (!code || !stateStr) return c.json({ error: "Missing code or state", success: false }, 400);
 
 	let state: { site_id: string; nonce: string };
 	try {
@@ -130,8 +120,7 @@ tokopediaRoutes.get("/callback", async (c) => {
 	} catch {
 		return c.json({ error: "Invalid state parameter", success: false }, 400);
 	}
-	if (!state.site_id)
-		return c.json({ error: "Missing site_id in state", success: false }, 400);
+	if (!state.site_id) return c.json({ error: "Missing site_id in state", success: false }, 400);
 
 	const clientId = c.env.TOKOPEDIA_CLIENT_ID || "";
 	const clientSecret = c.env.TOKOPEDIA_CLIENT_SECRET || "";
@@ -169,27 +158,18 @@ tokopediaRoutes.get("/callback", async (c) => {
 			error_description?: string;
 		};
 	} catch {
-		return c.json(
-			{ error: "Tokopedia token exchange failed", success: false },
-			500,
-		);
+		return c.json({ error: "Tokopedia token exchange failed", success: false }, 500);
 	}
 
 	if (tokenRes.error) {
-		return c.json(
-			{ error: tokenRes.error_description || tokenRes.error, success: false },
-			400,
-		);
+		return c.json({ error: tokenRes.error_description || tokenRes.error, success: false }, 400);
 	}
 
 	const accessToken = tokenRes.access_token as string;
 	const refreshToken = tokenRes.refresh_token as string | undefined;
 
 	if (!accessToken) {
-		return c.json(
-			{ error: "No access token received from Tokopedia", success: false },
-			400,
-		);
+		return c.json({ error: "No access token received from Tokopedia", success: false }, 400);
 	}
 
 	// Store as integration
@@ -197,9 +177,7 @@ tokopediaRoutes.get("/callback", async (c) => {
 	const config = JSON.stringify({
 		access_token: accessToken,
 		refresh_token: refreshToken || "",
-		expire_time: tokenRes.expires_in
-			? Date.now() + tokenRes.expires_in * 1000
-			: null,
+		expire_time: tokenRes.expires_in ? Date.now() + tokenRes.expires_in * 1000 : null,
 		shop_id: tokenRes.shop_id || null,
 	});
 
@@ -245,8 +223,7 @@ tokopediaRoutes.post("/sync", async (c) => {
 	if (!db) return c.json({ error: "DB unavailable", success: false }, 503);
 
 	const siteId = c.req.query("site_id");
-	if (!siteId)
-		return c.json({ error: "site_id required", success: false }, 400);
+	if (!siteId) return c.json({ error: "site_id required", success: false }, 400);
 
 	const site = await validateSite(db, userId, siteId);
 	if (!site) return c.json({ error: "Site not found", success: false }, 404);
@@ -282,9 +259,7 @@ tokopediaRoutes.post("/sync", async (c) => {
 	}
 
 	// Fetch orders from Tokopedia API using Bearer token auth
-	const fromTime = new Date(Date.now() - 15 * 86400000)
-		.toISOString()
-		.split("T")[0];
+	const fromTime = new Date(Date.now() - 15 * 86400000).toISOString().split("T")[0];
 	const toTime = new Date().toISOString().split("T")[0];
 
 	let orderRes: {
@@ -315,17 +290,11 @@ tokopediaRoutes.post("/sync", async (c) => {
 				| TokopediaOrderListItem[];
 		};
 	} catch {
-		return c.json(
-			{ error: "Failed to fetch orders from Tokopedia API", success: false },
-			502,
-		);
+		return c.json({ error: "Failed to fetch orders from Tokopedia API", success: false }, 502);
 	}
 
 	if (!orderRes.data) {
-		return c.json(
-			{ error: orderRes.error_msg || "Tokopedia API error", success: false },
-			502,
-		);
+		return c.json({ error: orderRes.error_msg || "Tokopedia API error", success: false }, 502);
 	}
 
 	const dataField = orderRes.data;
@@ -353,8 +322,7 @@ tokopediaRoutes.post("/sync", async (c) => {
 
 		const amount = Number(order.payment?.amount || order.total_price || 0);
 		const status = order.order_status || order.status || "pending";
-		const orderedAt =
-			order.create_time || order.created_at || new Date().toISOString();
+		const orderedAt = order.create_time || order.created_at || new Date().toISOString();
 		const buyerInfo = JSON.stringify({
 			name: order.buyer?.name || order.buyer_name || null,
 			email: order.buyer?.email || null,
@@ -393,9 +361,7 @@ tokopediaRoutes.post("/sync", async (c) => {
 					buyer_info: buyerInfo,
 					items,
 					ordered_at:
-						typeof orderedAt === "number"
-							? new Date(orderedAt * 1000).toISOString()
-							: orderedAt,
+						typeof orderedAt === "number" ? new Date(orderedAt * 1000).toISOString() : orderedAt,
 					synced_at: new Date().toISOString(),
 				})
 				.execute();
@@ -423,8 +389,7 @@ tokopediaRoutes.get("/orders", async (c) => {
 	if (!db) return c.json({ error: "DB unavailable", success: false }, 503);
 
 	const siteId = c.req.query("site_id");
-	if (!siteId)
-		return c.json({ error: "site_id required", success: false }, 400);
+	if (!siteId) return c.json({ error: "site_id required", success: false }, 400);
 
 	const site = await validateSite(db, userId, siteId);
 	if (!site) return c.json({ error: "Site not found", success: false }, 404);

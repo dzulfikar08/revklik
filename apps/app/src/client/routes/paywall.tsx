@@ -58,8 +58,7 @@ function PaywallPage() {
 	if (isLoading) return <div className="spinner" />;
 
 	const currentPlan = subscription?.plan;
-	const isActive =
-		subscription?.status === "active" || subscription?.status === "trialing";
+	const isActive = subscription?.status === "active" || subscription?.status === "trialing";
 	const isTrial = subscription?.status === "trialing";
 	const trialDays = subscription?.trial_days_remaining;
 
@@ -73,10 +72,7 @@ function PaywallPage() {
 			}}
 		>
 			<div className="overview-scroll">
-				<PageHeader
-					title="Choose a Plan"
-					subtitle="Select a plan to get started with RevKlik"
-				/>
+				<PageHeader title="Choose a Plan" subtitle="Select a plan to get started with RevKlik" />
 
 				{isTrial && trialDays !== null && trialDays !== undefined && (
 					<div
@@ -110,7 +106,8 @@ function PaywallPage() {
 								fill="none"
 								stroke="#34d399"
 								strokeWidth="2"
-							 aria-hidden="true">
+								aria-hidden="true"
+							>
 								<circle cx="12" cy="12" r="10" />
 								<path d="M12 6v6l4 2" />
 							</svg>
@@ -199,16 +196,14 @@ function PaywallPage() {
 										<span
 											style={{
 												fontFamily: "var(--sans)",
-												
+
 												fontSize: 36,
 												color: "var(--text)",
 											}}
 										>
 											${plan.price}
 										</span>
-										<span style={{ fontSize: 12, color: "var(--text3)" }}>
-											/mo
-										</span>
+										<span style={{ fontSize: 12, color: "var(--text3)" }}>/mo</span>
 									</div>
 									<div
 										style={{
@@ -241,16 +236,15 @@ function PaywallPage() {
 													alignItems: "center",
 												}}
 											>
-												<span style={{ color: "var(--accent)", fontSize: 10 }}>
-													&#10003;
-												</span>
+												<span style={{ color: "var(--accent)", fontSize: 10 }}>&#10003;</span>
 												{f}
 											</li>
 										))}
 									</ul>
 
 									{isCurrent ? (
-										<button type="button"
+										<button
+											type="button"
 											disabled
 											style={{
 												width: "100%",
@@ -274,7 +268,8 @@ function PaywallPage() {
 												gap: 8,
 											}}
 										>
-											<button type="button"
+											<button
+												type="button"
 												className={meta.popular ? "btn-accent" : ""}
 												onClick={() => checkoutMut.mutate(plan.tier)}
 												disabled={checkoutMut.isPending}
@@ -301,7 +296,8 @@ function PaywallPage() {
 														? "Upgrade"
 														: "Pay with Card"}
 											</button>
-											<button type="button"
+											<button
+												type="button"
 												onClick={() => pakasirMut.mutate(plan.tier)}
 												disabled={pakasirMut.isPending}
 												style={{
@@ -327,7 +323,8 @@ function PaywallPage() {
 					</div>
 
 					<div style={{ textAlign: "center", marginBottom: 24 }}>
-						<button type="button"
+						<button
+							type="button"
 							className="btn-pill"
 							style={{ fontSize: 11, padding: "4px 10px" }}
 							onClick={() => {

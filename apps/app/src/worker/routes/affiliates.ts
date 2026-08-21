@@ -19,10 +19,7 @@ function generateReferralCode(): string {
 	return code;
 }
 
-async function getOrCreateAffiliate(
-	db: Kysely<KlikapaDatabase>,
-	userId: string,
-) {
+async function getOrCreateAffiliate(db: Kysely<KlikapaDatabase>, userId: string) {
 	let affiliate = await db
 		.selectFrom("affiliates")
 		.selectAll()
@@ -62,8 +59,7 @@ affiliateRoutes.get("/me", async (c) => {
 	if (!db) return c.json({ error: "DB unavailable", success: false }, 503);
 
 	const affiliate = await getOrCreateAffiliate(db, userId);
-	if (!affiliate)
-		return c.json({ error: "Affiliate not found", success: false }, 404);
+	if (!affiliate) return c.json({ error: "Affiliate not found", success: false }, 404);
 	return c.json({
 		data: {
 			id: affiliate.id,
@@ -84,8 +80,7 @@ affiliateRoutes.post("/generate-code", async (c) => {
 	if (!db) return c.json({ error: "DB unavailable", success: false }, 503);
 
 	const affiliate = await getOrCreateAffiliate(db, userId);
-	if (!affiliate)
-		return c.json({ error: "Affiliate not found", success: false }, 404);
+	if (!affiliate) return c.json({ error: "Affiliate not found", success: false }, 404);
 	const newCode = generateReferralCode();
 
 	await db
@@ -107,8 +102,7 @@ affiliateRoutes.get("/referrals", async (c) => {
 	if (!db) return c.json({ error: "DB unavailable", success: false }, 503);
 
 	const affiliate = await getOrCreateAffiliate(db, userId);
-	if (!affiliate)
-		return c.json({ error: "Affiliate not found", success: false }, 404);
+	if (!affiliate) return c.json({ error: "Affiliate not found", success: false }, 404);
 
 	const referrals = await db
 		.selectFrom("referrals")
@@ -149,8 +143,7 @@ affiliateRoutes.get("/stats", async (c) => {
 	if (!db) return c.json({ error: "DB unavailable", success: false }, 503);
 
 	const affiliate = await getOrCreateAffiliate(db, userId);
-	if (!affiliate)
-		return c.json({ error: "Affiliate not found", success: false }, 404);
+	if (!affiliate) return c.json({ error: "Affiliate not found", success: false }, 404);
 
 	const [totalResult, pendingResult, breakdown] = await Promise.all([
 		db
@@ -160,9 +153,7 @@ affiliateRoutes.get("/stats", async (c) => {
 			.executeTakeFirst(),
 		db
 			.selectFrom("referrals")
-			.select(({ fn }) => [
-				fn.sum<number>("commission_amount").as("pending_commissions"),
-			])
+			.select(({ fn }) => [fn.sum<number>("commission_amount").as("pending_commissions")])
 			.where("affiliate_id", "=", affiliate.id)
 			.where("status", "=", "pending")
 			.executeTakeFirst(),

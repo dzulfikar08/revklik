@@ -58,11 +58,7 @@ billingRoutes.get("/subscription", async (c) => {
 		db
 			.selectFrom("events")
 			.select(({ fn }) => fn.count<number>("id").as("cnt"))
-			.where(
-				"site_id",
-				"in",
-				db.selectFrom("sites").select("id").where("user_id", "=", userId),
-			)
+			.where("site_id", "in", db.selectFrom("sites").select("id").where("user_id", "=", userId))
 			.where("timestamp", ">=", monthStartIso)
 			.executeTakeFirst(),
 		db
@@ -138,10 +134,7 @@ billingRoutes.get("/plans", async (c) => {
 	if (polarToken) {
 		try {
 			const now = Date.now();
-			if (
-				!polarProductsCache ||
-				now - polarProductsCache.cachedAt > POLAR_PRODUCTS_TTL
-			) {
+			if (!polarProductsCache || now - polarProductsCache.cachedAt > POLAR_PRODUCTS_TTL) {
 				const products = await fetch(
 					`${POLAR_API}/products/?organization_id=${c.env.POLAR_ORG_ID || ""}`,
 					{
@@ -150,14 +143,15 @@ billingRoutes.get("/plans", async (c) => {
 				)
 					.then((r) => r.json())
 					.catch(() => ({}) as Record<string, unknown>);
-				polarProductsCache = { data: products as { items?: Array<{ name?: string; checkout_url?: string }> }, cachedAt: now };
+				polarProductsCache = {
+					data: products as { items?: Array<{ name?: string; checkout_url?: string }> },
+					cachedAt: now,
+				};
 			}
 			const products = polarProductsCache?.data;
 			if (products && Array.isArray(products.items)) {
 				for (const plan of plans) {
-					const product = products.items.find((p) =>
-						p.name?.toLowerCase().includes(plan.tier),
-					);
+					const product = products.items.find((p) => p.name?.toLowerCase().includes(plan.tier));
 					if (product?.checkout_url) {
 						plan.checkout_url = product.checkout_url;
 					}
@@ -238,7 +232,10 @@ billingRoutes.post("/checkout", async (c) => {
 		return c.json({ data: { url: session.url }, success: true });
 	} catch (err) {
 		return c.json(
-			{ error: err instanceof Error ? err.message : String(err) || "Checkout creation failed", success: false },
+			{
+				error: err instanceof Error ? err.message : String(err) || "Checkout creation failed",
+				success: false,
+			},
 			500,
 		);
 	}
@@ -321,21 +318,15 @@ billingRoutes.post("/cancel", async (c) => {
 		.where("user_id", "=", userId)
 		.executeTakeFirst();
 	if (!sub?.polar_subscription_id) {
-		return c.json(
-			{ error: "No active paid subscription", success: false },
-			404,
-		);
+		return c.json({ error: "No active paid subscription", success: false }, 404);
 	}
 
 	if (polarToken) {
 		try {
-			await fetch(
-				`${POLAR_API}/subscriptions/${sub.polar_subscription_id}/cancel`,
-				{
-					method: "POST",
-					headers: { Authorization: `Bearer ${polarToken}` },
-				},
-			);
+			await fetch(`${POLAR_API}/subscriptions/${sub.polar_subscription_id}/cancel`, {
+				method: "POST",
+				headers: { Authorization: `Bearer ${polarToken}` },
+			});
 		} catch {
 			/* Polar API error */
 		}

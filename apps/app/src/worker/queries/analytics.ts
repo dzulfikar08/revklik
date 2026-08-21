@@ -44,25 +44,14 @@ const sourceSql = sql<string>`COALESCE(utm_source,
  * Generate continuous bucket keys (UTC) between start and end so charts can
  * render empty days/hours as 0 instead of dropping them.
  */
-function bucketKeys(
-	startIso: string,
-	endIso: string | undefined,
-	isHourly: boolean,
-): string[] {
+function bucketKeys(startIso: string, endIso: string | undefined, isHourly: boolean): string[] {
 	const stepMs = isHourly ? 3_600_000 : 86_400_000;
 	const startMs = new Date(startIso).getTime();
-	const endMs = Math.min(
-		endIso ? new Date(endIso).getTime() : Date.now(),
-		Date.now(),
-	);
+	const endMs = Math.min(endIso ? new Date(endIso).getTime() : Date.now(), Date.now());
 	const keys: string[] = [];
 	for (let t = startMs; t < endMs; t += stepMs) {
 		const d = new Date(t);
-		keys.push(
-			isHourly
-				? `${d.toISOString().slice(0, 13)}:00:00`
-				: d.toISOString().slice(0, 10),
-		);
+		keys.push(isHourly ? `${d.toISOString().slice(0, 13)}:00:00` : d.toISOString().slice(0, 10));
 	}
 	return keys;
 }
@@ -77,16 +66,10 @@ export async function getOverviewStats(
 	let eventQ = db
 		.selectFrom("events")
 		.select([
-			sql<number>`COUNT(CASE WHEN event_type = 'pageview' THEN 1 END)`.as(
-				"pageviews",
-			),
+			sql<number>`COUNT(CASE WHEN event_type = 'pageview' THEN 1 END)`.as("pageviews"),
 			({ fn }) => fn.count<number>("visitor_id").distinct().as("visitors"),
-			sql<number>`COALESCE(SUM(CASE WHEN revenue > 0 THEN revenue END), 0)`.as(
-				"revenue",
-			),
-			sql<number>`COUNT(CASE WHEN event_type = 'conversion' THEN 1 END)`.as(
-				"conversions",
-			),
+			sql<number>`COALESCE(SUM(CASE WHEN revenue > 0 THEN revenue END), 0)`.as("revenue"),
+			sql<number>`COUNT(CASE WHEN event_type = 'conversion' THEN 1 END)`.as("conversions"),
 		])
 		.where("site_id", "=", siteId)
 		.where("timestamp", ">=", startIso);
@@ -148,10 +131,7 @@ export async function getTimeseries(
 		.where("timestamp", ">=", startIso);
 	if (endIso) q = q.where("timestamp", "<", endIso);
 
-	const tsRows = await applyFilters(q, filters)
-		.groupBy(tsGroup)
-		.orderBy("date", "asc")
-		.execute();
+	const tsRows = await applyFilters(q, filters).groupBy(tsGroup).orderBy("date", "asc").execute();
 
 	const byKey = new Map(tsRows.map((r) => [String(r.date ?? ""), r]));
 	return bucketKeys(startIso, endIso, isHourly).map((key) => {
@@ -221,15 +201,11 @@ export async function getReferrers(
 		.limit(limit)
 		.execute();
 
-	const totalSrc = sourceRows.reduce(
-		(s: number, r) => s + Number(r.visitors),
-		0,
-	);
+	const totalSrc = sourceRows.reduce((s: number, r) => s + Number(r.visitors), 0);
 	return sourceRows.map((r) => ({
 		source: String(r.source),
 		visitors: Number(r.visitors),
-		percentage:
-			totalSrc > 0 ? Math.round((Number(r.visitors) / totalSrc) * 100) : 0,
+		percentage: totalSrc > 0 ? Math.round((Number(r.visitors) / totalSrc) * 100) : 0,
 	}));
 }
 
@@ -263,11 +239,7 @@ export async function getDeviceBreakdown(
 			.orderBy("visitors", "desc")
 			.limit(10)
 			.execute(),
-		applyFilters(base("os"), filters)
-			.groupBy("os")
-			.orderBy("visitors", "desc")
-			.limit(10)
-			.execute(),
+		applyFilters(base("os"), filters).groupBy("os").orderBy("visitors", "desc").limit(10).execute(),
 		applyFilters(base("browser"), filters)
 			.groupBy("browser")
 			.orderBy("visitors", "desc")
@@ -280,8 +252,7 @@ export async function getDeviceBreakdown(
 		return rows.map((r) => ({
 			device: String(r.device),
 			visitors: Number(r.visitors),
-			percentage:
-				total > 0 ? Math.round((Number(r.visitors) / total) * 100) : 0,
+			percentage: total > 0 ? Math.round((Number(r.visitors) / total) * 100) : 0,
 		}));
 	};
 
@@ -410,10 +381,7 @@ export async function getRevenueTimeseries(
 		.where("timestamp", ">=", startIso);
 	if (endIso) q = q.where("timestamp", "<", endIso);
 
-	const rows = await applyFilters(q, filters)
-		.groupBy(tsGroup)
-		.orderBy("date", "asc")
-		.execute();
+	const rows = await applyFilters(q, filters).groupBy(tsGroup).orderBy("date", "asc").execute();
 
 	const byKey = new Map(rows.map((r) => [String(r.date ?? ""), r]));
 	return bucketKeys(startIso, endIso, isHourly).map((key) => {
@@ -562,9 +530,7 @@ export async function getChannelBreakdown(
 			channelExpr.as("channel"),
 			({ fn }) => fn.count<number>("visitor_id").distinct().as("visitors"),
 			({ fn }) => fn.count<number>("id").as("pageviews"),
-			sql<number>`COALESCE(SUM(CASE WHEN revenue > 0 THEN revenue END), 0)`.as(
-				"revenue",
-			),
+			sql<number>`COALESCE(SUM(CASE WHEN revenue > 0 THEN revenue END), 0)`.as("revenue"),
 		])
 		.where("site_id", "=", siteId)
 		.where("timestamp", ">=", startIso);

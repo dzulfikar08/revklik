@@ -33,8 +33,7 @@ function LoginPage() {
 	};
 
 	const apiBase =
-		import.meta.env.VITE_API_BASE ||
-		(import.meta.env.DEV ? "http://localhost:3000/api" : "/api");
+		import.meta.env.VITE_API_BASE || (import.meta.env.DEV ? "http://localhost:3000/api" : "/api");
 	const googleAuthUrl = `${apiBase}/auth/google`;
 
 	return (
@@ -60,7 +59,7 @@ function LoginPage() {
 					<h1
 						style={{
 							fontFamily: "var(--sans)",
-							
+
 							fontWeight: 600,
 							fontSize: 28,
 							color: "var(--text)",
@@ -69,9 +68,7 @@ function LoginPage() {
 					>
 						{t("auth.welcome_back")}
 					</h1>
-					<p style={{ fontSize: 14, color: "var(--text3)" }}>
-						{t("auth.signin_subtitle")}
-					</p>
+					<p style={{ fontSize: 14, color: "var(--text3)" }}>{t("auth.signin_subtitle")}</p>
 					<a
 						href="/demo"
 						style={{
@@ -149,10 +146,7 @@ function LoginPage() {
 					<div style={{ flex: 1, height: 1, background: "var(--border)" }} />
 				</div>
 
-				<form
-					onSubmit={handleSubmit}
-					style={{ display: "flex", flexDirection: "column", gap: 16 }}
-				>
+				<form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: 16 }}>
 					{error && (
 						<div
 							style={{

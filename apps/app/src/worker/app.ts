@@ -47,8 +47,7 @@ const authMiddleware = createMiddleware<Env>(async (c, next) => {
 
 	const token = authHeader.slice(7);
 	const db = c.get("db");
-	if (!db)
-		return c.json({ error: "Database unavailable", success: false }, 503);
+	if (!db) return c.json({ error: "Database unavailable", success: false }, 503);
 
 	const keyHash = await hashToken(token);
 	const apiKey = await db
@@ -65,15 +64,13 @@ const authMiddleware = createMiddleware<Env>(async (c, next) => {
 const adminMiddleware = createMiddleware<Env>(async (c, next) => {
 	const userId = c.get("userId");
 	const db = c.get("db");
-	if (!db)
-		return c.json({ error: "Database unavailable", success: false }, 503);
+	if (!db) return c.json({ error: "Database unavailable", success: false }, 503);
 	const user = await db
 		.selectFrom("users")
 		.select(["role"])
 		.where("id", "=", userId)
 		.executeTakeFirst();
-	if (user?.role !== "super_admin")
-		return c.json({ error: "Forbidden", success: false }, 403);
+	if (user?.role !== "super_admin") return c.json({ error: "Forbidden", success: false }, 403);
 	await next();
 });
 
@@ -81,9 +78,7 @@ export function createApp(): Hono<Env> {
 	const app = new Hono<Env>().basePath("/api");
 	app.use(cors());
 
-	app.get("/", (c) =>
-		c.json({ message: "klikapa", version: "0.7.0", success: true }),
-	);
+	app.get("/", (c) => c.json({ message: "klikapa", version: "0.7.0", success: true }));
 	app.get("/health", (c) => c.json({ status: "ok", success: true }));
 	app.route("/docs", docsRoutes);
 
@@ -168,10 +163,7 @@ export function createApp(): Hono<Env> {
 		}
 
 		const base = new URL(c.req.url).origin;
-		return c.redirect(
-			isFull ? `${base}/klikapa-full.js` : `${base}/klikapa-core.js`,
-			302,
-		);
+		return c.redirect(isFull ? `${base}/klikapa-full.js` : `${base}/klikapa-core.js`, 302);
 	});
 
 	// Billing webhook (no auth — Polar calls this)
@@ -228,8 +220,7 @@ export function createApp(): Hono<Env> {
 			.where("share_token", "=", token)
 			.where("public_dashboard", "=", 1)
 			.executeTakeFirst();
-		if (!site)
-			return c.json({ error: "Dashboard not found", success: false }, 404);
+		if (!site) return c.json({ error: "Dashboard not found", success: false }, 404);
 
 		const { getDateRange } = await import("./utils");
 		const range = c.req.query("range") || "7d";

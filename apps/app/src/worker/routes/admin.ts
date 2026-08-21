@@ -87,11 +87,7 @@ adminRoutes.patch("/users/:id", async (c) => {
 			.execute();
 	}
 	if (Object.keys(updates).length > 0) {
-		await db
-			.updateTable("users")
-			.set(updates)
-			.where("id", "=", targetId)
-			.execute();
+		await db.updateTable("users").set(updates).where("id", "=", targetId).execute();
 	}
 	return c.json({ success: true });
 });

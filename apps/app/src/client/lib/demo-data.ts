@@ -1,8 +1,7 @@
 import type { SiteDashboard } from "@revklik/shared";
 
 const d = new Date();
-const fmt = (ago: number) =>
-	new Date(d.getTime() - ago * 86400000).toISOString().slice(0, 10);
+const fmt = (ago: number) => new Date(d.getTime() - ago * 86400000).toISOString().slice(0, 10);
 
 export const DEMO_DASHBOARD: SiteDashboard = {
 	stats: {

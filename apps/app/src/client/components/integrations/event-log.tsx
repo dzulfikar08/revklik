@@ -46,9 +46,7 @@ export function EventLogTable({ integrationId }: { integrationId: string }) {
 				<tbody>
 					{rows.map((e) => (
 						<tr key={e.id}>
-							<td style={{ fontFamily: "var(--mono)", fontSize: 11 }}>
-								{e.event_type}
-							</td>
+							<td style={{ fontFamily: "var(--mono)", fontSize: 11 }}>{e.event_type}</td>
 							<td>{e.direction}</td>
 							<td>
 								<span

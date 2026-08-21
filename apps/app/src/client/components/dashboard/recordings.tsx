@@ -145,9 +145,7 @@ export function RecordingPanel({
 	const [speed, setSpeed] = useState(1);
 	const totalMs =
 		recording.duration ||
-		(recording.events.length > 0
-			? recording.events[recording.events.length - 1]?.t
-			: 0);
+		(recording.events.length > 0 ? recording.events[recording.events.length - 1]?.t : 0);
 	const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
 	useEffect(() => {
@@ -282,9 +280,7 @@ export function RecordingPanel({
 					borderBottom: "1px solid var(--border)",
 				}}
 			>
-				<span
-					style={{ fontSize: 13, fontWeight: 600, fontFamily: "var(--sans)" }}
-				>
+				<span style={{ fontSize: 13, fontWeight: 600, fontFamily: "var(--sans)" }}>
 					Session Recording
 				</span>
 				<span style={{ flex: 1 }} />
@@ -431,13 +427,10 @@ export function RecordingPanel({
 					/>
 					{/* Event markers */}
 					{recording.events
-						.filter(
-							(_, i) =>
-								i % Math.max(1, Math.floor(recording.events.length / 40)) === 0,
-						)
+						.filter((_, i) => i % Math.max(1, Math.floor(recording.events.length / 40)) === 0)
 						.map((ev) => (
 							<div
-							key={ev.t}
+								key={ev.t}
 								style={{
 									position: "absolute",
 									left: totalMs > 0 ? `${(ev.t / totalMs) * 100}%` : "0%",
@@ -476,7 +469,7 @@ export function RecordingPanel({
 				<div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
 					{visibleEvents.map((ev, i) => (
 						<div
-						key={`${ev.t}-${i}`}
+							key={`${ev.t}-${i}`}
 							style={{
 								display: "flex",
 								alignItems: "center",

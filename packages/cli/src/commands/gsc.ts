@@ -7,8 +7,7 @@ export const gscCommand = new Command("gsc").description(
 	"Google Search Console — search query performance",
 );
 
-const siteOption = (cmd: Command) =>
-	cmd.requiredOption("-s, --site <site>", "Site ID or domain");
+const siteOption = (cmd: Command) => cmd.requiredOption("-s, --site <site>", "Site ID or domain");
 
 // revklik gsc queries — top search queries by clicks (aggregated across the stored 30d window)
 const queries = gscCommand
@@ -30,12 +29,8 @@ queries
 
 			if (rows.length === 0) {
 				console.log(chalk.yellow("\nNo Search Console data for this site."));
-				console.log(
-					chalk.gray("  Either GSC is not connected, or no sync has run."),
-				);
-				console.log(
-					chalk.gray("  Connect it at: https://app.revklik.com/integrations"),
-				);
+				console.log(chalk.gray("  Either GSC is not connected, or no sync has run."));
+				console.log(chalk.gray("  Connect it at: https://app.revklik.com/integrations"));
 				console.log(chalk.gray("  Then run: revklik gsc sync --site <site>\n"));
 				return;
 			}
@@ -87,8 +82,7 @@ queries
 			const totalClicks = qs.reduce((s, q) => s + q.clicks, 0);
 			const totalImpressions = qs.reduce((s, q) => s + q.impressions, 0);
 			const avgPosition = qs.length
-				? qs.reduce((s, q) => s + q.position * q.impressions, 0) /
-					Math.max(totalImpressions, 1)
+				? qs.reduce((s, q) => s + q.position * q.impressions, 0) / Math.max(totalImpressions, 1)
 				: 0;
 
 			console.log(chalk.bold(`\nGoogle Search Console — ${siteId}`));
@@ -127,19 +121,13 @@ sync.action(async (opts: { site: string }) => {
 		const siteId = await resolveSite(opts.site);
 		const result = await syncGsc(siteId);
 		console.log(
-			chalk.green(
-				`\nSynced ${formatNumber(result.synced)} search-analytics rows for ${siteId}.`,
-			),
+			chalk.green(`\nSynced ${formatNumber(result.synced)} search-analytics rows for ${siteId}.`),
 		);
-		console.log(
-			chalk.gray("  GSC data has a ~2-day delay; run queries again to view.\n"),
-		);
+		console.log(chalk.gray("  GSC data has a ~2-day delay; run queries again to view.\n"));
 	} catch (err) {
 		console.error(chalk.red(err instanceof Error ? err.message : String(err)));
 		console.error(
-			chalk.gray(
-				"  If GSC is not connected, authorize at: https://app.revklik.com/integrations",
-			),
+			chalk.gray("  If GSC is not connected, authorize at: https://app.revklik.com/integrations"),
 		);
 		process.exit(1);
 	}

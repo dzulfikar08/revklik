@@ -25,13 +25,7 @@ import { t } from "@/lib/i18n";
 
 export const Route = createFileRoute("/settings")({ component: SettingsPage });
 
-function Section({
-	title,
-	children,
-}: {
-	title: string;
-	children: React.ReactNode;
-}) {
+function Section({ title, children }: { title: string; children: React.ReactNode }) {
 	return (
 		<div
 			style={{
@@ -45,7 +39,7 @@ function Section({
 			<h3
 				style={{
 					fontFamily: "var(--sans)",
-					
+
 					fontSize: 18,
 					color: "var(--text)",
 					marginBottom: 16,
@@ -72,10 +66,7 @@ function SegmentsSection() {
 	const [val, setVal] = useState("");
 
 	const createMut = useMutation({
-		mutationFn: () =>
-			createSegment(siteId, name, [
-				{ dimension: dim, operator: op, value: val },
-			]),
+		mutationFn: () => createSegment(siteId, name, [{ dimension: dim, operator: op, value: val }]),
 		onSuccess: () => {
 			qc.invalidateQueries({ queryKey: ["segments", siteId] });
 			setName("");
@@ -91,20 +82,14 @@ function SegmentsSection() {
 
 	return (
 		<div>
-			<div
-				style={{ display: "flex", gap: 8, marginBottom: 12, flexWrap: "wrap" }}
-			>
+			<div style={{ display: "flex", gap: 8, marginBottom: 12, flexWrap: "wrap" }}>
 				<input
 					value={name}
 					onChange={(e) => setName(e.target.value)}
 					placeholder="Segment name"
 					style={{ flex: 1, minWidth: 120 }}
 				/>
-				<select
-					value={dim}
-					onChange={(e) => setDim(e.target.value)}
-					style={{ fontSize: 12 }}
-				>
+				<select value={dim} onChange={(e) => setDim(e.target.value)} style={{ fontSize: 12 }}>
 					{[
 						"country",
 						"device_type",
@@ -121,11 +106,7 @@ function SegmentsSection() {
 						</option>
 					))}
 				</select>
-				<select
-					value={op}
-					onChange={(e) => setOp(e.target.value)}
-					style={{ fontSize: 12 }}
-				>
+				<select value={op} onChange={(e) => setOp(e.target.value)} style={{ fontSize: 12 }}>
 					<option value="is">is</option>
 					<option value="is_not">is not</option>
 					<option value="contains">contains</option>
@@ -136,7 +117,8 @@ function SegmentsSection() {
 					placeholder="Value"
 					style={{ width: 120 }}
 				/>
-				<button type="button"
+				<button
+					type="button"
 					className="btn-accent"
 					style={{ fontSize: 12, padding: "6px 14px" }}
 					onClick={() => createMut.mutate()}
@@ -175,12 +157,11 @@ function SegmentsSection() {
 												color: "var(--text3)",
 											}}
 										>
-											{filters
-												.map((f) => `${f.dimension} ${f.operator} ${f.value}`)
-												.join(", ")}
+											{filters.map((f) => `${f.dimension} ${f.operator} ${f.value}`).join(", ")}
 										</td>
 										<td>
-											<button type="button"
+											<button
+												type="button"
 												className="btn-pill"
 												style={{
 													fontSize: 11,
@@ -200,9 +181,7 @@ function SegmentsSection() {
 					</table>
 				</div>
 			) : (
-				<div style={{ color: "var(--text3)", fontSize: 12 }}>
-					No saved segments yet
-				</div>
+				<div style={{ color: "var(--text3)", fontSize: 12 }}>No saved segments yet</div>
 			)}
 		</div>
 	);
@@ -228,8 +207,7 @@ function AnnotationsSection() {
 	});
 	const deleteMut = useMutation({
 		mutationFn: (id: string) => deleteAnnotation(id),
-		onSuccess: () =>
-			qc.invalidateQueries({ queryKey: ["annotations", siteId] }),
+		onSuccess: () => qc.invalidateQueries({ queryKey: ["annotations", siteId] }),
 	});
 
 	if (isLoading) return <div className="spinner" />;
@@ -249,7 +227,8 @@ function AnnotationsSection() {
 					placeholder="Annotation text (e.g. Launch v2)"
 					style={{ flex: 1 }}
 				/>
-				<button type="button"
+				<button
+					type="button"
 					className="btn-accent"
 					style={{ fontSize: 12, padding: "6px 14px" }}
 					onClick={() => createMut.mutate()}
@@ -271,12 +250,11 @@ function AnnotationsSection() {
 						<tbody>
 							{annotations.map((a) => (
 								<tr key={a.id}>
-									<td style={{ fontFamily: "var(--mono)", fontSize: 12 }}>
-										{a.date}
-									</td>
+									<td style={{ fontFamily: "var(--mono)", fontSize: 12 }}>{a.date}</td>
 									<td style={{ fontSize: 13 }}>{a.text}</td>
 									<td>
-										<button type="button"
+										<button
+											type="button"
 											className="btn-pill"
 											style={{
 												fontSize: 11,
@@ -295,9 +273,7 @@ function AnnotationsSection() {
 					</table>
 				</div>
 			) : (
-				<div style={{ color: "var(--text3)", fontSize: 12 }}>
-					No annotations yet
-				</div>
+				<div style={{ color: "var(--text3)", fontSize: 12 }}>No annotations yet</div>
 			)}
 		</div>
 	);
@@ -315,19 +291,16 @@ function EmailReportsSection() {
 
 	const createMut = useMutation({
 		mutationFn: () => createEmailReport(siteId, freq),
-		onSuccess: () =>
-			qc.invalidateQueries({ queryKey: ["email-reports", siteId] }),
+		onSuccess: () => qc.invalidateQueries({ queryKey: ["email-reports", siteId] }),
 	});
 	const deleteMut = useMutation({
 		mutationFn: (id: string) => deleteEmailReport(id),
-		onSuccess: () =>
-			qc.invalidateQueries({ queryKey: ["email-reports", siteId] }),
+		onSuccess: () => qc.invalidateQueries({ queryKey: ["email-reports", siteId] }),
 	});
 	const toggleMut = useMutation({
 		mutationFn: ({ id, enabled }: { id: string; enabled: boolean }) =>
 			updateEmailReport(id, { enabled }),
-		onSuccess: () =>
-			qc.invalidateQueries({ queryKey: ["email-reports", siteId] }),
+		onSuccess: () => qc.invalidateQueries({ queryKey: ["email-reports", siteId] }),
 	});
 
 	if (isLoading) return <div className="spinner" />;
@@ -343,16 +316,13 @@ function EmailReportsSection() {
 				}}
 			>
 				<span style={{ fontSize: 12, color: "var(--text3)" }}>Schedule:</span>
-				<select
-					value={freq}
-					onChange={(e) => setFreq(e.target.value)}
-					style={{ fontSize: 12 }}
-				>
+				<select value={freq} onChange={(e) => setFreq(e.target.value)} style={{ fontSize: 12 }}>
 					<option value="daily">Daily</option>
 					<option value="weekly">Weekly</option>
 					<option value="monthly">Monthly</option>
 				</select>
-				<button type="button"
+				<button
+					type="button"
 					className="btn-accent"
 					style={{ fontSize: 12, padding: "6px 14px" }}
 					onClick={() => createMut.mutate()}
@@ -384,12 +354,11 @@ function EmailReportsSection() {
 										{r.frequency}
 									</td>
 									<td>
-										<button type="button"
+										<button
+											type="button"
 											className="btn-pill"
 											style={{ fontSize: 11, padding: "3px 8px" }}
-											onClick={() =>
-												toggleMut.mutate({ id: r.id, enabled: !r.enabled })
-											}
+											onClick={() => toggleMut.mutate({ id: r.id, enabled: !r.enabled })}
 										>
 											{r.enabled ? "Enabled" : "Disabled"}
 										</button>
@@ -401,12 +370,11 @@ function EmailReportsSection() {
 											color: "var(--text3)",
 										}}
 									>
-										{r.last_sent
-											? new Date(r.last_sent).toLocaleDateString()
-											: "—"}
+										{r.last_sent ? new Date(r.last_sent).toLocaleDateString() : "—"}
 									</td>
 									<td>
-										<button type="button"
+										<button
+											type="button"
 											className="btn-pill"
 											style={{
 												fontSize: 11,
@@ -425,9 +393,7 @@ function EmailReportsSection() {
 					</table>
 				</div>
 			) : (
-				<div style={{ color: "var(--text3)", fontSize: 12 }}>
-					No email reports configured
-				</div>
+				<div style={{ color: "var(--text3)", fontSize: 12 }}>No email reports configured</div>
 			)}
 		</div>
 	);
@@ -464,14 +430,13 @@ function PublicDashboardSection() {
 					marginBottom: 12,
 				}}
 			>
-				<button type="button"
+				<button
+					type="button"
 					className="btn-accent"
 					style={{ fontSize: 12, padding: "6px 14px" }}
 					onClick={() => toggleMut.mutate()}
 				>
-					{shareStatus?.public
-						? "Disable Public Dashboard"
-						: "Enable Public Dashboard"}
+					{shareStatus?.public ? "Disable Public Dashboard" : "Enable Public Dashboard"}
 				</button>
 				{shareStatus?.public && (
 					<span
@@ -497,7 +462,8 @@ function PublicDashboardSection() {
 						style={{ flex: 1, fontFamily: "var(--mono)", fontSize: 11 }}
 						onClick={(e) => (e.target as HTMLInputElement).select()}
 					/>
-					<button type="button"
+					<button
+						type="button"
 						className="btn-pill"
 						style={{ fontSize: 11, padding: "4px 10px" }}
 						onClick={() => {
@@ -542,17 +508,14 @@ function ExcludeTrafficSection() {
 	const purgeMut = useMutation({
 		mutationFn: () => purgeMyVisits(siteId),
 		onSuccess: (r) =>
-			setMsg(
-				`Purged ${r.events} events, ${r.sessions} sessions, ${r.profiles} visitor profiles.`,
-			),
+			setMsg(`Purged ${r.events} events, ${r.sessions} sessions, ${r.profiles} visitor profiles.`),
 	});
 
 	return (
 		<div>
 			<div style={{ fontSize: 12, color: "var(--text3)", marginBottom: 12 }}>
-				Exclude your own browser/device from tracking. Uses a fingerprint
-				(IP + user-agent + language), so it applies per browser + network.
-				Run once on each device you develop from.
+				Exclude your own browser/device from tracking. Uses a fingerprint (IP + user-agent +
+				language), so it applies per browser + network. Run once on each device you develop from.
 			</div>
 			<div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 12 }}>
 				<button

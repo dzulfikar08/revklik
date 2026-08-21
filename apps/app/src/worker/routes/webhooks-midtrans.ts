@@ -2,10 +2,7 @@ import { Hono } from "hono";
 import type { Kysely } from "kysely";
 import type { KlikapaDatabase } from "@revklik/shared";
 import { sql } from "../db";
-import {
-	parseMidtransPaymentMethod,
-	verifyMidtransSignature,
-} from "../lib/webhook-utils";
+import { parseMidtransPaymentMethod, verifyMidtransSignature } from "../lib/webhook-utils";
 import { generateId } from "../utils";
 
 export const midtransWebhookRoutes = new Hono<{
@@ -28,11 +25,7 @@ interface MidtransNotification {
 	custom_field4?: string;
 }
 
-function findIntegration(
-	db: Kysely<KlikapaDatabase>,
-	siteId: string,
-	type: string,
-) {
+function findIntegration(db: Kysely<KlikapaDatabase>, siteId: string, type: string) {
 	return db
 		.selectFrom("integrations")
 		.select(["id", "site_id", "type", "config"])
@@ -117,14 +110,7 @@ midtransWebhookRoutes.post("/", async (c) => {
 			signatureKey,
 		);
 		if (!valid) {
-			await logWebhookEvent(
-				db,
-				siteId,
-				integration.id,
-				"midtrans_invalid_sig",
-				rawBody,
-				"failed",
-			);
+			await logWebhookEvent(db, siteId, integration.id, "midtrans_invalid_sig", rawBody, "failed");
 			return c.json({ error: "Invalid signature" }, 401);
 		}
 	}

@@ -16,11 +16,7 @@ function timingSafeEqual(a: string, b: string): boolean {
 	return result === 0;
 }
 
-async function validateHmac(
-	body: string,
-	secret: string,
-	signature: string,
-): Promise<boolean> {
+async function validateHmac(body: string, secret: string, signature: string): Promise<boolean> {
 	const encoder = new TextEncoder();
 	const key = await crypto.subtle.importKey(
 		"raw",
@@ -34,11 +30,7 @@ async function validateHmac(
 	return timingSafeEqual(computed, signature);
 }
 
-async function findIntegration(
-	db: Kysely<KlikapaDatabase>,
-	siteId: string,
-	type: string,
-) {
+async function findIntegration(db: Kysely<KlikapaDatabase>, siteId: string, type: string) {
 	return db
 		.selectFrom("integrations")
 		.select(["id", "site_id", "type", "config"])
@@ -150,15 +142,11 @@ async function processWebhookEvent(
 webhookRoutes.post("/mailchimp", async (c) => {
 	const db = c.get("db");
 	const siteId = c.req.query("site_id");
-	if (!siteId)
-		return c.json({ error: "site_id required", success: false }, 400);
+	if (!siteId) return c.json({ error: "site_id required", success: false }, 400);
 
 	const integration = await findIntegration(db, siteId, "mailchimp");
 	if (!integration)
-		return c.json(
-			{ error: "No active Mailchimp integration found", success: false },
-			404,
-		);
+		return c.json({ error: "No active Mailchimp integration found", success: false }, 404);
 
 	const config = JSON.parse((integration.config as string) || "{}");
 	const rawBody = await c.req.text();
@@ -166,24 +154,15 @@ webhookRoutes.post("/mailchimp", async (c) => {
 	const webhookSecret = config.webhook_secret;
 	if (webhookSecret) {
 		const signature = c.req.header("X-Mailchimp-Signature") || "";
-		if (
-			!signature ||
-			!(await validateHmac(rawBody, webhookSecret, signature))
-		) {
-			return c.json(
-				{ error: "Invalid webhook signature", success: false },
-				401,
-			);
+		if (!signature || !(await validateHmac(rawBody, webhookSecret, signature))) {
+			return c.json({ error: "Invalid webhook signature", success: false }, 401);
 		}
 	}
 
 	const body = JSON.parse(rawBody) as Record<string, unknown>;
 
 	try {
-		const email =
-			(body.data as Record<string, string>)?.email ||
-			(body.email as string) ||
-			"";
+		const email = (body.data as Record<string, string>)?.email || (body.email as string) || "";
 		const eventType = (body.type as string) || "unknown";
 
 		if (email) {
@@ -199,14 +178,7 @@ webhookRoutes.post("/mailchimp", async (c) => {
 			"processed",
 		);
 	} catch (_err) {
-		await logWebhookEvent(
-			db,
-			siteId,
-			integration.id,
-			"mailchimp_error",
-			rawBody,
-			"failed",
-		);
+		await logWebhookEvent(db, siteId, integration.id, "mailchimp_error", rawBody, "failed");
 	}
 
 	return c.json({ success: true });
@@ -216,21 +188,16 @@ webhookRoutes.post("/mailchimp", async (c) => {
 webhookRoutes.post("/convertkit", async (c) => {
 	const db = c.get("db");
 	const siteId = c.req.query("site_id");
-	if (!siteId)
-		return c.json({ error: "site_id required", success: false }, 400);
+	if (!siteId) return c.json({ error: "site_id required", success: false }, 400);
 
 	const integration = await findIntegration(db, siteId, "convertkit");
 	if (!integration)
-		return c.json(
-			{ error: "No active ConvertKit integration found", success: false },
-			404,
-		);
+		return c.json({ error: "No active ConvertKit integration found", success: false }, 404);
 
 	const config = JSON.parse((integration.config as string) || "{}");
 	const apiKey = config.api_key;
 
-	const providedKey =
-		c.req.header("X-ConvertKit-Api-Key") || c.req.query("api_key") || "";
+	const providedKey = c.req.header("X-ConvertKit-Api-Key") || c.req.query("api_key") || "";
 	if (apiKey && !timingSafeEqual(providedKey, apiKey)) {
 		return c.json({ error: "Invalid API key", success: false }, 401);
 	}
@@ -244,8 +211,7 @@ webhookRoutes.post("/convertkit", async (c) => {
 			(body.subscriber as Record<string, string>)?.email ||
 			(body.email as string) ||
 			"";
-		const eventType =
-			(body.event as string) || (body.type as string) || "unknown";
+		const eventType = (body.event as string) || (body.type as string) || "unknown";
 
 		if (email) {
 			await processWebhookEvent(db, siteId, email, `convertkit_${eventType}`);
@@ -260,14 +226,7 @@ webhookRoutes.post("/convertkit", async (c) => {
 			"processed",
 		);
 	} catch (_err) {
-		await logWebhookEvent(
-			db,
-			siteId,
-			integration.id,
-			"convertkit_error",
-			payloadStr,
-			"failed",
-		);
+		await logWebhookEvent(db, siteId, integration.id, "convertkit_error", payloadStr, "failed");
 	}
 
 	return c.json({ success: true });
@@ -277,21 +236,16 @@ webhookRoutes.post("/convertkit", async (c) => {
 webhookRoutes.post("/kit", async (c) => {
 	const db = c.get("db");
 	const siteId = c.req.query("site_id");
-	if (!siteId)
-		return c.json({ error: "site_id required", success: false }, 400);
+	if (!siteId) return c.json({ error: "site_id required", success: false }, 400);
 
 	const integration = await findIntegration(db, siteId, "kit");
 	if (!integration)
-		return c.json(
-			{ error: "No active Kit integration found", success: false },
-			404,
-		);
+		return c.json({ error: "No active Kit integration found", success: false }, 404);
 
 	const config = JSON.parse((integration.config as string) || "{}");
 	const apiKey = config.api_key;
 
-	const providedKey =
-		c.req.header("X-Kit-Api-Key") || c.req.query("api_key") || "";
+	const providedKey = c.req.header("X-Kit-Api-Key") || c.req.query("api_key") || "";
 	if (apiKey && !timingSafeEqual(providedKey, apiKey)) {
 		return c.json({ error: "Invalid API key", success: false }, 401);
 	}
@@ -305,30 +259,15 @@ webhookRoutes.post("/kit", async (c) => {
 			(body.subscriber as Record<string, string>)?.email ||
 			(body.email as string) ||
 			"";
-		const eventType =
-			(body.event as string) || (body.type as string) || "unknown";
+		const eventType = (body.event as string) || (body.type as string) || "unknown";
 
 		if (email) {
 			await processWebhookEvent(db, siteId, email, `kit_${eventType}`);
 		}
 
-		await logWebhookEvent(
-			db,
-			siteId,
-			integration.id,
-			`kit_${eventType}`,
-			payloadStr,
-			"processed",
-		);
+		await logWebhookEvent(db, siteId, integration.id, `kit_${eventType}`, payloadStr, "processed");
 	} catch (_err) {
-		await logWebhookEvent(
-			db,
-			siteId,
-			integration.id,
-			"kit_error",
-			payloadStr,
-			"failed",
-		);
+		await logWebhookEvent(db, siteId, integration.id, "kit_error", payloadStr, "failed");
 	}
 
 	return c.json({ success: true });
@@ -338,15 +277,11 @@ webhookRoutes.post("/kit", async (c) => {
 webhookRoutes.post("/beehiiv", async (c) => {
 	const db = c.get("db");
 	const siteId = c.req.query("site_id");
-	if (!siteId)
-		return c.json({ error: "site_id required", success: false }, 400);
+	if (!siteId) return c.json({ error: "site_id required", success: false }, 400);
 
 	const integration = await findIntegration(db, siteId, "beehiiv");
 	if (!integration)
-		return c.json(
-			{ error: "No active Beehiiv integration found", success: false },
-			404,
-		);
+		return c.json({ error: "No active Beehiiv integration found", success: false }, 404);
 
 	const config = JSON.parse((integration.config as string) || "{}");
 	const secret = config.webhook_secret;
@@ -355,44 +290,23 @@ webhookRoutes.post("/beehiiv", async (c) => {
 	if (secret) {
 		const signature = c.req.header("X-Beehiiv-Signature") || "";
 		if (!signature || !(await validateHmac(rawBody, secret, signature))) {
-			return c.json(
-				{ error: "Invalid webhook signature", success: false },
-				401,
-			);
+			return c.json({ error: "Invalid webhook signature", success: false }, 401);
 		}
 	}
 
 	const body = JSON.parse(rawBody) as Record<string, unknown>;
 
 	try {
-		const email =
-			(body.data as Record<string, string>)?.email ||
-			(body.email as string) ||
-			"";
-		const eventType =
-			(body.event_type as string) || (body.type as string) || "unknown";
+		const email = (body.data as Record<string, string>)?.email || (body.email as string) || "";
+		const eventType = (body.event_type as string) || (body.type as string) || "unknown";
 
 		if (email) {
 			await processWebhookEvent(db, siteId, email, `beehiiv_${eventType}`);
 		}
 
-		await logWebhookEvent(
-			db,
-			siteId,
-			integration.id,
-			`beehiiv_${eventType}`,
-			rawBody,
-			"processed",
-		);
+		await logWebhookEvent(db, siteId, integration.id, `beehiiv_${eventType}`, rawBody, "processed");
 	} catch (_err) {
-		await logWebhookEvent(
-			db,
-			siteId,
-			integration.id,
-			"beehiiv_error",
-			rawBody,
-			"failed",
-		);
+		await logWebhookEvent(db, siteId, integration.id, "beehiiv_error", rawBody, "failed");
 	}
 
 	return c.json({ success: true });

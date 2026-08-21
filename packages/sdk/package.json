@@ -1,6 +1,18 @@
 {
 	"name": "@revklik/sdk",
 	"version": "0.1.0",
+	"keywords": [
+		"analytics",
+		"klikapa",
+		"privacy",
+		"revklik",
+		"sdk",
+		"web-analytics"
+	],
+	"license": "MIT",
+	"files": [
+		"dist"
+	],
 	"type": "module",
 	"main": "./dist/index.cjs",
 	"module": "./dist/index.js",
@@ -22,19 +34,7 @@
 		"tsup": "^8.5.1",
 		"typescript": "^7.0.2"
 	},
-	"files": [
-		"dist"
-	],
 	"engines": {
 		"node": ">=20.19"
-	},
-	"keywords": [
-		"analytics",
-		"sdk",
-		"revklik",
-		"klikapa",
-		"privacy",
-		"web-analytics"
-	],
-	"license": "MIT"
+	}
 }

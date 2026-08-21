@@ -28,8 +28,7 @@ importRoutes.post("/polar-orders", async (c) => {
 	const { site_id, polar_token, polar_org_id } = body;
 	const polarToken = polar_token || c.env.POLAR_ACCESS_TOKEN || "";
 	const polarOrgId = polar_org_id || c.env.POLAR_ORG_ID || "";
-	if (!site_id)
-		return c.json({ error: "site_id required", success: false }, 400);
+	if (!site_id) return c.json({ error: "site_id required", success: false }, 400);
 	if (!polarToken)
 		return c.json(
 			{
@@ -87,10 +86,7 @@ importRoutes.post("/polar-orders", async (c) => {
 		);
 		if (!res.ok) {
 			const errText = await res.text();
-			return c.json(
-				{ error: `Polar API error: ${res.status} ${errText}`, success: false },
-				502,
-			);
+			return c.json({ error: `Polar API error: ${res.status} ${errText}`, success: false }, 502);
 		}
 		const rawBody = await res.text();
 		let data: PolarOrdersResponse;
@@ -111,8 +107,7 @@ importRoutes.post("/polar-orders", async (c) => {
 			dataObject?.items ??
 			data.result?.items ??
 			(Array.isArray(data.data) ? data.data : []);
-		const pagination =
-			data.pagination ?? dataObject?.pagination ?? data.meta ?? {};
+		const pagination = data.pagination ?? dataObject?.pagination ?? data.meta ?? {};
 		hasMore = page < (pagination.max_page ?? pagination.total_pages ?? 1);
 		if (page === 1 && orders.length === 0) {
 			return c.json({
@@ -151,10 +146,7 @@ importRoutes.post("/onedollarstats", async (c) => {
 	const body = await c.req.json();
 	const { site_id, api_key, ods_site_id, date_range } = body;
 	if (!site_id || !api_key || !ods_site_id)
-		return c.json(
-			{ error: "site_id, api_key, and ods_site_id required", success: false },
-			400,
-		);
+		return c.json({ error: "site_id, api_key, and ods_site_id required", success: false }, 400);
 
 	const site = await db
 		.selectFrom("sites")
@@ -193,10 +185,7 @@ importRoutes.post("/onedollarstats", async (c) => {
 		body: JSON.stringify(pageQuery),
 	});
 	if (!pageRes.ok)
-		return c.json(
-			{ error: `OneDollarStats API error: ${pageRes.status}`, success: false },
-			502,
-		);
+		return c.json({ error: `OneDollarStats API error: ${pageRes.status}`, success: false }, 502);
 	const pageData = (await pageRes.json()) as {
 		results: Array<{ metrics: number[]; dimensions: string[] }>;
 	};
@@ -314,8 +303,7 @@ importRoutes.post("/onedollarstats", async (c) => {
 
 		const dayCountries = countryByDate.get(date) ?? new Map();
 		const daySources = sourceByDate.get(date) ?? new Map();
-		const totalCountryVisitors =
-			[...dayCountries.values()].reduce((s, v) => s + v, 0) || visitors;
+		const totalCountryVisitors = [...dayCountries.values()].reduce((s, v) => s + v, 0) || visitors;
 		const eventsToCreate = Math.min(visitors, 50);
 
 		for (let i = 0; i < eventsToCreate; i++) {
@@ -331,8 +319,7 @@ importRoutes.post("/onedollarstats", async (c) => {
 				}
 			}
 			let referrer: string | null = null;
-			const totalSourceVisitors =
-				[...daySources.values()].reduce((s, v) => s + v, 0) || 1;
+			const totalSourceVisitors = [...daySources.values()].reduce((s, v) => s + v, 0) || 1;
 			if (daySources.size > 0) {
 				let target = (i / eventsToCreate) * totalSourceVisitors;
 				for (const [s, v] of daySources) {

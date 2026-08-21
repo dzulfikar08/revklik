@@ -76,19 +76,14 @@ lemonsqueezyWebhookRoutes.post("/", async (c) => {
 	if (!siteId) return c.json({ error: "site_id required" }, 400);
 
 	const integration = await findIntegration(db, siteId);
-	if (!integration)
-		return c.json({ error: "No LemonSqueezy integration" }, 404);
+	if (!integration) return c.json({ error: "No LemonSqueezy integration" }, 404);
 
 	const config = JSON.parse((integration.config as string) || "{}");
 	const webhookSecret = config.webhook_secret || "";
 	const signatureHeader = c.req.header("x-signature") || "";
 
 	if (webhookSecret && signatureHeader) {
-		const valid = await verifyLemonSqueezySignature(
-			rawBody,
-			signatureHeader,
-			webhookSecret,
-		);
+		const valid = await verifyLemonSqueezySignature(rawBody, signatureHeader, webhookSecret);
 		if (!valid) {
 			await logWebhookEvent(
 				db,
@@ -161,9 +156,7 @@ lemonsqueezyWebhookRoutes.post("/", async (c) => {
 			visitor_id: visitorId,
 			timestamp: ts,
 			event_type: evtType,
-			name: isSubscription
-				? "subscription_lemonsqueezy"
-				: "payment_lemonsqueezy",
+			name: isSubscription ? "subscription_lemonsqueezy" : "payment_lemonsqueezy",
 			path: "/checkout/success",
 			hostname: null,
 			referrer: null,

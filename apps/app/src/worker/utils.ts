@@ -5,22 +5,19 @@ export async function hashPassword(password: string): Promise<string> {
 	return btoa(String.fromCharCode(...new Uint8Array(hashBuffer)));
 }
 
-export async function verifyPassword(
-	password: string,
-	hash: string,
-): Promise<boolean> {
+export async function verifyPassword(password: string, hash: string): Promise<boolean> {
 	const passwordHash = await hashPassword(password);
 	return passwordHash === hash;
 }
 
-export function generateApiKey(
-	type: "session" | "account" | "site" = "session",
-): { key: string; hash: string; prefix: string } {
+export function generateApiKey(type: "session" | "account" | "site" = "session"): {
+	key: string;
+	hash: string;
+	prefix: string;
+} {
 	const bytes = new Uint8Array(32);
 	crypto.getRandomValues(bytes);
-	const hex = Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join(
-		"",
-	);
+	const hex = Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
 	const prefixMap = { session: "kp_", account: "rvt_", site: "rv_" };
 	const key = `${prefixMap[type]}${hex}`;
 	const prefix = key.slice(0, 7);
@@ -31,19 +28,14 @@ export async function hashToken(token: string): Promise<string> {
 	const encoder = new TextEncoder();
 	const data = encoder.encode(token);
 	const hashBuffer = await crypto.subtle.digest("SHA-256", data);
-	return Array.from(new Uint8Array(hashBuffer), (b) =>
-		b.toString(16).padStart(2, "0"),
-	).join("");
+	return Array.from(new Uint8Array(hashBuffer), (b) => b.toString(16).padStart(2, "0")).join("");
 }
 
 export function generateId(): string {
 	return crypto.randomUUID();
 }
 
-export async function fingerprintFromRequest(
-	req: Request,
-	screenRes?: string,
-): Promise<string> {
+export async function fingerprintFromRequest(req: Request, screenRes?: string): Promise<string> {
 	const ip =
 		req.headers.get("cf-connecting-ip") ??
 		req.headers.get("x-forwarded-for")?.split(",")[0] ??
@@ -53,9 +45,7 @@ export async function fingerprintFromRequest(
 	const input = `${ip}|${ua}|${lang}|${screenRes ?? ""}`;
 	const data = new TextEncoder().encode(input);
 	const buf = await crypto.subtle.digest("SHA-256", data);
-	return Array.from(new Uint8Array(buf), (b) =>
-		b.toString(16).padStart(2, "0"),
-	).join("");
+	return Array.from(new Uint8Array(buf), (b) => b.toString(16).padStart(2, "0")).join("");
 }
 
 export function getDateRange(range: string): { start: Date; end: Date } {
@@ -170,9 +160,7 @@ const tzCountryMap: Record<string, string> = {
 	"Africa/Addis_Ababa": "ET",
 };
 
-export function countryFromTimezone(
-	tz: string | null | undefined,
-): string | null {
+export function countryFromTimezone(tz: string | null | undefined): string | null {
 	if (!tz) return null;
 	return tzCountryMap[tz] ?? null;
 }

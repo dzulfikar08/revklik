@@ -7,11 +7,7 @@ import type {
 	InsightType,
 	KlikapaDatabase,
 } from "@revklik/shared";
-import {
-	type AiBinding,
-	aggregateData,
-	callWorkersAI,
-} from "../lib/ai-prompts";
+import { type AiBinding, aggregateData, callWorkersAI } from "../lib/ai-prompts";
 import { requirePlan } from "../lib/plans";
 import { generateId, getDateRange } from "../utils";
 
@@ -23,11 +19,7 @@ type Env = {
 
 export const aiInsightsRoutes = new Hono<Env>();
 
-function validateSite(
-	db: Kysely<KlikapaDatabase>,
-	userId: string,
-	siteId: string,
-) {
+function validateSite(db: Kysely<KlikapaDatabase>, userId: string, siteId: string) {
 	return db
 		.selectFrom("sites")
 		.select(["id"])
@@ -55,15 +47,11 @@ aiInsightsRoutes.get("/", async (c) => {
 	const siteId = c.req.query("site_id");
 	const range = c.req.query("range") || "7d";
 
-	if (!siteId)
-		return c.json({ error: "site_id required", success: false }, 400);
+	if (!siteId) return c.json({ error: "site_id required", success: false }, 400);
 
 	const validRanges = ["24h", "7d", "30d", "90d"];
 	if (!validRanges.includes(range)) {
-		return c.json(
-			{ error: "Invalid range. Use 24h, 7d, 30d, or 90d", success: false },
-			400,
-		);
+		return c.json({ error: "Invalid range. Use 24h, 7d, 30d, or 90d", success: false }, 400);
 	}
 
 	const site = await validateSite(db, userId, siteId);
@@ -146,15 +134,11 @@ aiInsightsRoutes.post("/refresh", async (c) => {
 	const siteId = body.site_id as string | undefined;
 	const range = (body.range as string) || "7d";
 
-	if (!siteId)
-		return c.json({ error: "site_id required", success: false }, 400);
+	if (!siteId) return c.json({ error: "site_id required", success: false }, 400);
 
 	const validRanges = ["24h", "7d", "30d", "90d"];
 	if (!validRanges.includes(range)) {
-		return c.json(
-			{ error: "Invalid range. Use 24h, 7d, 30d, or 90d", success: false },
-			400,
-		);
+		return c.json({ error: "Invalid range. Use 24h, 7d, 30d, or 90d", success: false }, 400);
 	}
 
 	const site = await validateSite(db, userId, siteId);
@@ -203,9 +187,7 @@ async function generateInsights(
 		const rawInsights = await callWorkersAI(c.env?.AI, data, range);
 
 		const now = new Date();
-		const expiresAt = new Date(
-			now.getTime() + ttlHours * 60 * 60 * 1000,
-		).toISOString();
+		const expiresAt = new Date(now.getTime() + ttlHours * 60 * 60 * 1000).toISOString();
 		const createdAt = now.toISOString();
 
 		// Cache each insight row
@@ -296,9 +278,7 @@ function buildResponse(rows: AiInsightTable[], range: string): InsightsResponse 
 	let dataSummary = { total_events: 0, total_revenue: 0, date_range: range };
 	if (dataRefs) {
 		try {
-			const d: { totalEvents?: number; totalRevenue?: number } = JSON.parse(
-				dataRefs,
-			);
+			const d: { totalEvents?: number; totalRevenue?: number } = JSON.parse(dataRefs);
 			dataSummary = {
 				total_events: d.totalEvents ?? 0,
 				total_revenue: d.totalRevenue ?? 0,

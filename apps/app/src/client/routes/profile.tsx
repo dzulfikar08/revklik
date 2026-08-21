@@ -4,21 +4,11 @@ import { useState } from "react";
 import type { Subscription } from "@revklik/shared";
 import { PageHeader } from "@/components/page-header";
 import { toast } from "@/components/toast";
-import {
-	cancelSubscription,
-	fetchSubscription,
-	getCurrentUser,
-} from "@/lib/api";
+import { cancelSubscription, fetchSubscription, getCurrentUser } from "@/lib/api";
 
 export const Route = createFileRoute("/profile")({ component: ProfilePage });
 
-function Section({
-	title,
-	children,
-}: {
-	title: string;
-	children: React.ReactNode;
-}) {
+function Section({ title, children }: { title: string; children: React.ReactNode }) {
 	return (
 		<div
 			style={{
@@ -32,7 +22,7 @@ function Section({
 			<h3
 				style={{
 					fontFamily: "var(--sans)",
-					
+
 					fontSize: 18,
 					color: "var(--text)",
 					marginBottom: 16,
@@ -45,18 +35,9 @@ function Section({
 	);
 }
 
-function UsageBar({
-	label,
-	used,
-	limit,
-}: {
-	label: string;
-	used: number;
-	limit: number;
-}) {
+function UsageBar({ label, used, limit }: { label: string; used: number; limit: number }) {
 	const pct = limit > 0 ? Math.min((used / limit) * 100, 100) : 0;
-	const color =
-		pct >= 90 ? "var(--crit)" : pct >= 70 ? "var(--accent)" : "var(--green)";
+	const color = pct >= 90 ? "var(--crit)" : pct >= 70 ? "var(--accent)" : "var(--green)";
 	return (
 		<div style={{ marginBottom: 12 }}>
 			<div
@@ -111,29 +92,28 @@ function UsageBar({
 }
 
 function StatusBadge({ status }: { status: string }) {
-	const colors: Record<string, { bg: string; color: string; border: string }> =
-		{
-			active: {
-				bg: "var(--green-dim)",
-				color: "var(--green)",
-				border: "rgba(52,211,153,.2)",
-			},
-			trialing: {
-				bg: "rgba(96,165,250,.1)",
-				color: "#60a5fa",
-				border: "rgba(96,165,250,.2)",
-			},
-			canceled: {
-				bg: "var(--crit-dim)",
-				color: "var(--crit)",
-				border: "rgba(239,68,68,.2)",
-			},
-			past_due: {
-				bg: "var(--accent-dim, rgba(212,136,42,.1))",
-				color: "var(--accent)",
-				border: "rgba(212,136,42,.2)",
-			},
-		};
+	const colors: Record<string, { bg: string; color: string; border: string }> = {
+		active: {
+			bg: "var(--green-dim)",
+			color: "var(--green)",
+			border: "rgba(52,211,153,.2)",
+		},
+		trialing: {
+			bg: "rgba(96,165,250,.1)",
+			color: "#60a5fa",
+			border: "rgba(96,165,250,.2)",
+		},
+		canceled: {
+			bg: "var(--crit-dim)",
+			color: "var(--crit)",
+			border: "rgba(239,68,68,.2)",
+		},
+		past_due: {
+			bg: "var(--accent-dim, rgba(212,136,42,.1))",
+			color: "var(--accent)",
+			border: "rgba(212,136,42,.2)",
+		},
+	};
 	const c = colors[status] || colors.active;
 	return (
 		<span
@@ -175,8 +155,7 @@ function ProfilePage() {
 	});
 
 	const isPaid = subscription?.plan && subscription.plan !== "micro";
-	const isActive =
-		subscription?.status === "active" || subscription?.status === "trialing";
+	const isActive = subscription?.status === "active" || subscription?.status === "trialing";
 	const planName = subscription?.plan
 		? subscription.plan.charAt(0).toUpperCase() + subscription.plan.slice(1)
 		: "Micro";
@@ -208,7 +187,7 @@ function ProfilePage() {
 									alignItems: "center",
 									justifyContent: "center",
 									fontFamily: "var(--sans)",
-									
+
 									fontSize: 20,
 									color: "var(--accent)",
 									overflow: "hidden",
@@ -278,10 +257,7 @@ function ProfilePage() {
 									<StatusBadge status={subscription.status} />
 									{subscription.cancel_at_period_end && (
 										<span style={{ fontSize: 11, color: "var(--crit)" }}>
-											Cancels{" "}
-											{new Date(
-												subscription.current_period_end,
-											).toLocaleDateString()}
+											Cancels {new Date(subscription.current_period_end).toLocaleDateString()}
 										</span>
 									)}
 								</div>
@@ -295,17 +271,14 @@ function ProfilePage() {
 											fontFamily: "var(--mono)",
 										}}
 									>
-										{subscription.cancel_at_period_end
-											? "Access until"
-											: "Renews on"}{" "}
-										{new Date(
-											subscription.current_period_end,
-										).toLocaleDateString()}
+										{subscription.cancel_at_period_end ? "Access until" : "Renews on"}{" "}
+										{new Date(subscription.current_period_end).toLocaleDateString()}
 									</div>
 								)}
 
 								<div style={{ display: "flex", gap: 8 }}>
-									<button type="button"
+									<button
+										type="button"
 										className="btn-accent"
 										style={{ fontSize: 12, padding: "6px 14px" }}
 										onClick={() => navigate({ to: "/paywall" })}
@@ -327,7 +300,8 @@ function ProfilePage() {
 												<span style={{ fontSize: 11, color: "var(--text3)" }}>
 													Cancel subscription?
 												</span>
-												<button type="button"
+												<button
+													type="button"
 													className="btn-pill"
 													style={{
 														fontSize: 11,
@@ -339,7 +313,8 @@ function ProfilePage() {
 												>
 													{cancelMut.isPending ? "Cancelling..." : "Yes"}
 												</button>
-												<button type="button"
+												<button
+													type="button"
 													className="btn-pill"
 													style={{ fontSize: 11, padding: "4px 10px" }}
 													onClick={() => setConfirmCancel(false)}
@@ -348,7 +323,8 @@ function ProfilePage() {
 												</button>
 											</div>
 										) : (
-											<button type="button"
+											<button
+												type="button"
 												className="btn-pill"
 												style={{ fontSize: 11, padding: "4px 10px" }}
 												onClick={() => setConfirmCancel(true)}
@@ -359,9 +335,7 @@ function ProfilePage() {
 								</div>
 							</>
 						) : (
-							<div style={{ color: "var(--text3)", fontSize: 12 }}>
-								Unable to load subscription
-							</div>
+							<div style={{ color: "var(--text3)", fontSize: 12 }}>Unable to load subscription</div>
 						)}
 					</Section>
 

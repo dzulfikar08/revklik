@@ -6,39 +6,18 @@ import { generateId } from "../utils";
 type Variables = { db: Kysely<KlikapaDatabase>; userId: string };
 export const paymentProviderRoutes = new Hono<{ Variables: Variables }>();
 
-const VALID_PROVIDERS = [
-	"midtrans",
-	"xendit",
-	"doku",
-	"nicepay",
-	"stripe",
-	"lemonsqueezy",
-];
+const VALID_PROVIDERS = ["midtrans", "xendit", "doku", "nicepay", "stripe", "lemonsqueezy"];
 
 function maskConfig(config: Record<string, string>): Record<string, string> {
 	const masked: Record<string, string> = {};
-	const sensitive = [
-		"server_key",
-		"client_key",
-		"secret_key",
-		"client_secret",
-		"webhook_secret",
-	];
+	const sensitive = ["server_key", "client_key", "secret_key", "client_secret", "webhook_secret"];
 	for (const [k, v] of Object.entries(config)) {
-		masked[k] = sensitive.includes(k)
-			? v.length <= 4
-				? "****"
-				: `****${v.slice(-4)}`
-			: v;
+		masked[k] = sensitive.includes(k) ? (v.length <= 4 ? "****" : `****${v.slice(-4)}`) : v;
 	}
 	return masked;
 }
 
-function validateSite(
-	db: Kysely<KlikapaDatabase>,
-	userId: string,
-	siteId: string,
-) {
+function validateSite(db: Kysely<KlikapaDatabase>, userId: string, siteId: string) {
 	return db
 		.selectFrom("sites")
 		.select(["id"])

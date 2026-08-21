@@ -19,10 +19,7 @@ export function ToastContainer() {
 	const add = useCallback((message: string, type: Toast["type"] = "error") => {
 		const id = ++nextId;
 		setToasts((prev) => [...prev.slice(-4), { id, message, type }]);
-		setTimeout(
-			() => setToasts((prev) => prev.filter((t) => t.id !== id)),
-			4000,
-		);
+		setTimeout(() => setToasts((prev) => prev.filter((t) => t.id !== id)), 4000);
 	}, []);
 
 	useEffect(() => {

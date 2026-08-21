@@ -7,11 +7,7 @@ type Variables = { db: Kysely<KlikapaDatabase>; userId: string };
 
 export const segmentRoutes = new Hono<{ Variables: Variables }>();
 
-function validateSite(
-	db: Kysely<KlikapaDatabase>,
-	userId: string,
-	siteId: string,
-) {
+function validateSite(db: Kysely<KlikapaDatabase>, userId: string, siteId: string) {
 	return db
 		.selectFrom("sites")
 		.select(["id"])
@@ -35,8 +31,7 @@ function validateSite(
 segmentRoutes.get("/", async (c) => {
 	const db = c.get("db");
 	const siteId = c.req.query("site_id");
-	if (!siteId)
-		return c.json({ error: "site_id required", success: false }, 400);
+	if (!siteId) return c.json({ error: "site_id required", success: false }, 400);
 
 	const segments = await db
 		.selectFrom("segments")
@@ -52,10 +47,7 @@ segmentRoutes.post("/", async (c) => {
 	const userId = c.get("userId");
 	const { site_id, name, filters } = await c.req.json();
 	if (!site_id || !name || !filters)
-		return c.json(
-			{ error: "site_id, name, and filters required", success: false },
-			400,
-		);
+		return c.json({ error: "site_id, name, and filters required", success: false }, 400);
 
 	const site = await validateSite(db, userId, site_id);
 	if (!site) return c.json({ error: "Site not found", success: false }, 404);
@@ -96,8 +88,7 @@ segmentRoutes.delete("/:segmentId", async (c) => {
 		.select(["id", "site_id"])
 		.where("id", "=", segmentId)
 		.executeTakeFirst();
-	if (!segment)
-		return c.json({ error: "Segment not found", success: false }, 404);
+	if (!segment) return c.json({ error: "Segment not found", success: false }, 404);
 
 	const site = await validateSite(db, userId, segment.site_id);
 	if (!site) return c.json({ error: "Not found", success: false }, 404);

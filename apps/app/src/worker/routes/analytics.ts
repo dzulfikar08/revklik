@@ -48,8 +48,7 @@ analyticsRoutes.get("/dashboard", async (c) => {
 	const range = c.req.query("range") || "7d";
 	const filtersParam = c.req.query("filters") || "";
 	const filters = parseFilters(filtersParam);
-	if (!siteId)
-		return c.json({ error: "site_id required", success: false }, 400);
+	if (!siteId) return c.json({ error: "site_id required", success: false }, 400);
 	const site = await validateSite(db, userId, siteId);
 	if (!site) return c.json({ error: "Site not found", success: false }, 404);
 
@@ -58,9 +57,7 @@ analyticsRoutes.get("/dashboard", async (c) => {
 	const endIso = end.toISOString();
 	const spanHours = (end.getTime() - start.getTime()) / (1000 * 60 * 60);
 	const isHourly = spanHours <= 48;
-	const prevStartIso = new Date(
-		start.getTime() - (end.getTime() - start.getTime()),
-	).toISOString();
+	const prevStartIso = new Date(start.getTime() - (end.getTime() - start.getTime())).toISOString();
 
 	let recentSessionsQ = db
 		.selectFrom("sessions")
@@ -80,8 +77,7 @@ analyticsRoutes.get("/dashboard", async (c) => {
 		])
 		.where("site_id", "=", siteId)
 		.where("started_at", ">=", startIso);
-	if (endIso)
-		recentSessionsQ = recentSessionsQ.where("started_at", "<", endIso);
+	if (endIso) recentSessionsQ = recentSessionsQ.where("started_at", "<", endIso);
 
 	const [
 		stats,
@@ -105,10 +101,7 @@ analyticsRoutes.get("/dashboard", async (c) => {
 		getTopPages(db, siteId, startIso, 10, filters, endIso),
 		getReferrers(db, siteId, startIso, 10, filters, endIso),
 		getDeviceBreakdown(db, siteId, startIso, filters, endIso),
-		applyFilters(recentSessionsQ, filters)
-			.orderBy("started_at", "desc")
-			.limit(100)
-			.execute(),
+		applyFilters(recentSessionsQ, filters).orderBy("started_at", "desc").limit(100).execute(),
 		db
 			.selectFrom("visitor_profiles")
 			.select([
@@ -180,15 +173,7 @@ analyticsRoutes.get("/dashboard", async (c) => {
 		const batch = sessionIds.slice(i, i + BATCH);
 		const rows = await db
 			.selectFrom("events")
-			.select([
-				"session_id",
-				"path",
-				"event_type",
-				"name",
-				"timestamp",
-				"revenue",
-				"props",
-			])
+			.select(["session_id", "path", "event_type", "name", "timestamp", "revenue", "props"])
 			.where("session_id", "in", batch)
 			.where("site_id", "=", siteId)
 			.orderBy("timestamp", "asc")
@@ -197,8 +182,7 @@ analyticsRoutes.get("/dashboard", async (c) => {
 	}
 	const eventsBySession = new Map<string, typeof allSessionEvents>();
 	for (const e of allSessionEvents) {
-		if (!eventsBySession.has(e.session_id))
-			eventsBySession.set(e.session_id, []);
+		if (!eventsBySession.has(e.session_id)) eventsBySession.set(e.session_id, []);
 		eventsBySession.get(e.session_id)?.push(e);
 	}
 
@@ -258,8 +242,7 @@ analyticsRoutes.get("/sparkline", async (c) => {
 	const db = c.get("db");
 	const userId = c.get("userId");
 	const siteId = c.req.query("site_id");
-	if (!siteId)
-		return c.json({ error: "site_id required", success: false }, 400);
+	if (!siteId) return c.json({ error: "site_id required", success: false }, 400);
 	const site = await validateSite(db, userId, siteId);
 	if (!site) return c.json({ error: "Site not found", success: false }, 404);
 
@@ -276,9 +259,7 @@ analyticsRoutes.get("/sparkline", async (c) => {
 		.execute();
 
 	// Zero-fill 7 continuous days — position-based sparkline needs fixed length
-	const byDay = new Map(
-		rows.map((r) => [String(r.day ?? ""), Number(r.count)]),
-	);
+	const byDay = new Map(rows.map((r) => [String(r.day ?? ""), Number(r.count)]));
 	const data: number[] = [];
 	for (let t = new Date(startIso).getTime(); t < Date.now(); t += 86_400_000) {
 		data.push(byDay.get(new Date(t).toISOString().slice(0, 10)) ?? 0);
@@ -291,8 +272,7 @@ analyticsRoutes.get("/funnel", async (c) => {
 	const userId = c.get("userId");
 	const siteId = c.req.query("site_id");
 	const range = c.req.query("range") || "7d";
-	if (!siteId)
-		return c.json({ error: "site_id required", success: false }, 400);
+	if (!siteId) return c.json({ error: "site_id required", success: false }, 400);
 	const site = await validateSite(db, userId, siteId);
 	if (!site) return c.json({ error: "Site not found", success: false }, 404);
 
@@ -317,8 +297,7 @@ analyticsRoutes.get("/funnel", async (c) => {
 		.execute();
 
 	// Per-page tracking: path -> section -> visitor set
-	const { pageSectionVisitors, sectionVisitors, visitorDepths } =
-		processScrollEvents(scrollEvents);
+	const { pageSectionVisitors, sectionVisitors, visitorDepths } = processScrollEvents(scrollEvents);
 
 	const total = Number(totalVisitors?.count ?? 0);
 
@@ -332,18 +311,14 @@ analyticsRoutes.get("/funnel", async (c) => {
 
 	const convRate =
 		steps.length >= 2 && total > 0
-			? Math.round(((steps[steps.length - 1]?.visitors ?? 0) / total) * 1000) /
-				10
+			? Math.round(((steps[steps.length - 1]?.visitors ?? 0) / total) * 1000) / 10
 			: 0;
 
 	// Build per-page funnels
 	// Get pageview counts per page for totalVisitors per page
 	const pageVisCounts = await db
 		.selectFrom("events")
-		.select([
-			"path",
-			({ fn }) => fn.count<number>("visitor_id").distinct().as("visitors"),
-		])
+		.select(["path", ({ fn }) => fn.count<number>("visitor_id").distinct().as("visitors")])
 		.where("site_id", "=", siteId)
 		.where("event_type", "=", "pageview")
 		.where("timestamp", ">=", startIso)
@@ -352,9 +327,7 @@ analyticsRoutes.get("/funnel", async (c) => {
 		.limit(50)
 		.execute();
 
-	const pageVisMap = new Map(
-		pageVisCounts.map((r) => [r.path, Number(r.visitors)]),
-	);
+	const pageVisMap = new Map(pageVisCounts.map((r) => [r.path, Number(r.visitors)]));
 
 	const pages = [...pageSectionVisitors.entries()]
 		.map(([path, secMap]) => {
@@ -362,10 +335,7 @@ analyticsRoutes.get("/funnel", async (c) => {
 			const pageSteps = buildFunnelSteps(secMap, pageTotal);
 			const pageConvRate =
 				pageSteps.length >= 2 && pageTotal > 0
-					? Math.round(
-							((pageSteps[pageSteps.length - 1]?.visitors ?? 0) / pageTotal) *
-								1000,
-						) / 10
+					? Math.round(((pageSteps[pageSteps.length - 1]?.visitors ?? 0) / pageTotal) * 1000) / 10
 					: 0;
 			return {
 				path,
@@ -387,8 +357,7 @@ analyticsRoutes.get("/visitors", async (c) => {
 	const db = c.get("db");
 	const userId = c.get("userId");
 	const siteId = c.req.query("site_id");
-	if (!siteId)
-		return c.json({ error: "site_id required", success: false }, 400);
+	if (!siteId) return c.json({ error: "site_id required", success: false }, 400);
 	const site = await validateSite(db, userId, siteId);
 	if (!site) return c.json({ error: "Site not found", success: false }, 404);
 	const visitors = await db
@@ -444,11 +413,7 @@ analyticsRoutes.patch("/visitors/:visitorId", async (c) => {
 	if (body.notes !== undefined) updates.notes = body.notes;
 
 	if (Object.keys(updates).length > 0) {
-		await db
-			.updateTable("visitor_profiles")
-			.set(updates)
-			.where("id", "=", profileId)
-			.execute();
+		await db.updateTable("visitor_profiles").set(updates).where("id", "=", profileId).execute();
 	}
 
 	return c.json({ success: true });
@@ -461,8 +426,7 @@ analyticsRoutes.get("/geo", async (c) => {
 	const range = c.req.query("range") || "7d";
 	const filtersParam = c.req.query("filters") || "";
 	const filters = parseFilters(filtersParam);
-	if (!siteId)
-		return c.json({ error: "site_id required", success: false }, 400);
+	if (!siteId) return c.json({ error: "site_id required", success: false }, 400);
 	const site = await validateSite(db, userId, siteId);
 	if (!site) return c.json({ error: "Site not found", success: false }, 404);
 	const { start } = getDateRange(range);
@@ -495,8 +459,7 @@ analyticsRoutes.get("/heatmap", async (c) => {
 	const siteId = c.req.query("site_id");
 	const path = c.req.query("path") || "/";
 	const range = c.req.query("range") || "7d";
-	if (!siteId)
-		return c.json({ error: "site_id required", success: false }, 400);
+	if (!siteId) return c.json({ error: "site_id required", success: false }, 400);
 	const site = await validateSite(db, userId, siteId);
 	if (!site) return c.json({ error: "Site not found", success: false }, 404);
 
@@ -541,11 +504,7 @@ analyticsRoutes.get("/heatmap", async (c) => {
 			.executeTakeFirst(),
 	]);
 
-	const heatmapData = buildHeatmapData(
-		clickRows,
-		scrollRows,
-		Number(sessionCount?.cnt ?? 0),
-	);
+	const heatmapData = buildHeatmapData(clickRows, scrollRows, Number(sessionCount?.cnt ?? 0));
 
 	return c.json({ data: heatmapData, success: true });
 });
@@ -556,8 +515,7 @@ analyticsRoutes.get("/recordings", async (c) => {
 	const userId = c.get("userId");
 	const siteId = c.req.query("site_id");
 	const range = c.req.query("range") || "7d";
-	if (!siteId)
-		return c.json({ error: "site_id required", success: false }, 400);
+	if (!siteId) return c.json({ error: "site_id required", success: false }, 400);
 	const site = await validateSite(db, userId, siteId);
 	if (!site) return c.json({ error: "Site not found", success: false }, 404);
 
@@ -578,15 +536,7 @@ analyticsRoutes.get("/recordings", async (c) => {
 
 	const rows = await db
 		.selectFrom("session_recordings")
-		.select([
-			"id",
-			"session_id",
-			"path",
-			"duration",
-			"viewport_width",
-			"started_at",
-			"events",
-		])
+		.select(["id", "session_id", "path", "duration", "viewport_width", "started_at", "events"])
 		.where("site_id", "=", siteId)
 		.where("started_at", ">=", startIso)
 		.orderBy("started_at", "desc")
@@ -639,8 +589,7 @@ analyticsRoutes.get("/recordings/:id", async (c) => {
 		.selectAll()
 		.where("id", "=", recordingId)
 		.executeTakeFirst();
-	if (!row)
-		return c.json({ error: "Recording not found", success: false }, 404);
+	if (!row) return c.json({ error: "Recording not found", success: false }, 404);
 
 	const site = await validateSite(db, userId, row.site_id);
 	if (!site) return c.json({ error: "Not found", success: false }, 404);
@@ -657,10 +606,12 @@ analyticsRoutes.get("/recordings/:id", async (c) => {
 	}
 
 	// Map compact event types to full names
-	const typeMap: Record<
-		string,
-		"mutation" | "interaction" | "scroll" | "resize"
-	> = { m: "mutation", c: "interaction", s: "scroll", r: "resize" };
+	const typeMap: Record<string, "mutation" | "interaction" | "scroll" | "resize"> = {
+		m: "mutation",
+		c: "interaction",
+		s: "scroll",
+		r: "resize",
+	};
 	const mappedEvents = events.map((e) => ({
 		t: e.t,
 		type: typeMap[e.type as string] ?? "interaction",
@@ -690,8 +641,7 @@ analyticsRoutes.get("/stream", async (c) => {
 	const db = c.get("db");
 	const userId = c.get("userId");
 	const siteId = c.req.query("site_id");
-	if (!siteId)
-		return c.json({ error: "site_id required", success: false }, 400);
+	if (!siteId) return c.json({ error: "site_id required", success: false }, 400);
 
 	const site = await validateSite(db, userId, siteId);
 	if (!site) return c.json({ error: "Site not found", success: false }, 404);
@@ -706,11 +656,7 @@ analyticsRoutes.get("/stream", async (c) => {
 			const send = (event: string, data: unknown) => {
 				if (closed) return;
 				try {
-					controller.enqueue(
-						encoder.encode(
-							`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`,
-						),
-					);
+					controller.enqueue(encoder.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`));
 				} catch {
 					closed = true;
 				}
@@ -766,15 +712,9 @@ analyticsRoutes.get("/stream", async (c) => {
 					// Also send live visitor count
 					const liveCount = await sdb
 						.selectFrom("events")
-						.select(({ fn }) =>
-							fn.count<number>("visitor_id").distinct().as("count"),
-						)
+						.select(({ fn }) => fn.count<number>("visitor_id").distinct().as("count"))
 						.where("site_id", "=", siteId)
-						.where(
-							"timestamp",
-							">",
-							new Date(Date.now() - 5 * 60_000).toISOString(),
-						)
+						.where("timestamp", ">", new Date(Date.now() - 5 * 60_000).toISOString())
 						.executeTakeFirst();
 					send("stats", { live_visitors: liveCount?.count ?? 0 });
 				} catch {
@@ -818,13 +758,9 @@ analyticsRoutes.get("/export", async (c) => {
 	const type = c.req.query("type") || "events";
 	const range = c.req.query("range") || "30d";
 	const eventType = c.req.query("event_type") || c.req.query("eventType") || "";
-	const exportLimit = Math.min(
-		Math.max(Number(c.req.query("limit")) || 10000, 1),
-		10000,
-	);
+	const exportLimit = Math.min(Math.max(Number(c.req.query("limit")) || 10000, 1), 10000);
 
-	if (!siteId)
-		return c.json({ error: "site_id required", success: false }, 400);
+	if (!siteId) return c.json({ error: "site_id required", success: false }, 400);
 	const site = await validateSite(db, userId, siteId);
 	if (!site) return c.json({ error: "Site not found", success: false }, 404);
 
@@ -968,17 +904,9 @@ analyticsRoutes.get("/export", async (c) => {
 		eventsQuery = eventsQuery.where(
 			"event_type",
 			"=",
-			eventType as
-				| "pageview"
-				| "custom"
-				| "conversion"
-				| "payment"
-				| "subscription",
+			eventType as "pageview" | "custom" | "conversion" | "payment" | "subscription",
 		);
-	const rows = await eventsQuery
-		.orderBy("timestamp", "desc")
-		.limit(exportLimit)
-		.execute();
+	const rows = await eventsQuery.orderBy("timestamp", "desc").limit(exportLimit).execute();
 
 	if (format === "json") {
 		return c.json({ data: rows, success: true });

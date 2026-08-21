@@ -7,11 +7,7 @@ type Variables = { db: Kysely<KlikapaDatabase>; userId: string };
 
 export const emailReportRoutes = new Hono<{ Variables: Variables }>();
 
-function validateSite(
-	db: Kysely<KlikapaDatabase>,
-	userId: string,
-	siteId: string,
-) {
+function validateSite(db: Kysely<KlikapaDatabase>, userId: string, siteId: string) {
 	return db
 		.selectFrom("sites")
 		.select(["id"])
@@ -35,8 +31,7 @@ function validateSite(
 emailReportRoutes.get("/", async (c) => {
 	const db = c.get("db");
 	const siteId = c.req.query("site_id");
-	if (!siteId)
-		return c.json({ error: "site_id required", success: false }, 400);
+	if (!siteId) return c.json({ error: "site_id required", success: false }, 400);
 
 	const reports = await db
 		.selectFrom("email_reports")
@@ -52,15 +47,9 @@ emailReportRoutes.post("/", async (c) => {
 	const userId = c.get("userId");
 	const { site_id, frequency } = await c.req.json();
 	if (!site_id || !frequency)
-		return c.json(
-			{ error: "site_id and frequency required", success: false },
-			400,
-		);
+		return c.json({ error: "site_id and frequency required", success: false }, 400);
 	if (!["daily", "weekly", "monthly"].includes(frequency))
-		return c.json(
-			{ error: "frequency must be daily, weekly, or monthly", success: false },
-			400,
-		);
+		return c.json({ error: "frequency must be daily, weekly, or monthly", success: false }, 400);
 
 	const site = await validateSite(db, userId, site_id);
 	if (!site) return c.json({ error: "Site not found", success: false }, 404);
@@ -106,8 +95,7 @@ emailReportRoutes.put("/:reportId", async (c) => {
 		.select(["id", "site_id"])
 		.where("id", "=", reportId)
 		.executeTakeFirst();
-	if (!report)
-		return c.json({ error: "Report not found", success: false }, 404);
+	if (!report) return c.json({ error: "Report not found", success: false }, 404);
 
 	const site = await validateSite(db, userId, report.site_id);
 	if (!site) return c.json({ error: "Not found", success: false }, 404);
@@ -116,11 +104,7 @@ emailReportRoutes.put("/:reportId", async (c) => {
 	if (frequency !== undefined) updates.frequency = frequency;
 	if (enabled !== undefined) updates.enabled = enabled ? 1 : 0;
 	if (Object.keys(updates).length > 0) {
-		await db
-			.updateTable("email_reports")
-			.set(updates)
-			.where("id", "=", reportId)
-			.execute();
+		await db.updateTable("email_reports").set(updates).where("id", "=", reportId).execute();
 	}
 	return c.json({ success: true });
 });
@@ -135,8 +119,7 @@ emailReportRoutes.delete("/:reportId", async (c) => {
 		.select(["id", "site_id"])
 		.where("id", "=", reportId)
 		.executeTakeFirst();
-	if (!report)
-		return c.json({ error: "Report not found", success: false }, 404);
+	if (!report) return c.json({ error: "Report not found", success: false }, 404);
 
 	const site = await validateSite(db, userId, report.site_id);
 	if (!site) return c.json({ error: "Not found", success: false }, 404);

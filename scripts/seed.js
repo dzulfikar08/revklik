@@ -90,13 +90,7 @@ const NAMES = [
 	"Nadia Fitriani",
 	"Oscar Prasetyo",
 ];
-const EMAIL_DOMAINS = [
-	"gmail.com",
-	"yahoo.com",
-	"outlook.com",
-	"company.id",
-	"startup.co",
-];
+const EMAIL_DOMAINS = ["gmail.com", "yahoo.com", "outlook.com", "company.id", "startup.co"];
 // --- Helpers ---
 function weightedPick(pool) {
 	const total = pool.reduce((s, x) => s + x.weight, 0);
@@ -139,10 +133,7 @@ for (let d = 0; d < DAYS; d++) {
 		const os = randFrom(OS_MAP[device]);
 		const ref = weightedPick(REFERRERS);
 		const isNewVisitor = Math.random() > 0.3;
-		const visitorId =
-			isNewVisitor || !visitorMap.size
-				? uid()
-				: randFrom([...visitorMap.keys()]);
+		const visitorId = isNewVisitor || !visitorMap.size ? uid() : randFrom([...visitorMap.keys()]);
 		// Session: 1-6 pageviews
 		const numPages = randInt(1, 6);
 		const isBounce = numPages === 1 ? 1 : 0;
@@ -161,9 +152,7 @@ for (let d = 0; d < DAYS; d++) {
 		let sessionRevenue = 0;
 		const sessionEvents = [];
 		for (let p = 0; p < numPages; p++) {
-			const evTime = new Date(
-				sessionStart.getTime() + p * randInt(8000, 45000),
-			);
+			const evTime = new Date(sessionStart.getTime() + p * randInt(8000, 45000));
 			// Pageview event
 			sessionEvents.push({
 				id: uid(),
@@ -228,9 +217,7 @@ for (let d = 0; d < DAYS; d++) {
 							site_id: SITE_ID,
 							session_id: sessionId,
 							visitor_id: visitorId,
-							timestamp: new Date(
-								evTime.getTime() + randInt(2000, 20000),
-							).toISOString(),
+							timestamp: new Date(evTime.getTime() + randInt(2000, 20000)).toISOString(),
 							event_type: "custom",
 							name: "scroll_section",
 							path: "/",
@@ -269,9 +256,7 @@ for (let d = 0; d < DAYS; d++) {
 					site_id: SITE_ID,
 					session_id: sessionId,
 					visitor_id: visitorId,
-					timestamp: new Date(
-						evTime.getTime() + randInt(1000, 10000),
-					).toISOString(),
+					timestamp: new Date(evTime.getTime() + randInt(1000, 10000)).toISOString(),
 					event_type: "custom",
 					name: "click",
 					path: paths[p],
@@ -330,9 +315,7 @@ for (let d = 0; d < DAYS; d++) {
 		}
 		allEvents.push(...sessionEvents);
 		// Session record
-		const sessionEnd = new Date(
-			sessionStart.getTime() + numPages * 20000 + randInt(5000, 30000),
-		);
+		const sessionEnd = new Date(sessionStart.getTime() + numPages * 20000 + randInt(5000, 30000));
 		allSessions.push({
 			id: sessionId,
 			site_id: SITE_ID,
@@ -466,15 +449,9 @@ async function seed(remote) {
 	console.log(`  ${allVisitors.length} visitors`);
 	console.log(`  ${allSessions.length} sessions`);
 	console.log(`  ${allEvents.length} events`);
-	console.log(
-		`  ${allEvents.filter((e) => e.event_type === "pageview").length} pageviews`,
-	);
-	console.log(
-		`  ${allEvents.filter((e) => e.event_type === "conversion").length} conversions`,
-	);
-	console.log(
-		`  $${allVisitors.reduce((s, v) => s + v.total_revenue, 0)} total revenue`,
-	);
+	console.log(`  ${allEvents.filter((e) => e.event_type === "pageview").length} pageviews`);
+	console.log(`  ${allEvents.filter((e) => e.event_type === "conversion").length} conversions`);
+	console.log(`  $${allVisitors.reduce((s, v) => s + v.total_revenue, 0)} total revenue`);
 }
 const remote = process.argv.includes("--remote");
 seed(remote).catch(console.error);

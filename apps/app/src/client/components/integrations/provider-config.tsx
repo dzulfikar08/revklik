@@ -168,8 +168,7 @@ export const PROVIDERS: {
 		type: "xendit",
 		name: "Xendit",
 		icon: "\uD83D\uDCB3",
-		description:
-			"Southeast Asian payment gateway \u2014 OVO, DANA, ShopeePay, virtual accounts",
+		description: "Southeast Asian payment gateway \u2014 OVO, DANA, ShopeePay, virtual accounts",
 		fields: [
 			{
 				key: "secret_key",
@@ -189,8 +188,7 @@ export const PROVIDERS: {
 		type: "doku",
 		name: "DOKU",
 		icon: "\uD83D\uDCB3",
-		description:
-			"Indonesian payment gateway \u2014 SNAP standard, virtual accounts, e-wallets",
+		description: "Indonesian payment gateway \u2014 SNAP standard, virtual accounts, e-wallets",
 		fields: [
 			{
 				key: "client_id",
@@ -209,8 +207,7 @@ export const PROVIDERS: {
 		type: "nicepay",
 		name: "NICEPAY",
 		icon: "\uD83D\uDCB3",
-		description:
-			"Indonesian payment gateway \u2014 e-wallets, QRIS, virtual accounts, paylater",
+		description: "Indonesian payment gateway \u2014 e-wallets, QRIS, virtual accounts, paylater",
 		fields: [
 			{
 				key: "client_id",
@@ -229,8 +226,7 @@ export const PROVIDERS: {
 		type: "stripe",
 		name: "Stripe",
 		icon: "S",
-		description:
-			"Global payments \u2014 cards, wallets, bank debits, subscriptions",
+		description: "Global payments \u2014 cards, wallets, bank debits, subscriptions",
 		fields: [
 			{
 				key: "webhook_secret",

@@ -16,19 +16,11 @@ export class TokensResource {
 
 	/** Create a new API token. */
 	create(data: CreateTokenRequest): Promise<CreateTokenResponse> {
-		return this.client.request<CreateTokenResponse>(
-			"POST",
-			"/tokens",
-			undefined,
-			data,
-		);
+		return this.client.request<CreateTokenResponse>("POST", "/tokens", undefined, data);
 	}
 
 	/** Revoke (delete) an API token by ID. */
 	revoke(tokenId: string): Promise<RevokeTokenResponse> {
-		return this.client.request<RevokeTokenResponse>(
-			"DELETE",
-			`/tokens/${tokenId}`,
-		);
+		return this.client.request<RevokeTokenResponse>("DELETE", `/tokens/${tokenId}`);
 	}
 }

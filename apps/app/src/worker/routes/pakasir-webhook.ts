@@ -23,8 +23,7 @@ pakasirWebhookRoutes.post("/", async (c) => {
 
 	try {
 		const body = await c.req.json<PakasirWebhookBody>();
-		const { amount, order_id, project, status, payment_method, completed_at } =
-			body;
+		const { amount, order_id, project, status, payment_method, completed_at } = body;
 
 		// Verify project slug
 		if (project !== "revklik") {
@@ -60,8 +59,7 @@ pakasirWebhookRoutes.post("/", async (c) => {
 		else plan = "growth";
 
 		// Verify amount matches plan
-		const expectedAmount =
-			amount <= 16000 ? 16000 : amount <= 64000 ? 64000 : 192000;
+		const expectedAmount = amount <= 16000 ? 16000 : amount <= 64000 ? 64000 : 192000;
 		if (Math.abs(amount - expectedAmount) > 1000) {
 			return c.json({ error: "Amount mismatch" }, 400);
 		}
@@ -87,9 +85,7 @@ pakasirWebhookRoutes.post("/", async (c) => {
 					plan,
 					status: "active",
 					current_period_start: new Date().toISOString(),
-					current_period_end: new Date(
-						Date.now() + 30 * 86400000,
-					).toISOString(),
+					current_period_end: new Date(Date.now() + 30 * 86400000).toISOString(),
 					cancel_at_period_end: 0,
 					updated_at: new Date().toISOString(),
 				}),
@@ -175,9 +171,6 @@ pakasirWebhookRoutes.post("/", async (c) => {
 
 		return c.json({ success: true });
 	} catch (err) {
-		return c.json(
-			{ error: err instanceof Error ? err.message : "Webhook error" },
-			500,
-		);
+		return c.json({ error: err instanceof Error ? err.message : "Webhook error" }, 500);
 	}
 });

@@ -6,26 +6,16 @@ import type { Bindings } from "./types";
 const app = createApp();
 
 export default {
-	async fetch(
-		request: Request,
-		env: Bindings,
-		ctx: ExecutionContext,
-	): Promise<Response> {
+	async fetch(request: Request, env: Bindings, ctx: ExecutionContext): Promise<Response> {
 		const { pathname } = new URL(request.url);
 		if (pathname.startsWith("/api/")) return app.fetch(request, env, ctx);
 		return env.ASSETS.fetch(request);
 	},
-	async scheduled(
-		controller: ScheduledController,
-		env: Bindings,
-		_ctx: ExecutionContext,
-	) {
+	async scheduled(controller: ScheduledController, env: Bindings, _ctx: ExecutionContext) {
 		const polarToken = env.POLAR_ACCESS_TOKEN || "";
 		const polarOrgId = env.POLAR_ORG_ID || "";
 		if (!polarToken || !polarOrgId || !env.DB) {
-			console.error(
-				"Polar cron sync: missing POLAR_ACCESS_TOKEN, POLAR_ORG_ID, or DB binding",
-			);
+			console.error("Polar cron sync: missing POLAR_ACCESS_TOKEN, POLAR_ORG_ID, or DB binding");
 			return;
 		}
 
@@ -34,9 +24,7 @@ export default {
 		// Catch-up sync scans the last 7 days; the refresh cron scans a wider
 		// 30-day window so it can re-price older conversions whose amount drifted
 		// (e.g. a price was lowered and existing orders were never re-priced).
-		const since = new Date(
-			Date.now() - (isRefresh ? 30 : 7) * 86400000,
-		).toISOString();
+		const since = new Date(Date.now() - (isRefresh ? 30 : 7) * 86400000).toISOString();
 		let page = 1;
 		let hasMore = true;
 		let handled = 0;
@@ -74,15 +62,9 @@ export default {
 				};
 				const dd = data.data;
 				const orders: PolarOrder[] =
-					data.items ??
-					(Array.isArray(dd) ? dd : dd?.items) ??
-					data.result?.items ??
-					[];
+					data.items ?? (Array.isArray(dd) ? dd : dd?.items) ?? data.result?.items ?? [];
 				const pagination: Pagination =
-					data.pagination ??
-					(!Array.isArray(dd) ? dd?.pagination : undefined) ??
-					data.meta ??
-					{};
+					data.pagination ?? (!Array.isArray(dd) ? dd?.pagination : undefined) ?? data.meta ?? {};
 				hasMore = page < (pagination.max_page ?? pagination.total_pages ?? 1);
 
 				for (const order of orders) {

@@ -50,7 +50,8 @@ export function DeviceTable({
 							["browser", "Browser"],
 						] as [DeviceTab, string][]
 					).map(([key, label]) => (
-						<button type="button"
+						<button
+							type="button"
 							key={key}
 							onClick={() => setTab(key)}
 							style={{
@@ -85,13 +86,7 @@ export function DeviceTable({
 					<table className="data-table">
 						<thead>
 							<tr>
-								<th>
-									{tab === "device"
-										? "Device"
-										: tab === "os"
-											? "OS"
-											: "Browser"}
-								</th>
+								<th>{tab === "device" ? "Device" : tab === "os" ? "OS" : "Browser"}</th>
 								<th style={{ textAlign: "right" }}>Visitors</th>
 								<th style={{ textAlign: "right" }}>Share</th>
 							</tr>
@@ -101,12 +96,7 @@ export function DeviceTable({
 								<tr
 									key={d.device}
 									style={{ cursor: onCrossFilter ? "pointer" : undefined }}
-									onClick={() =>
-										onCrossFilter?.(
-											tab === "device" ? "device_type" : tab,
-											d.device,
-										)
-									}
+									onClick={() => onCrossFilter?.(tab === "device" ? "device_type" : tab, d.device)}
 								>
 									<td style={{ fontSize: 13 }}>
 										<span

@@ -4,11 +4,7 @@ import type { HeatmapData, KlikapaDatabase } from "@revklik/shared";
 /**
  * Validate that a user has access to a site (owns it or is an accepted team member).
  */
-export function validateSite(
-	db: Kysely<KlikapaDatabase>,
-	userId: string,
-	siteId: string,
-) {
+export function validateSite(db: Kysely<KlikapaDatabase>, userId: string, siteId: string) {
 	return db
 		.selectFrom("sites")
 		.select(["id"])
@@ -47,9 +43,7 @@ export function parseFilters(
 			};
 		})
 		.filter(
-			(f) =>
-				f.dimension &&
-				(f.value || f.operator === "exists" || f.operator === "not_exists"),
+			(f) => f.dimension && (f.value || f.operator === "exists" || f.operator === "not_exists"),
 		);
 }
 
@@ -99,7 +93,9 @@ export function applyFilters<DB, TB extends keyof DB, O>(
 		} else if (f.operator === "exists") {
 			qb = qb.where(c as never, "is not", null as never).where(c as never, "!=", "" as never);
 		} else if (f.operator === "not_exists") {
-			qb = qb.where((eb) => eb.or([eb(c as never, "is", null as never), eb(c as never, "=", "" as never)]));
+			qb = qb.where((eb) =>
+				eb.or([eb(c as never, "is", null as never), eb(c as never, "=", "" as never)]),
+			);
 		}
 	}
 	return qb;
@@ -108,20 +104,16 @@ export function applyFilters<DB, TB extends keyof DB, O>(
 /**
  * Convert an array of row objects to a CSV string using the given column order.
  */
-export function toCsv(
-	rows: Record<string, unknown>[],
-	columns: string[],
-): string {
+export function toCsv(rows: Record<string, unknown>[], columns: string[]): string {
 	const esc = (v: unknown) => {
 		const s = v === null || v === undefined ? "" : String(v);
 		return s.includes(",") || s.includes('"') || s.includes("\n")
 			? `"${s.replace(/"/g, '""')}"`
 			: s;
 	};
-	return [
-		columns.join(","),
-		...rows.map((r) => columns.map((c) => esc(r[c])).join(",")),
-	].join("\n");
+	return [columns.join(","), ...rows.map((r) => columns.map((c) => esc(r[c])).join(","))].join(
+		"\n",
+	);
 }
 
 // --- Funnel helpers ---
@@ -143,18 +135,14 @@ export interface PageFunnel {
 /**
  * Build funnel steps from a section->visitors map, sorted by visitor count descending.
  */
-export function buildFunnelSteps(
-	secMap: Map<string, Set<string>>,
-	totalVis: number,
-): FunnelStep[] {
+export function buildFunnelSteps(secMap: Map<string, Set<string>>, totalVis: number): FunnelStep[] {
 	const sorted = [...secMap.entries()].sort((a, b) => b[1].size - a[1].size);
 	return sorted.map(([section, visitors], i, arr) => {
 		const prevVisitors = i === 0 ? totalVis : (arr[i - 1]?.[1].size ?? 0);
 		return {
 			section,
 			visitors: visitors.size,
-			percentage:
-				totalVis > 0 ? Math.round((visitors.size / totalVis) * 100) : 0,
+			percentage: totalVis > 0 ? Math.round((visitors.size / totalVis) * 100) : 0,
 			dropoff:
 				i > 0 && prevVisitors > 0
 					? Math.round(((prevVisitors - visitors.size) / prevVisitors) * 100)
@@ -166,24 +154,19 @@ export function buildFunnelSteps(
 /**
  * Build depth-based funnel steps from visitor scroll depth percentages.
  */
-export function buildDepthSteps(
-	visitorDepths: Map<string, number>,
-	total: number,
-): FunnelStep[] {
+export function buildDepthSteps(visitorDepths: Map<string, number>, total: number): FunnelStep[] {
 	const depthBuckets = [25, 50, 75, 90];
 	const depthCounts = new Map<number, number>();
 	for (const [, maxDepth] of visitorDepths) {
 		for (const bucket of depthBuckets) {
-			if (maxDepth >= bucket)
-				depthCounts.set(bucket, (depthCounts.get(bucket) ?? 0) + 1);
+			if (maxDepth >= bucket) depthCounts.set(bucket, (depthCounts.get(bucket) ?? 0) + 1);
 		}
 	}
 	return depthBuckets
 		.filter((d) => (depthCounts.get(d) ?? 0) > 0)
 		.map((d, i, arr) => {
 			const visitors = depthCounts.get(d) ?? 0;
-			const prevVisitors =
-				i === 0 ? total : (depthCounts.get(arr[i - 1] ?? 0) ?? total);
+			const prevVisitors = i === 0 ? total : (depthCounts.get(arr[i - 1] ?? 0) ?? total);
 			return {
 				section: `${d}%`,
 				visitors,
@@ -227,8 +210,7 @@ export function processScrollEvents(
 				}
 				if (!pageMap.has(section)) pageMap.set(section, new Set());
 				pageMap.get(section)?.add(ev.visitor_id);
-				if (!sectionVisitors.has(section))
-					sectionVisitors.set(section, new Set());
+				if (!sectionVisitors.has(section)) sectionVisitors.set(section, new Set());
 				sectionVisitors.get(section)?.add(ev.visitor_id);
 			}
 			if (p.depth && ev.visitor_id) {
@@ -262,10 +244,7 @@ export function buildHeatmapData(
 ): HeatmapData {
 	// Build 50x50 click grid (2% buckets)
 	const grid: number[][] = Array.from({ length: 50 }, () => Array(50).fill(0));
-	const elemMap: Record<
-		string,
-		{ selector: string; clicks: number; label: string }
-	> = {};
+	const elemMap: Record<string, { selector: string; clicks: number; label: string }> = {};
 
 	for (const row of clickRows) {
 		const bx = Math.min(49, Math.max(0, Math.floor(Number(row.x) / 2)));
@@ -292,15 +271,10 @@ export function buildHeatmapData(
 		.slice(0, 20);
 
 	// Build scroll depth distribution
-	const depthBuckets: Record<number, { depth: number; visitors: Set<string> }> =
-		{};
-	for (let d = 0; d <= 100; d += 10)
-		depthBuckets[d] = { depth: d, visitors: new Set<string>() };
+	const depthBuckets: Record<number, { depth: number; visitors: Set<string> }> = {};
+	for (let d = 0; d <= 100; d += 10) depthBuckets[d] = { depth: d, visitors: new Set<string>() };
 	for (const row of scrollRows) {
-		const d = Math.min(
-			100,
-			Math.max(0, Math.round(Number(row.max_scroll) / 10) * 10),
-		);
+		const d = Math.min(100, Math.max(0, Math.round(Number(row.max_scroll) / 10) * 10));
 		depthBuckets[d]?.visitors.add(row.visitor_id);
 	}
 	const scrollDepths = Object.values(depthBuckets).map((b) => ({

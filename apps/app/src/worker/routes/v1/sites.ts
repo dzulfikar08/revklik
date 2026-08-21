@@ -6,11 +6,7 @@ import { requireScope } from "../../middleware/scope-validator";
 
 export const v1SitesRoutes = new Hono<PublicApiEnv>();
 
-function validateSite(
-	db: Kysely<KlikapaDatabase>,
-	userId: string,
-	siteId: string,
-) {
+function validateSite(db: Kysely<KlikapaDatabase>, userId: string, siteId: string) {
 	return db
 		.selectFrom("sites")
 		.select(["id"])
@@ -83,10 +79,7 @@ v1SitesRoutes.get("/:siteId", requireScope("sites:read"), async (c) => {
 
 	// For site tokens, reject if siteId doesn't match bound site
 	if (tokenSiteId && tokenSiteId !== siteId) {
-		return c.json(
-			{ error: "Token not valid for this site", success: false },
-			403,
-		);
+		return c.json({ error: "Token not valid for this site", success: false }, 403);
 	}
 
 	const site = await validateSite(db, userId, siteId);

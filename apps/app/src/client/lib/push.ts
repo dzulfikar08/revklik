@@ -16,9 +16,7 @@ export async function initPushNotifications(): Promise<void> {
 		await PushNotifications.register();
 
 		PushNotifications.addListener("registration", async (token: Token) => {
-			const stored = await import("@/lib/mobile-storage").then((m) =>
-				m.getItem("kp_token"),
-			);
+			const stored = await import("@/lib/mobile-storage").then((m) => m.getItem("kp_token"));
 			if (!stored) return;
 			try {
 				await fetch(
@@ -40,17 +38,14 @@ export async function initPushNotifications(): Promise<void> {
 			}
 		});
 
-		PushNotifications.addListener(
-			"pushNotificationActionPerformed",
-			(action: ActionPerformed) => {
-				const data = action.notification.data;
-				if (data?.site_id) {
-					import("@/lib/api").then(({ setActiveSiteId }) => {
-						setActiveSiteId(data.site_id);
-					});
-				}
-			},
-		);
+		PushNotifications.addListener("pushNotificationActionPerformed", (action: ActionPerformed) => {
+			const data = action.notification.data;
+			if (data?.site_id) {
+				import("@/lib/api").then(({ setActiveSiteId }) => {
+					setActiveSiteId(data.site_id);
+				});
+			}
+		});
 	} catch (e) {
 		console.warn("Push notifications init failed:", e);
 	}

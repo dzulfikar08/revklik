@@ -7,11 +7,7 @@ type Variables = { db: Kysely<KlikapaDatabase>; userId: string };
 
 export const annotationRoutes = new Hono<{ Variables: Variables }>();
 
-function validateSite(
-	db: Kysely<KlikapaDatabase>,
-	userId: string,
-	siteId: string,
-) {
+function validateSite(db: Kysely<KlikapaDatabase>, userId: string, siteId: string) {
 	return db
 		.selectFrom("sites")
 		.select(["id"])
@@ -35,8 +31,7 @@ function validateSite(
 annotationRoutes.get("/", async (c) => {
 	const db = c.get("db");
 	const siteId = c.req.query("site_id");
-	if (!siteId)
-		return c.json({ error: "site_id required", success: false }, 400);
+	if (!siteId) return c.json({ error: "site_id required", success: false }, 400);
 
 	const annotations = await db
 		.selectFrom("annotations")
@@ -53,10 +48,7 @@ annotationRoutes.post("/", async (c) => {
 	const userId = c.get("userId");
 	const { site_id, date, text } = await c.req.json();
 	if (!site_id || !date || !text)
-		return c.json(
-			{ error: "site_id, date, and text required", success: false },
-			400,
-		);
+		return c.json({ error: "site_id, date, and text required", success: false }, 400);
 
 	const site = await validateSite(db, userId, site_id);
 	if (!site) return c.json({ error: "Site not found", success: false }, 404);
@@ -92,8 +84,7 @@ annotationRoutes.delete("/:annotationId", async (c) => {
 		.select(["id", "site_id"])
 		.where("id", "=", annotationId)
 		.executeTakeFirst();
-	if (!annotation)
-		return c.json({ error: "Annotation not found", success: false }, 404);
+	if (!annotation) return c.json({ error: "Annotation not found", success: false }, 404);
 
 	const site = await validateSite(db, userId, annotation.site_id);
 	if (!site) return c.json({ error: "Not found", success: false }, 404);

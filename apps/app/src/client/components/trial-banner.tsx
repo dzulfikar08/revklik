@@ -1,12 +1,6 @@
 import { useState } from "react";
 
-export function TrialBanner({
-	days,
-	onUpgrade,
-}: {
-	days: number;
-	onUpgrade: () => void;
-}) {
+export function TrialBanner({ days, onUpgrade }: { days: number; onUpgrade: () => void }) {
 	const [dismissed, setDismissed] = useState(() => {
 		try {
 			return sessionStorage.getItem("kp_trial_dismissed") === "1";
@@ -38,7 +32,8 @@ export function TrialBanner({
 					strokeWidth="2"
 					strokeLinecap="round"
 					strokeLinejoin="round"
-				 aria-hidden="true">
+					aria-hidden="true"
+				>
 					<circle cx="12" cy="12" r="10" />
 					<path d="M12 6v6l4 2" />
 				</svg>
@@ -52,11 +47,7 @@ export function TrialBanner({
 			<button type="button" className="trial-banner-upgrade" onClick={onUpgrade}>
 				Upgrade Now
 			</button>
-			<button type="button"
-				className="trial-banner-dismiss"
-				onClick={dismiss}
-				aria-label="Dismiss"
-			>
+			<button type="button" className="trial-banner-dismiss" onClick={dismiss} aria-label="Dismiss">
 				&times;
 			</button>
 		</div>

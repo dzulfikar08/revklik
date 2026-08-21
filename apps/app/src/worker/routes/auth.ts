@@ -173,9 +173,7 @@ authRoutes.get("/google", (c) => {
 		access_type: "offline",
 		prompt: "consent",
 	});
-	return c.redirect(
-		`https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`,
-	);
+	return c.redirect(`https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`);
 });
 
 // GET /auth/google/callback — Google OAuth callback
@@ -185,8 +183,7 @@ authRoutes.get("/google/callback", async (c) => {
 
 	const code = c.req.query("code");
 	const state = c.req.query("state");
-	if (!code || !state)
-		return c.json({ error: "Missing code or state", success: false }, 400);
+	if (!code || !state) return c.json({ error: "Missing code or state", success: false }, 400);
 
 	const clientId = c.env.GOOGLE_CLIENT_ID || "";
 	const clientSecret = c.env.GOOGLE_CLIENT_SECRET || "";
@@ -212,16 +209,10 @@ authRoutes.get("/google/callback", async (c) => {
 		});
 		tokenRes = await tr.json();
 	} catch {
-		return c.json(
-			{ error: "OAuth token exchange failed", success: false },
-			500,
-		);
+		return c.json({ error: "OAuth token exchange failed", success: false }, 500);
 	}
 	if (tokenRes.error)
-		return c.json(
-			{ error: tokenRes.error_description || tokenRes.error, success: false },
-			400,
-		);
+		return c.json({ error: tokenRes.error_description || tokenRes.error, success: false }, 400);
 
 	// Get user profile
 	let profile: {
@@ -238,8 +229,7 @@ authRoutes.get("/google/callback", async (c) => {
 	} catch {
 		return c.json({ error: "Failed to get profile", success: false }, 500);
 	}
-	if (!profile.email)
-		return c.json({ error: "No email from Google", success: false }, 400);
+	if (!profile.email) return c.json({ error: "No email from Google", success: false }, 400);
 
 	const googleEmail = profile.email;
 	const googleSub = profile.sub ?? null;
@@ -252,9 +242,7 @@ authRoutes.get("/google/callback", async (c) => {
 		.select(["id", "email", "name", "role", "google_id", "avatar_url"])
 		.where((eb) =>
 			eb.or([
-				googleSub
-					? eb("google_id", "=", googleSub)
-					: eb("id", "=", "__never__"),
+				googleSub ? eb("google_id", "=", googleSub) : eb("id", "=", "__never__"),
 				eb("email", "=", googleEmail),
 			]),
 		)
@@ -276,11 +264,7 @@ authRoutes.get("/google/callback", async (c) => {
 		}
 		// Promote to super_admin if email matches
 		if (isSuperAdmin && existingUser.role !== "super_admin") {
-			await db
-				.updateTable("users")
-				.set({ role: "super_admin" })
-				.where("id", "=", userId)
-				.execute();
+			await db.updateTable("users").set({ role: "super_admin" }).where("id", "=", userId).execute();
 		}
 	} else {
 		userId = generateId();
@@ -289,8 +273,7 @@ authRoutes.get("/google/callback", async (c) => {
 			.values({
 				id: userId,
 				email: googleEmail,
-				name:
-					profile.name || googleEmail.split("@")[0] || googleEmail,
+				name: profile.name || googleEmail.split("@")[0] || googleEmail,
 				password_hash: "",
 				google_id: googleSub,
 				avatar_url: profile.picture || null,

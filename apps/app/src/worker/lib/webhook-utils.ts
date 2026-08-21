@@ -114,9 +114,7 @@ export async function verifyStripeSignature(
 		["sign"],
 	);
 	const sig = await crypto.subtle.sign("HMAC", key, enc.encode(signedPayload));
-	const computed = Array.from(new Uint8Array(sig), (b) =>
-		b.toString(16).padStart(2, "0"),
-	).join("");
+	const computed = Array.from(new Uint8Array(sig), (b) => b.toString(16).padStart(2, "0")).join("");
 
 	return timingSafeEqual(computed, v1Signature);
 }
@@ -135,9 +133,7 @@ export async function verifyLemonSqueezySignature(
 		["sign"],
 	);
 	const sig = await crypto.subtle.sign("HMAC", key, enc.encode(payload));
-	const computed = Array.from(new Uint8Array(sig), (b) =>
-		b.toString(16).padStart(2, "0"),
-	).join("");
+	const computed = Array.from(new Uint8Array(sig), (b) => b.toString(16).padStart(2, "0")).join("");
 	return timingSafeEqual(computed, signatureHeader);
 }
 
@@ -171,9 +167,7 @@ export async function verifyPolarSignature(
 		["sign"],
 	);
 	const sig = await crypto.subtle.sign("HMAC", key, enc.encode(signedPayload));
-	const computed = Array.from(new Uint8Array(sig), (b) =>
-		b.toString(16).padStart(2, "0"),
-	).join("");
+	const computed = Array.from(new Uint8Array(sig), (b) => b.toString(16).padStart(2, "0")).join("");
 	return timingSafeEqual(computed, v1Signature);
 }
 
@@ -196,11 +190,9 @@ export function categorizeChannel(
 	_utmSource: string | null,
 	utmMedium: string | null,
 ): string {
-	if (utmMedium === "cpc" || utmMedium === "ppc" || utmMedium === "paid")
-		return "Paid";
+	if (utmMedium === "cpc" || utmMedium === "ppc" || utmMedium === "paid") return "Paid";
 	if (utmMedium === "email") return "Email";
-	if (utmMedium === "social" || utmMedium === "social-media")
-		return "Social Media";
+	if (utmMedium === "social" || utmMedium === "social-media") return "Social Media";
 	if (!referrer) return "Direct";
 	const social = [
 		"facebook.com",

@@ -105,27 +105,13 @@ xenditWebhookRoutes.post("/", async (c) => {
 	const webhookSecret = config.webhook_secret || "";
 	const callbackToken = c.req.header("x-callback-token") || "";
 	if (!webhookSecret || !timingSafeEqual(callbackToken, webhookSecret)) {
-		await logWebhookEvent(
-			db,
-			siteId,
-			integration.id,
-			"xendit_invalid_token",
-			rawBody,
-			"failed",
-		);
+		await logWebhookEvent(db, siteId, integration.id, "xendit_invalid_token", rawBody, "failed");
 		return c.json({ error: "Invalid callback token" }, 401);
 	}
 
 	const eventType = body.event || body.event_type || "";
 	if (eventType === "invoice.expired") {
-		await logWebhookEvent(
-			db,
-			siteId,
-			integration.id,
-			"xendit_expired",
-			rawBody,
-			"processed",
-		);
+		await logWebhookEvent(db, siteId, integration.id, "xendit_expired", rawBody, "processed");
 		return c.json({ success: true, action: "logged_expired" });
 	}
 
@@ -136,25 +122,18 @@ xenditWebhookRoutes.post("/", async (c) => {
 	) {
 		const amount = Number(invoice.amount ?? body.amount ?? 0);
 		const currency = (invoice.currency ?? body.currency ?? "IDR").toUpperCase();
-		const paymentMethod =
-			invoice.payment_method ?? body.payment_method ?? "unknown";
-		const paymentChannel =
-			invoice.payment_channel ?? body.payment_channel ?? paymentMethod;
+		const paymentMethod = invoice.payment_method ?? body.payment_method ?? "unknown";
+		const paymentChannel = invoice.payment_channel ?? body.payment_channel ?? paymentMethod;
 		const mappedMethod = mapXenditMethod(paymentMethod, paymentChannel);
 		const xenditInvoiceId = invoice.id ?? body.id ?? externalId;
-		const recurringId =
-			invoice.recurring_payment_id ?? body.recurring_payment_id ?? null;
+		const recurringId = invoice.recurring_payment_id ?? body.recurring_payment_id ?? null;
 		const isRecurring = eventType === "recurring.cycle" || !!recurringId;
 
 		const existing = await db
 			.selectFrom("events")
 			.select(["id"])
 			.where("site_id", "=", siteId)
-			.where(
-				"event_type",
-				"=",
-				isRecurring ? "subscription" : "payment",
-			)
+			.where("event_type", "=", isRecurring ? "subscription" : "payment")
 			.where("props", "like", `%"xendit_invoice_id":"${xenditInvoiceId}"%`)
 			.executeTakeFirst();
 		if (existing) return c.json({ success: true, duplicate: true });
@@ -170,12 +149,9 @@ xenditWebhookRoutes.post("/", async (c) => {
 				.executeTakeFirst();
 			if (session) visitorId = session.visitor_id;
 		}
-		if (!visitorId)
-			visitorId = `xnd_${externalId.replace(/[^a-zA-Z0-9]/g, "_")}`;
+		if (!visitorId) visitorId = `xnd_${externalId.replace(/[^a-zA-Z0-9]/g, "_")}`;
 
-		const ts = invoice.paid_at
-			? new Date(invoice.paid_at).toISOString()
-			: new Date().toISOString();
+		const ts = invoice.paid_at ? new Date(invoice.paid_at).toISOString() : new Date().toISOString();
 		const eventId = generateId();
 
 		await db
@@ -187,9 +163,7 @@ xenditWebhookRoutes.post("/", async (c) => {
 				visitor_id: visitorId,
 				timestamp: ts,
 				event_type: isRecurring ? "subscription" : "payment",
-				name: isRecurring
-					? `subscription_${mappedMethod}`
-					: `payment_${mappedMethod}`,
+				name: isRecurring ? `subscription_${mappedMethod}` : `payment_${mappedMethod}`,
 				path: "/payment",
 				hostname: null,
 				referrer: null,

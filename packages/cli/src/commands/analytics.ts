@@ -21,19 +21,14 @@ import {
 	printTable,
 } from "../lib/output.js";
 
-export const analyticsCommand = new Command("analytics").description(
-	"Query analytics data",
-);
+export const analyticsCommand = new Command("analytics").description("Query analytics data");
 
 const rangeOption = (cmd: Command) =>
 	cmd.option("-r, --range <range>", "Date range (24h, 7d, 30d, 90d)", "7d");
-const siteOption = (cmd: Command) =>
-	cmd.requiredOption("-s, --site <site>", "Site ID or domain");
+const siteOption = (cmd: Command) => cmd.requiredOption("-s, --site <site>", "Site ID or domain");
 
 // revklik analytics overview
-const overview = analyticsCommand
-	.command("overview")
-	.description("Analytics overview stats");
+const overview = analyticsCommand.command("overview").description("Analytics overview stats");
 siteOption(overview);
 rangeOption(overview);
 overview.action(async (opts: { site: string; range: string }) => {
@@ -48,9 +43,7 @@ overview.action(async (opts: { site: string; range: string }) => {
 });
 
 // revklik analytics timeseries
-const timeseries = analyticsCommand
-	.command("timeseries")
-	.description("Time series data");
+const timeseries = analyticsCommand.command("timeseries").description("Time series data");
 siteOption(timeseries);
 rangeOption(timeseries);
 timeseries.action(async (opts: { site: string; range: string }) => {
@@ -59,11 +52,7 @@ timeseries.action(async (opts: { site: string; range: string }) => {
 		const data = await getAnalyticsTimeseries(siteId, opts.range);
 		printTable(
 			["Date", "Pageviews", "Visitors"],
-			data.map((r) => [
-				r.date,
-				formatNumber(r.pageviews),
-				formatNumber(r.visitors),
-			]),
+			data.map((r) => [r.date, formatNumber(r.pageviews), formatNumber(r.visitors)]),
 		);
 	} catch (err) {
 		console.error(chalk.red(err instanceof Error ? err.message : String(err)));
@@ -81,11 +70,7 @@ pages.action(async (opts: { site: string; range: string }) => {
 		const data = await getAnalyticsPages(siteId, opts.range);
 		printTable(
 			["Path", "Pageviews", "Visitors"],
-			data.map((r) => [
-				r.path,
-				formatNumber(r.pageviews),
-				formatNumber(r.visitors),
-			]),
+			data.map((r) => [r.path, formatNumber(r.pageviews), formatNumber(r.visitors)]),
 		);
 	} catch (err) {
 		console.error(chalk.red(err instanceof Error ? err.message : String(err)));
@@ -94,9 +79,7 @@ pages.action(async (opts: { site: string; range: string }) => {
 });
 
 // revklik analytics referrers
-const referrers = analyticsCommand
-	.command("referrers")
-	.description("Traffic sources");
+const referrers = analyticsCommand.command("referrers").description("Traffic sources");
 siteOption(referrers);
 rangeOption(referrers);
 referrers.action(async (opts: { site: string; range: string }) => {
@@ -105,11 +88,7 @@ referrers.action(async (opts: { site: string; range: string }) => {
 		const data = await getAnalyticsReferrers(siteId, opts.range);
 		printTable(
 			["Source", "Visitors", "%"],
-			data.map((r) => [
-				r.source,
-				formatNumber(r.visitors),
-				formatPercent(r.percentage),
-			]),
+			data.map((r) => [r.source, formatNumber(r.visitors), formatPercent(r.percentage)]),
 		);
 	} catch (err) {
 		console.error(chalk.red(err instanceof Error ? err.message : String(err)));
@@ -141,9 +120,7 @@ geo.action(async (opts: { site: string; range: string }) => {
 });
 
 // revklik analytics devices
-const devices = analyticsCommand
-	.command("devices")
-	.description("Device breakdown");
+const devices = analyticsCommand.command("devices").description("Device breakdown");
 siteOption(devices);
 rangeOption(devices);
 devices.action(async (opts: { site: string; range: string }) => {
@@ -153,29 +130,17 @@ devices.action(async (opts: { site: string; range: string }) => {
 		console.log(chalk.bold("\nDevices:"));
 		printTable(
 			["Device", "Visitors", "%"],
-			data.devices.map((r) => [
-				r.device,
-				formatNumber(r.visitors),
-				formatPercent(r.percentage),
-			]),
+			data.devices.map((r) => [r.device, formatNumber(r.visitors), formatPercent(r.percentage)]),
 		);
 		console.log(chalk.bold("\nOS:"));
 		printTable(
 			["OS", "Visitors", "%"],
-			data.os.map((r) => [
-				r.device,
-				formatNumber(r.visitors),
-				formatPercent(r.percentage),
-			]),
+			data.os.map((r) => [r.device, formatNumber(r.visitors), formatPercent(r.percentage)]),
 		);
 		console.log(chalk.bold("\nBrowsers:"));
 		printTable(
 			["Browser", "Visitors", "%"],
-			data.browsers.map((r) => [
-				r.device,
-				formatNumber(r.visitors),
-				formatPercent(r.percentage),
-			]),
+			data.browsers.map((r) => [r.device, formatNumber(r.visitors), formatPercent(r.percentage)]),
 		);
 	} catch (err) {
 		console.error(chalk.red(err instanceof Error ? err.message : String(err)));
@@ -184,9 +149,7 @@ devices.action(async (opts: { site: string; range: string }) => {
 });
 
 // revklik analytics revenue
-const revenue = analyticsCommand
-	.command("revenue")
-	.description("Revenue breakdown");
+const revenue = analyticsCommand.command("revenue").description("Revenue breakdown");
 siteOption(revenue);
 rangeOption(revenue);
 revenue.action(async (opts: { site: string; range: string }) => {
@@ -196,11 +159,7 @@ revenue.action(async (opts: { site: string; range: string }) => {
 		console.log(chalk.bold("\nRevenue by Source:"));
 		printTable(
 			["Source", "Revenue", "Conversions"],
-			data.bySource.map((r) => [
-				r.source,
-				formatCurrency(r.revenue),
-				formatNumber(r.conversions),
-			]),
+			data.bySource.map((r) => [r.source, formatCurrency(r.revenue), formatNumber(r.conversions)]),
 		);
 		console.log(chalk.bold("\nRevenue by Country:"));
 		printTable(
@@ -218,35 +177,18 @@ revenue.action(async (opts: { site: string; range: string }) => {
 });
 
 // revklik analytics events
-const eventsCmd = analyticsCommand
-	.command("events")
-	.description("Raw event log");
+const eventsCmd = analyticsCommand.command("events").description("Raw event log");
 siteOption(eventsCmd);
 rangeOption(eventsCmd);
 eventsCmd
 	.option("-l, --limit <n>", "Max events to show", "50")
-	.option(
-		"-t, --type <type>",
-		"Filter by event type (pageview, conversion, custom)",
-		"all",
-	)
+	.option("-t, --type <type>", "Filter by event type (pageview, conversion, custom)", "all")
 	.action(
-		async (opts: {
-			site: string;
-			range: string;
-			limit: string;
-			type: string;
-			json?: boolean;
-		}) => {
+		async (opts: { site: string; range: string; limit: string; type: string; json?: boolean }) => {
 			try {
 				const siteId = await resolveSite(opts.site);
 				const limit = Math.min(Number(opts.limit) || 50, 10000);
-				const events = await getAnalyticsEvents(
-					siteId,
-					opts.range,
-					limit,
-					opts.type,
-				);
+				const events = await getAnalyticsEvents(siteId, opts.range, limit, opts.type);
 
 				if (opts.json || process.argv.includes("--json")) {
 					printJson(events);
@@ -261,9 +203,7 @@ eventsCmd
 						.map((e) => [
 							e.timestamp.slice(0, 16).replace("T", " "),
 							e.event_type,
-							(e.name || "-").length > 20
-								? `${(e.name || "-").slice(0, 18)}..`
-								: e.name || "-",
+							(e.name || "-").length > 20 ? `${(e.name || "-").slice(0, 18)}..` : e.name || "-",
 							e.path.length > 30 ? `${e.path.slice(0, 28)}..` : e.path,
 							e.visitor_id.slice(0, 8),
 							e.country || "-",
@@ -287,22 +227,14 @@ eventsCmd
 							name,
 							formatNumber(count),
 							formatPercent(
-								Math.round(
-									(count /
-										events.filter((e) => e.event_type === "custom").length) *
-										100,
-								),
+								Math.round((count / events.filter((e) => e.event_type === "custom").length) * 100),
 							),
 						]),
 					);
 				}
 
-				const pageviews = events.filter(
-					(e) => e.event_type === "pageview",
-				).length;
-				const conversions = events.filter(
-					(e) => e.event_type === "conversion",
-				).length;
+				const pageviews = events.filter((e) => e.event_type === "pageview").length;
+				const conversions = events.filter((e) => e.event_type === "conversion").length;
 				const custom = events.filter((e) => e.event_type === "custom").length;
 				const totalRev = events.reduce((s, e) => s + (e.revenue ?? 0), 0);
 				console.log(
@@ -318,26 +250,14 @@ eventsCmd
 	);
 
 // revklik analytics journeys
-const journeysCmd = analyticsCommand
-	.command("journeys")
-	.description("Customer journey summaries");
+const journeysCmd = analyticsCommand.command("journeys").description("Customer journey summaries");
 siteOption(journeysCmd);
 rangeOption(journeysCmd);
 journeysCmd
 	.option("-l, --limit <n>", "Max journeys to show", "20")
-	.option(
-		"--sort <field>",
-		"Sort by: date, steps, revenue, source, device",
-		"steps",
-	)
+	.option("--sort <field>", "Sort by: date, steps, revenue, source, device", "steps")
 	.action(
-		async (opts: {
-			site: string;
-			range: string;
-			limit: string;
-			sort: string;
-			json?: boolean;
-		}) => {
+		async (opts: { site: string; range: string; limit: string; sort: string; json?: boolean }) => {
 			try {
 				const siteId = await resolveSite(opts.site);
 				const limit = Math.min(Number(opts.limit) || 20, 100);
@@ -370,19 +290,10 @@ journeysCmd
 
 				console.log(chalk.bold(`\nCustomer Journeys — ${opts.range}\n`));
 				printTable(
-					[
-						"Visitor",
-						"Steps",
-						"Source",
-						"Device",
-						"Revenue",
-						"Date",
-						"Country",
-					],
+					["Visitor", "Steps", "Source", "Device", "Revenue", "Date", "Country"],
 					rows.map((r) => [
-						(r.visitor.length > 16
-							? `${r.visitor.slice(0, 16)}..`
-							: r.visitor) + (r.identified ? " *" : ""),
+						(r.visitor.length > 16 ? `${r.visitor.slice(0, 16)}..` : r.visitor) +
+							(r.identified ? " *" : ""),
 						String(r.steps),
 						r.source.length > 14 ? `${r.source.slice(0, 14)}..` : r.source,
 						r.device,
@@ -394,9 +305,7 @@ journeysCmd
 
 				const totalRevenue = rows.reduce((s, r) => s + r.revenue, 0);
 				const avgSteps =
-					rows.length > 0
-						? (rows.reduce((s, r) => s + r.steps, 0) / rows.length).toFixed(1)
-						: "0";
+					rows.length > 0 ? (rows.reduce((s, r) => s + r.steps, 0) / rows.length).toFixed(1) : "0";
 				const conversions = journeys.filter((j) => j.total_revenue > 0).length;
 				console.log(
 					chalk.gray(

@@ -36,8 +36,7 @@ function AffiliatePage() {
 	});
 
 	const generateMut = useMutation({
-		mutationFn: () =>
-			generateReferralCode() as Promise<{ referral_code: string }>,
+		mutationFn: () => generateReferralCode() as Promise<{ referral_code: string }>,
 		onSuccess: () => qc.invalidateQueries({ queryKey: ["affiliate"] }),
 	});
 
@@ -85,7 +84,7 @@ function AffiliatePage() {
 						<h3
 							style={{
 								fontFamily: "var(--sans)",
-								
+
 								fontSize: 18,
 								color: "var(--text)",
 								marginBottom: 12,
@@ -109,7 +108,8 @@ function AffiliatePage() {
 										style={{ flex: 1, fontFamily: "var(--mono)", fontSize: 12 }}
 										onClick={(e) => (e.target as HTMLInputElement).select()}
 									/>
-									<button type="button"
+									<button
+										type="button"
 										className="btn-pill"
 										style={{ fontSize: 11, padding: "4px 10px" }}
 										onClick={copyLink}
@@ -127,22 +127,19 @@ function AffiliatePage() {
 									>
 										Code: {affiliate.referral_code}
 									</span>
-									<button type="button"
+									<button
+										type="button"
 										className="btn-pill"
 										style={{ fontSize: 11, padding: "3px 8px" }}
 										onClick={() => generateMut.mutate()}
 										disabled={generateMut.isPending}
 									>
-										{generateMut.isPending
-											? "Generating..."
-											: "Generate New Code"}
+										{generateMut.isPending ? "Generating..." : "Generate New Code"}
 									</button>
 								</div>
 							</>
 						) : (
-							<div style={{ color: "var(--text3)", fontSize: 12 }}>
-								Loading referral code...
-							</div>
+							<div style={{ color: "var(--text3)", fontSize: 12 }}>Loading referral code...</div>
 						)}
 					</div>
 
@@ -175,7 +172,7 @@ function AffiliatePage() {
 								<div
 									style={{
 										fontFamily: "var(--sans)",
-										
+
 										fontSize: 28,
 										color: "var(--text)",
 									}}
@@ -207,7 +204,7 @@ function AffiliatePage() {
 								<div
 									style={{
 										fontFamily: "var(--sans)",
-										
+
 										fontSize: 28,
 										color: "var(--green)",
 									}}
@@ -239,7 +236,7 @@ function AffiliatePage() {
 								<div
 									style={{
 										fontFamily: "var(--sans)",
-										
+
 										fontSize: 28,
 										color: "var(--text)",
 									}}
@@ -271,7 +268,7 @@ function AffiliatePage() {
 								<div
 									style={{
 										fontFamily: "var(--sans)",
-										
+
 										fontSize: 28,
 										color: "var(--accent)",
 									}}
@@ -296,7 +293,7 @@ function AffiliatePage() {
 							<h3
 								style={{
 									fontFamily: "var(--sans)",
-									
+
 									fontSize: 18,
 									color: "var(--text)",
 									marginBottom: 12,
@@ -316,14 +313,8 @@ function AffiliatePage() {
 									<tbody>
 										{stats.breakdown.map((b) => (
 											<tr key={b.event}>
-												<td
-													style={{ fontSize: 13, textTransform: "capitalize" }}
-												>
-													{b.event}
-												</td>
-												<td style={{ fontFamily: "var(--mono)", fontSize: 12 }}>
-													{b.count}
-												</td>
+												<td style={{ fontSize: 13, textTransform: "capitalize" }}>{b.event}</td>
+												<td style={{ fontFamily: "var(--mono)", fontSize: 12 }}>{b.count}</td>
 												<td style={{ fontFamily: "var(--mono)", fontSize: 12 }}>
 													${b.total_commission.toFixed(2)}
 												</td>
@@ -348,7 +339,7 @@ function AffiliatePage() {
 						<h3
 							style={{
 								fontFamily: "var(--sans)",
-								
+
 								fontSize: 18,
 								color: "var(--text)",
 								marginBottom: 12,
@@ -378,11 +369,7 @@ function AffiliatePage() {
 														r.referred_user_email ||
 														`${r.referred_user_id.slice(0, 8)}...`}
 												</td>
-												<td
-													style={{ fontSize: 13, textTransform: "capitalize" }}
-												>
-													{r.event}
-												</td>
+												<td style={{ fontSize: 13, textTransform: "capitalize" }}>{r.event}</td>
 												<td style={{ fontFamily: "var(--mono)", fontSize: 12 }}>
 													${r.commission_amount.toFixed(2)}
 												</td>

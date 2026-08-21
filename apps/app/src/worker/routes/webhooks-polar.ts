@@ -43,10 +43,7 @@ interface PolarWebhookAttributes {
 
 // Best-effort audit log. webhook_events.integration_id is NOT NULL, so only log when a polar
 // integration row exists; the conversion itself is always recorded regardless.
-async function findPolarIntegration(
-	db: Kysely<KlikapaDatabase>,
-	siteId: string,
-) {
+async function findPolarIntegration(db: Kysely<KlikapaDatabase>, siteId: string) {
 	return db
 		.selectFrom("integrations")
 		.select(["id"])
@@ -103,19 +100,15 @@ polarWebhookRoutes.post("/", async (c) => {
 	if (!siteId)
 		return c.json(
 			{
-				error:
-					"site_id required (set revklik_site_id in Polar metadata, or pass ?site_id=)",
+				error: "site_id required (set revklik_site_id in Polar metadata, or pass ?site_id=)",
 			},
 			400,
 		);
 
 	const secret = c.env.POLAR_WEBHOOK_SECRET || "";
 	const signatureHeader =
-		c.req.header("webhook-signature") ||
-		c.req.header("Webhook-Signature") ||
-		"";
-	if (!secret)
-		return c.json({ error: "POLAR_WEBHOOK_SECRET not configured" }, 503);
+		c.req.header("webhook-signature") || c.req.header("Webhook-Signature") || "";
+	if (!secret) return c.json({ error: "POLAR_WEBHOOK_SECRET not configured" }, 503);
 	if (signatureHeader) {
 		const valid = await verifyPolarSignature(rawBody, signatureHeader, secret);
 		if (!valid) {
@@ -134,8 +127,7 @@ polarWebhookRoutes.post("/", async (c) => {
 
 	const type = body.type || body.event_type || ""; // e.g. "order.created"
 	const orderId = data.id || attributes.id || "";
-	const isSubscription =
-		type === "subscription.created" || type === "subscription.updated";
+	const isSubscription = type === "subscription.created" || type === "subscription.updated";
 
 	// One-time products fire "order.created"; ignore the rest (refunds/cancellations handled separately if needed).
 	if (type !== "order.created" && type !== "subscription.created") {
@@ -153,26 +145,14 @@ polarWebhookRoutes.post("/", async (c) => {
 
 	// Polar amounts are in cents. Handle both the flat (data.amount) and JSON:API (attributes.total) shapes.
 	const rawAmount = Number(
-		data.amount ??
-			attributes.amount ??
-			attributes.total ??
-			attributes.net_amount ??
-			0,
+		data.amount ?? attributes.amount ?? attributes.total ?? attributes.net_amount ?? 0,
 	);
 	const amount = rawAmount / 100;
-	const currency = (data.currency || attributes.currency || "usd")
-		.toString()
-		.toUpperCase();
+	const currency = (data.currency || attributes.currency || "usd").toString().toUpperCase();
 	const customerEmail =
-		data.customer?.email ||
-		attributes.customer_email ||
-		data.customer_email ||
-		null;
+		data.customer?.email || attributes.customer_email || data.customer_email || null;
 	const productName =
-		data.product?.name ||
-		attributes.product_name ||
-		metadata.product_name ||
-		"Polar purchase";
+		data.product?.name || attributes.product_name || metadata.product_name || "Polar purchase";
 
 	// Dedupe by Polar order/subscription id in props.
 	const dedupeKey = isSubscription ? "polar_subscription_id" : "polar_order_id";
@@ -196,11 +176,9 @@ polarWebhookRoutes.post("/", async (c) => {
 			.executeTakeFirst();
 		if (sessionRow) visitorId = sessionRow.visitor_id;
 	}
-	if (!visitorId)
-		visitorId = `polar_${String(orderId).replace(/[^a-zA-Z0-9]/g, "_")}`;
+	if (!visitorId) visitorId = `polar_${String(orderId).replace(/[^a-zA-Z0-9]/g, "_")}`;
 
-	const ts =
-		data.created_at || attributes.created_at || new Date().toISOString();
+	const ts = data.created_at || attributes.created_at || new Date().toISOString();
 	const eventId = generateId();
 
 	await db
@@ -273,14 +251,7 @@ polarWebhookRoutes.post("/", async (c) => {
 		.execute();
 
 	const integration = await findPolarIntegration(db, siteId);
-	await logWebhookEvent(
-		db,
-		siteId,
-		integration?.id ?? null,
-		`polar_${type}`,
-		rawBody,
-		"processed",
-	);
+	await logWebhookEvent(db, siteId, integration?.id ?? null, `polar_${type}`, rawBody, "processed");
 	return c.json({
 		success: true,
 		event_id: eventId,

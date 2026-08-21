@@ -52,11 +52,7 @@ function latLngToVec3(lat: number, lng: number): [number, number, number] {
 	const latRad = (lat * Math.PI) / 180;
 	const lngRad = (lng * Math.PI) / 180 - Math.PI;
 	const cosLat = Math.cos(latRad);
-	return [
-		-cosLat * Math.sin(lngRad),
-		Math.sin(latRad),
-		cosLat * Math.cos(lngRad),
-	];
+	return [-cosLat * Math.sin(lngRad), Math.sin(latRad), cosLat * Math.cos(lngRad)];
 }
 
 export function projectMarker(
@@ -180,10 +176,7 @@ export function Globe({
 				circle.setAttribute("cy", "7");
 				circle.setAttribute("r", "3.5");
 				const path = document.createElementNS(svgNS, "path");
-				path.setAttribute(
-					"d",
-					"M3 17v-1.5C3 13.5 6.5 12 10 12s7 1.5 7 3.5V17z",
-				);
+				path.setAttribute("d", "M3 17v-1.5C3 13.5 6.5 12 10 12s7 1.5 7 3.5V17z");
 				svg.append(circle, path);
 				el.appendChild(svg);
 				overlay.appendChild(el);
@@ -275,14 +268,7 @@ export function Globe({
 
 		for (let i = 0; i < activeMarkers.length; i++) {
 			const m = activeMarkers[i];
-			const proj = projectMarker(
-				m.lat,
-				m.lng,
-				currentPhi,
-				theta,
-				canvas.width,
-				canvas.height,
-			);
+			const proj = projectMarker(m.lat, m.lng, currentPhi, theta, canvas.width, canvas.height);
 			if (!proj.visible) continue;
 			const dist = Math.hypot(proj.screenX - clickX, proj.screenY - clickY);
 			if (dist < bestDist) {
@@ -319,13 +305,11 @@ export function Globe({
 				}}
 				onPointerUp={() => {
 					pointerInteracting.current = null;
-					if (canvasRef.current)
-						canvasRef.current.style.cursor = paused ? "default" : "grab";
+					if (canvasRef.current) canvasRef.current.style.cursor = paused ? "default" : "grab";
 				}}
 				onPointerOut={() => {
 					pointerInteracting.current = null;
-					if (canvasRef.current)
-						canvasRef.current.style.cursor = paused ? "default" : "grab";
+					if (canvasRef.current) canvasRef.current.style.cursor = paused ? "default" : "grab";
 				}}
 				onMouseMove={(e) => {
 					if (paused || pointerInteracting.current === null) return;
@@ -341,10 +325,7 @@ export function Globe({
 					cursor: paused ? "default" : "grab",
 				}}
 			/>
-			<div
-				ref={overlayRef}
-				style={{ position: "absolute", inset: 0, pointerEvents: "none" }}
-			/>
+			<div ref={overlayRef} style={{ position: "absolute", inset: 0, pointerEvents: "none" }} />
 		</div>
 	);
 }

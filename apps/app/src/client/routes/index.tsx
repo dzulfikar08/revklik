@@ -15,10 +15,7 @@ function Sparkline({ data, color }: { data: number[]; color?: string }) {
 	return (
 		<div className="site-card-spark">
 			<ResponsiveContainer width="100%" height="100%">
-				<AreaChart
-					data={chartData}
-					margin={{ top: 2, right: 0, bottom: 0, left: 0 }}
-				>
+				<AreaChart data={chartData} margin={{ top: 2, right: 0, bottom: 0, left: 0 }}>
 					<defs>
 						<linearGradient id="sparkGrad" x1="0" y1="0" x2="0" y2="1">
 							<stop offset="0%" stopColor={stroke} stopOpacity={0.2} />
@@ -55,10 +52,7 @@ function OverviewPage() {
 	const [showCustom, setShowCustom] = useState(false);
 
 	const effectiveRange = useMemo(
-		() =>
-			showCustom && customStart && customEnd
-				? `${customStart},${customEnd}`
-				: range,
+		() => (showCustom && customStart && customEnd ? `${customStart},${customEnd}` : range),
 		[showCustom, customStart, customEnd, range],
 	);
 
@@ -102,11 +96,7 @@ function OverviewPage() {
 		}
 	};
 
-	const handleRemove = async (
-		e: React.MouseEvent,
-		id: string,
-		name: string,
-	) => {
+	const handleRemove = async (e: React.MouseEvent, id: string, name: string) => {
 		e.stopPropagation();
 		if (!confirm(`Delete ${name}?`)) return;
 		await deleteSite(id);
@@ -174,28 +164,16 @@ function OverviewPage() {
 						</button>
 						{showCustom && (
 							<div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-								<DateTimePicker
-									value={customStart}
-									onChange={setCustomStart}
-									placeholder="Start"
-								/>
-								<span style={{ fontSize: 12, color: "var(--text3)" }}>
-									&rarr;
-								</span>
-								<DateTimePicker
-									value={customEnd}
-									onChange={setCustomEnd}
-									placeholder="End"
-								/>
+								<DateTimePicker value={customStart} onChange={setCustomStart} placeholder="Start" />
+								<span style={{ fontSize: 12, color: "var(--text3)" }}>&rarr;</span>
+								<DateTimePicker value={customEnd} onChange={setCustomEnd} placeholder="End" />
 							</div>
 						)}
 					</div>
 				</div>
 
 				{isLoading ? (
-					<div
-						style={{ display: "flex", justifyContent: "center", padding: 80 }}
-					>
+					<div style={{ display: "flex", justifyContent: "center", padding: 80 }}>
 						<div className="spinner" />
 					</div>
 				) : (
@@ -231,52 +209,36 @@ function OverviewPage() {
 											borderRadius: 6,
 											transition: "color 0.15s",
 										}}
-										onMouseEnter={(e) =>
-											(e.currentTarget.style.color = "var(--crit)")
-										}
-										onMouseLeave={(e) =>
-											(e.currentTarget.style.color = "var(--text4)")
-										}
+										onMouseEnter={(e) => (e.currentTarget.style.color = "var(--crit)")}
+										onMouseLeave={(e) => (e.currentTarget.style.color = "var(--text4)")}
 									>
 										✕
 									</button>
 								</div>
 								<div className="site-card-metrics">
 									<div>
-										<div className="site-card-metric-value">
-											{site.visitors.toLocaleString()}
-										</div>
+										<div className="site-card-metric-value">{site.visitors.toLocaleString()}</div>
 										<div className="site-card-metric-label">Visitors</div>
 									</div>
 									<div>
-										<div className="site-card-metric-value">
-											{site.pageviews.toLocaleString()}
-										</div>
+										<div className="site-card-metric-value">{site.pageviews.toLocaleString()}</div>
 										<div className="site-card-metric-label">Views</div>
 									</div>
 									<div>
-										<div className="site-card-metric-value">
-											${site.revenue}
-										</div>
+										<div className="site-card-metric-value">${site.revenue}</div>
 										<div className="site-card-metric-label">Revenue</div>
 									</div>
 								</div>
 								<Sparkline data={site.sparkline} />
 								<div className="site-card-footer">
 									<span>{rangeLabel}</span>
-									<span style={{ color: "var(--accent)" }}>
-										{t("sites.view_details")}
-									</span>
+									<span style={{ color: "var(--accent)" }}>{t("sites.view_details")}</span>
 								</div>
 							</div>
 						))}
 
 						{!showAdd ? (
-							<button
-								type="button"
-								className="add-site-card"
-								onClick={() => setShowAdd(true)}
-							>
+							<button type="button" className="add-site-card" onClick={() => setShowAdd(true)}>
 								<span style={{ fontSize: 24, fontWeight: 300 }}>+</span>
 								<span>{t("sites.add")}</span>
 							</button>
@@ -296,7 +258,7 @@ function OverviewPage() {
 								<div
 									style={{
 										fontFamily: "var(--sans)",
-										
+
 										fontSize: 18,
 										color: "var(--text)",
 									}}
@@ -322,11 +284,7 @@ function OverviewPage() {
 									placeholder="example.com"
 									style={{ width: "100%" }}
 								/>
-								{addError && (
-									<div style={{ fontSize: 12, color: "var(--crit)" }}>
-										{addError}
-									</div>
-								)}
+								{addError && <div style={{ fontSize: 12, color: "var(--crit)" }}>{addError}</div>}
 								<div style={{ display: "flex", gap: 8 }}>
 									<button
 										type="button"

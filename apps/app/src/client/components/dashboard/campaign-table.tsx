@@ -46,14 +46,11 @@ export function CampaignTable({
 			</div>
 		);
 
-	const fmt = (n: number) =>
-		n >= 1000 ? `${(n / 1000).toFixed(1)}k` : n.toString();
+	const fmt = (n: number) => (n >= 1000 ? `${(n / 1000).toFixed(1)}k` : n.toString());
 
 	return (
 		<div style={{ overflowX: "auto" }}>
-			<table
-				style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}
-			>
+			<table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
 				<thead>
 					<tr style={{ borderBottom: "1px solid var(--border)" }}>
 						<th
@@ -127,9 +124,7 @@ export function CampaignTable({
 								borderBottom: "1px solid var(--border)",
 								cursor: onCrossFilter ? "pointer" : "default",
 							}}
-							onMouseEnter={(e) =>
-								(e.currentTarget.style.background = "var(--hover)")
-							}
+							onMouseEnter={(e) => (e.currentTarget.style.background = "var(--hover)")}
 							onMouseLeave={(e) => (e.currentTarget.style.background = "")}
 						>
 							<td
@@ -144,9 +139,7 @@ export function CampaignTable({
 							>
 								{c.utm_campaign}
 							</td>
-							<td style={{ padding: "8px 6px", color: "var(--text2)" }}>
-								{c.utm_source}
-							</td>
+							<td style={{ padding: "8px 6px", color: "var(--text2)" }}>{c.utm_source}</td>
 							<td
 								style={{
 									padding: "8px 6px",

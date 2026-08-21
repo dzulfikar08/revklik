@@ -44,9 +44,7 @@ export async function apiRequest<T>(
 	try {
 		data = JSON.parse(text);
 	} catch {
-		throw new Error(
-			`API returned non-JSON response (${res.status}): ${text.slice(0, 200)}`,
-		);
+		throw new Error(`API returned non-JSON response (${res.status}): ${text.slice(0, 200)}`);
 	}
 
 	if (!res.ok || data.success === false) {
@@ -85,9 +83,7 @@ export async function gscRequest<T>(
 	try {
 		data = JSON.parse(text);
 	} catch {
-		throw new Error(
-			`API returned non-JSON response (${res.status}): ${text.slice(0, 200)}`,
-		);
+		throw new Error(`API returned non-JSON response (${res.status}): ${text.slice(0, 200)}`);
 	}
 
 	if (!res.ok || data.success === false) {
@@ -100,11 +96,7 @@ export async function gscRequest<T>(
 // Resolve a site identifier (full ID, partial ID, or domain) to a full site ID
 export async function resolveSite(input: string): Promise<string> {
 	// If it looks like a full UUID, return as-is
-	if (
-		/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
-			input,
-		)
-	) {
+	if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(input)) {
 		return input;
 	}
 	const sites = await listSites();
@@ -114,9 +106,7 @@ export async function resolveSite(input: string): Promise<string> {
 	// Partial ID match (prefix)
 	const byPartial = sites.find((s) => s.id.startsWith(input));
 	if (byPartial) return byPartial.id;
-	throw new Error(
-		`Site not found: ${input}. Run "revklik sites list" to see available sites.`,
-	);
+	throw new Error(`Site not found: ${input}. Run "revklik sites list" to see available sites.`);
 }
 
 // Typed helpers
@@ -167,27 +157,35 @@ export async function getAnalyticsOverview(siteId: string, range: string) {
 }
 
 export async function getAnalyticsTimeseries(siteId: string, range: string) {
-	return apiRequest<
-		Array<{ date: string; pageviews: number; visitors: number }>
-	>("GET", "/analytics/timeseries", { site_id: siteId, range });
+	return apiRequest<Array<{ date: string; pageviews: number; visitors: number }>>(
+		"GET",
+		"/analytics/timeseries",
+		{ site_id: siteId, range },
+	);
 }
 
 export async function getAnalyticsPages(siteId: string, range: string) {
-	return apiRequest<
-		Array<{ path: string; pageviews: number; visitors: number }>
-	>("GET", "/analytics/pages", { site_id: siteId, range });
+	return apiRequest<Array<{ path: string; pageviews: number; visitors: number }>>(
+		"GET",
+		"/analytics/pages",
+		{ site_id: siteId, range },
+	);
 }
 
 export async function getAnalyticsReferrers(siteId: string, range: string) {
-	return apiRequest<
-		Array<{ source: string; visitors: number; percentage: number }>
-	>("GET", "/analytics/referrers", { site_id: siteId, range });
+	return apiRequest<Array<{ source: string; visitors: number; percentage: number }>>(
+		"GET",
+		"/analytics/referrers",
+		{ site_id: siteId, range },
+	);
 }
 
 export async function getAnalyticsGeo(siteId: string, range: string) {
-	return apiRequest<
-		Array<{ country: string; region: string; city: string; visitors: number }>
-	>("GET", "/analytics/geo", { site_id: siteId, range });
+	return apiRequest<Array<{ country: string; region: string; city: string; visitors: number }>>(
+		"GET",
+		"/analytics/geo",
+		{ site_id: siteId, range },
+	);
 }
 
 export async function getAnalyticsDevices(siteId: string, range: string) {
@@ -245,11 +243,7 @@ export async function getAnalyticsEvents(
 	>("GET", "/analytics/export", params);
 }
 
-export async function getAnalyticsJourneys(
-	siteId: string,
-	range: string,
-	limit: number,
-) {
+export async function getAnalyticsJourneys(siteId: string, range: string, limit: number) {
 	return apiRequest<
 		Array<{
 			session_id: string;

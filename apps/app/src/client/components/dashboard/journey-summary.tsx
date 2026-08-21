@@ -1,11 +1,6 @@
 import { useMemo, useState } from "react";
 import type { JourneySortKey, VisitorJourney } from "@revklik/shared";
-import {
-	countryFlag,
-	DeviceIcon,
-	nameFromVisitorId,
-	sourceLabel,
-} from "./icons";
+import { countryFlag, DeviceIcon, nameFromVisitorId, sourceLabel } from "./icons";
 import { formatTime } from "./metric-cards";
 
 const SORT_KEYS: { key: JourneySortKey; label: string }[] = [
@@ -91,11 +86,7 @@ export function JourneySummaryTable({
 								className={`journey-summary-th ${sk.key === "device" ? "journey-summary-hide-mobile" : ""}`}
 							>
 								{sk.label}
-								{sortKey === sk.key
-									? sortDir === "desc"
-										? " \u25BC"
-										: " \u25B2"
-									: ""}
+								{sortKey === sk.key ? (sortDir === "desc" ? " \u25BC" : " \u25B2") : ""}
 							</th>
 						))}
 					</tr>
@@ -115,11 +106,7 @@ export function JourneySummaryTable({
 										gap: 4,
 									}}
 								>
-									{r.country && (
-										<span style={{ fontSize: 11 }}>
-											{countryFlag(r.country)}
-										</span>
-									)}
+									{r.country && <span style={{ fontSize: 11 }}>{countryFlag(r.country)}</span>}
 									<span
 										style={{
 											fontWeight: r.is_identified ? 600 : 400,
@@ -145,9 +132,7 @@ export function JourneySummaryTable({
 								{r.steps_count}
 							</td>
 							<td>
-								<span style={{ fontSize: 11, color: "var(--text2)" }}>
-									{sourceLabel(r.source)}
-								</span>
+								<span style={{ fontSize: 11, color: "var(--text2)" }}>{sourceLabel(r.source)}</span>
 							</td>
 							<td className="journey-summary-hide-mobile">
 								<span
@@ -164,9 +149,7 @@ export function JourneySummaryTable({
 							</td>
 							<td
 								className={
-									r.total_revenue > 0
-										? "journey-summary-revenue"
-										: "journey-summary-revenue zero"
+									r.total_revenue > 0 ? "journey-summary-revenue" : "journey-summary-revenue zero"
 								}
 							>
 								{r.total_revenue > 0 ? `$${r.total_revenue.toFixed(2)}` : "-"}

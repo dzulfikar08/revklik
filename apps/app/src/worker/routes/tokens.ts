@@ -73,18 +73,12 @@ tokenRoutes.post("/", async (c) => {
 	}
 
 	if (type !== "account" && type !== "site") {
-		return c.json(
-			{ error: "type must be 'account' or 'site'", success: false },
-			400,
-		);
+		return c.json({ error: "type must be 'account' or 'site'", success: false }, 400);
 	}
 
 	// For site tokens, site_id is required
 	if (type === "site" && !site_id) {
-		return c.json(
-			{ error: "site_id is required for site tokens", success: false },
-			400,
-		);
+		return c.json({ error: "site_id is required for site tokens", success: false }, 400);
 	}
 
 	// Validate site ownership for site tokens
@@ -109,10 +103,7 @@ tokenRoutes.post("/", async (c) => {
 			.executeTakeFirst();
 
 		if (!site) {
-			return c.json(
-				{ error: "Site not found or no access", success: false },
-				404,
-			);
+			return c.json({ error: "Site not found or no access", success: false }, 404);
 		}
 	}
 
@@ -158,25 +149,15 @@ tokenRoutes.post("/", async (c) => {
 
 	// Validate provided scopes are valid
 	const validScopes = Object.values(SCOPES) as string[];
-	const invalidScopes = tokenScopes.filter(
-		(s: string) => !validScopes.includes(s),
-	);
+	const invalidScopes = tokenScopes.filter((s: string) => !validScopes.includes(s));
 	if (invalidScopes.length > 0) {
-		return c.json(
-			{ error: `Invalid scopes: ${invalidScopes.join(", ")}`, success: false },
-			400,
-		);
+		return c.json({ error: `Invalid scopes: ${invalidScopes.join(", ")}`, success: false }, 400);
 	}
 
 	// Site tokens can only have analytics scopes
 	if (type === "site") {
-		const siteAllowedScopes: string[] = [
-			SCOPES.ANALYTICS_READ,
-			SCOPES.ANALYTICS_EXPORT,
-		];
-		const disallowedScopes = tokenScopes.filter(
-			(s: string) => !siteAllowedScopes.includes(s),
-		);
+		const siteAllowedScopes: string[] = [SCOPES.ANALYTICS_READ, SCOPES.ANALYTICS_EXPORT];
+		const disallowedScopes = tokenScopes.filter((s: string) => !siteAllowedScopes.includes(s));
 		if (disallowedScopes.length > 0) {
 			return c.json(
 				{
@@ -247,10 +228,7 @@ tokenRoutes.delete("/:id", async (c) => {
 
 	// Only allow revoking own tokens
 	if (apiKey.user_id !== userId) {
-		return c.json(
-			{ error: "You can only revoke your own tokens", success: false },
-			403,
-		);
+		return c.json({ error: "You can only revoke your own tokens", success: false }, 403);
 	}
 
 	// Only allow revoking account/site tokens (not session tokens)

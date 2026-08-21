@@ -44,7 +44,7 @@ export function EmptyState({ siteId }: { siteId: string }) {
 				<div
 					style={{
 						fontFamily: "var(--sans)",
-						
+
 						fontSize: 28,
 						color: "var(--text)",
 						marginBottom: 8,
@@ -82,7 +82,8 @@ export function EmptyState({ siteId }: { siteId: string }) {
 					&nbsp;&nbsp;src="{window.location.origin}
 					/klikapa.js"&gt;&lt;/script&gt;
 				</div>
-				<button type="button"
+				<button
+					type="button"
 					className="btn-accent"
 					onClick={() => {
 						navigator.clipboard.writeText(snippet);
@@ -109,7 +110,8 @@ export function CollapsibleSection({
 	const [open, setOpen] = useState(defaultOpen);
 	return (
 		<div style={{ marginBottom: 16 }}>
-			<button type="button"
+			<button
+				type="button"
 				onClick={() => setOpen(!open)}
 				style={{
 					display: "flex",

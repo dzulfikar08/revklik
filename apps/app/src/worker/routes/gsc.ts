@@ -15,8 +15,7 @@ gscRoutes.use("/queries/*", async (c, next) => {
 		return c.json({ error: "Unauthorized", success: false }, 401);
 	const token = authHeader.slice(7);
 	const db = c.get("db");
-	if (!db)
-		return c.json({ error: "Database unavailable", success: false }, 503);
+	if (!db) return c.json({ error: "Database unavailable", success: false }, 503);
 	const keyHash = await hashToken(token);
 	const apiKey = await db
 		.selectFrom("api_keys")
@@ -34,8 +33,7 @@ gscRoutes.use("/sync/*", async (c, next) => {
 		return c.json({ error: "Unauthorized", success: false }, 401);
 	const token = authHeader.slice(7);
 	const db = c.get("db");
-	if (!db)
-		return c.json({ error: "Database unavailable", success: false }, 503);
+	if (!db) return c.json({ error: "Database unavailable", success: false }, 503);
 	const keyHash = await hashToken(token);
 	const apiKey = await db
 		.selectFrom("api_keys")
@@ -48,11 +46,7 @@ gscRoutes.use("/sync/*", async (c, next) => {
 });
 
 // Helper: validate user owns the site
-async function validateSite(
-	db: Kysely<KlikapaDatabase>,
-	userId: string,
-	siteId: string,
-) {
+async function validateSite(db: Kysely<KlikapaDatabase>, userId: string, siteId: string) {
 	return db
 		.selectFrom("sites")
 		.select(["id", "domain"])
@@ -94,12 +88,8 @@ async function refreshAccessToken(
 		error?: string;
 		error_description?: string;
 	};
-	if (!res.ok)
-		throw new Error(
-			`Token refresh failed: ${data.error_description || data.error}`,
-		);
-	if (!data.access_token)
-		throw new Error("Token refresh failed: no access_token in response");
+	if (!res.ok) throw new Error(`Token refresh failed: ${data.error_description || data.error}`);
+	if (!data.access_token) throw new Error("Token refresh failed: no access_token in response");
 	return data.access_token;
 }
 
@@ -141,9 +131,7 @@ async function fetchSearchAnalytics(
 			error?: { message?: string } | string;
 		};
 		throw new Error(
-			`GSC API error: ${
-				(typeof err.error === "object" && err.error?.message) || res.status
-			}`,
+			`GSC API error: ${(typeof err.error === "object" && err.error?.message) || res.status}`,
 		);
 	}
 	return (await res.json()) as {
@@ -160,8 +148,7 @@ async function fetchSearchAnalytics(
 // GET /auth - Start Google OAuth flow for GSC
 gscRoutes.get("/auth", async (c) => {
 	const siteId = c.req.query("site_id");
-	if (!siteId)
-		return c.json({ error: "site_id required", success: false }, 400);
+	if (!siteId) return c.json({ error: "site_id required", success: false }, 400);
 
 	const clientId = c.env.GOOGLE_CLIENT_ID || "";
 	const redirectUri = `${new URL(c.req.url).origin}/api/gsc/callback`;
@@ -177,9 +164,7 @@ gscRoutes.get("/auth", async (c) => {
 		prompt: "consent",
 	});
 
-	return c.redirect(
-		`https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`,
-	);
+	return c.redirect(`https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`);
 });
 
 // GET /callback - Handle Google OAuth callback
@@ -189,8 +174,7 @@ gscRoutes.get("/callback", async (c) => {
 
 	const code = c.req.query("code");
 	const stateStr = c.req.query("state");
-	if (!code || !stateStr)
-		return c.json({ error: "Missing code or state", success: false }, 400);
+	if (!code || !stateStr) return c.json({ error: "Missing code or state", success: false }, 400);
 
 	let state: { site_id: string; nonce: string };
 	try {
@@ -198,8 +182,7 @@ gscRoutes.get("/callback", async (c) => {
 	} catch {
 		return c.json({ error: "Invalid state parameter", success: false }, 400);
 	}
-	if (!state.site_id)
-		return c.json({ error: "Missing site_id in state", success: false }, 400);
+	if (!state.site_id) return c.json({ error: "Missing site_id in state", success: false }, 400);
 
 	const clientId = c.env.GOOGLE_CLIENT_ID || "";
 	const clientSecret = c.env.GOOGLE_CLIENT_SECRET || "";
@@ -226,16 +209,10 @@ gscRoutes.get("/callback", async (c) => {
 		});
 		tokenRes = await tr.json();
 	} catch {
-		return c.json(
-			{ error: "OAuth token exchange failed", success: false },
-			500,
-		);
+		return c.json({ error: "OAuth token exchange failed", success: false }, 500);
 	}
 	if (tokenRes.error) {
-		return c.json(
-			{ error: tokenRes.error_description || tokenRes.error, success: false },
-			400,
-		);
+		return c.json({ error: tokenRes.error_description || tokenRes.error, success: false }, 400);
 	}
 
 	const accessToken = tokenRes.access_token as string;
@@ -253,12 +230,9 @@ gscRoutes.get("/callback", async (c) => {
 	// List the user's verified sites from GSC to pick the right site URL
 	let googleSiteUrl = "";
 	try {
-		const sitesRes = await fetch(
-			"https://www.googleapis.com/webmasters/v3/sites",
-			{
-				headers: { Authorization: `Bearer ${accessToken}` },
-			},
-		);
+		const sitesRes = await fetch("https://www.googleapis.com/webmasters/v3/sites", {
+			headers: { Authorization: `Bearer ${accessToken}` },
+		});
 		if (sitesRes.ok) {
 			const sitesData = (await sitesRes.json()) as {
 				siteEntry?: Array<{ siteUrl: string }>;
@@ -322,16 +296,13 @@ gscRoutes.get("/queries", async (c) => {
 	if (!db) return c.json({ error: "DB unavailable", success: false }, 503);
 
 	const siteId = c.req.query("site_id");
-	if (!siteId)
-		return c.json({ error: "site_id required", success: false }, 400);
+	if (!siteId) return c.json({ error: "site_id required", success: false }, 400);
 
 	const site = await validateSite(db, userId, siteId);
 	if (!site) return c.json({ error: "Site not found", success: false }, 404);
 
 	// Return last 30 days of stored search console data
-	const thirtyDaysAgo = new Date(Date.now() - 30 * 86400000)
-		.toISOString()
-		.split("T")[0] ?? "";
+	const thirtyDaysAgo = new Date(Date.now() - 30 * 86400000).toISOString().split("T")[0] ?? "";
 	const rows = await db
 		.selectFrom("search_console_data")
 		.select(["query", "date", "clicks", "impressions", "ctr", "position"])
@@ -352,8 +323,7 @@ gscRoutes.post("/sync", async (c) => {
 	if (!db) return c.json({ error: "DB unavailable", success: false }, 503);
 
 	const siteId = c.req.query("site_id");
-	if (!siteId)
-		return c.json({ error: "site_id required", success: false }, 400);
+	if (!siteId) return c.json({ error: "site_id required", success: false }, 400);
 
 	const site = await validateSite(db, userId, siteId);
 	if (!site) return c.json({ error: "Site not found", success: false }, 404);
@@ -387,11 +357,7 @@ gscRoutes.post("/sync", async (c) => {
 	// Refresh access token
 	let accessToken: string;
 	try {
-		accessToken = await refreshAccessToken(
-			refresh_token,
-			clientId,
-			clientSecret,
-		);
+		accessToken = await refreshAccessToken(refresh_token, clientId, clientSecret);
 	} catch (err) {
 		return c.json(
 			{
@@ -410,19 +376,10 @@ gscRoutes.post("/sync", async (c) => {
 	let synced = 0;
 	try {
 		// Query each day individually for proper date attribution
-		for (
-			let d = new Date(startDate);
-			d <= effectiveEnd;
-			d.setDate(d.getDate() + 1)
-		) {
+		for (let d = new Date(startDate); d <= effectiveEnd; d.setDate(d.getDate() + 1)) {
 			const dateStr = d.toISOString().split("T")[0] ?? "";
 
-			const result = await fetchSearchAnalytics(
-				accessToken,
-				google_site_url,
-				dateStr,
-				dateStr,
-			);
+			const result = await fetchSearchAnalytics(accessToken, google_site_url, dateStr, dateStr);
 			const rows = result.rows || [];
 
 			for (const row of rows) {

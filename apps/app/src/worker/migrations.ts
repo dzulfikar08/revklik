@@ -23,9 +23,7 @@ export async function migrateDatabase(d1: D1Database): Promise<void> {
 			d1.prepare(
 				"CREATE UNIQUE INDEX IF NOT EXISTS idx_vp_site_visitor ON visitor_profiles(site_id, visitor_id)",
 			),
-			d1.prepare(
-				"CREATE INDEX IF NOT EXISTS idx_events_site_time ON events(site_id, timestamp)",
-			),
+			d1.prepare("CREATE INDEX IF NOT EXISTS idx_events_site_time ON events(site_id, timestamp)"),
 			d1.prepare(
 				"CREATE INDEX IF NOT EXISTS idx_events_site_session ON events(site_id, session_id)",
 			),
@@ -35,18 +33,12 @@ export async function migrateDatabase(d1: D1Database): Promise<void> {
 			d1.prepare(
 				"CREATE INDEX IF NOT EXISTS idx_events_site_type ON events(site_id, event_type, timestamp)",
 			),
-			d1.prepare(
-				"CREATE INDEX IF NOT EXISTS idx_sessions_site ON sessions(site_id, started_at)",
-			),
+			d1.prepare("CREATE INDEX IF NOT EXISTS idx_sessions_site ON sessions(site_id, started_at)"),
 			d1.prepare(
 				"CREATE INDEX IF NOT EXISTS idx_sessions_visitor ON sessions(site_id, visitor_id)",
 			),
-			d1.prepare(
-				"CREATE INDEX IF NOT EXISTS idx_api_keys_hash ON api_keys(key_hash)",
-			),
-			d1.prepare(
-				"CREATE INDEX IF NOT EXISTS idx_api_keys_user ON api_keys(user_id)",
-			),
+			d1.prepare("CREATE INDEX IF NOT EXISTS idx_api_keys_hash ON api_keys(key_hash)"),
+			d1.prepare("CREATE INDEX IF NOT EXISTS idx_api_keys_user ON api_keys(user_id)"),
 		]);
 	} catch {
 		// tables may already exist
@@ -193,9 +185,7 @@ export async function migrateDatabase(d1: D1Database): Promise<void> {
 			d1.prepare(
 				"CREATE INDEX IF NOT EXISTS idx_sr_site ON session_recordings(site_id, started_at)",
 			),
-			d1.prepare(
-				"CREATE INDEX IF NOT EXISTS idx_sr_session ON session_recordings(session_id)",
-			),
+			d1.prepare("CREATE INDEX IF NOT EXISTS idx_sr_session ON session_recordings(session_id)"),
 		]);
 	} catch {
 		/* table may already exist */
@@ -241,12 +231,8 @@ export async function migrateDatabase(d1: D1Database): Promise<void> {
     )`)
 			.run();
 		await d1.batch([
-			d1.prepare(
-				"CREATE INDEX IF NOT EXISTS idx_int_site ON integrations(site_id)",
-			),
-			d1.prepare(
-				"CREATE INDEX IF NOT EXISTS idx_int_user ON integrations(user_id)",
-			),
+			d1.prepare("CREATE INDEX IF NOT EXISTS idx_int_site ON integrations(site_id)"),
+			d1.prepare("CREATE INDEX IF NOT EXISTS idx_int_user ON integrations(user_id)"),
 		]);
 	} catch {
 		/* table may already exist */
@@ -269,15 +255,9 @@ export async function migrateDatabase(d1: D1Database): Promise<void> {
     )`)
 			.run();
 		await d1.batch([
-			d1.prepare(
-				"CREATE INDEX IF NOT EXISTS idx_we_site ON webhook_events(site_id, created_at)",
-			),
-			d1.prepare(
-				"CREATE INDEX IF NOT EXISTS idx_we_status ON webhook_events(status, created_at)",
-			),
-			d1.prepare(
-				"CREATE INDEX IF NOT EXISTS idx_we_int ON webhook_events(integration_id)",
-			),
+			d1.prepare("CREATE INDEX IF NOT EXISTS idx_we_site ON webhook_events(site_id, created_at)"),
+			d1.prepare("CREATE INDEX IF NOT EXISTS idx_we_status ON webhook_events(status, created_at)"),
+			d1.prepare("CREATE INDEX IF NOT EXISTS idx_we_int ON webhook_events(integration_id)"),
 		]);
 	} catch {
 		/* table may already exist */
@@ -302,9 +282,7 @@ export async function migrateDatabase(d1: D1Database): Promise<void> {
 			d1.prepare(
 				"CREATE INDEX IF NOT EXISTS idx_ai_site ON ai_insights(site_id, range, insight_type)",
 			),
-			d1.prepare(
-				"CREATE INDEX IF NOT EXISTS idx_ai_expires ON ai_insights(expires_at)",
-			),
+			d1.prepare("CREATE INDEX IF NOT EXISTS idx_ai_expires ON ai_insights(expires_at)"),
 		]);
 	} catch {
 		/* table may already exist */
@@ -328,9 +306,7 @@ export async function migrateDatabase(d1: D1Database): Promise<void> {
     )`)
 			.run();
 		await d1.batch([
-			d1.prepare(
-				"CREATE UNIQUE INDEX IF NOT EXISTS idx_sub_user ON subscriptions(user_id)",
-			),
+			d1.prepare("CREATE UNIQUE INDEX IF NOT EXISTS idx_sub_user ON subscriptions(user_id)"),
 			d1.prepare(
 				"CREATE INDEX IF NOT EXISTS idx_sub_polar ON subscriptions(polar_subscription_id)",
 			),
@@ -356,9 +332,7 @@ export async function migrateDatabase(d1: D1Database): Promise<void> {
 			d1.prepare(
 				"CREATE UNIQUE INDEX IF NOT EXISTS idx_tm_site_user ON team_members(site_id, user_id)",
 			),
-			d1.prepare(
-				"CREATE INDEX IF NOT EXISTS idx_tm_user ON team_members(user_id)",
-			),
+			d1.prepare("CREATE INDEX IF NOT EXISTS idx_tm_user ON team_members(user_id)"),
 		]);
 	} catch {
 		/* table may already exist */
@@ -378,9 +352,7 @@ export async function migrateDatabase(d1: D1Database): Promise<void> {
 	}
 	try {
 		await d1
-			.prepare(
-				"CREATE UNIQUE INDEX IF NOT EXISTS idx_users_google ON users(google_id)",
-			)
+			.prepare("CREATE UNIQUE INDEX IF NOT EXISTS idx_users_google ON users(google_id)")
 			.run();
 	} catch {
 		/* index may already exist */
@@ -398,12 +370,8 @@ export async function migrateDatabase(d1: D1Database): Promise<void> {
     )`)
 			.run();
 		await d1.batch([
-			d1.prepare(
-				"CREATE INDEX IF NOT EXISTS idx_pt_user ON push_tokens(user_id)",
-			),
-			d1.prepare(
-				"CREATE UNIQUE INDEX IF NOT EXISTS idx_pt_token ON push_tokens(device_token)",
-			),
+			d1.prepare("CREATE INDEX IF NOT EXISTS idx_pt_user ON push_tokens(user_id)"),
+			d1.prepare("CREATE UNIQUE INDEX IF NOT EXISTS idx_pt_token ON push_tokens(device_token)"),
 		]);
 	} catch {
 		/* table may already exist */
@@ -436,9 +404,7 @@ export async function migrateDatabase(d1: D1Database): Promise<void> {
 	}
 	try {
 		await d1
-			.prepare(
-				"CREATE INDEX IF NOT EXISTS idx_api_keys_type ON api_keys(user_id, token_type)",
-			)
+			.prepare("CREATE INDEX IF NOT EXISTS idx_api_keys_type ON api_keys(user_id, token_type)")
 			.run();
 	} catch {
 		/* index may already exist */
@@ -456,11 +422,7 @@ export async function migrateDatabase(d1: D1Database): Promise<void> {
       created_at TEXT NOT NULL DEFAULT (datetime('now'))
     )`)
 			.run();
-		await d1
-			.prepare(
-				"CREATE INDEX IF NOT EXISTS idx_pp_site ON payment_providers(site_id)",
-			)
-			.run();
+		await d1.prepare("CREATE INDEX IF NOT EXISTS idx_pp_site ON payment_providers(site_id)").run();
 		await d1
 			.prepare(
 				"CREATE INDEX IF NOT EXISTS idx_pp_site_provider ON payment_providers(site_id, provider)",
@@ -485,15 +447,9 @@ export async function migrateDatabase(d1: D1Database): Promise<void> {
       processed_at TEXT
     )`)
 			.run();
+		await d1.prepare("CREATE INDEX IF NOT EXISTS idx_wl_site ON webhook_logs(site_id)").run();
 		await d1
-			.prepare(
-				"CREATE INDEX IF NOT EXISTS idx_wl_site ON webhook_logs(site_id)",
-			)
-			.run();
-		await d1
-			.prepare(
-				"CREATE INDEX IF NOT EXISTS idx_wl_site_provider ON webhook_logs(site_id, provider)",
-			)
+			.prepare("CREATE INDEX IF NOT EXISTS idx_wl_site_provider ON webhook_logs(site_id, provider)")
 			.run();
 	} catch {
 		/* table may already exist */
@@ -510,11 +466,7 @@ export async function migrateDatabase(d1: D1Database): Promise<void> {
       created_at TEXT NOT NULL DEFAULT (datetime('now'))
     )`)
 			.run();
-		await d1
-			.prepare(
-				"CREATE INDEX IF NOT EXISTS idx_segments_site ON segments(site_id)",
-			)
-			.run();
+		await d1.prepare("CREATE INDEX IF NOT EXISTS idx_segments_site ON segments(site_id)").run();
 	} catch {
 		/* table may already exist */
 	}
@@ -532,9 +484,7 @@ export async function migrateDatabase(d1: D1Database): Promise<void> {
     )`)
 			.run();
 		await d1
-			.prepare(
-				"CREATE INDEX IF NOT EXISTS idx_annotations_site ON annotations(site_id, date)",
-			)
+			.prepare("CREATE INDEX IF NOT EXISTS idx_annotations_site ON annotations(site_id, date)")
 			.run();
 	} catch {
 		/* table may already exist */
@@ -553,11 +503,7 @@ export async function migrateDatabase(d1: D1Database): Promise<void> {
       created_at TEXT NOT NULL DEFAULT (datetime('now'))
     )`)
 			.run();
-		await d1
-			.prepare(
-				"CREATE INDEX IF NOT EXISTS idx_er_site ON email_reports(site_id)",
-			)
-			.run();
+		await d1.prepare("CREATE INDEX IF NOT EXISTS idx_er_site ON email_reports(site_id)").run();
 	} catch {
 		/* table may already exist */
 	}
@@ -603,9 +549,7 @@ export async function migrateDatabase(d1: D1Database): Promise<void> {
     )`)
 			.run();
 		await d1
-			.prepare(
-				"CREATE INDEX IF NOT EXISTS idx_scd_site_date ON search_console_data(site_id, date)",
-			)
+			.prepare("CREATE INDEX IF NOT EXISTS idx_scd_site_date ON search_console_data(site_id, date)")
 			.run();
 	} catch {
 		/* table may already exist */
@@ -657,14 +601,8 @@ export async function migrateDatabase(d1: D1Database): Promise<void> {
       created_at TEXT NOT NULL DEFAULT (datetime('now'))
     )`)
 			.run();
-		await d1
-			.prepare("CREATE INDEX IF NOT EXISTS idx_aff_user ON affiliates(user_id)")
-			.run();
-		await d1
-			.prepare(
-				"CREATE INDEX IF NOT EXISTS idx_aff_code ON affiliates(referral_code)",
-			)
-			.run();
+		await d1.prepare("CREATE INDEX IF NOT EXISTS idx_aff_user ON affiliates(user_id)").run();
+		await d1.prepare("CREATE INDEX IF NOT EXISTS idx_aff_code ON affiliates(referral_code)").run();
 	} catch {
 		/* table may already exist */
 	}
@@ -683,23 +621,17 @@ export async function migrateDatabase(d1: D1Database): Promise<void> {
     )`)
 			.run();
 		await d1
-			.prepare(
-				"CREATE INDEX IF NOT EXISTS idx_ref_affiliate ON referrals(affiliate_id)",
-			)
+			.prepare("CREATE INDEX IF NOT EXISTS idx_ref_affiliate ON referrals(affiliate_id)")
 			.run();
 		await d1
-			.prepare(
-				"CREATE INDEX IF NOT EXISTS idx_ref_user ON referrals(referred_user_id)",
-			)
+			.prepare("CREATE INDEX IF NOT EXISTS idx_ref_user ON referrals(referred_user_id)")
 			.run();
 	} catch {
 		/* table may already exist */
 	}
 
 	// Self-traffic exclusion: per-site fingerprint blocklist (JSON text array)
-	for (const stmt of [
-		"ALTER TABLE sites ADD COLUMN excluded_fingerprints TEXT",
-	]) {
+	for (const stmt of ["ALTER TABLE sites ADD COLUMN excluded_fingerprints TEXT"]) {
 		try {
 			await d1.prepare(stmt).run();
 		} catch {

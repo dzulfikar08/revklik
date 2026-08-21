@@ -3,9 +3,7 @@ import { Command } from "commander";
 import { createToken, listTokens, revokeToken } from "../lib/api.js";
 import { printTable } from "../lib/output.js";
 
-export const tokensCommand = new Command("tokens").description(
-	"Manage API tokens",
-);
+export const tokensCommand = new Command("tokens").description("Manage API tokens");
 
 // revklik tokens list
 tokensCommand
@@ -19,16 +17,7 @@ tokensCommand
 				return;
 			}
 			printTable(
-				[
-					"ID",
-					"Prefix",
-					"Name",
-					"Type",
-					"Scopes",
-					"Site",
-					"Last Used",
-					"Created",
-				],
+				["ID", "Prefix", "Name", "Type", "Scopes", "Site", "Last Used", "Created"],
 				tokens.map((t) => [
 					t.id.slice(0, 8),
 					t.prefix,
@@ -55,12 +44,7 @@ tokensCommand
 	.option("-s, --site <siteId>", "Site ID (required for site tokens)")
 	.option("--scopes <scopes>", "Comma-separated scopes")
 	.action(
-		async (opts: {
-			name: string;
-			type: "account" | "site";
-			site?: string;
-			scopes?: string;
-		}) => {
+		async (opts: { name: string; type: "account" | "site"; site?: string; scopes?: string }) => {
 			try {
 				if (opts.type !== "account" && opts.type !== "site") {
 					console.error(chalk.red("Type must be 'account' or 'site'"));
@@ -78,16 +62,13 @@ tokensCommand
 					scopes?: string[];
 				} = { name: opts.name, type: opts.type as "account" | "site" };
 				if (opts.site) params.site_id = opts.site;
-				if (opts.scopes)
-					params.scopes = opts.scopes.split(",").map((s) => s.trim());
+				if (opts.scopes) params.scopes = opts.scopes.split(",").map((s) => s.trim());
 
 				const result = await createToken(params);
 
 				console.log(chalk.green("\nToken created successfully!"));
 				console.log(chalk.bold(`Token: ${result.token}`));
-				console.log(
-					chalk.yellow("\nSave this token now — it won't be shown again."),
-				);
+				console.log(chalk.yellow("\nSave this token now — it won't be shown again."));
 				console.log(
 					chalk.gray(
 						`Type: ${result.type} | Prefix: ${result.prefix} | Scopes: ${result.scopes.join(", ")}`,

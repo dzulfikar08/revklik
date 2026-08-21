@@ -15,10 +15,7 @@ widgetRoutes.get("/", async (c) => {
 	const siteId = c.req.query("site_id");
 
 	if (!apiKey || !siteId) {
-		return c.json(
-			{ error: "api_key and site_id required", success: false },
-			400,
-		);
+		return c.json({ error: "api_key and site_id required", success: false }, 400);
 	}
 
 	// Verify API key
@@ -74,10 +71,7 @@ widgetRoutes.get("/", async (c) => {
 	const visitors = Number(stats?.visitors ?? 0);
 	const pageviews = Number(stats?.pageviews ?? 0);
 	const prevVisitors = Number(trendRow?.count ?? 0);
-	const trend =
-		prevVisitors > 0
-			? Math.round(((visitors - prevVisitors) / prevVisitors) * 100)
-			: 0;
+	const trend = prevVisitors > 0 ? Math.round(((visitors - prevVisitors) / prevVisitors) * 100) : 0;
 	const sparkline = sparkRows.map((r) => Number(r.v));
 
 	return c.json({

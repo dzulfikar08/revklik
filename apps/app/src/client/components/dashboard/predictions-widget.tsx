@@ -36,7 +36,8 @@ export function PredictionsWidget({ siteId }: { siteId: string }) {
 				<span className="data-table-title" style={{ marginBottom: 0 }}>
 					Revenue Predictions
 				</span>
-				<button type="button"
+				<button
+					type="button"
 					onClick={() => refreshPredictions(siteId).then(() => refetch())}
 					disabled={isRefetching}
 					style={{
@@ -91,9 +92,7 @@ export function PredictionsWidget({ siteId }: { siteId: string }) {
 							{top5.map((p: RevenuePrediction) => (
 								<tr key={p.visitor_id}>
 									<td style={{ fontSize: 12, fontFamily: "var(--mono)" }}>
-										{p.visitor_id.length > 12
-											? `${p.visitor_id.slice(0, 12)}...`
-											: p.visitor_id}
+										{p.visitor_id.length > 12 ? `${p.visitor_id.slice(0, 12)}...` : p.visitor_id}
 									</td>
 									<td
 										style={{
@@ -139,9 +138,7 @@ export function PredictionsWidget({ siteId }: { siteId: string }) {
 							}}
 						>
 							Model: {data.model_version} &middot;{" "}
-							{data.generated_at
-								? new Date(data.generated_at).toLocaleTimeString()
-								: ""}
+							{data.generated_at ? new Date(data.generated_at).toLocaleTimeString() : ""}
 						</div>
 					)}
 				</div>

@@ -3,11 +3,7 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { useRef, useState } from "react";
 import type { VisitorJourney } from "@revklik/shared";
-import {
-	Tooltip,
-	TooltipContent,
-	TooltipTrigger,
-} from "@/components/ui/tooltip";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { updateVisitor } from "@/lib/api";
 import { t } from "@/lib/i18n";
 import { avatarUrl, countryFlag, nameFromVisitorId } from "./icons";
@@ -60,8 +56,7 @@ export function ProfilePanel({
 		queryClient.invalidateQueries({ queryKey: ["dashboard"] });
 	};
 
-	const displayName =
-		journey.visitor_name || nameFromVisitorId(journey.visitor_id);
+	const displayName = journey.visitor_name || nameFromVisitorId(journey.visitor_id);
 
 	const onDragStart = (e: React.MouseEvent) => {
 		e.preventDefault();
@@ -118,16 +113,8 @@ export function ProfilePanel({
 			</div>
 			{editing ? (
 				<div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-					<input
-						value={name}
-						onChange={(e) => setName(e.target.value)}
-						placeholder="Name"
-					/>
-					<input
-						value={email}
-						onChange={(e) => setEmail(e.target.value)}
-						placeholder="Email"
-					/>
+					<input value={name} onChange={(e) => setName(e.target.value)} placeholder="Name" />
+					<input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email" />
 					<input
 						value={tags}
 						onChange={(e) => setTags(e.target.value)}
@@ -137,11 +124,7 @@ export function ProfilePanel({
 						<button type="button" className="btn-accent" onClick={handleSave}>
 							Save
 						</button>
-						<button
-							type="button"
-							className="btn-pill"
-							onClick={() => setEditing(false)}
-						>
+						<button type="button" className="btn-pill" onClick={() => setEditing(false)}>
 							Cancel
 						</button>
 					</div>
@@ -192,12 +175,9 @@ export function ProfilePanel({
 							color: "var(--text2)",
 						}}
 					>
-						{[journey.city, journey.region, journey.country].filter(Boolean)
-							.length > 0 && (
+						{[journey.city, journey.region, journey.country].filter(Boolean).length > 0 && (
 							<Tip
-								text={[journey.city, journey.region, journey.country]
-									.filter(Boolean)
-									.join(", ")}
+								text={[journey.city, journey.region, journey.country].filter(Boolean).join(", ")}
 							>
 								<span className="profile-info-cell">
 									{countryFlag(journey.country)}{" "}
@@ -208,15 +188,9 @@ export function ProfilePanel({
 						{journey.device_type && (
 							<span className="profile-info-cell">{journey.device_type}</span>
 						)}
-						{journey.browser && (
-							<span className="profile-info-cell">{journey.browser}</span>
-						)}
-						{journey.os && (
-							<span className="profile-info-cell">{journey.os}</span>
-						)}
-						{journey.utm_source && (
-							<span className="profile-info-cell">{journey.utm_source}</span>
-						)}
+						{journey.browser && <span className="profile-info-cell">{journey.browser}</span>}
+						{journey.os && <span className="profile-info-cell">{journey.os}</span>}
+						{journey.utm_source && <span className="profile-info-cell">{journey.utm_source}</span>}
 					</div>
 					<div
 						style={{
@@ -269,15 +243,15 @@ export function ProfilePanel({
 						</Tip>
 					</div>
 					<div
-					style={{
-						borderTop: "1px solid var(--border)",
-						marginTop: 12,
-						paddingTop: 12,
-						flex: 1,
-						minHeight: 0,
-						display: "flex",
-						flexDirection: "column",
-					}}
+						style={{
+							borderTop: "1px solid var(--border)",
+							marginTop: 12,
+							paddingTop: 12,
+							flex: 1,
+							minHeight: 0,
+							display: "flex",
+							flexDirection: "column",
+						}}
 					>
 						<span
 							style={{
@@ -291,14 +265,14 @@ export function ProfilePanel({
 						>
 							Journey
 						</span>
-					<div
-						style={{
-							flex: 1,
-							minHeight: 0,
-							overflowY: "auto",
-							marginTop: 8,
-						}}
-					>
+						<div
+							style={{
+								flex: 1,
+								minHeight: 0,
+								overflowY: "auto",
+								marginTop: 8,
+							}}
+						>
 							<JourneyTimeline journey={journey} />
 						</div>
 					</div>

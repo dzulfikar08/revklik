@@ -19,8 +19,7 @@ export class RevKlikClient {
 
 	constructor(options: RevKlikClientOptions) {
 		this.token = options.token;
-		this.baseUrl =
-			options.baseUrl || "https://klikapa.dzulfikar-at.workers.dev";
+		this.baseUrl = options.baseUrl || "https://klikapa.dzulfikar-at.workers.dev";
 	}
 
 	async request<T>(
@@ -57,10 +56,7 @@ export class RevKlikClient {
 		}
 
 		if (!res.ok || data.success === false) {
-			throw new RevKlikError(
-				res.status,
-				data.error || `API error ${res.status}`,
-			);
+			throw new RevKlikError(res.status, data.error || `API error ${res.status}`);
 		}
 
 		return data.data as T;

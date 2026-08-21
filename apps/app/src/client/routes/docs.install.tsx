@@ -29,8 +29,7 @@ const PLATFORM_STEPS: Record<PlatformKey, string> = {
 		"Create a file at app/layout.tsx (or pages/_document.tsx for Pages Router) and add the script to the <Head> component. For App Router, use next/script with strategy='afterInteractive'.",
 	webflow:
 		"Go to Project Settings \u2192 Custom Code \u2192 Footer Code. Paste the script and save. Publish your site.",
-	ghost:
-		"Go to Settings \u2192 Code Injection \u2192 Site Header. Paste the script and save.",
+	ghost: "Go to Settings \u2192 Code Injection \u2192 Site Header. Paste the script and save.",
 	shopify:
 		"Go to Online Store \u2192 Themes \u2192 Actions \u2192 Edit Code. Open theme.liquid and add the script before </head>.",
 	wix: "Go to Settings \u2192 Custom Code \u2192 Header. Add a new custom code block and paste the script.",
@@ -62,11 +61,10 @@ function InstallGuidePage() {
 			/>
 
 			{/* Platform tabs */}
-			<div
-				style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 24 }}
-			>
+			<div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 24 }}>
 				{PLATFORMS.map((p) => (
-					<button type="button"
+					<button
+						type="button"
 						key={p.key}
 						className="btn-pill"
 						style={
@@ -108,7 +106,8 @@ function InstallGuidePage() {
 					}}
 				>
 					{snippet}
-					<button type="button"
+					<button
+						type="button"
 						onClick={handleCopy}
 						style={{
 							position: "absolute",
@@ -167,7 +166,7 @@ function InstallGuidePage() {
 					<div
 						style={{
 							fontFamily: "var(--sans)",
-							
+
 							fontSize: 18,
 							color: "var(--text)",
 						}}
@@ -199,9 +198,8 @@ function InstallGuidePage() {
 					lineHeight: 1.6,
 				}}
 			>
-				<strong>Tip:</strong> After adding the script, visit your site and check
-				back here &mdash; you should see your first visitor appear within
-				seconds.
+				<strong>Tip:</strong> After adding the script, visit your site and check back here &mdash;
+				you should see your first visitor appear within seconds.
 			</div>
 		</div>
 	);

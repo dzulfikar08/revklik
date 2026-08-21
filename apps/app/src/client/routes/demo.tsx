@@ -1,10 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import type {
-	RevenueBySource,
-	SourceEntry,
-	TimeSeriesPoint,
-	TopPage,
-} from "@revklik/shared";
+import type { RevenueBySource, SourceEntry, TimeSeriesPoint, TopPage } from "@revklik/shared";
 import { DEMO_DASHBOARD } from "@/lib/demo-data";
 
 export const Route = createFileRoute("/demo")({ component: DemoPage });
@@ -22,15 +17,7 @@ const ctaBtn: React.CSSProperties = {
 	display: "inline-block",
 };
 
-function MetricCard({
-	label,
-	value,
-	sub,
-}: {
-	label: string;
-	value: string;
-	sub?: string;
-}) {
+function MetricCard({ label, value, sub }: { label: string; value: string; sub?: string }) {
 	return (
 		<div
 			style={{
@@ -61,11 +48,7 @@ function MetricCard({
 			>
 				{value}
 			</div>
-			{sub && (
-				<div style={{ fontSize: 12, color: "var(--green)", marginTop: 4 }}>
-					{sub}
-				</div>
-			)}
+			{sub && <div style={{ fontSize: 12, color: "var(--green)", marginTop: 4 }}>{sub}</div>}
 		</div>
 	);
 }
@@ -96,12 +79,8 @@ function MiniBar({ value, max }: { value: number; max: number }) {
 
 function DemoPage() {
 	const db = DEMO_DASHBOARD;
-	const maxVisitors = Math.max(
-		...db.timeseries.map((t: TimeSeriesPoint) => t.visitors),
-	);
-	const maxPageviews = Math.max(
-		...db.topPages.map((p: TopPage) => p.pageviews),
-	);
+	const maxVisitors = Math.max(...db.timeseries.map((t: TimeSeriesPoint) => t.visitors));
+	const maxPageviews = Math.max(...db.topPages.map((p: TopPage) => p.pageviews));
 
 	return (
 		<div
@@ -134,7 +113,7 @@ function DemoPage() {
 					<span
 						style={{
 							fontFamily: "var(--sans)",
-							
+
 							fontWeight: 500,
 							fontSize: 16,
 						}}
@@ -163,8 +142,7 @@ function DemoPage() {
 				{/* CTA banner */}
 				<div
 					style={{
-						background:
-							"var(--accent)",
+						background: "var(--accent)",
 						borderRadius: 12,
 						padding: "28px 32px",
 						marginBottom: 24,
@@ -174,7 +152,7 @@ function DemoPage() {
 					<h2
 						style={{
 							fontFamily: "var(--sans)",
-							
+
 							fontWeight: 400,
 							fontSize: 22,
 							marginBottom: 8,
@@ -183,8 +161,8 @@ function DemoPage() {
 						This is a live demo with sample data
 					</h2>
 					<p style={{ fontSize: 14, opacity: 0.9, marginBottom: 16 }}>
-						Pageviews, heatmaps, session replay, and revenue attribution &mdash;
-						all in one &lt;1KB script. No cookies required.
+						Pageviews, heatmaps, session replay, and revenue attribution &mdash; all in one &lt;1KB
+						script. No cookies required.
 					</p>
 					<Link
 						to="/register"
@@ -276,9 +254,7 @@ function DemoPage() {
 										gap: 4,
 									}}
 								>
-									<div style={{ fontSize: 10, color: "var(--text3)" }}>
-										{t.visitors}
-									</div>
+									<div style={{ fontSize: 10, color: "var(--text3)" }}>{t.visitors}</div>
 									<div
 										style={{
 											width: "100%",
@@ -289,9 +265,7 @@ function DemoPage() {
 											transition: "height 0.6s ease",
 										}}
 									/>
-									<div style={{ fontSize: 9, color: "var(--text3)" }}>
-										{t.date.slice(5)}
-									</div>
+									<div style={{ fontSize: 9, color: "var(--text3)" }}>{t.date.slice(5)}</div>
 								</div>
 							))}
 						</div>
@@ -305,9 +279,7 @@ function DemoPage() {
 							padding: 20,
 						}}
 					>
-						<div style={{ fontSize: 13, fontWeight: 600, marginBottom: 12 }}>
-							Top Pages
-						</div>
+						<div style={{ fontSize: 13, fontWeight: 600, marginBottom: 12 }}>Top Pages</div>
 						<div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
 							{db.topPages.slice(0, 6).map((p: TopPage) => (
 								<div key={p.path}>
@@ -356,20 +328,11 @@ function DemoPage() {
 							padding: 20,
 						}}
 					>
-						<div style={{ fontSize: 13, fontWeight: 600, marginBottom: 12 }}>
-							Traffic Sources
-						</div>
+						<div style={{ fontSize: 13, fontWeight: 600, marginBottom: 12 }}>Traffic Sources</div>
 						<div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
 							{db.sources.map((s: SourceEntry) => (
-								<div
-									key={s.source}
-									style={{ display: "flex", alignItems: "center", gap: 10 }}
-								>
-									<span
-										style={{ fontSize: 12, width: 90, color: "var(--text2)" }}
-									>
-										{s.source}
-									</span>
+								<div key={s.source} style={{ display: "flex", alignItems: "center", gap: 10 }}>
+									<span style={{ fontSize: 12, width: 90, color: "var(--text2)" }}>{s.source}</span>
 									<div style={{ flex: 1 }}>
 										<MiniBar value={s.visitors} max={db.sources[0].visitors} />
 									</div>
@@ -396,25 +359,13 @@ function DemoPage() {
 							padding: 20,
 						}}
 					>
-						<div style={{ fontSize: 13, fontWeight: 600, marginBottom: 12 }}>
-							Revenue by Source
-						</div>
+						<div style={{ fontSize: 13, fontWeight: 600, marginBottom: 12 }}>Revenue by Source</div>
 						<div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
 							{db.revenueBySource.map((r: RevenueBySource) => (
-								<div
-									key={r.source}
-									style={{ display: "flex", alignItems: "center", gap: 10 }}
-								>
-									<span
-										style={{ fontSize: 12, width: 90, color: "var(--text2)" }}
-									>
-										{r.source}
-									</span>
+								<div key={r.source} style={{ display: "flex", alignItems: "center", gap: 10 }}>
+									<span style={{ fontSize: 12, width: 90, color: "var(--text2)" }}>{r.source}</span>
 									<div style={{ flex: 1 }}>
-										<MiniBar
-											value={r.revenue}
-											max={db.revenueBySource[0].revenue}
-										/>
+										<MiniBar value={r.revenue} max={db.revenueBySource[0].revenue} />
 									</div>
 									<span
 										style={{
@@ -468,14 +419,8 @@ function DemoPage() {
 								padding: 20,
 							}}
 						>
-							<div style={{ fontSize: 14, fontWeight: 600, marginBottom: 6 }}>
-								{f.title}
-							</div>
-							<div
-								style={{ fontSize: 13, color: "var(--text3)", lineHeight: 1.5 }}
-							>
-								{f.desc}
-							</div>
+							<div style={{ fontSize: 14, fontWeight: 600, marginBottom: 6 }}>{f.title}</div>
+							<div style={{ fontSize: 13, color: "var(--text3)", lineHeight: 1.5 }}>{f.desc}</div>
 						</div>
 					))}
 				</div>

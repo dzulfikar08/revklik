@@ -57,9 +57,7 @@ billingWebhookRoutes.post("/", async (c) => {
 		const enc = new TextEncoder();
 		// Secret is base64-encoded (strip whsec_ prefix if present)
 		const rawSecret = secret.startsWith("whsec_") ? secret.slice(7) : secret;
-		const secretBytes = Uint8Array.from(atob(rawSecret), (c) =>
-			c.charCodeAt(0),
-		);
+		const secretBytes = Uint8Array.from(atob(rawSecret), (c) => c.charCodeAt(0));
 		const key = await crypto.subtle.importKey(
 			"raw",
 			secretBytes,
@@ -67,11 +65,7 @@ billingWebhookRoutes.post("/", async (c) => {
 			false,
 			["sign"],
 		);
-		const sig = await crypto.subtle.sign(
-			"HMAC",
-			key,
-			enc.encode(signedPayload),
-		);
+		const sig = await crypto.subtle.sign("HMAC", key, enc.encode(signedPayload));
 		const computedSig = `v1,${btoa(String.fromCharCode(...new Uint8Array(sig)))}`;
 		// Compare against any signature in the header (space-separated)
 		const sigs = webhookSig.split(" ");
@@ -81,8 +75,7 @@ billingWebhookRoutes.post("/", async (c) => {
 			const a = computedSig,
 				b = s.startsWith("v1,") ? s : `v1,${s}`;
 			const maxLen = Math.max(a.length, b.length);
-			for (let i = 0; i < maxLen; i++)
-				r |= (a.charCodeAt(i) || 0) ^ (b.charCodeAt(i) || 0);
+			for (let i = 0; i < maxLen; i++) r |= (a.charCodeAt(i) || 0) ^ (b.charCodeAt(i) || 0);
 			if (r === 0) {
 				valid = true;
 				break;
@@ -128,11 +121,9 @@ billingWebhookRoutes.post("/", async (c) => {
 					user_id: userId,
 					plan: plan || "starter",
 					status: data?.status || "active",
-					current_period_start:
-						data?.current_period_start || new Date().toISOString(),
+					current_period_start: data?.current_period_start || new Date().toISOString(),
 					current_period_end:
-						data?.current_period_end ||
-						new Date(Date.now() + 30 * 86400000).toISOString(),
+						data?.current_period_end || new Date(Date.now() + 30 * 86400000).toISOString(),
 					cancel_at_period_end: 0,
 					polar_subscription_id: data?.id || null,
 					polar_customer_id: data?.customer_id || null,
@@ -241,8 +232,7 @@ billingWebhookRoutes.post("/", async (c) => {
 					.executeTakeFirst();
 				if (matched) orderUserId = matched.id;
 			}
-			if (!orderUserId)
-				return c.json({ error: "Cannot resolve user for order" }, 400);
+			if (!orderUserId) return c.json({ error: "Cannot resolve user for order" }, 400);
 
 			// Find user's first site to attribute revenue
 			const userSites = await db
@@ -269,9 +259,6 @@ billingWebhookRoutes.post("/", async (c) => {
 		}
 		return c.json({ success: true });
 	} catch (err) {
-		return c.json(
-			{ error: err instanceof Error ? err.message : "Webhook error" },
-			500,
-		);
+		return c.json({ error: err instanceof Error ? err.message : "Webhook error" }, 500);
 	}
 });

@@ -1,11 +1,6 @@
 import { Hono } from "hono";
 import type { Kysely } from "kysely";
-import type {
-	CreateSitePayload,
-	KlikapaDatabase,
-	Site,
-	SiteWithStats,
-} from "@revklik/shared";
+import type { CreateSitePayload, KlikapaDatabase, Site, SiteWithStats } from "@revklik/shared";
 import { sql } from "../db";
 import { getPlanLimits } from "../lib/plans";
 import { fingerprintFromRequest, generateId } from "../utils";
@@ -37,9 +32,7 @@ siteRoutes.get("/", async (c) => {
 			"30d": 30,
 			"90d": 90,
 		};
-		startIso = new Date(
-			Date.now() - (days[rangeParam] ?? 7) * 86400000,
-		).toISOString();
+		startIso = new Date(Date.now() - (days[rangeParam] ?? 7) * 86400000).toISOString();
 	}
 
 	const sitesWithStats: SiteWithStats[] = await Promise.all(
@@ -49,8 +42,7 @@ siteRoutes.get("/", async (c) => {
 					.selectFrom("events")
 					.select([
 						({ fn }) => fn.count<number>("id").as("pageviews"),
-						({ fn }) =>
-							fn.count<number>("visitor_id").distinct().as("visitors"),
+						({ fn }) => fn.count<number>("visitor_id").distinct().as("visitors"),
 						({ fn }) => fn.sum<number>("revenue").as("revenue"),
 					])
 					.where("site_id", "=", site.id)
@@ -85,8 +77,7 @@ siteRoutes.post("/", async (c) => {
 	const db = c.get("db");
 	const userId = c.get("userId");
 	const { name, domain } = await c.req.json<CreateSitePayload>();
-	if (!name || !domain)
-		return c.json({ error: "Name and domain required", success: false }, 400);
+	if (!name || !domain) return c.json({ error: "Name and domain required", success: false }, 400);
 
 	// Site limit enforcement (super_admins bypass limits)
 	const user = await db
@@ -102,8 +93,7 @@ siteRoutes.post("/", async (c) => {
 			.executeTakeFirst();
 		const plan =
 			sub?.status === "active" &&
-			(!sub.current_period_end ||
-				new Date(sub.current_period_end) >= new Date())
+			(!sub.current_period_end || new Date(sub.current_period_end) >= new Date())
 				? sub.plan
 				: "micro";
 		const limits = getPlanLimits(plan);
@@ -170,10 +160,7 @@ siteRoutes.delete("/:siteId", async (c) => {
 
 	await db.deleteFrom("events").where("site_id", "=", siteId).execute();
 	await db.deleteFrom("sessions").where("site_id", "=", siteId).execute();
-	await db
-		.deleteFrom("visitor_profiles")
-		.where("site_id", "=", siteId)
-		.execute();
+	await db.deleteFrom("visitor_profiles").where("site_id", "=", siteId).execute();
 	await db.deleteFrom("sites").where("id", "=", siteId).execute();
 	return c.json({ success: true });
 });
@@ -210,11 +197,7 @@ function parseExcluded(raw: string | null | undefined): string[] {
 	}
 }
 
-async function loadSiteForOwner(
-	db: Kysely<KlikapaDatabase>,
-	userId: string,
-	siteId: string,
-) {
+async function loadSiteForOwner(db: Kysely<KlikapaDatabase>, userId: string, siteId: string) {
 	return db
 		.selectFrom("sites")
 		.select(["id", "excluded_fingerprints"])
@@ -259,8 +242,7 @@ siteRoutes.post("/:siteId/exclusions", async (c) => {
 		typeof body?.fingerprint === "string" && body.fingerprint.length > 0
 			? body.fingerprint
 			: await fingerprintFromRequest(c.req.raw);
-	if (!fingerprint)
-		return c.json({ error: "Could not resolve fingerprint", success: false }, 400);
+	if (!fingerprint) return c.json({ error: "Could not resolve fingerprint", success: false }, 400);
 
 	const list = parseExcluded(site.excluded_fingerprints);
 	if (!list.includes(fingerprint)) list.push(fingerprint);
@@ -280,9 +262,7 @@ siteRoutes.delete("/:siteId/exclusions/:fp", async (c) => {
 	const fp = c.req.param("fp");
 	const site = await loadSiteForOwner(db, userId, siteId);
 	if (!site) return c.json({ error: "Site not found", success: false }, 404);
-	const list = parseExcluded(site.excluded_fingerprints).filter(
-		(x) => x !== fp,
-	);
+	const list = parseExcluded(site.excluded_fingerprints).filter((x) => x !== fp);
 	await db
 		.updateTable("sites")
 		.set({ excluded_fingerprints: JSON.stringify(list) })
@@ -305,8 +285,7 @@ siteRoutes.post("/:siteId/purge", async (c) => {
 		typeof body?.fingerprint === "string" && body.fingerprint.length > 0
 			? body.fingerprint
 			: await fingerprintFromRequest(c.req.raw);
-	if (!fingerprint)
-		return c.json({ error: "Could not resolve fingerprint", success: false }, 400);
+	if (!fingerprint) return c.json({ error: "Could not resolve fingerprint", success: false }, 400);
 
 	const [events, sessions, profiles] = await Promise.all([
 		db

@@ -26,8 +26,7 @@ shopeeRoutes.use("/sync/*", async (c, next) => {
 		return c.json({ error: "Unauthorized", success: false }, 401);
 	const token = authHeader.slice(7);
 	const db = c.get("db");
-	if (!db)
-		return c.json({ error: "Database unavailable", success: false }, 503);
+	if (!db) return c.json({ error: "Database unavailable", success: false }, 503);
 	const keyHash = await hashToken(token);
 	const apiKey = await db
 		.selectFrom("api_keys")
@@ -45,8 +44,7 @@ shopeeRoutes.use("/orders/*", async (c, next) => {
 		return c.json({ error: "Unauthorized", success: false }, 401);
 	const token = authHeader.slice(7);
 	const db = c.get("db");
-	if (!db)
-		return c.json({ error: "Database unavailable", success: false }, 503);
+	if (!db) return c.json({ error: "Database unavailable", success: false }, 503);
 	const keyHash = await hashToken(token);
 	const apiKey = await db
 		.selectFrom("api_keys")
@@ -78,17 +76,11 @@ async function generateShopeeSign(
 		["sign"],
 	);
 	const sig = await crypto.subtle.sign("HMAC", key, data);
-	return Array.from(new Uint8Array(sig), (b) =>
-		b.toString(16).padStart(2, "0"),
-	).join("");
+	return Array.from(new Uint8Array(sig), (b) => b.toString(16).padStart(2, "0")).join("");
 }
 
 /** Validate user owns the site */
-async function validateSite(
-	db: Kysely<KlikapaDatabase>,
-	userId: string,
-	siteId: string,
-) {
+async function validateSite(db: Kysely<KlikapaDatabase>, userId: string, siteId: string) {
 	return db
 		.selectFrom("sites")
 		.select(["id", "domain"])
@@ -112,8 +104,7 @@ async function validateSite(
 // GET /auth - Start Shopee OAuth flow
 shopeeRoutes.get("/auth", async (c) => {
 	const siteId = c.req.query("site_id");
-	if (!siteId)
-		return c.json({ error: "site_id required", success: false }, 400);
+	if (!siteId) return c.json({ error: "site_id required", success: false }, 400);
 
 	const partnerId = Number(c.env.SHOPEE_PARTNER_ID || "0");
 	const redirectUri = `${new URL(c.req.url).origin}/api/marketplace/shopee/callback`;
@@ -130,9 +121,7 @@ shopeeRoutes.get("/auth", async (c) => {
 		state,
 	});
 
-	return c.redirect(
-		`https://partner.shopeemobile.com${path}?${params.toString()}`,
-	);
+	return c.redirect(`https://partner.shopeemobile.com${path}?${params.toString()}`);
 });
 
 // GET /callback - Handle Shopee OAuth callback
@@ -142,8 +131,7 @@ shopeeRoutes.get("/callback", async (c) => {
 
 	const code = c.req.query("code");
 	const stateStr = c.req.query("state");
-	if (!code || !stateStr)
-		return c.json({ error: "Missing code or state", success: false }, 400);
+	if (!code || !stateStr) return c.json({ error: "Missing code or state", success: false }, 400);
 
 	let state: { site_id: string; nonce: string };
 	try {
@@ -151,8 +139,7 @@ shopeeRoutes.get("/callback", async (c) => {
 	} catch {
 		return c.json({ error: "Invalid state parameter", success: false }, 400);
 	}
-	if (!state.site_id)
-		return c.json({ error: "Missing site_id in state", success: false }, 400);
+	if (!state.site_id) return c.json({ error: "Missing site_id in state", success: false }, 400);
 
 	const partnerId = Number(c.env.SHOPEE_PARTNER_ID || "0");
 	const timestamp = Math.floor(Date.now() / 1000);
@@ -192,17 +179,11 @@ shopeeRoutes.get("/callback", async (c) => {
 			request_id?: string;
 		};
 	} catch {
-		return c.json(
-			{ error: "Shopee token exchange failed", success: false },
-			500,
-		);
+		return c.json({ error: "Shopee token exchange failed", success: false }, 500);
 	}
 
 	if (tokenRes.error) {
-		return c.json(
-			{ error: tokenRes.message || tokenRes.error, success: false },
-			400,
-		);
+		return c.json({ error: tokenRes.message || tokenRes.error, success: false }, 400);
 	}
 
 	const accessToken = tokenRes.access_token;
@@ -210,10 +191,7 @@ shopeeRoutes.get("/callback", async (c) => {
 	const shopId = tokenRes.shop_id;
 
 	if (!accessToken) {
-		return c.json(
-			{ error: "No access token received from Shopee", success: false },
-			400,
-		);
+		return c.json({ error: "No access token received from Shopee", success: false }, 400);
 	}
 
 	// Store as integration
@@ -223,9 +201,7 @@ shopeeRoutes.get("/callback", async (c) => {
 		refresh_token: refreshToken || "",
 		shop_id: shopId || 0,
 		partner_id: partnerId,
-		expire_time: tokenRes.expire_in
-			? Date.now() + tokenRes.expire_in * 1000
-			: null,
+		expire_time: tokenRes.expire_in ? Date.now() + tokenRes.expire_in * 1000 : null,
 	});
 
 	const existing = await db
@@ -270,8 +246,7 @@ shopeeRoutes.post("/sync", async (c) => {
 	if (!db) return c.json({ error: "DB unavailable", success: false }, 503);
 
 	const siteId = c.req.query("site_id");
-	if (!siteId)
-		return c.json({ error: "site_id required", success: false }, 400);
+	if (!siteId) return c.json({ error: "site_id required", success: false }, 400);
 
 	const site = await validateSite(db, userId, siteId);
 	if (!site) return c.json({ error: "Site not found", success: false }, 404);
@@ -309,12 +284,7 @@ shopeeRoutes.post("/sync", async (c) => {
 	const partnerId = Number(c.env.SHOPEE_PARTNER_ID || partner_id || "0");
 	const timestamp = Math.floor(Date.now() / 1000);
 	const orderPath = "/api/v2/order/get_order_list";
-	const sign = await generateShopeeSign(
-		partnerId,
-		orderPath,
-		access_token,
-		timestamp,
-	);
+	const sign = await generateShopeeSign(partnerId, orderPath, access_token, timestamp);
 
 	// Fetch orders from last 15 days
 	const timeFrom = Math.floor((Date.now() - 15 * 86400000) / 1000);
@@ -336,21 +306,14 @@ shopeeRoutes.post("/sync", async (c) => {
 			response?: { order_list?: ShopeeOrderListItem[] };
 		};
 	} catch {
-		return c.json(
-			{ error: "Failed to fetch orders from Shopee API", success: false },
-			502,
-		);
+		return c.json({ error: "Failed to fetch orders from Shopee API", success: false }, 502);
 	}
 
 	if (orderRes.error) {
-		return c.json(
-			{ error: orderRes.message || orderRes.error, success: false },
-			502,
-		);
+		return c.json({ error: orderRes.message || orderRes.error, success: false }, 502);
 	}
 
-	const orderList: ShopeeOrderListItem[] =
-		orderRes.response?.order_list || [];
+	const orderList: ShopeeOrderListItem[] = orderRes.response?.order_list || [];
 	let synced = 0;
 	let skipped = 0;
 
@@ -379,9 +342,7 @@ shopeeRoutes.post("/sync", async (c) => {
 			username: order.buyer_username || null,
 			user_id: order.buyer_user_id || null,
 		});
-		const items = Array.isArray(order.item_list)
-			? JSON.stringify(order.item_list)
-			: null;
+		const items = Array.isArray(order.item_list) ? JSON.stringify(order.item_list) : null;
 
 		if (existing) {
 			await db
@@ -438,8 +399,7 @@ shopeeRoutes.get("/orders", async (c) => {
 	if (!db) return c.json({ error: "DB unavailable", success: false }, 503);
 
 	const siteId = c.req.query("site_id");
-	if (!siteId)
-		return c.json({ error: "site_id required", success: false }, 400);
+	if (!siteId) return c.json({ error: "site_id required", success: false }, 400);
 
 	const site = await validateSite(db, userId, siteId);
 	if (!site) return c.json({ error: "Site not found", success: false }, 404);

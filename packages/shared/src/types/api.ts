@@ -521,10 +521,7 @@ export const DEFAULT_ACCOUNT_SCOPES = [
 	SCOPES.TOKENS_WRITE,
 ];
 
-export const DEFAULT_SITE_SCOPES = [
-	SCOPES.ANALYTICS_READ,
-	SCOPES.ANALYTICS_EXPORT,
-];
+export const DEFAULT_SITE_SCOPES = [SCOPES.ANALYTICS_READ, SCOPES.ANALYTICS_EXPORT];
 
 export interface WhoamiResponse {
 	user: { id: string; name: string; email: string };

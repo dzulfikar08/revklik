@@ -22,10 +22,7 @@ function formatNumber(n: number): string {
 	return Math.round(n).toLocaleString();
 }
 
-export function EventCalculator({
-	currentEvents,
-	currentPlan,
-}: EventCalculatorProps) {
+export function EventCalculator({ currentEvents, currentPlan }: EventCalculatorProps) {
 	const daysInMonth = getDaysInMonth();
 	const daysElapsed = Math.max(getDaysElapsed(), 1);
 	const plan = PLAN_LIMITS[currentPlan];
@@ -59,9 +56,7 @@ export function EventCalculator({
 					gap: 6,
 				}}
 			>
-				<span style={{ fontWeight: 600, fontSize: 14 }}>
-					Event Usage This Month
-				</span>
+				<span style={{ fontWeight: 600, fontSize: 14 }}>Event Usage This Month</span>
 				<span
 					style={{
 						fontFamily: "var(--mono)",
@@ -71,8 +66,7 @@ export function EventCalculator({
 						letterSpacing: "0.08em",
 						padding: "3px 10px",
 						borderRadius: 100,
-						background:
-							currentPlan === "growth" ? "var(--accent-dim)" : "var(--bg3)",
+						background: currentPlan === "growth" ? "var(--accent-dim)" : "var(--bg3)",
 						color: currentPlan === "growth" ? "var(--accent)" : "var(--text3)",
 						border: `1px solid ${currentPlan === "growth" ? "var(--accent-mid)" : "var(--border2)"}`,
 					}}
@@ -116,12 +110,7 @@ export function EventCalculator({
 					</span>
 					<span
 						style={{
-							color:
-								pct >= 90
-									? "#ef4444"
-									: pct >= 70
-										? "var(--accent)"
-										: "var(--text3)",
+							color: pct >= 90 ? "#ef4444" : pct >= 70 ? "var(--accent)" : "var(--text3)",
 						}}
 					>
 						{pct.toFixed(0)}%
@@ -139,19 +128,14 @@ export function EventCalculator({
 					padding: "8px 12px",
 					background: willExceed ? "rgba(239,68,68,.08)" : "var(--bg3)",
 					borderRadius: 8,
-					border: willExceed
-						? "1px solid rgba(239,68,68,.15)"
-						: "1px solid var(--border)",
+					border: willExceed ? "1px solid rgba(239,68,68,.15)" : "1px solid var(--border)",
 				}}
 			>
 				{willExceed ? (
 					<>
-						<span style={{ fontWeight: 600 }}>
-							Projected: ~{formatNumber(projected)} events
-						</span>
+						<span style={{ fontWeight: 600 }}>Projected: ~{formatNumber(projected)} events</span>
 						<span style={{ display: "block", marginTop: 2, fontSize: 11 }}>
-							You'll exceed your {plan.name} plan ({formatNumber(plan.limit)}{" "}
-							events)
+							You'll exceed your {plan.name} plan ({formatNumber(plan.limit)} events)
 						</span>
 						{currentPlan === "starter" && (
 							<span

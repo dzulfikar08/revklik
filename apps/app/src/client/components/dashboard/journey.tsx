@@ -1,11 +1,7 @@
 // Customer journey components
 
 import type { VisitorJourney } from "@revklik/shared";
-import {
-	Tooltip,
-	TooltipContent,
-	TooltipTrigger,
-} from "@/components/ui/tooltip";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import {
 	avatarUrl,
 	BrowserIcon,
@@ -31,8 +27,7 @@ export function sessionDuration(j: VisitorJourney): string {
 	const end = new Date(j.steps[j.steps.length - 1].timestamp).getTime();
 	const d = end - start;
 	if (d < 60000) return `${Math.round(d / 1000)}s`;
-	if (d < 3600000)
-		return `${Math.round(d / 60000)}m ${Math.round((d % 60000) / 1000)}s`;
+	if (d < 3600000) return `${Math.round(d / 60000)}m ${Math.round((d % 60000) / 1000)}s`;
 	return `${Math.round(d / 3600000)}h`;
 }
 
@@ -47,9 +42,7 @@ function Tip({ text, children }: { text: string; children: React.ReactNode }) {
 
 function StepIcon({ type }: { type: string }) {
 	if (type === "pageview")
-		return (
-			<span style={{ color: "var(--accent)", fontSize: 13 }}>&#9670;</span>
-		);
+		return <span style={{ color: "var(--accent)", fontSize: 13 }}>&#9670;</span>;
 	if (type === "conversion")
 		return <span style={{ color: "var(--green)", fontSize: 13 }}>&#9733;</span>;
 	return <span style={{ color: "var(--text3)", fontSize: 13 }}>&#9679;</span>;
@@ -85,13 +78,8 @@ function StepLabel({ step }: { step: VisitorJourney["steps"][number] }) {
 		const tag = props.tag ?? "";
 		return (
 			<span style={{ color: "var(--text)" }}>
-				Clicked{" "}
-				<span style={{ color: "var(--accent)", fontWeight: 500 }}>
-					"{label}"
-				</span>{" "}
-				<span style={{ color: "var(--text3)", fontSize: 11 }}>
-					&lt;{tag}&gt;
-				</span>
+				Clicked <span style={{ color: "var(--accent)", fontWeight: 500 }}>"{label}"</span>{" "}
+				<span style={{ color: "var(--text3)", fontSize: 11 }}>&lt;{tag}&gt;</span>
 			</span>
 		);
 	}
@@ -106,11 +94,7 @@ function StepLabel({ step }: { step: VisitorJourney["steps"][number] }) {
 			</span>
 		);
 	}
-	return (
-		<span style={{ color: "var(--text2)" }}>
-			{step.name || step.event_type}
-		</span>
-	);
+	return <span style={{ color: "var(--text2)" }}>{step.name || step.event_type}</span>;
 }
 
 export function JourneyTimeline({ journey }: { journey: VisitorJourney }) {
@@ -120,8 +104,7 @@ export function JourneyTimeline({ journey }: { journey: VisitorJourney }) {
 			{steps.map((step, i) => {
 				const prev = i > 0 ? steps[i - 1] : null;
 				const gap = prev
-					? new Date(step.timestamp).getTime() -
-						new Date(prev.timestamp).getTime()
+					? new Date(step.timestamp).getTime() - new Date(prev.timestamp).getTime()
 					: 0;
 				const showGap = gap > 5 * 60 * 1000;
 				return (
@@ -140,9 +123,7 @@ export function JourneyTimeline({ journey }: { journey: VisitorJourney }) {
 						<div className="timeline-row">
 							<div className="timeline-left">
 								<StepIcon type={step.event_type} />
-								<span className="timeline-time">
-									{formatTime(step.timestamp)}
-								</span>
+								<span className="timeline-time">{formatTime(step.timestamp)}</span>
 							</div>
 							<div
 								className="timeline-content"
@@ -167,8 +148,7 @@ export function JourneyCard({
 	selected: boolean;
 	onClick: () => void;
 }) {
-	const displayName =
-		journey.visitor_name || nameFromVisitorId(journey.visitor_id);
+	const displayName = journey.visitor_name || nameFromVisitorId(journey.visitor_id);
 	const hasRevenue = journey.total_revenue > 0;
 	const dateStr = new Date(journey.started_at).toLocaleDateString("en-GB", {
 		day: "numeric",
@@ -194,11 +174,7 @@ export function JourneyCard({
 					<span className="journey-name">{displayName}</span>
 				</Tip>
 				{journey.country && (
-					<Tip
-						text={[journey.city, journey.region, journey.country]
-							.filter(Boolean)
-							.join(", ")}
-					>
+					<Tip text={[journey.city, journey.region, journey.country].filter(Boolean).join(", ")}>
 						<span className="journey-meta">
 							{countryFlag(journey.country)}{" "}
 							{[journey.city, journey.region].filter(Boolean).join(", ")}
@@ -207,9 +183,7 @@ export function JourneyCard({
 				)}
 				{(journey.device_type || journey.os || journey.browser) && (
 					<Tip
-						text={[journey.device_type, journey.os, journey.browser]
-							.filter(Boolean)
-							.join(" · ")}
+						text={[journey.device_type, journey.os, journey.browser].filter(Boolean).join(" · ")}
 					>
 						<span
 							className="journey-meta"

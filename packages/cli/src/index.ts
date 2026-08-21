@@ -19,12 +19,8 @@ program
 		const opts = thisCommand.opts();
 		if (opts.verbose) {
 			const config = getConfig();
-			console.error(
-				`[debug] API base: ${config.apiBase || "https://revklik.com/api"}`,
-			);
-			console.error(
-				`[debug] Token: ${config.token ? `${config.token.slice(0, 7)}...` : "none"}`,
-			);
+			console.error(`[debug] API base: ${config.apiBase || "https://revklik.com/api"}`);
+			console.error(`[debug] Token: ${config.token ? `${config.token.slice(0, 7)}...` : "none"}`);
 		}
 	});
 

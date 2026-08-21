@@ -31,9 +31,7 @@ export default defineConfig({
 	base: process.env.VITE_MOBILE ? "./" : "/",
 	define: process.env.VITE_MOBILE
 		? {
-				"import.meta.env.VITE_API_BASE": JSON.stringify(
-					"https://app.revklik.com/api",
-				),
+				"import.meta.env.VITE_API_BASE": JSON.stringify("https://app.revklik.com/api"),
 			}
 		: undefined,
 	build: {

@@ -3,12 +3,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { PageHeader } from "@/components/page-header";
 import { toast } from "@/components/toast";
-import {
-	fetchSites,
-	getActiveSiteId,
-	importOneDollarStats,
-	importPolarOrders,
-} from "@/lib/api";
+import { fetchSites, getActiveSiteId, importOneDollarStats, importPolarOrders } from "@/lib/api";
 
 export const Route = createFileRoute("/import")({ component: ImportPage });
 
@@ -82,15 +77,12 @@ function PolarImportCard({ siteId }: { siteId: string }) {
 	const [whCopied, setWhCopied] = useState(false);
 
 	const mut = useMutation({
-		mutationFn: () =>
-			importPolarOrders(siteId, polarToken, polarOrgId || undefined),
+		mutationFn: () => importPolarOrders(siteId, polarToken, polarOrgId || undefined),
 		onSuccess: (data) => {
 			setResult(data);
 			setError("");
 			toast(
-				data.imported > 0
-					? `Imported ${data.imported} Polar orders`
-					: "No new orders found",
+				data.imported > 0 ? `Imported ${data.imported} Polar orders` : "No new orders found",
 				data.imported > 0 ? "success" : "info",
 			);
 		},
@@ -152,7 +144,7 @@ function PolarImportCard({ siteId }: { siteId: string }) {
 					<div
 						style={{
 							fontFamily: "var(--sans)",
-							
+
 							fontSize: 18,
 							color: "var(--text)",
 						}}
@@ -160,8 +152,8 @@ function PolarImportCard({ siteId }: { siteId: string }) {
 						Polar
 					</div>
 					<div style={{ fontSize: 12, color: "var(--text3)" }}>
-						Import paid orders with customer details &amp; country. New orders
-						sync automatically via webhooks + periodic cron.
+						Import paid orders with customer details &amp; country. New orders sync automatically
+						via webhooks + periodic cron.
 					</div>
 				</div>
 			</div>
@@ -177,9 +169,7 @@ function PolarImportCard({ siteId }: { siteId: string }) {
 					lineHeight: 1.7,
 				}}
 			>
-				<div
-					style={{ fontWeight: 600, color: "var(--green)", marginBottom: 6 }}
-				>
+				<div style={{ fontWeight: 600, color: "var(--green)", marginBottom: 6 }}>
 					Real-time Webhook (for automatic order sync)
 				</div>
 				<ol style={{ margin: 0, paddingLeft: 18, color: "var(--text2)" }}>
@@ -237,17 +227,9 @@ function PolarImportCard({ siteId }: { siteId: string }) {
 				</div>
 				<div style={{ marginTop: 6, color: "var(--text3)" }}>
 					Select events:{" "}
-					<code style={{ fontFamily: "var(--mono)", fontSize: 10 }}>
-						order.created
-					</code>
-					,{" "}
-					<code style={{ fontFamily: "var(--mono)", fontSize: 10 }}>
-						subscription.created
-					</code>
-					,{" "}
-					<code style={{ fontFamily: "var(--mono)", fontSize: 10 }}>
-						order.paid
-					</code>
+					<code style={{ fontFamily: "var(--mono)", fontSize: 10 }}>order.created</code>,{" "}
+					<code style={{ fontFamily: "var(--mono)", fontSize: 10 }}>subscription.created</code>,{" "}
+					<code style={{ fontFamily: "var(--mono)", fontSize: 10 }}>order.paid</code>
 				</div>
 			</div>
 
@@ -269,9 +251,7 @@ function PolarImportCard({ siteId }: { siteId: string }) {
 				<div style={{ color: "var(--text3)", marginBottom: 8 }}>
 					To import past orders, create a Polar Organization Access Token:
 				</div>
-				<ol
-					style={{ margin: "0 0 0 0", paddingLeft: 18, color: "var(--text3)" }}
-				>
+				<ol style={{ margin: "0 0 0 0", paddingLeft: 18, color: "var(--text3)" }}>
 					<li>
 						Go to{" "}
 						<a
@@ -384,8 +364,7 @@ function PolarImportCard({ siteId }: { siteId: string }) {
 					fontWeight: 600,
 					fontSize: 13,
 					fontFamily: "var(--sans)",
-					opacity:
-						mut.isPending || !siteId || !polarToken || !polarOrgId ? 0.6 : 1,
+					opacity: mut.isPending || !siteId || !polarToken || !polarOrgId ? 0.6 : 1,
 				}}
 			>
 				{mut.isPending ? "Importing..." : "Import Historical Orders"}
@@ -402,14 +381,10 @@ function PolarImportCard({ siteId }: { siteId: string }) {
 						color: "var(--green)",
 					}}
 				>
-					Imported {result.imported} orders, skipped {result.skipped} (already
-					imported or unpaid)
+					Imported {result.imported} orders, skipped {result.skipped} (already imported or unpaid)
 					{result.imported > 0 && (
-						<span
-							style={{ display: "block", marginTop: 6, color: "var(--text3)" }}
-						>
-							New orders will sync automatically via webhooks and periodic cron
-							checks.
+						<span style={{ display: "block", marginTop: 6, color: "var(--text3)" }}>
+							New orders will sync automatically via webhooks and periodic cron checks.
 						</span>
 					)}
 				</div>
@@ -497,7 +472,7 @@ function OneDollarStatsImportCard({ siteId }: { siteId: string }) {
 					<div
 						style={{
 							fontFamily: "var(--sans)",
-							
+
 							fontSize: 18,
 							color: "var(--text)",
 						}}
@@ -539,8 +514,7 @@ function OneDollarStatsImportCard({ siteId }: { siteId: string }) {
 					</li>
 					<li>Open your account settings (top-right corner)</li>
 					<li>
-						Go to <strong>API Keys</strong> and click{" "}
-						<strong>Create API Key</strong>
+						Go to <strong>API Keys</strong> and click <strong>Create API Key</strong>
 					</li>
 					<li>Name it and save the key securely</li>
 				</ol>

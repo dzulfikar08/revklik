@@ -69,8 +69,7 @@ export async function aggregateData(
 		db
 			.selectFrom("events")
 			.select([
-				({ fn }) =>
-					fn.coalesce("utm_source", sql.lit("direct")).as("utm_source"),
+				({ fn }) => fn.coalesce("utm_source", sql.lit("direct")).as("utm_source"),
 				({ fn }) => fn.sum<number>("revenue").as("revenue"),
 				({ fn }) => fn.count<number>("visitor_id").distinct().as("visitors"),
 			])
@@ -101,9 +100,7 @@ export async function aggregateData(
 		// 3. Total unique visitors (funnel entry)
 		db
 			.selectFrom("events")
-			.select(({ fn }) => [
-				fn.count<number>("visitor_id").distinct().as("count"),
-			])
+			.select(({ fn }) => [fn.count<number>("visitor_id").distinct().as("count")])
 			.where("site_id", "=", siteId)
 			.where("timestamp", ">=", startIso)
 			.executeTakeFirst(),
@@ -111,10 +108,7 @@ export async function aggregateData(
 		// 4. Scroll depth milestone visitors
 		db
 			.selectFrom("events")
-			.select([
-				({ fn }) => fn.count<number>("visitor_id").distinct().as("visitors"),
-				"props",
-			])
+			.select([({ fn }) => fn.count<number>("visitor_id").distinct().as("visitors"), "props"])
 			.where("site_id", "=", siteId)
 			.where("name", "=", "scroll")
 			.where("timestamp", ">=", startIso)
@@ -124,10 +118,7 @@ export async function aggregateData(
 		// 5. Conversion events with scroll depth
 		db
 			.selectFrom("events")
-			.select([
-				({ fn }) => fn.count<number>("visitor_id").distinct().as("conversions"),
-				"props",
-			])
+			.select([({ fn }) => fn.count<number>("visitor_id").distinct().as("conversions"), "props"])
 			.where("site_id", "=", siteId)
 			.where("event_type", "=", "conversion")
 			.where("timestamp", ">=", startIso)
@@ -142,9 +133,7 @@ export async function aggregateData(
 				({ fn }) => fn.count<number>("id").as("pageviews"),
 				({ fn }) =>
 					fn
-						.sum<number>(
-							sql`CASE WHEN event_type = 'conversion' THEN 1 ELSE 0 END`,
-						)
+						.sum<number>(sql`CASE WHEN event_type = 'conversion' THEN 1 ELSE 0 END`)
 						.as("conversions"),
 			])
 			.where("site_id", "=", siteId)
@@ -171,9 +160,7 @@ export async function aggregateData(
 			.select([
 				({ fn }) => fn.count<number>("id").as("total_events"),
 				({ fn }) =>
-					fn
-						.coalesce(({ fn }) => fn.sum<number>("revenue"), sql.lit("0"))
-						.as("total_revenue"),
+					fn.coalesce(({ fn }) => fn.sum<number>("revenue"), sql.lit("0")).as("total_revenue"),
 			])
 			.where("site_id", "=", siteId)
 			.where("timestamp", ">=", startIso)
@@ -198,8 +185,7 @@ export async function aggregateData(
 		.map((d, i, arr) => {
 			const visitors = depthVisitors[String(d)] ?? 0;
 			const prevKey = arr[i - 1] !== undefined ? String(arr[i - 1]) : null;
-			const prevVisitors =
-				i === 0 ? total : prevKey ? (depthVisitors[prevKey] ?? total) : total;
+			const prevVisitors = i === 0 ? total : prevKey ? (depthVisitors[prevKey] ?? total) : total;
 			return {
 				section: `${d}%`,
 				visitors,
@@ -217,10 +203,7 @@ export async function aggregateData(
 		visitors: number;
 		conversions: number;
 	}> = [];
-	const depthBuckets: Record<
-		string,
-		{ visitors: number; conversions: number }
-	> = {};
+	const depthBuckets: Record<string, { visitors: number; conversions: number }> = {};
 	for (const row of scrollDepthRows) {
 		try {
 			const p = JSON.parse(row.props ?? "{}");
@@ -233,8 +216,7 @@ export async function aggregateData(
 							: Number(p.depth) <= 75
 								? "51-75"
 								: "76-100";
-				if (!depthBuckets[bucket])
-					depthBuckets[bucket] = { visitors: 0, conversions: 0 };
+				if (!depthBuckets[bucket]) depthBuckets[bucket] = { visitors: 0, conversions: 0 };
 				depthBuckets[bucket].visitors += Number(row.visitors);
 			}
 		} catch {
@@ -253,8 +235,7 @@ export async function aggregateData(
 							: Number(p.depth) <= 75
 								? "51-75"
 								: "76-100";
-				if (!depthBuckets[bucket])
-					depthBuckets[bucket] = { visitors: 0, conversions: 0 };
+				if (!depthBuckets[bucket]) depthBuckets[bucket] = { visitors: 0, conversions: 0 };
 				depthBuckets[bucket].conversions += Number(row.conversions);
 			}
 		} catch {
@@ -272,17 +253,14 @@ export async function aggregateData(
 		conversions: Number(r.conversions ?? 0),
 		convRate:
 			Number(r.pageviews) > 0
-				? Math.round(
-						(Number(r.conversions ?? 0) / Number(r.pageviews)) * 10000,
-					) / 100
+				? Math.round((Number(r.conversions ?? 0) / Number(r.pageviews)) * 10000) / 100
 				: 0,
 	}));
 
 	// Session count distribution
 	const sessionDistribution = sessionDistRows.map((r) => {
 		const pc = Number(r.page_count);
-		const bucket =
-			pc === 1 ? "1 (bounce)" : pc <= 3 ? "2-3" : pc <= 7 ? "4-7" : "8+";
+		const bucket = pc === 1 ? "1 (bounce)" : pc <= 3 ? "2-3" : pc <= 7 ? "4-7" : "8+";
 		return { bucket, count: Number(r.count) };
 	});
 	// Merge same buckets
@@ -290,9 +268,10 @@ export async function aggregateData(
 	for (const s of sessionDistribution) {
 		mergedSessions[s.bucket] = (mergedSessions[s.bucket] ?? 0) + s.count;
 	}
-	const sessionDistFinal = Object.entries(mergedSessions).map(
-		([bucket, count]) => ({ bucket, count }),
-	);
+	const sessionDistFinal = Object.entries(mergedSessions).map(([bucket, count]) => ({
+		bucket,
+		count,
+	}));
 
 	return {
 		revenueBySource: revenueBySource.map((r) => ({
@@ -332,10 +311,7 @@ export interface RawInsight {
 // ---------------------------------------------------------------------------
 
 export type AiBinding = {
-	run: (
-		model: string,
-		input: { prompt: string },
-	) => Promise<{ response: string }>;
+	run: (model: string, input: { prompt: string }) => Promise<{ response: string }>;
 };
 
 // ---------------------------------------------------------------------------
@@ -436,8 +412,7 @@ export function generateFallbackInsights(data: AggregatedData): RawInsight[] {
 	// Traffic ROI
 	if (data.revenueBySource.length >= 2) {
 		const lowPerforming = data.revenueBySource.filter(
-			(s) =>
-				s.revenue < (data.totalRevenue / data.revenueBySource.length) * 0.5,
+			(s) => s.revenue < (data.totalRevenue / data.revenueBySource.length) * 0.5,
 		);
 		if (lowPerforming.length > 0) {
 			insights.push({
@@ -453,18 +428,11 @@ export function generateFallbackInsights(data: AggregatedData): RawInsight[] {
 	}
 
 	// Session engagement
-	const bounceSessions = data.sessionDistribution.find(
-		(s) => s.bucket === "1 (bounce)",
-	);
+	const bounceSessions = data.sessionDistribution.find((s) => s.bucket === "1 (bounce)");
 	if (bounceSessions) {
-		const totalSessions = data.sessionDistribution.reduce(
-			(sum, s) => sum + s.count,
-			0,
-		);
+		const totalSessions = data.sessionDistribution.reduce((sum, s) => sum + s.count, 0);
 		const bounceRate =
-			totalSessions > 0
-				? Math.round((bounceSessions.count / totalSessions) * 100)
-				: 0;
+			totalSessions > 0 ? Math.round((bounceSessions.count / totalSessions) * 100) : 0;
 		if (bounceRate > 40) {
 			insights.push({
 				type: "funnel_optimization",

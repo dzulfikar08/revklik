@@ -40,8 +40,7 @@ function SiteSwitcher({
 	useEffect(() => {
 		if (!open) return;
 		const h = (e: MouseEvent) => {
-			if (ref.current && !ref.current.contains(e.target as Node))
-				setOpen(false);
+			if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
 		};
 		document.addEventListener("mousedown", h);
 		return () => document.removeEventListener("mousedown", h);
@@ -57,7 +56,8 @@ function SiteSwitcher({
 			</button>
 			{open && (
 				<div className="site-switcher-dropdown">
-					<button type="button"
+					<button
+						type="button"
 						className="site-switcher-item"
 						onClick={() => {
 							onNavigate(null);
@@ -67,7 +67,8 @@ function SiteSwitcher({
 						← {t("sites.all_sites")}
 					</button>
 					{sites.map((s) => (
-						<button type="button"
+						<button
+							type="button"
 							key={s.id}
 							className={`site-switcher-item ${s.id === currentSiteId ? "active" : ""}`}
 							onClick={() => {
@@ -100,8 +101,7 @@ function NavMenu({
 	useEffect(() => {
 		if (!open) return;
 		const h = (e: MouseEvent | TouchEvent) => {
-			if (ref.current && !ref.current.contains(e.target as Node))
-				setOpen(false);
+			if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
 		};
 		document.addEventListener("mousedown", h);
 		document.addEventListener("touchstart", h);
@@ -144,11 +144,7 @@ function NavMenu({
 			{/* Desktop: show all items inline */}
 			<div className="nav-menu-desktop">
 				{items.map((item) => (
-					<button type="button"
-						key={item.to}
-						className="btn-pill"
-						onClick={() => go(item.to)}
-					>
+					<button type="button" key={item.to} className="btn-pill" onClick={() => go(item.to)}>
 						{item.label}
 					</button>
 				))}
@@ -157,7 +153,8 @@ function NavMenu({
 				</button>
 			</div>
 			{/* Mobile: hamburger + dropdown */}
-			<button type="button"
+			<button
+				type="button"
 				className="nav-menu-btn"
 				onClick={() => setOpen((v) => !v)}
 				aria-label="Menu"
@@ -168,7 +165,8 @@ function NavMenu({
 			{open && (
 				<div className="nav-menu-dropdown" role="menu">
 					{items.map((item) => (
-						<button type="button"
+						<button
+							type="button"
 							key={item.to}
 							className="nav-menu-item"
 							role="menuitem"
@@ -178,7 +176,8 @@ function NavMenu({
 						</button>
 					))}
 					<div className="nav-menu-sep" />
-					<button type="button"
+					<button
+						type="button"
 						className="nav-menu-item nav-menu-logout"
 						role="menuitem"
 						onClick={doLogout}
@@ -197,8 +196,7 @@ function RootLayout() {
 	const queryClient = useQueryClient();
 
 	const authenticated = isLoggedIn();
-	const isAuthPage =
-		location.pathname === "/login" || location.pathname === "/register";
+	const isAuthPage = location.pathname === "/login" || location.pathname === "/register";
 	const isDemoPage = location.pathname === "/demo";
 	const isPaywallPage = location.pathname === "/paywall";
 
@@ -220,8 +218,7 @@ function RootLayout() {
 	useEffect(() => {
 		if (!moreOpen) return;
 		const h = (e: MouseEvent | TouchEvent) => {
-			if (moreRef.current && !moreRef.current.contains(e.target as Node))
-				setMoreOpen(false);
+			if (moreRef.current && !moreRef.current.contains(e.target as Node)) setMoreOpen(false);
 		};
 		document.addEventListener("mousedown", h);
 		document.addEventListener("touchstart", h);
@@ -248,7 +245,7 @@ function RootLayout() {
 
 	const routeState = useRouterState({ select: (s) => s.location });
 	const siteMatch = routeState.pathname.match(/^\/site\/([^/]+)/);
-	const siteId = siteMatch ? siteMatch[1] ?? "" : null;
+	const siteId = siteMatch ? (siteMatch[1] ?? "") : null;
 	const pathname = routeState.pathname;
 
 	// Handle Google OAuth callback token from URL fragment
@@ -272,11 +269,7 @@ function RootLayout() {
 				} catch {
 					/* non-critical — user can still use the app */
 				}
-				window.history.replaceState(
-					null,
-					"",
-					window.location.pathname + window.location.search,
-				);
+				window.history.replaceState(null, "", window.location.pathname + window.location.search);
 				queryClient.invalidateQueries({ queryKey: ["subscription"] });
 				queryClient.invalidateQueries({ queryKey: ["sites"] });
 				navigate({ to: "/" });
@@ -446,7 +439,8 @@ function RootLayout() {
 					)}
 				</div>
 				<div className="topnav-right">
-					<button type="button"
+					<button
+						type="button"
 						className="btn-pill topnav-lang"
 						onClick={() => {
 							toggleLang();
@@ -455,7 +449,8 @@ function RootLayout() {
 					>
 						{getLang() === "en" ? "ID" : "EN"}
 					</button>
-					<button type="button"
+					<button
+						type="button"
 						className="btn-pill topnav-profile"
 						aria-label="Profile"
 						onClick={() => navigate({ to: "/profile" })}
@@ -469,7 +464,8 @@ function RootLayout() {
 							strokeWidth="2"
 							strokeLinecap="round"
 							strokeLinejoin="round"
-						 aria-hidden="true">
+							aria-hidden="true"
+						>
 							<path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
 							<circle cx="12" cy="7" r="4" />
 						</svg>
@@ -502,7 +498,8 @@ function RootLayout() {
 						const active = isActive(item.key, item.to);
 						if (item.key === "more") {
 							return (
-								<button type="button"
+								<button
+									type="button"
 									key={item.key}
 									className={`bottom-nav-item ${moreOpen ? "active" : ""}`}
 									onClick={() => setMoreOpen(!moreOpen)}
@@ -518,7 +515,8 @@ function RootLayout() {
 										strokeWidth="2"
 										strokeLinecap="round"
 										strokeLinejoin="round"
-									 aria-hidden="true">
+										aria-hidden="true"
+									>
 										<circle cx="12" cy="5" r="1" />
 										<circle cx="12" cy="12" r="1" />
 										<circle cx="12" cy="19" r="1" />
@@ -528,7 +526,8 @@ function RootLayout() {
 							);
 						}
 						return (
-							<button type="button"
+							<button
+								type="button"
 								key={item.key}
 								className={`bottom-nav-item ${active ? "active" : ""}`}
 								onClick={() => navigate({ to: item.to })}
@@ -543,7 +542,8 @@ function RootLayout() {
 										strokeWidth="2"
 										strokeLinecap="round"
 										strokeLinejoin="round"
-									 aria-hidden="true">
+										aria-hidden="true"
+									>
 										<path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
 										<polyline points="9 22 9 12 15 12 15 22" />
 									</svg>
@@ -558,7 +558,8 @@ function RootLayout() {
 										strokeWidth="2"
 										strokeLinecap="round"
 										strokeLinejoin="round"
-									 aria-hidden="true">
+										aria-hidden="true"
+									>
 										<circle cx="12" cy="12" r="3" />
 										<path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
 									</svg>
@@ -573,7 +574,8 @@ function RootLayout() {
 										strokeWidth="2"
 										strokeLinecap="round"
 										strokeLinejoin="round"
-									 aria-hidden="true">
+										aria-hidden="true"
+									>
 										<path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
 										<circle cx="12" cy="7" r="4" />
 									</svg>
@@ -592,7 +594,8 @@ function RootLayout() {
 					aria-modal="true"
 					aria-label="More navigation"
 				>
-					<button type="button"
+					<button
+						type="button"
 						onClick={() => {
 							navigate({ to: "/affiliate" });
 							setMoreOpen(false);
@@ -600,7 +603,8 @@ function RootLayout() {
 					>
 						Affiliate
 					</button>
-					<button type="button"
+					<button
+						type="button"
 						onClick={() => {
 							navigate({ to: "/integrations" });
 							setMoreOpen(false);
@@ -608,7 +612,8 @@ function RootLayout() {
 					>
 						Integrations
 					</button>
-					<button type="button"
+					<button
+						type="button"
 						onClick={() => {
 							navigate({ to: "/settings/api-tokens" });
 							setMoreOpen(false);
@@ -616,7 +621,8 @@ function RootLayout() {
 					>
 						API Tokens
 					</button>
-					<button type="button"
+					<button
+						type="button"
 						onClick={() => {
 							navigate({ to: "/settings/api-playground" });
 							setMoreOpen(false);
@@ -624,7 +630,8 @@ function RootLayout() {
 					>
 						API Playground
 					</button>
-					<button type="button"
+					<button
+						type="button"
 						onClick={() => {
 							navigate({ to: "/docs/install" });
 							setMoreOpen(false);
@@ -632,7 +639,8 @@ function RootLayout() {
 					>
 						Install Guide
 					</button>
-					<button type="button"
+					<button
+						type="button"
 						onClick={() => {
 							navigate({ to: "/import" });
 							setMoreOpen(false);
@@ -641,7 +649,8 @@ function RootLayout() {
 						Import
 					</button>
 					<div className="bottom-nav-more-sep" />
-					<button type="button"
+					<button
+						type="button"
 						className="bottom-nav-more-logout"
 						onClick={() => {
 							logout();

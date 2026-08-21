@@ -78,13 +78,8 @@ export const getCurrentUser = () => {
 	}
 };
 
-export async function register(
-	p: CreateUserPayload,
-	refCode?: string,
-): Promise<AuthResponse> {
-	const path = refCode
-		? `/auth/register?ref=${encodeURIComponent(refCode)}`
-		: "/auth/register";
+export async function register(p: CreateUserPayload, refCode?: string): Promise<AuthResponse> {
+	const path = refCode ? `/auth/register?ref=${encodeURIComponent(refCode)}` : "/auth/register";
 	const data = await apiFetch<AuthResponse>(path, {
 		method: "POST",
 		body: JSON.stringify(p),
@@ -110,11 +105,7 @@ export function logout() {
 	removeItem("kp_active_site");
 }
 
-export const fetchSites = (
-	range?: string,
-	startDate?: string,
-	endDate?: string,
-) => {
+export const fetchSites = (range?: string, startDate?: string, endDate?: string) => {
 	const p = new URLSearchParams();
 	if (startDate && endDate) p.set("range", `${startDate},${endDate}`);
 	else if (range) p.set("range", range);
@@ -123,8 +114,7 @@ export const fetchSites = (
 };
 export const createSite = (p: CreateSitePayload) =>
 	apiFetch<Site>("/sites", { method: "POST", body: JSON.stringify(p) });
-export const deleteSite = (id: string) =>
-	apiFetch<void>(`/sites/${id}`, { method: "DELETE" });
+export const deleteSite = (id: string) => apiFetch<void>(`/sites/${id}`, { method: "DELETE" });
 export const fetchSiteSnippet = (id: string) =>
 	apiFetch<{ siteId: string; snippet: string }>(`/sites/${id}/snippet`);
 
@@ -143,10 +133,10 @@ export const removeExclusion = (siteId: string, fp: string) =>
 		method: "DELETE",
 	});
 export const purgeMyVisits = (siteId: string, fingerprint?: string) =>
-	apiFetch<{ events: number; sessions: number; profiles: number }>(
-		`/sites/${siteId}/purge`,
-		{ method: "POST", body: JSON.stringify(fingerprint ? { fingerprint } : {}) },
-	);
+	apiFetch<{ events: number; sessions: number; profiles: number }>(`/sites/${siteId}/purge`, {
+		method: "POST",
+		body: JSON.stringify(fingerprint ? { fingerprint } : {}),
+	});
 export const fetchDashboard = (
 	siteId: string,
 	range?: string,
@@ -162,21 +152,13 @@ export const fetchDashboard = (
 };
 export const fetchVisitors = (siteId: string) =>
 	apiFetch<VisitorProfile[]>(`/analytics/visitors?site_id=${siteId}`);
-export const fetchFunnel = (
-	siteId: string,
-	range?: string,
-	filters?: string,
-) => {
+export const fetchFunnel = (siteId: string, range?: string, filters?: string) => {
 	const p = new URLSearchParams({ site_id: siteId });
 	if (range) p.set("range", range);
 	if (filters) p.set("filters", filters);
 	return apiFetch<ScrollFunnel>(`/analytics/funnel?${p}`);
 };
-export const fetchCampaigns = (
-	siteId: string,
-	range?: string,
-	filters?: string,
-) => {
+export const fetchCampaigns = (siteId: string, range?: string, filters?: string) => {
 	const p = new URLSearchParams({ site_id: siteId });
 	if (range) p.set("range", range);
 	if (filters) p.set("filters", filters);
@@ -220,10 +202,9 @@ export const updateIntegration = (
 export const deleteIntegration = (id: string) =>
 	apiFetch<void>(`/integrations/${id}`, { method: "DELETE" });
 export const testIntegration = (id: string) =>
-	apiFetch<{ ok: boolean; message: string; detail?: string }>(
-		`/integrations/${id}/test`,
-		{ method: "POST" },
-	);
+	apiFetch<{ ok: boolean; message: string; detail?: string }>(`/integrations/${id}/test`, {
+		method: "POST",
+	});
 export const fetchWebhookEvents = (integrationId: string) =>
 	apiFetch<WebhookEventLog[]>(`/integrations/${integrationId}/events`);
 
@@ -245,14 +226,11 @@ export const createPaymentProvider = (
 	provider: string,
 	config: Record<string, string>,
 ) =>
-	apiFetch<{ id: string; provider: string; enabled: boolean }>(
-		"/payment-providers",
-		{
-			method: "POST",
-			body: JSON.stringify({ site_id: siteId, provider, config }),
-			headers: { "Content-Type": "application/json" },
-		},
-	);
+	apiFetch<{ id: string; provider: string; enabled: boolean }>("/payment-providers", {
+		method: "POST",
+		body: JSON.stringify({ site_id: siteId, provider, config }),
+		headers: { "Content-Type": "application/json" },
+	});
 
 export const deletePaymentProvider = (siteId: string, provider: string) =>
 	apiFetch<void>(`/payment-providers/${provider}?site_id=${siteId}`, {
@@ -302,15 +280,11 @@ export function connectSSE(
 		const token = await getToken();
 		if (!token) return;
 		try {
-			const res = await fetch(
-				`${API_BASE}/analytics/stream?site_id=${siteId}`,
-				{
-					headers: { Authorization: `Bearer ${token}` },
-				},
-			);
+			const res = await fetch(`${API_BASE}/analytics/stream?site_id=${siteId}`, {
+				headers: { Authorization: `Bearer ${token}` },
+			});
 			if (!res.ok || !res.body) {
-				if (res.status === 401 || res.status === 403 || res.status === 404)
-					return;
+				if (res.status === 401 || res.status === 403 || res.status === 404) return;
 				scheduleReconnect();
 				return;
 			}
@@ -397,8 +371,7 @@ export async function exportData(
 }
 
 // Billing
-export const fetchSubscription = () =>
-	apiFetch<Subscription>("/billing/subscription");
+export const fetchSubscription = () => apiFetch<Subscription>("/billing/subscription");
 export const fetchPlans = () => apiFetch<PlanInfo[]>("/billing/plans");
 export const createCheckout = (plan: string) =>
 	apiFetch<{ url: string }>("/billing/checkout", {
@@ -410,15 +383,10 @@ export const createPakasirCheckout = (plan: string) =>
 		"/billing/checkout/pakasir",
 		{ method: "POST", body: JSON.stringify({ plan }) },
 	);
-export const cancelSubscription = () =>
-	apiFetch<void>("/billing/cancel", { method: "POST" });
+export const cancelSubscription = () => apiFetch<void>("/billing/cancel", { method: "POST" });
 
 // Data import
-export const importPolarOrders = (
-	siteId: string,
-	polarToken: string,
-	polarOrgId?: string,
-) =>
+export const importPolarOrders = (siteId: string, polarToken: string, polarOrgId?: string) =>
 	apiFetch<{ imported: number; skipped: number }>("/import/polar-orders", {
 		method: "POST",
 		body: JSON.stringify({
@@ -455,8 +423,7 @@ export const createApiToken = (data: {
 		method: "POST",
 		body: JSON.stringify(data),
 	});
-export const revokeApiToken = (id: string) =>
-	apiFetch<void>(`/tokens/${id}`, { method: "DELETE" });
+export const revokeApiToken = (id: string) => apiFetch<void>(`/tokens/${id}`, { method: "DELETE" });
 
 // Segments
 export const fetchSegments = (siteId: string) =>
@@ -517,10 +484,7 @@ export const createEmailReport = (siteId: string, frequency: string) =>
 		method: "POST",
 		body: JSON.stringify({ site_id: siteId, frequency }),
 	});
-export const updateEmailReport = (
-	id: string,
-	data: { frequency?: string; enabled?: boolean },
-) =>
+export const updateEmailReport = (id: string, data: { frequency?: string; enabled?: boolean }) =>
 	apiFetch<void>(`/email-reports/${id}`, {
 		method: "PUT",
 		body: JSON.stringify(data),
@@ -530,55 +494,45 @@ export const deleteEmailReport = (id: string) =>
 
 // Public Dashboard Sharing
 export const togglePublicDashboard = (siteId: string) =>
-	apiFetch<{ public: boolean; share_token: string | null }>(
-		`/share/${siteId}/toggle`,
-		{ method: "POST" },
-	);
+	apiFetch<{ public: boolean; share_token: string | null }>(`/share/${siteId}/toggle`, {
+		method: "POST",
+	});
 export const fetchShareStatus = (siteId: string) =>
-	apiFetch<{ public: boolean; share_token: string | null }>(
-		`/share/${siteId}/status`,
-	);
+	apiFetch<{ public: boolean; share_token: string | null }>(`/share/${siteId}/status`);
 
 // Google Search Console
-export const fetchSearchQueries = (
-	siteId: string,
-): Promise<SearchQueryData[]> => apiFetch(`/gsc/queries?site_id=${siteId}`);
+export const fetchSearchQueries = (siteId: string): Promise<SearchQueryData[]> =>
+	apiFetch(`/gsc/queries?site_id=${siteId}`);
 export const syncGSC = (siteId: string): Promise<void> =>
 	apiFetch(`/gsc/sync?site_id=${siteId}`, { method: "POST" });
 
 // Revenue Predictions
 export const fetchPredictions = (siteId: string): Promise<PredictionResponse> =>
 	apiFetch(`/predictions?site_id=${siteId}`);
-export const refreshPredictions = (
-	siteId: string,
-): Promise<PredictionResponse> =>
+export const refreshPredictions = (siteId: string): Promise<PredictionResponse> =>
 	apiFetch(`/predictions/refresh?site_id=${siteId}`, { method: "POST" });
 
 // Affiliate
 export const fetchAffiliate = () => apiFetch("/affiliates/me");
-export const generateReferralCode = () =>
-	apiFetch("/affiliates/generate-code", { method: "POST" });
+export const generateReferralCode = () => apiFetch("/affiliates/generate-code", { method: "POST" });
 export const fetchAffiliateReferrals = () => apiFetch("/affiliates/referrals");
 export const fetchAffiliateStats = () => apiFetch("/affiliates/stats");
 
 export const getGSCAuthUrl = (siteId: string): string => {
 	const base =
-		import.meta.env.VITE_API_BASE ||
-		(import.meta.env.DEV ? "http://localhost:3000/api" : "/api");
+		import.meta.env.VITE_API_BASE || (import.meta.env.DEV ? "http://localhost:3000/api" : "/api");
 	return `${base}/gsc/auth?site_id=${siteId}`;
 };
 
 // Marketplace (Shopee / Tokopedia)
 export const getShopeeAuthUrl = (siteId: string): string => {
 	const base =
-		import.meta.env.VITE_API_BASE ||
-		(import.meta.env.DEV ? "http://localhost:3000/api" : "/api");
+		import.meta.env.VITE_API_BASE || (import.meta.env.DEV ? "http://localhost:3000/api" : "/api");
 	return `${base}/marketplace/shopee/auth?site_id=${siteId}`;
 };
 export const getTokopediaAuthUrl = (siteId: string): string => {
 	const base =
-		import.meta.env.VITE_API_BASE ||
-		(import.meta.env.DEV ? "http://localhost:3000/api" : "/api");
+		import.meta.env.VITE_API_BASE || (import.meta.env.DEV ? "http://localhost:3000/api" : "/api");
 	return `${base}/marketplace/tokopedia/auth?site_id=${siteId}`;
 };
 export const syncShopeeOrders = (siteId: string) =>

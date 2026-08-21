@@ -1,19 +1,12 @@
 import { type Context, Hono } from "hono";
 import type { Kysely } from "kysely";
-import type {
-	KlikapaDatabase,
-	PredictionResponse,
-	RevenuePrediction,
-} from "@revklik/shared";
+import type { KlikapaDatabase, PredictionResponse, RevenuePrediction } from "@revklik/shared";
 import { sql } from "../db";
 import { generateId } from "../utils";
 
 type Variables = { db: Kysely<KlikapaDatabase>; userId: string };
 type AiBinding = {
-	run: (
-		model: string,
-		input: { prompt: string },
-	) => Promise<{ response: string }>;
+	run: (model: string, input: { prompt: string }) => Promise<{ response: string }>;
 };
 type Env = {
 	Bindings: { DB: D1Database; AI?: AiBinding };
@@ -22,11 +15,7 @@ type Env = {
 
 export const predictionsRoutes = new Hono<Env>();
 
-function validateSite(
-	db: Kysely<KlikapaDatabase>,
-	userId: string,
-	siteId: string,
-) {
+function validateSite(db: Kysely<KlikapaDatabase>, userId: string, siteId: string) {
 	return db
 		.selectFrom("sites")
 		.select(["id"])
@@ -89,10 +78,7 @@ async function aggregateVisitorData(
 			"visitor_id",
 			({ fn }) => fn.count<number>("id").distinct().as("session_count"),
 			({ fn }) => fn.sum<number>("revenue").as("event_revenue"),
-			({ fn }) =>
-				fn
-					.count<number>(sql`DISTINCT DATE(${sql.ref("timestamp")})`)
-					.as("days_active"),
+			({ fn }) => fn.count<number>(sql`DISTINCT DATE(${sql.ref("timestamp")})`).as("days_active"),
 		])
 		.where("site_id", "=", siteId)
 		.where("timestamp", ">=", thirtyDaysAgo)
@@ -110,8 +96,7 @@ async function aggregateVisitorData(
 			total_sessions: sessions,
 			total_pageviews: r.total_pageviews,
 			total_revenue: revenue,
-			avg_revenue_per_session:
-				sessions > 0 ? Math.round((revenue / sessions) * 100) / 100 : 0,
+			avg_revenue_per_session: sessions > 0 ? Math.round((revenue / sessions) * 100) / 100 : 0,
 			days_active: ev ? Number(ev.days_active) : 1,
 			device_type: r.device_type,
 			country: r.country,
@@ -170,9 +155,7 @@ Return ONLY the JSON array, no other text.`;
 	}
 }
 
-function generateFallbackPredictions(
-	visitors: VisitorAgg[],
-): RevenuePrediction[] {
+function generateFallbackPredictions(visitors: VisitorAgg[]): RevenuePrediction[] {
 	const maxRevenue = Math.max(...visitors.map((v) => v.total_revenue), 1);
 
 	return visitors.map((v) => {
@@ -180,8 +163,7 @@ function generateFallbackPredictions(
 		const engagementScore = Math.min((v.total_sessions / 10) * 20, 20);
 		const activityScore = Math.min((v.days_active / 7) * 20, 20);
 		const pageviewScore = Math.min((v.total_pageviews / 30) * 20, 20);
-		const rawProbability =
-			revenueScore + engagementScore + activityScore + pageviewScore;
+		const rawProbability = revenueScore + engagementScore + activityScore + pageviewScore;
 		const conversion_probability = Math.round(Math.min(rawProbability, 100));
 		const predicted_revenue =
 			Math.round(v.total_revenue * (conversion_probability / 100) * 100) / 100;
@@ -189,8 +171,7 @@ function generateFallbackPredictions(
 		const factors: string[] = [];
 		if (v.total_revenue > 0)
 			factors.push(`Has generated $${v.total_revenue.toFixed(2)} in revenue`);
-		if (v.days_active > 3)
-			factors.push(`Active ${v.days_active} days in last 30`);
+		if (v.days_active > 3) factors.push(`Active ${v.days_active} days in last 30`);
 		if (v.total_sessions > 5)
 			factors.push(`${v.total_sessions} sessions indicates high engagement`);
 
@@ -208,9 +189,7 @@ async function generatePredictions(
 	db: Kysely<KlikapaDatabase>,
 	siteId: string,
 ): Promise<PredictionResponse> {
-	const thirtyDaysAgo = new Date(
-		Date.now() - 30 * 24 * 60 * 60 * 1000,
-	).toISOString();
+	const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
 
 	const visitors = await aggregateVisitorData(db, siteId, thirtyDaysAgo);
 
@@ -240,10 +219,8 @@ async function generatePredictions(
 			confidence:
 				predictions.length > 0
 					? Math.round(
-							predictions.reduce(
-								(sum, p) => sum + p.conversion_probability,
-								0,
-							) / predictions.length,
+							predictions.reduce((sum, p) => sum + p.conversion_probability, 0) /
+								predictions.length,
 						) / 100
 					: 0,
 			created_at: createdAt,
@@ -264,8 +241,7 @@ predictionsRoutes.get("/", async (c) => {
 	const userId = c.get("userId");
 	const siteId = c.req.query("site_id");
 
-	if (!siteId)
-		return c.json({ error: "site_id required", success: false }, 400);
+	if (!siteId) return c.json({ error: "site_id required", success: false }, 400);
 
 	const site = await validateSite(db, userId, siteId);
 	if (!site) return c.json({ error: "Site not found", success: false }, 404);
@@ -312,8 +288,7 @@ predictionsRoutes.post("/refresh", async (c) => {
 	const userId = c.get("userId");
 	const siteId = c.req.query("site_id");
 
-	if (!siteId)
-		return c.json({ error: "site_id required", success: false }, 400);
+	if (!siteId) return c.json({ error: "site_id required", success: false }, 400);
 
 	const site = await validateSite(db, userId, siteId);
 	if (!site) return c.json({ error: "Site not found", success: false }, 404);

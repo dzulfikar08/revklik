@@ -8,17 +8,7 @@ const remote = process.argv.includes("--remote");
 const flag = remote ? "--remote" : "--local";
 async function d1query(sql) {
 	const p = Bun.spawnSync({
-		cmd: [
-			"npx",
-			"wrangler",
-			"d1",
-			"execute",
-			"klikapa-db",
-			flag,
-			"--command",
-			sql,
-			"--json",
-		],
+		cmd: ["npx", "wrangler", "d1", "execute", "klikapa-db", flag, "--command", sql, "--json"],
 		stdout: "pipe",
 		stderr: "pipe",
 	});
@@ -56,13 +46,7 @@ async function seed() {
 		"Nadia Fitriani",
 		"Oscar Prasetyo",
 	];
-	const DOMAINS = [
-		"gmail.com",
-		"yahoo.com",
-		"outlook.com",
-		"company.id",
-		"startup.co",
-	];
+	const DOMAINS = ["gmail.com", "yahoo.com", "outlook.com", "company.id", "startup.co"];
 	const revRows = await d1query(
 		`SELECT visitor_id, SUM(revenue) as total_rev FROM events WHERE site_id='${SITE_ID}' AND revenue > 0 GROUP BY visitor_id`,
 	);
@@ -76,9 +60,7 @@ async function seed() {
 		if (visitorIds.has(row.visitor_id)) continue;
 		visitorIds.add(row.visitor_id);
 		const isIdentified = Math.random() < 0.12;
-		const name = isIdentified
-			? NAMES[Math.floor(Math.random() * NAMES.length)]
-			: null;
+		const name = isIdentified ? NAMES[Math.floor(Math.random() * NAMES.length)] : null;
 		const email = isIdentified
 			? `${name.toLowerCase().replace(" ", ".")}@${DOMAINS[Math.floor(Math.random() * DOMAINS.length)]}`
 			: null;
@@ -101,9 +83,7 @@ async function seed() {
 		const chunk = allLines.slice(i, i + BATCH);
 		const file = `/tmp/klikapa-seed-vs-${Math.floor(i / BATCH)}.sql`;
 		await Bun.write(file, chunk.join("\n"));
-		console.log(
-			`Batch ${Math.floor(i / BATCH) + 1}/${Math.ceil(allLines.length / BATCH)}...`,
-		);
+		console.log(`Batch ${Math.floor(i / BATCH) + 1}/${Math.ceil(allLines.length / BATCH)}...`);
 		for (let retry = 0; retry < 3; retry++) {
 			try {
 				await Bun.$`npx wrangler d1 execute klikapa-db ${flag} --file ${file}`.quiet();
@@ -116,9 +96,7 @@ async function seed() {
 			}
 		}
 	}
-	console.log(
-		`\nDone! Seeded ${visitorLines.length} visitors and ${sessionLines.length} sessions`,
-	);
+	console.log(`\nDone! Seeded ${visitorLines.length} visitors and ${sessionLines.length} sessions`);
 }
 seed().catch(console.error);
 

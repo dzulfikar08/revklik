@@ -15,11 +15,7 @@ import {
 import { sessionDuration } from "./journey";
 import { timeAgo } from "./metric-cards";
 
-export function GlobeSummaryPanel({
-	journeys,
-}: {
-	journeys: VisitorJourney[];
-}) {
+export function GlobeSummaryPanel({ journeys }: { journeys: VisitorJourney[] }) {
 	const stats = useMemo(() => {
 		const uniqueVisitors = new Set(journeys.map((j) => j.visitor_id)).size;
 		const byReferrer = Object.entries(
@@ -87,9 +83,7 @@ export function GlobeSummaryPanel({
 					<span className="globe-stat-group-title">Devices</span>
 					{stats.byDevice.map(([device, count]) => (
 						<div key={device} className="globe-stat-row">
-							<span
-								style={{ display: "inline-flex", alignItems: "center", gap: 4 }}
-							>
+							<span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
 								<DeviceIcon device={device} />
 								{device}
 							</span>
@@ -177,9 +171,7 @@ export function GlobeEventLog({ journeys }: { journeys: VisitorJourney[] }) {
 						</span>
 					</div>
 					<span className="globe-event-time">{timeAgo(e.startedAt)}</span>
-					{e.hasRevenue && (
-						<span className="globe-event-revenue">${e.revenue}</span>
-					)}
+					{e.hasRevenue && <span className="globe-event-revenue">${e.revenue}</span>}
 				</div>
 			))}
 		</div>
@@ -213,8 +205,7 @@ export function GlobeMarkerPopup({
 				</div>
 				<div className="globe-popup-list">
 					{journeys.map((j) => {
-						const displayName =
-							j.visitor_name || nameFromVisitorId(j.visitor_id);
+						const displayName = j.visitor_name || nameFromVisitorId(j.visitor_id);
 						return (
 							<div key={j.session_id} className="globe-popup-visitor">
 								<div className="globe-popup-visitor-header">
@@ -262,20 +253,14 @@ export function GlobeMarkerPopup({
 										</div>
 									</div>
 									{j.total_revenue > 0 && (
-										<span className="globe-popup-revenue">
-											${j.total_revenue}
-										</span>
+										<span className="globe-popup-revenue">${j.total_revenue}</span>
 									)}
 								</div>
 								<div className="globe-popup-session">
 									<span className="globe-popup-path">
-										{j.steps.length > 0
-											? j.steps[j.steps.length - 1].path
-											: "/"}
+										{j.steps.length > 0 ? j.steps[j.steps.length - 1].path : "/"}
 									</span>
-									<span className="globe-popup-duration">
-										{sessionDuration(j)}
-									</span>
+									<span className="globe-popup-duration">{sessionDuration(j)}</span>
 								</div>
 								{j.steps.length > 0 && (
 									<div className="globe-popup-steps">
@@ -284,9 +269,7 @@ export function GlobeMarkerPopup({
 												key={`${step.timestamp}-${step.event_type}`}
 												className={`globe-popup-step ${step.event_type}`}
 											>
-												{step.event_type === "pageview"
-													? step.path
-													: step.name || step.event_type}
+												{step.event_type === "pageview" ? step.path : step.name || step.event_type}
 											</span>
 										))}
 									</div>

@@ -75,13 +75,7 @@ export function FunnelChartCustom({
 
 	const H = 200;
 	const isNarrow = typeof window !== "undefined" && window.innerWidth < 500;
-	const stepW = isNarrow
-		? activeSteps.length > 6
-			? 48
-			: 60
-		: activeSteps.length > 6
-			? 80
-			: 120;
+	const stepW = isNarrow ? (activeSteps.length > 6 ? 48 : 60) : activeSteps.length > 6 ? 80 : 120;
 	const gap = 4;
 	const maxVal = activeSteps[0]?.visitors || 1;
 	const totalW = activeSteps.length * (stepW + gap);
@@ -90,9 +84,7 @@ export function FunnelChartCustom({
 	const sections = activeSteps.map((s, i) => {
 		const ratio = s.visitors / maxVal;
 		const nextRatio =
-			i < activeSteps.length - 1
-				? activeSteps[i + 1]?.visitors / maxVal
-				: ratio * 0.6;
+			i < activeSteps.length - 1 ? activeSteps[i + 1]?.visitors / maxVal : ratio * 0.6;
 		const x = i * (stepW + gap);
 		const halfH = (H / 2) * ratio;
 		const nextHalfH = (H / 2) * nextRatio;
@@ -110,10 +102,7 @@ export function FunnelChartCustom({
 	const hSec = hovered !== null ? sections[hovered] : null;
 
 	return (
-		<div
-			className="funnel-card"
-			style={{ padding: "16px 16px 4px", position: "relative" }}
-		>
+		<div className="funnel-card" style={{ padding: "16px 16px 4px", position: "relative" }}>
 			<div
 				style={{
 					display: "flex",
@@ -171,12 +160,8 @@ export function FunnelChartCustom({
 									cursor: "pointer",
 									fontFamily: "var(--mono)",
 									whiteSpace: "nowrap",
-									background:
-										selectedPage === p.path
-											? "var(--accent-dim)"
-											: "transparent",
-									color:
-										selectedPage === p.path ? "var(--accent)" : "var(--text3)",
+									background: selectedPage === p.path ? "var(--accent-dim)" : "transparent",
+									color: selectedPage === p.path ? "var(--accent)" : "var(--text3)",
 								}}
 							>
 								{p.path} ({p.totalVisitors})
@@ -211,14 +196,7 @@ export function FunnelChartCustom({
 				>
 					<defs>
 						{sections.map((sec, i) => (
-							<linearGradient
-								key={sec.step.section}
-								id={`fg${i}`}
-								x1="0"
-								y1="0"
-								x2="0"
-								y2="1"
-							>
+							<linearGradient key={sec.step.section} id={`fg${i}`} x1="0" y1="0" x2="0" y2="1">
 								<stop offset="0%" stopColor={sec.color} stopOpacity={0.85} />
 								<stop offset="50%" stopColor={sec.color} stopOpacity={1} />
 								<stop offset="100%" stopColor={sec.color} stopOpacity={0.85} />
@@ -297,15 +275,11 @@ export function FunnelChartCustom({
 						whiteSpace: "nowrap",
 					}}
 				>
-					<span style={{ color: hSec.color, fontWeight: 700 }}>
-						{hSec.step.section}
-					</span>
+					<span style={{ color: hSec.color, fontWeight: 700 }}>{hSec.step.section}</span>
 					<span>{hSec.step.visitors.toLocaleString()} visitors</span>
 					<span style={{ color: "var(--text3)" }}>{hSec.step.percentage}%</span>
 					{hSec.step.dropoff > 0 && (
-						<span style={{ color: "#f87171" }}>
-							-{hSec.step.dropoff}% dropoff
-						</span>
+						<span style={{ color: "#f87171" }}>-{hSec.step.dropoff}% dropoff</span>
 					)}
 				</div>
 			)}
@@ -320,10 +294,7 @@ export function FunnelChartCustom({
 				}}
 			>
 				{activeSteps.map((s, i) => (
-					<span
-						key={s.section}
-						style={{ display: "flex", alignItems: "center", gap: 4 }}
-					>
+					<span key={s.section} style={{ display: "flex", alignItems: "center", gap: 4 }}>
 						<span
 							style={{
 								width: 8,

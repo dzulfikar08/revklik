@@ -8,13 +8,7 @@ interface PageHeaderProps {
 	badge?: string;
 }
 
-export function PageHeader({
-	title,
-	subtitle,
-	backTo,
-	action,
-	badge,
-}: PageHeaderProps) {
+export function PageHeader({ title, subtitle, backTo, action, badge }: PageHeaderProps) {
 	const router = useRouter();
 
 	return (
@@ -22,11 +16,10 @@ export function PageHeader({
 			<div className="page-header-inner">
 				<div className="page-header-left">
 					{backTo && (
-						<button type="button"
+						<button
+							type="button"
 							className="page-header-back"
-							onClick={() =>
-								backTo ? router.navigate({ to: backTo }) : router.history.back()
-							}
+							onClick={() => (backTo ? router.navigate({ to: backTo }) : router.history.back())}
 							aria-label="Go back"
 						>
 							<svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">

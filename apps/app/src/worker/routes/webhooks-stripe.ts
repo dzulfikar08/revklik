@@ -2,10 +2,7 @@ import { Hono } from "hono";
 import type { Kysely } from "kysely";
 import type { KlikapaDatabase } from "@revklik/shared";
 import { sql } from "../db";
-import {
-	mapStripePaymentMethod,
-	verifyStripeSignature,
-} from "../lib/webhook-utils";
+import { mapStripePaymentMethod, verifyStripeSignature } from "../lib/webhook-utils";
 import { generateId } from "../utils";
 
 export const stripeWebhookRoutes = new Hono<{
@@ -76,8 +73,7 @@ stripeWebhookRoutes.post("/", async (c) => {
 	}
 
 	const signatureHeader = c.req.header("Stripe-Signature") || "";
-	if (!signatureHeader)
-		return c.json({ error: "Missing Stripe-Signature header" }, 400);
+	if (!signatureHeader) return c.json({ error: "Missing Stripe-Signature header" }, 400);
 
 	// Extract site_id from session metadata or query parameter
 	const session = event.data?.object || {};
@@ -92,38 +88,17 @@ stripeWebhookRoutes.post("/", async (c) => {
 	const webhookSecret = config.webhook_secret || "";
 
 	if (webhookSecret) {
-		const valid = await verifyStripeSignature(
-			rawBody,
-			signatureHeader,
-			webhookSecret,
-		);
+		const valid = await verifyStripeSignature(rawBody, signatureHeader, webhookSecret);
 		if (!valid) {
-			await logWebhookEvent(
-				db,
-				siteId,
-				integration.id,
-				"stripe_invalid_sig",
-				rawBody,
-				"failed",
-			);
+			await logWebhookEvent(db, siteId, integration.id, "stripe_invalid_sig", rawBody, "failed");
 			return c.json({ error: "Invalid signature" }, 401);
 		}
 	}
 
 	const eventType = event.type || "";
 
-	if (
-		eventType !== "checkout.session.completed" &&
-		eventType !== "invoice.paid"
-	) {
-		await logWebhookEvent(
-			db,
-			siteId,
-			integration.id,
-			`stripe_${eventType}`,
-			rawBody,
-			"processed",
-		);
+	if (eventType !== "checkout.session.completed" && eventType !== "invoice.paid") {
+		await logWebhookEvent(db, siteId, integration.id, `stripe_${eventType}`, rawBody, "processed");
 		return c.json({ success: true, action: "logged" });
 	}
 
@@ -139,17 +114,14 @@ stripeWebhookRoutes.post("/", async (c) => {
 		if (sessionRow) visitorId = sessionRow.visitor_id;
 	}
 	if (!visitorId) {
-		const stripeSessionId =
-			session.id || session.payment_intent || generateId();
+		const stripeSessionId = session.id || session.payment_intent || generateId();
 		visitorId = `stripe_${stripeSessionId.replace(/[^a-zA-Z0-9]/g, "_")}`;
 	}
 
 	const amount = (session.amount_total ?? session.amount_subtotal ?? 0) / 100;
 	const currency = (session.currency || "usd").toUpperCase();
 	const paymentMethodType =
-		session.payment_method_types?.[0] ||
-		session.payment_method_types?.[0] ||
-		"card";
+		session.payment_method_types?.[0] || session.payment_method_types?.[0] || "card";
 	const mappedMethod = mapStripePaymentMethod(paymentMethodType);
 	const stripeSessionId = session.id || "";
 
@@ -181,9 +153,7 @@ stripeWebhookRoutes.post("/", async (c) => {
 			visitor_id: visitorId,
 			timestamp: ts,
 			event_type: evtType,
-			name: isSubscription
-				? `subscription_${mappedMethod}`
-				: `payment_${mappedMethod}`,
+			name: isSubscription ? `subscription_${mappedMethod}` : `payment_${mappedMethod}`,
 			path: "/checkout/success",
 			hostname: null,
 			referrer: null,
@@ -236,14 +206,7 @@ stripeWebhookRoutes.post("/", async (c) => {
 		)
 		.execute();
 
-	await logWebhookEvent(
-		db,
-		siteId,
-		integration.id,
-		`stripe_${eventType}`,
-		rawBody,
-		"processed",
-	);
+	await logWebhookEvent(db, siteId, integration.id, `stripe_${eventType}`, rawBody, "processed");
 	return c.json({
 		success: true,
 		event_id: eventId,

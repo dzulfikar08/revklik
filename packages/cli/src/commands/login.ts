@@ -11,9 +11,7 @@ export const loginCommand = new Command("login")
 		let token = opts.token;
 
 		if (!token) {
-			const baseUrl = getApiBase()
-				.replace("/api", "")
-				.replace("//api", "//app");
+			const baseUrl = getApiBase().replace("/api", "").replace("//api", "//app");
 			const tokenUrl = `${baseUrl}/settings/api-tokens`;
 			console.log(chalk.cyan(`Opening browser to create a token...`));
 			console.log(chalk.gray(`If browser doesn't open, visit: ${tokenUrl}\n`));
@@ -33,9 +31,7 @@ export const loginCommand = new Command("login")
 
 		if (!token.startsWith("rvt_") && !token.startsWith("rv_")) {
 			console.error(
-				chalk.red(
-					"Invalid token. Token must start with rvt_ (account) or rv_ (site).",
-				),
+				chalk.red("Invalid token. Token must start with rvt_ (account) or rv_ (site)."),
 			);
 			process.exit(1);
 		}
@@ -70,7 +66,9 @@ export const loginCommand = new Command("login")
 			);
 			if (data.data?.plan) console.log(chalk.gray(`Plan: ${data.data.plan}`));
 		} catch (err) {
-			console.error(chalk.red(`Authentication failed: ${err instanceof Error ? err.message : String(err)}`));
+			console.error(
+				chalk.red(`Authentication failed: ${err instanceof Error ? err.message : String(err)}`),
+			);
 			process.exit(1);
 		}
 	});

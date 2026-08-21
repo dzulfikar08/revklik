@@ -32,11 +32,7 @@ import { DataTable } from "@/components/dashboard/data-table";
 import { DeviceTable } from "@/components/dashboard/device-table";
 import { FilterBar } from "@/components/dashboard/filter-bar";
 import { FunnelChartCustom } from "@/components/dashboard/funnel-chart";
-import {
-	GlobeEventLog,
-	GlobeMarkerPopup,
-	GlobeSummaryPanel,
-} from "@/components/dashboard/globe";
+import { GlobeEventLog, GlobeMarkerPopup, GlobeSummaryPanel } from "@/components/dashboard/globe";
 import { HeatmapView } from "@/components/dashboard/heatmap";
 import {
 	CollapsibleSection,
@@ -52,10 +48,7 @@ import { LocationTable } from "@/components/dashboard/location-table";
 import { ChartCard, MetricCard } from "@/components/dashboard/metric-cards";
 import { PredictionsWidget } from "@/components/dashboard/predictions-widget";
 import { ProfilePanel } from "@/components/dashboard/profile-panel";
-import {
-	RecordingPanel,
-	RecordingsTable,
-} from "@/components/dashboard/recordings";
+import { RecordingPanel, RecordingsTable } from "@/components/dashboard/recordings";
 import {
 	ChannelBreakdownWidget,
 	RevenueBreakdownWidget,
@@ -180,8 +173,7 @@ function DashboardGrid({
 		if (prevNum === undefined || !prevDen) return undefined;
 		const cur = curDen > 0 ? curNum / curDen : 0;
 		const prev = prevNum / prevDen;
-		if (prev === 0)
-			return { current: cur, previous: 0, changePct: cur === 0 ? 0 : null };
+		if (prev === 0) return { current: cur, previous: 0, changePct: cur === 0 ? 0 : null };
 		return {
 			current: cur,
 			previous: prev,
@@ -205,14 +197,7 @@ function DashboardGrid({
 			)
 		: undefined;
 
-	const METRIC_KEYS = [
-		"views",
-		"visitors",
-		"revenue",
-		"conv",
-		"rev_visitor",
-		"bounce",
-	] as const;
+	const METRIC_KEYS = ["views", "visitors", "revenue", "conv", "rev_visitor", "bounce"] as const;
 	const METRIC_LABELS: Record<string, string> = {
 		views: t("metric.views"),
 		visitors: t("metric.visitors"),
@@ -221,9 +206,7 @@ function DashboardGrid({
 		rev_visitor: "Rev/visitor",
 		bounce: t("metric.bounce_rate"),
 	};
-	const [journeyView, setJourneyView] = useState<"summary" | "cards">(
-		"summary",
-	);
+	const [journeyView, setJourneyView] = useState<"summary" | "cards">("summary");
 	const [hiddenMetrics, setHiddenMetrics] = useState<Set<string>>(() => {
 		try {
 			const s = localStorage.getItem("kp_hidden_metrics");
@@ -302,10 +285,7 @@ function DashboardGrid({
 							overflow: "visible",
 						}}
 					>
-						<div
-							className="metrics-grid"
-							style={{ margin: 0, padding: "8px 14px" }}
-						>
+						<div className="metrics-grid" style={{ margin: 0, padding: "8px 14px" }}>
 							{!hiddenMetrics.has("views") && (
 								<MetricCard
 									label={t("metric.views")}
@@ -358,10 +338,7 @@ function DashboardGrid({
 								/>
 							)}
 						</div>
-						<div
-							ref={popoverRef}
-							style={{ position: "absolute", top: 6, right: 8, zIndex: 20 }}
-						>
+						<div ref={popoverRef} style={{ position: "absolute", top: 6, right: 8, zIndex: 20 }}>
 							<button
 								type="button"
 								onClick={() => setShowMetricsPopover(!showMetricsPopover)}
@@ -401,9 +378,7 @@ function DashboardGrid({
 												padding: "4px 12px",
 												cursor: "pointer",
 												fontSize: 12,
-												color: hiddenMetrics.has(key)
-													? "var(--text3)"
-													: "var(--text)",
+												color: hiddenMetrics.has(key) ? "var(--text3)" : "var(--text)",
 											}}
 										>
 											<input
@@ -470,9 +445,7 @@ function DashboardGrid({
 								{ key: "source", label: t("table.source") },
 								{ key: "_pct", label: "Share", align: "right", mono: true },
 							]}
-							onRowClick={(row) =>
-								onCrossFilter("utm_source", String(row._raw_source))
-							}
+							onRowClick={(row) => onCrossFilter("utm_source", String(row._raw_source))}
 						/>
 					</div>
 
@@ -499,10 +472,7 @@ function DashboardGrid({
 					</div>
 
 					<div key="recordings" style={widgetStyle("recordings")}>
-						<RecordingsTable
-							recordings={recordings}
-							onSelect={onSelectRecording}
-						/>
+						<RecordingsTable recordings={recordings} onSelect={onSelectRecording} />
 					</div>
 
 					<div key="journeys" style={widgetStyle("journeys")}>
@@ -573,14 +543,9 @@ function DashboardGrid({
 					</div>
 
 					<div key="event-usage" style={widgetStyle("event-usage")}>
-						<CollapsibleSection
-							title="Event Usage This Month"
-							defaultOpen={false}
-						>
+						<CollapsibleSection title="Event Usage This Month" defaultOpen={false}>
 							<EventCalculator
-								currentEvents={
-									(stats?.pageviews ?? 0) + (stats?.conversions ?? 0)
-								}
+								currentEvents={(stats?.pageviews ?? 0) + (stats?.conversions ?? 0)}
 								currentPlan="starter"
 							/>
 						</CollapsibleSection>
@@ -623,10 +588,7 @@ function DashboardGrid({
 								sessions: r.sessions.toLocaleString(),
 								conversions: r.conversions.toLocaleString(),
 								revenue: `$${r.revenue.toFixed(2)}`,
-								rate:
-									r.sessions > 0
-										? `${((r.conversions / r.sessions) * 100).toFixed(1)}%`
-										: "0%",
+								rate: r.sessions > 0 ? `${((r.conversions / r.sessions) * 100).toFixed(1)}%` : "0%",
 							}))}
 							columns={[
 								{ key: "path", label: "Page" },
@@ -689,18 +651,11 @@ function SiteDetailPage() {
 	const [customStart, setCustomStart] = useState("");
 	const [customEnd, setCustomEnd] = useState("");
 	const [showCustom, setShowCustom] = useState(false);
-	const [selectedJourney, setSelectedJourney] = useState<VisitorJourney | null>(
-		null,
-	);
-	const [locationView, setLocationView] = useState<
-		"cards" | "globe" | "heatmap"
-	>("cards");
-	const [selectedGlobeCity, setSelectedGlobeCity] = useState<string | null>(
-		null,
-	);
+	const [selectedJourney, setSelectedJourney] = useState<VisitorJourney | null>(null);
+	const [locationView, setLocationView] = useState<"cards" | "globe" | "heatmap">("cards");
+	const [selectedGlobeCity, setSelectedGlobeCity] = useState<string | null>(null);
 	const [filtersString, setFiltersString] = useState("");
-	const [selectedRecording, setSelectedRecording] =
-		useState<RecordingDetail | null>(null);
+	const [selectedRecording, setSelectedRecording] = useState<RecordingDetail | null>(null);
 	const [editing, setEditing] = useState(false);
 	const [layout, setLayout] = useState<Layout>(() => loadLayout(siteId));
 
@@ -717,9 +672,7 @@ function SiteDetailPage() {
 	);
 
 	const effectiveRange =
-		showCustom && customStart && customEnd
-			? `${customStart},${customEnd}`
-			: range;
+		showCustom && customStart && customEnd ? `${customStart},${customEnd}` : range;
 	const activeFilters = parseFilterString(filtersString);
 	const hasFilters = activeFilters.length > 0;
 
@@ -769,10 +722,7 @@ function SiteDetailPage() {
 	const { data: recordingsData } = useQuery({
 		queryKey: ["recordings", siteId, effectiveRange],
 		queryFn: () =>
-			fetchRecordings(
-				siteId,
-				showCustom && customStart && customEnd ? undefined : range,
-			),
+			fetchRecordings(siteId, showCustom && customStart && customEnd ? undefined : range),
 		enabled: !!siteId,
 	});
 
@@ -903,21 +853,9 @@ function SiteDetailPage() {
 							flexWrap: "wrap",
 						}}
 					>
-						<DateTimePicker
-							value={customStart}
-							onChange={setCustomStart}
-							placeholder="Start"
-						/>
-						<span
-							style={{ fontSize: 12, color: "var(--text3)", margin: "0 2px" }}
-						>
-							&rarr;
-						</span>
-						<DateTimePicker
-							value={customEnd}
-							onChange={setCustomEnd}
-							placeholder="End"
-						/>
+						<DateTimePicker value={customStart} onChange={setCustomStart} placeholder="Start" />
+						<span style={{ fontSize: 12, color: "var(--text3)", margin: "0 2px" }}>&rarr;</span>
+						<DateTimePicker value={customEnd} onChange={setCustomEnd} placeholder="End" />
 						{customStart && customEnd && (
 							<button
 								type="button"
@@ -1047,10 +985,8 @@ function SiteDetailPage() {
 								<span className="globe-title">{t("table.locations")}</span>
 								{geoData && (
 									<span className="globe-count">
-										{geoData
-											.reduce((s: number, g) => s + g.visitors, 0)
-											.toLocaleString()}{" "}
-										visitors from {geoData.length} locations
+										{geoData.reduce((s: number, g) => s + g.visitors, 0).toLocaleString()} visitors
+										from {geoData.length} locations
 									</span>
 								)}
 							</div>
@@ -1058,17 +994,13 @@ function SiteDetailPage() {
 								<Globe
 									markers={globeMarkers}
 									paused={!!selectedGlobeCity}
-									onMarkerClick={(marker) =>
-										setSelectedGlobeCity(marker.city ?? null)
-									}
+									onMarkerClick={(marker) => setSelectedGlobeCity(marker.city ?? null)}
 								/>
 							</div>
 							{selectedGlobeCity && (
 								<GlobeMarkerPopup
 									city={selectedGlobeCity}
-									journeys={journeys.filter(
-										(j) => j.city === selectedGlobeCity,
-									)}
+									journeys={journeys.filter((j) => j.city === selectedGlobeCity)}
 									onClose={() => setSelectedGlobeCity(null)}
 								/>
 							)}
@@ -1076,11 +1008,7 @@ function SiteDetailPage() {
 					</div>
 				</div>
 			) : locationView === "heatmap" ? (
-				<HeatmapView
-					siteId={siteId}
-					topPages={topPages}
-					range={effectiveRange}
-				/>
+				<HeatmapView siteId={siteId} topPages={topPages} range={effectiveRange} />
 			) : (
 				<DashboardGrid
 					siteId={siteId}
@@ -1121,16 +1049,10 @@ function SiteDetailPage() {
 			)}
 
 			{selectedJourney && (
-				<ProfilePanel
-					journey={selectedJourney}
-					onClose={() => setSelectedJourney(null)}
-				/>
+				<ProfilePanel journey={selectedJourney} onClose={() => setSelectedJourney(null)} />
 			)}
 			{selectedRecording && (
-				<RecordingPanel
-					recording={selectedRecording}
-					onClose={() => setSelectedRecording(null)}
-				/>
+				<RecordingPanel recording={selectedRecording} onClose={() => setSelectedRecording(null)} />
 			)}
 		</div>
 	);

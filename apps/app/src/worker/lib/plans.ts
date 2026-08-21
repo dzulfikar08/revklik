@@ -50,13 +50,7 @@ export function getFeatures(tier: PlanTier): string[] {
 		"CSV export",
 	];
 	if (tier === "micro")
-		return [
-			...base,
-			"1 site",
-			"10K events/month",
-			"<1KB script",
-			"7-day retention",
-		];
+		return [...base, "1 site", "10K events/month", "<1KB script", "7-day retention"];
 	if (tier === "starter")
 		return [
 			...base,
@@ -107,8 +101,7 @@ export async function requirePlan(
 	const plan = sub?.plan ?? "micro";
 	const isActive =
 		(sub?.status === "active" || sub?.status === "trialing") &&
-		(!sub?.current_period_end ||
-			new Date(sub.current_period_end) >= new Date());
+		(!sub?.current_period_end || new Date(sub.current_period_end) >= new Date());
 	const tier = PLANS[plan as PlanTier]?.tier ?? 0;
 	return { allowed: isActive && tier >= requiredTier, plan };
 }

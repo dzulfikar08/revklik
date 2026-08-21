@@ -34,13 +34,7 @@ export const Route = createFileRoute("/integrations")({
 	component: IntegrationsPage,
 });
 
-function ProviderIcon({
-	type,
-	connected,
-}: {
-	type: IntegrationType;
-	connected: boolean;
-}) {
+function ProviderIcon({ type, connected }: { type: IntegrationType; connected: boolean }) {
 	const provider = PROVIDERS.find((p) => p.type === type);
 	const bgColor = connected ? "var(--green-dim)" : "var(--bg3)";
 	const textColor = connected ? "var(--green)" : "var(--text3)";
@@ -54,7 +48,7 @@ function ProviderIcon({
 				alignItems: "center",
 				justifyContent: "center",
 				fontFamily: "var(--sans)",
-				
+
 				fontWeight: 400,
 				fontSize: 20,
 				background: bgColor,
@@ -127,12 +121,9 @@ function ConfigModal({
 	const updateMut = useMutation({
 		mutationFn: () => {
 			// Only send config fields that have been filled in (non-empty)
-			const configToUpdate = Object.fromEntries(
-				Object.entries(form).filter(([, v]) => v !== ""),
-			);
+			const configToUpdate = Object.fromEntries(Object.entries(form).filter(([, v]) => v !== ""));
 			const payload: Record<string, unknown> = { name };
-			if (Object.keys(configToUpdate).length > 0)
-				payload.config = configToUpdate;
+			if (Object.keys(configToUpdate).length > 0) payload.config = configToUpdate;
 			return updateIntegration(integration?.id ?? "", payload);
 		},
 		onSuccess: () => {
@@ -219,7 +210,7 @@ function ConfigModal({
 							<div
 								style={{
 									fontFamily: "var(--sans)",
-									
+
 									fontSize: 20,
 									color: "var(--text)",
 								}}
@@ -227,9 +218,7 @@ function ConfigModal({
 								{provider.name}
 							</div>
 							<div style={{ fontSize: 12, color: "var(--text3)" }}>
-								{isEdit
-									? t("integrations.update_config")
-									: t("integrations.setup")}
+								{isEdit ? t("integrations.update_config") : t("integrations.setup")}
 							</div>
 						</div>
 					</div>
@@ -281,10 +270,7 @@ function ConfigModal({
 					</div>
 
 					{provider.fields.map((field) => (
-						<div
-							key={field.key}
-							style={{ display: "flex", flexDirection: "column", gap: 6 }}
-						>
+						<div key={field.key} style={{ display: "flex", flexDirection: "column", gap: 6 }}>
 							<label
 								htmlFor={`integration-field-${field.key}`}
 								style={{
@@ -302,12 +288,8 @@ function ConfigModal({
 								id={`integration-field-${field.key}`}
 								type={field.secret ? "password" : "text"}
 								value={form[field.key] ?? ""}
-								onChange={(e) =>
-									setForm((prev) => ({ ...prev, [field.key]: e.target.value }))
-								}
-								placeholder={
-									isEdit ? t("integrations.keep_current") : field.placeholder
-								}
+								onChange={(e) => setForm((prev) => ({ ...prev, [field.key]: e.target.value }))}
+								placeholder={isEdit ? t("integrations.keep_current") : field.placeholder}
 								style={{ width: "100%" }}
 							/>
 						</div>
@@ -318,9 +300,7 @@ function ConfigModal({
 							style={{
 								fontSize: 12,
 								color: testResult.ok ? "var(--green)" : "var(--crit)",
-								background: testResult.ok
-									? "var(--green-dim)"
-									: "var(--crit-dim)",
+								background: testResult.ok ? "var(--green-dim)" : "var(--crit-dim)",
 								borderRadius: 8,
 								padding: "10px 14px",
 							}}
@@ -338,9 +318,7 @@ function ConfigModal({
 								disabled={updateMut.isPending}
 								style={{ opacity: updateMut.isPending ? 0.6 : 1 }}
 							>
-								{updateMut.isPending
-									? t("integrations.saving")
-									: t("integrations.save_changes")}
+								{updateMut.isPending ? t("integrations.saving") : t("integrations.save_changes")}
 							</button>
 						) : (
 							<button
@@ -350,17 +328,10 @@ function ConfigModal({
 								disabled={createMut.isPending}
 								style={{ opacity: createMut.isPending ? 0.6 : 1 }}
 							>
-								{createMut.isPending
-									? t("integrations.connecting")
-									: t("integrations.connect")}
+								{createMut.isPending ? t("integrations.connecting") : t("integrations.connect")}
 							</button>
 						)}
-						<button
-							type="button"
-							className="btn-pill"
-							onClick={handleTest}
-							disabled={testing}
-						>
+						<button type="button" className="btn-pill" onClick={handleTest} disabled={testing}>
 							{testing ? t("integrations.testing") : t("integrations.test")}
 						</button>
 					</div>
@@ -373,14 +344,9 @@ function ConfigModal({
 function IntegrationsPage() {
 	const siteId = getActiveSiteId() ?? "";
 	const queryClient = useQueryClient();
-	const [configProvider, setConfigProvider] = useState<
-		(typeof PROVIDERS)[number] | null
-	>(null);
-	const [configIntegration, setConfigIntegration] =
-		useState<Integration | null>(null);
-	const [selectedIntegration, setSelectedIntegration] = useState<string | null>(
-		null,
-	);
+	const [configProvider, setConfigProvider] = useState<(typeof PROVIDERS)[number] | null>(null);
+	const [configIntegration, setConfigIntegration] = useState<Integration | null>(null);
+	const [selectedIntegration, setSelectedIntegration] = useState<string | null>(null);
 
 	const { data: integrations, isLoading } = useQuery({
 		queryKey: ["integrations"],
@@ -424,8 +390,7 @@ function IntegrationsPage() {
 	const toggleMut = useMutation({
 		mutationFn: ({ id, enabled }: { id: string; enabled: boolean }) =>
 			updateIntegration(id, { enabled }),
-		onSuccess: () =>
-			queryClient.invalidateQueries({ queryKey: ["integrations"] }),
+		onSuccess: () => queryClient.invalidateQueries({ queryKey: ["integrations"] }),
 	});
 
 	if (!siteId) {
@@ -455,17 +420,13 @@ function IntegrationsPage() {
 							{s.name}
 						</button>
 					))}
-					{sites && sites.length === 0 && (
-						<p style={{ opacity: 0.6 }}>No sites yet.</p>
-					)}
+					{sites && sites.length === 0 && <p style={{ opacity: 0.6 }}>No sites yet.</p>}
 				</div>
 			</div>
 		);
 	}
 
-	const integrationMap = new Map<string, Integration>(
-		(integrations ?? []).map((i) => [i.type, i]),
-	);
+	const integrationMap = new Map<string, Integration>((integrations ?? []).map((i) => [i.type, i]));
 
 	// Merge payment providers into the map so they appear as connected
 	for (const pp of paymentProviders ?? []) {
@@ -517,9 +478,7 @@ function IntegrationsPage() {
 				/>
 
 				{isLoading ? (
-					<div
-						style={{ display: "flex", justifyContent: "center", padding: 80 }}
-					>
+					<div style={{ display: "flex", justifyContent: "center", padding: 80 }}>
 						<div className="spinner" />
 					</div>
 				) : (
@@ -550,15 +509,12 @@ function IntegrationsPage() {
 													gap: 12,
 												}}
 											>
-												<ProviderIcon
-													type={provider.type}
-													connected={connected && enabled}
-												/>
+												<ProviderIcon type={provider.type} connected={connected && enabled} />
 												<div>
 													<div
 														style={{
 															fontFamily: "var(--sans)",
-															
+
 															fontSize: 18,
 															color: "var(--text)",
 														}}
@@ -586,17 +542,13 @@ function IntegrationsPage() {
 														letterSpacing: "0.06em",
 														padding: "4px 10px",
 														borderRadius: 100,
-														background: enabled
-															? "var(--green-dim)"
-															: "var(--bg3)",
+														background: enabled ? "var(--green-dim)" : "var(--bg3)",
 														color: enabled ? "var(--green)" : "var(--text3)",
 														border: `1px solid ${enabled ? "rgba(52,211,153,.2)" : "var(--border2)"}`,
 														whiteSpace: "nowrap",
 													}}
 												>
-													{enabled
-														? t("integrations.connected")
-														: t("integrations.disabled")}
+													{enabled ? t("integrations.connected") : t("integrations.disabled")}
 												</span>
 											)}
 										</div>
@@ -736,8 +688,7 @@ function IntegrationsPage() {
 														className="btn-accent"
 														style={{ fontSize: 12, padding: "6px 14px" }}
 														onClick={() => {
-															window.location.href =
-																getTokopediaAuthUrl(siteId);
+															window.location.href = getTokopediaAuthUrl(siteId);
 														}}
 													>
 														Re-authorize
@@ -775,9 +726,7 @@ function IntegrationsPage() {
 												style={{ fontSize: 12, padding: "6px 14px" }}
 												onClick={() => handleConfigure(provider)}
 											>
-												{connected
-													? t("integrations.configure")
-													: t("integrations.connect")}
+												{connected ? t("integrations.configure") : t("integrations.connect")}
 											</button>
 										)}
 										{connected &&
@@ -795,9 +744,7 @@ function IntegrationsPage() {
 															})
 														}
 													>
-														{enabled
-															? t("integrations.disable")
-															: t("integrations.enable")}
+														{enabled ? t("integrations.disable") : t("integrations.enable")}
 													</button>
 													<button
 														type="button"
@@ -818,9 +765,7 @@ function IntegrationsPage() {
 														style={{ fontSize: 12, padding: "6px 14px" }}
 														onClick={() =>
 															setSelectedIntegration(
-																selectedIntegration === integration?.id
-																	? null
-																	: integration?.id,
+																selectedIntegration === integration?.id ? null : integration?.id,
 															)
 														}
 													>
@@ -832,13 +777,9 @@ function IntegrationsPage() {
 											)}
 									</div>
 
-									{connected &&
-										MARKETPLACE_PROVIDERS.includes(provider.type) && (
-											<MarketplaceOrdersSection
-												provider={provider.type}
-												siteId={siteId}
-											/>
-										)}
+									{connected && MARKETPLACE_PROVIDERS.includes(provider.type) && (
+										<MarketplaceOrdersSection provider={provider.type} siteId={siteId} />
+									)}
 
 									{selectedIntegration === integration?.id && (
 										<div

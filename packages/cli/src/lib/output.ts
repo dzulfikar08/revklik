@@ -38,18 +38,11 @@ export function printOverview(
 	siteName: string,
 	range: string,
 ): void {
-	console.log(
-		chalk.bold(`\nRevKlik Analytics Overview — ${siteName} (Last ${range})\n`),
-	);
+	console.log(chalk.bold(`\nRevKlik Analytics Overview — ${siteName} (Last ${range})\n`));
 	const table = new Table({
-		head: [
-			"Pageviews",
-			"Visitors",
-			"Sessions",
-			"Bounce Rate",
-			"Revenue",
-			"Conversions",
-		].map((h) => chalk.bold(h)),
+		head: ["Pageviews", "Visitors", "Sessions", "Bounce Rate", "Revenue", "Conversions"].map((h) =>
+			chalk.bold(h),
+		),
 		style: { head: [], border: ["gray"] },
 	});
 	table.push([

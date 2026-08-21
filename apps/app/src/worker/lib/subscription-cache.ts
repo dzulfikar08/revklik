@@ -37,9 +37,7 @@ function getCurrentMonthStart(): string {
 
 function evictIfNeeded() {
 	if (siteMetaCache.size < MAX_CACHE_SIZE) return;
-	const entries = [...siteMetaCache.entries()].sort(
-		(a, b) => a[1].cachedAt - b[1].cachedAt,
-	);
+	const entries = [...siteMetaCache.entries()].sort((a, b) => a[1].cachedAt - b[1].cachedAt);
 	const evictCount = Math.ceil(MAX_CACHE_SIZE * 0.2);
 	for (let i = 0; i < evictCount; i++) {
 		const key = entries[i]?.[0];
@@ -71,10 +69,7 @@ export async function enforceSiteQuota(
 					periodEnd: cached.currentPeriodEnd,
 				};
 			}
-			if (
-				cached.currentPeriodEnd &&
-				new Date(cached.currentPeriodEnd) < new Date()
-			) {
+			if (cached.currentPeriodEnd && new Date(cached.currentPeriodEnd) < new Date()) {
 				return {
 					allowed: false,
 					reason: "subscription_expired",

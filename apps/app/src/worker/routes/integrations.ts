@@ -23,15 +23,7 @@ function maskApiKey(key: string): string {
 function maskConfig(config: Record<string, string>): Record<string, string> {
 	const masked: Record<string, string> = {};
 	for (const [k, v] of Object.entries(config)) {
-		if (
-			[
-				"api_key",
-				"api_secret",
-				"access_token",
-				"client_secret",
-				"refresh_token",
-			].includes(k)
-		) {
+		if (["api_key", "api_secret", "access_token", "client_secret", "refresh_token"].includes(k)) {
 			masked[k] = maskApiKey(v);
 		} else {
 			masked[k] = v;
@@ -53,11 +45,7 @@ function rowToIntegration(row: Record<string, unknown>): Integration {
 	};
 }
 
-function validateSite(
-	db: Kysely<KlikapaDatabase>,
-	userId: string,
-	siteId: string,
-) {
+function validateSite(db: Kysely<KlikapaDatabase>, userId: string, siteId: string) {
 	return db
 		.selectFrom("sites")
 		.select(["id"])
@@ -71,24 +59,14 @@ integrationRoutes.get("/", async (c) => {
 	const db = c.get("db");
 	const userId = c.get("userId");
 	const siteId = c.req.query("site_id");
-	if (!siteId)
-		return c.json({ error: "site_id required", success: false }, 400);
+	if (!siteId) return c.json({ error: "site_id required", success: false }, 400);
 
 	const site = await validateSite(db, userId, siteId);
 	if (!site) return c.json({ error: "Site not found", success: false }, 404);
 
 	const rows = await db
 		.selectFrom("integrations")
-		.select([
-			"id",
-			"site_id",
-			"type",
-			"name",
-			"config",
-			"enabled",
-			"last_sync",
-			"created_at",
-		])
+		.select(["id", "site_id", "type", "name", "config", "enabled", "last_sync", "created_at"])
 		.where("site_id", "=", siteId)
 		.orderBy("created_at", "desc")
 		.execute();
@@ -105,10 +83,7 @@ integrationRoutes.post("/", async (c) => {
 	const { site_id, type, name, config } = body;
 
 	if (!site_id || !type || !name) {
-		return c.json(
-			{ error: "site_id, type, and name are required", success: false },
-			400,
-		);
+		return c.json({ error: "site_id, type, and name are required", success: false }, 400);
 	}
 	if (!VALID_TYPES.includes(type)) {
 		return c.json(
@@ -162,16 +137,7 @@ integrationRoutes.post("/", async (c) => {
 
 	const row = await db
 		.selectFrom("integrations")
-		.select([
-			"id",
-			"site_id",
-			"type",
-			"name",
-			"config",
-			"enabled",
-			"last_sync",
-			"created_at",
-		])
+		.select(["id", "site_id", "type", "name", "config", "enabled", "last_sync", "created_at"])
 		.where("id", "=", id)
 		.executeTakeFirst();
 
@@ -191,8 +157,7 @@ integrationRoutes.patch("/:id", async (c) => {
 		.select(["id", "site_id"])
 		.where("id", "=", integrationId)
 		.executeTakeFirst();
-	if (!integration)
-		return c.json({ error: "Integration not found", success: false }, 404);
+	if (!integration) return c.json({ error: "Integration not found", success: false }, 404);
 
 	const site = await validateSite(db, userId, integration.site_id);
 	if (!site) return c.json({ error: "Not found", success: false }, 404);
@@ -207,25 +172,12 @@ integrationRoutes.patch("/:id", async (c) => {
 	if (body.enabled !== undefined) updates.enabled = body.enabled ? 1 : 0;
 
 	if (Object.keys(updates).length > 0) {
-		await db
-			.updateTable("integrations")
-			.set(updates)
-			.where("id", "=", integrationId)
-			.execute();
+		await db.updateTable("integrations").set(updates).where("id", "=", integrationId).execute();
 	}
 
 	const row = await db
 		.selectFrom("integrations")
-		.select([
-			"id",
-			"site_id",
-			"type",
-			"name",
-			"config",
-			"enabled",
-			"last_sync",
-			"created_at",
-		])
+		.select(["id", "site_id", "type", "name", "config", "enabled", "last_sync", "created_at"])
 		.where("id", "=", integrationId)
 		.executeTakeFirst();
 
@@ -244,16 +196,12 @@ integrationRoutes.delete("/:id", async (c) => {
 		.select(["id", "site_id"])
 		.where("id", "=", integrationId)
 		.executeTakeFirst();
-	if (!integration)
-		return c.json({ error: "Integration not found", success: false }, 404);
+	if (!integration) return c.json({ error: "Integration not found", success: false }, 404);
 
 	const site = await validateSite(db, userId, integration.site_id);
 	if (!site) return c.json({ error: "Not found", success: false }, 404);
 
-	await db
-		.deleteFrom("webhook_events")
-		.where("integration_id", "=", integrationId)
-		.execute();
+	await db.deleteFrom("webhook_events").where("integration_id", "=", integrationId).execute();
 	await db.deleteFrom("integrations").where("id", "=", integrationId).execute();
 
 	return c.json({ success: true });
@@ -270,8 +218,7 @@ integrationRoutes.post("/:id/test", async (c) => {
 		.select(["id", "site_id", "type", "config"])
 		.where("id", "=", integrationId)
 		.executeTakeFirst();
-	if (!integration)
-		return c.json({ error: "Integration not found", success: false }, 404);
+	if (!integration) return c.json({ error: "Integration not found", success: false }, 404);
 
 	const site = await validateSite(db, userId, integration.site_id);
 	if (!site) return c.json({ error: "Not found", success: false }, 404);
@@ -332,22 +279,14 @@ integrationRoutes.get("/:id/events", async (c) => {
 		.select(["id", "site_id"])
 		.where("id", "=", integrationId)
 		.executeTakeFirst();
-	if (!integration)
-		return c.json({ error: "Integration not found", success: false }, 404);
+	if (!integration) return c.json({ error: "Integration not found", success: false }, 404);
 
 	const site = await validateSite(db, userId, integration.site_id);
 	if (!site) return c.json({ error: "Not found", success: false }, 404);
 
 	const rows = await db
 		.selectFrom("webhook_events")
-		.select([
-			"id",
-			"integration_id",
-			"direction",
-			"event_type",
-			"status",
-			"created_at",
-		])
+		.select(["id", "integration_id", "direction", "event_type", "status", "created_at"])
 		.where("integration_id", "=", integrationId)
 		.orderBy("created_at", "desc")
 		.limit(50)
@@ -378,8 +317,7 @@ async function testConnection(
 			const res = await fetch(`https://${dc}.api.mailchimp.com/3.0/ping`, {
 				headers: { Authorization: `Basic ${btoa(`any:${apiKey}`)}` },
 			});
-			if (res.ok)
-				return { ok: true, message: "Mailchimp connection successful" };
+			if (res.ok) return { ok: true, message: "Mailchimp connection successful" };
 			return {
 				ok: false,
 				message: "Mailchimp authentication failed",
@@ -390,9 +328,7 @@ async function testConnection(
 		case "kit": {
 			const apiKey = config.api_key;
 			if (!apiKey) return { ok: false, message: "API key is required" };
-			const res = await fetch(
-				`https://api.convertkit.com/v3/account?api_key=${apiKey}`,
-			);
+			const res = await fetch(`https://api.convertkit.com/v3/account?api_key=${apiKey}`);
 			if (res.ok)
 				return {
 					ok: true,
@@ -412,15 +348,12 @@ async function testConnection(
 					ok: false,
 					message: "API key and Publication ID are required",
 				};
-			const res = await fetch(
-				`https://api.beehiiv.com/v2/publications/${publicationId}`,
-				{
-					headers: {
-						Authorization: `Bearer ${apiKey}`,
-						"Content-Type": "application/json",
-					},
+			const res = await fetch(`https://api.beehiiv.com/v2/publications/${publicationId}`, {
+				headers: {
+					Authorization: `Bearer ${apiKey}`,
+					"Content-Type": "application/json",
 				},
-			);
+			});
 			if (res.ok) return { ok: true, message: "Beehiiv connection successful" };
 			return {
 				ok: false,
@@ -430,13 +363,9 @@ async function testConnection(
 		}
 		case "meta_ads": {
 			const accessToken = config.access_token;
-			if (!accessToken)
-				return { ok: false, message: "Access token is required" };
-			const res = await fetch(
-				`https://graph.facebook.com/v18.0/me?access_token=${accessToken}`,
-			);
-			if (res.ok)
-				return { ok: true, message: "Meta Ads connection successful" };
+			if (!accessToken) return { ok: false, message: "Access token is required" };
+			const res = await fetch(`https://graph.facebook.com/v18.0/me?access_token=${accessToken}`);
+			if (res.ok) return { ok: true, message: "Meta Ads connection successful" };
 			return {
 				ok: false,
 				message: "Meta Ads authentication failed",
@@ -448,8 +377,7 @@ async function testConnection(
 			if (!client_id || !client_secret || !refresh_token || !customer_id) {
 				return {
 					ok: false,
-					message:
-						"All fields are required (client_id, client_secret, refresh_token, customer_id)",
+					message: "All fields are required (client_id, client_secret, refresh_token, customer_id)",
 				};
 			}
 			// Validate by attempting to get an access token
@@ -463,15 +391,12 @@ async function testConnection(
 					grant_type: "refresh_token",
 				}),
 			});
-			if (tokenRes.ok)
-				return { ok: true, message: "Google Ads credentials validated" };
+			if (tokenRes.ok) return { ok: true, message: "Google Ads credentials validated" };
 			const errData = await tokenRes.json().catch(() => ({}));
 			return {
 				ok: false,
 				message: "Google Ads authentication failed",
-				detail:
-					(errData as Record<string, string>).error_description ||
-					`HTTP ${tokenRes.status}`,
+				detail: (errData as Record<string, string>).error_description || `HTTP ${tokenRes.status}`,
 			};
 		}
 		default:

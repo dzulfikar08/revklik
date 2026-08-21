@@ -98,9 +98,7 @@ export function HeatmapView({
 	}, [heatmapData]);
 
 	const data = heatmapData;
-	const maxScrollVisitors = data
-		? Math.max(...data.scrollDepths.map((s) => s.visitors), 1)
-		: 1;
+	const maxScrollVisitors = data ? Math.max(...data.scrollDepths.map((s) => s.visitors), 1) : 1;
 
 	return (
 		<div className="detail-scroll">
@@ -121,15 +119,11 @@ export function HeatmapView({
 					{data && (
 						<div className="heatmap-stats">
 							<span className="heatmap-stat">
-								<span className="heatmap-stat-value">
-									{data.totalClicks.toLocaleString()}
-								</span>{" "}
+								<span className="heatmap-stat-value">{data.totalClicks.toLocaleString()}</span>{" "}
 								clicks
 							</span>
 							<span className="heatmap-stat">
-								<span className="heatmap-stat-value">
-									{data.totalSessions.toLocaleString()}
-								</span>{" "}
+								<span className="heatmap-stat-value">{data.totalSessions.toLocaleString()}</span>{" "}
 								sessions
 							</span>
 						</div>
@@ -156,18 +150,12 @@ export function HeatmapView({
 							textAlign: "center",
 						}}
 					>
-						No click data for this page yet. Make sure the heatmap script is
-						installed.
+						No click data for this page yet. Make sure the heatmap script is installed.
 					</div>
 				) : (
 					<div className="heatmap-body">
 						<div className="heatmap-canvas-wrap">
-							<canvas
-								ref={canvasRef}
-								width={600}
-								height={800}
-								className="heatmap-canvas"
-							/>
+							<canvas ref={canvasRef} width={600} height={800} className="heatmap-canvas" />
 						</div>
 						<div className="heatmap-sidebar">
 							{/* Scroll depth */}
@@ -193,21 +181,14 @@ export function HeatmapView({
 							{/* Top elements */}
 							{data.topElements.length > 0 && (
 								<div className="heatmap-sidebar-section">
-									<div className="heatmap-sidebar-title">
-										Top Clicked Elements
-									</div>
+									<div className="heatmap-sidebar-title">Top Clicked Elements</div>
 									<div className="heatmap-elements">
 										{data.topElements.slice(0, 10).map((el) => (
 											<div key={el.selector} className="heatmap-element-row">
-												<span
-													className="heatmap-element-label"
-													title={el.selector}
-												>
+												<span className="heatmap-element-label" title={el.selector}>
 													{el.label || el.selector}
 												</span>
-												<span className="heatmap-element-count">
-													{el.clicks}
-												</span>
+												<span className="heatmap-element-count">{el.clicks}</span>
 											</div>
 										))}
 									</div>

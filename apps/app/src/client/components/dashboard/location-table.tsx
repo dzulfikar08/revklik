@@ -9,7 +9,12 @@ export function LocationTable({
 	geoData,
 	onCrossFilter,
 }: {
-	geoData: { country: string | null; region: string | null; city: string | null; visitors: number }[];
+	geoData: {
+		country: string | null;
+		region: string | null;
+		city: string | null;
+		visitors: number;
+	}[];
 	onCrossFilter: (dimension: string, value: string) => void;
 }) {
 	const [tab, setTab] = useState<LocationTab>("country");
@@ -17,12 +22,8 @@ export function LocationTable({
 	const [sortDir, setSortDir] = useState<SortDir>("desc");
 
 	const aggregated = useMemo(() => {
-		const key =
-			tab === "country" ? "country" : tab === "region" ? "region" : "city";
-		const map = new Map<
-			string,
-			{ name: string; visitors: number; country: string | null }
-		>();
+		const key = tab === "country" ? "country" : tab === "region" ? "region" : "city";
+		const map = new Map<string, { name: string; visitors: number; country: string | null }>();
 		for (const g of geoData) {
 			const val = g[key] ?? "Unknown";
 			const existing = map.get(val);
@@ -39,12 +40,8 @@ export function LocationTable({
 		const rows = [...map.values()];
 		rows.sort((a, b) => {
 			if (sortKey === "visitors")
-				return sortDir === "desc"
-					? b.visitors - a.visitors
-					: a.visitors - b.visitors;
-			return sortDir === "asc"
-				? a.name.localeCompare(b.name)
-				: b.name.localeCompare(a.name);
+				return sortDir === "desc" ? b.visitors - a.visitors : a.visitors - b.visitors;
+			return sortDir === "asc" ? a.name.localeCompare(b.name) : b.name.localeCompare(a.name);
 		});
 		return rows;
 	}, [geoData, tab, sortKey, sortDir]);
@@ -61,8 +58,7 @@ export function LocationTable({
 		sortKey === key ? (sortDir === "desc" ? " \u2193" : " \u2191") : "";
 
 	const handleRowClick = (row: { name: string; country: string | null }) => {
-		const dimension =
-			tab === "country" ? "country" : tab === "region" ? "region" : "city";
+		const dimension = tab === "country" ? "country" : tab === "region" ? "region" : "city";
 		onCrossFilter(dimension, row.name);
 	};
 
@@ -90,7 +86,8 @@ export function LocationTable({
 				</span>
 				<div style={{ display: "flex", gap: 2, marginLeft: "auto" }}>
 					{(["country", "region", "city"] as LocationTab[]).map((t2) => (
-						<button type="button"
+						<button
+							type="button"
 							key={t2}
 							onClick={() => setTab(t2)}
 							style={{
@@ -141,11 +138,7 @@ export function LocationTable({
 					</thead>
 					<tbody>
 						{aggregated.map((row) => (
-							<tr
-								key={row.name}
-								style={{ cursor: "pointer" }}
-								onClick={() => handleRowClick(row)}
-							>
+							<tr key={row.name} style={{ cursor: "pointer" }} onClick={() => handleRowClick(row)}>
 								<td style={{ fontSize: 13 }}>
 									{tab === "country" ? (
 										<>
