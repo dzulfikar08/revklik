@@ -65,3 +65,7 @@ apps/app/.env.mobile
 
 # Working screenshots (root-level only; source PNGs live under apps/app/android/)
 /*.png
+
+# Sibling projects / tool dirs at repo parent (hoisted layout)
+/revklik-landing/
+/.commandcode/
