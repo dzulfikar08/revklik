@@ -49,3 +49,19 @@ client/android/app/build
 client/ios/Pods
 client/ios/build
 client/ios/DerivedData
+
+# Mobile debug builds
+*.apk
+
+# TypeScript build cache
+tsconfig.tsbuildinfo
+
+# Capacitor local env
+client/.env.mobile
+
+# Test / tool artifacts
+.playwright-mcp/
+.serena/
+
+# Working screenshots (root-level only; source PNGs live under client/android/)
+/*.png

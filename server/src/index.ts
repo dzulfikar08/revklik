@@ -4,7 +4,7 @@ import { createMiddleware } from "hono/factory";
 import type { Kysely } from "kysely";
 import type { KlikapaDatabase } from "shared";
 import { createDb, sql } from "./db";
-import { processPolarOrder } from "./lib/polar";
+import { processPolarOrder, refreshPolarOrder } from "./lib/polar";
 import { migrateDatabase } from "./migrations";
 import { adminRoutes } from "./routes/admin";
 import { affiliateRoutes } from "./routes/affiliates";
@@ -309,7 +309,7 @@ app.onError((err, c) => {
 export default {
 	fetch: app.fetch,
 	async scheduled(
-		_controller: ScheduledController,
+		controller: ScheduledController,
 		env: Bindings,
 		_ctx: ExecutionContext,
 	) {
@@ -323,16 +323,21 @@ export default {
 		}
 
 		const db = createDb(env.DB);
-		// Fetch orders from last 7 days to catch missed webhooks
-		const sevenDaysAgo = new Date(Date.now() - 7 * 86400000).toISOString();
+		const isRefresh = controller.cron === "0 5 * * *";
+		// Catch-up sync scans the last 7 days; the refresh cron scans a wider
+		// 30-day window so it can re-price older conversions whose amount drifted
+		// (e.g. a price was lowered and existing orders were never re-priced).
+		const since = new Date(
+			Date.now() - (isRefresh ? 30 : 7) * 86400000,
+		).toISOString();
 		let page = 1;
 		let hasMore = true;
-		let synced = 0;
+		let handled = 0;
 
 		while (hasMore) {
 			try {
 				const res = await fetch(
-					`https://api.polar.sh/v1/orders?organization_id=${polarOrgId}&page=${page}&limit=100&sorting=-created_at&since=${encodeURIComponent(sevenDaysAgo)}`,
+					`https://api.polar.sh/v1/orders?organization_id=${polarOrgId}&page=${page}&limit=100&sorting=-created_at&since=${encodeURIComponent(since)}`,
 					{
 						headers: {
 							Authorization: `Bearer ${polarToken}`,
@@ -348,6 +353,7 @@ export default {
 				type PolarOrder = {
 					id: string;
 					status?: string;
+					total_amount?: number | null;
 					customer?: { email?: string };
 					customer_email?: string;
 				};
@@ -391,8 +397,10 @@ export default {
 						.executeTakeFirst();
 					if (!site) continue;
 
-					const result = await processPolarOrder(db, order, site.id);
-					if (result === "imported") synced++;
+					const result = isRefresh
+						? await refreshPolarOrder(db, order, site.id)
+						: await processPolarOrder(db, order, site.id);
+					if (result === (isRefresh ? "updated" : "imported")) handled++;
 				}
 				page++;
 			} catch (err) {
@@ -400,7 +408,9 @@ export default {
 				break;
 			}
 		}
-		console.log(`Polar cron sync complete: ${synced} orders synced`);
+		console.log(
+			`Polar cron ${isRefresh ? "refresh" : "sync"} complete: ${handled} orders ${isRefresh ? "updated" : "synced"}`,
+		);
 	},
 } satisfies ExportedHandler<Bindings>;
 
