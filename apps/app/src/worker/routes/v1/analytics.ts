@@ -765,6 +765,7 @@ v1AnalyticsRoutes.get("/export", requireScope("analytics:export"), async (c) => 
 			"browser",
 			"os",
 			"revenue",
+			"props",
 			"timestamp",
 		])
 		.where("site_id", "=", siteId)
@@ -773,29 +774,47 @@ v1AnalyticsRoutes.get("/export", requireScope("analytics:export"), async (c) => 
 	const rows = await eventsQuery.orderBy("timestamp", "desc").limit(exportLimit).execute();
 
 	if (format === "json") {
-		return c.json({ data: rows, success: true });
+		const data = rows.map(({ props, ...rest }) => {
+			let pr: Record<string, unknown> | null = null;
+			if (props) {
+				try {
+					pr = JSON.parse(props) as Record<string, unknown>;
+				} catch {
+					/* malformed json — leave pr null */
+				}
+			}
+			return { ...rest, pr };
+		});
+		return c.json({ data, success: true });
 	}
-	const csv = toCsv(rows as unknown as Record<string, unknown>[], [
-		"id",
-		"visitor_id",
-		"session_id",
-		"event_type",
-		"name",
-		"path",
-		"hostname",
-		"referrer",
-		"utm_source",
-		"utm_medium",
-		"utm_campaign",
-		"country",
-		"region",
-		"city",
-		"device_type",
-		"browser",
-		"os",
-		"revenue",
-		"timestamp",
-	]);
+	const csv = toCsv(
+		rows.map(({ props, ...rest }) => ({ ...rest, pr: props })) as unknown as Record<
+			string,
+			unknown
+		>[],
+		[
+			"id",
+			"visitor_id",
+			"session_id",
+			"event_type",
+			"name",
+			"path",
+			"hostname",
+			"referrer",
+			"utm_source",
+			"utm_medium",
+			"utm_campaign",
+			"country",
+			"region",
+			"city",
+			"device_type",
+			"browser",
+			"os",
+			"revenue",
+			"pr",
+			"timestamp",
+		],
+	);
 	return new Response(csv, {
 		headers: {
 			"Content-Type": "text/csv",
