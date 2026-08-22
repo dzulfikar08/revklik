@@ -103,6 +103,26 @@ async function getGSCIntegration(db: Kysely<KlikapaDatabase>, siteId: string) {
 		.executeTakeFirst();
 }
 
+// Normalize a GSC siteUrl to a bare host for comparison.
+// Handles "sc-domain:example.com" (domain property) and "https://www.example.com/" (URL prefix).
+function normalizeGscHost(siteUrl: string): string {
+	return siteUrl
+		.replace(/^sc-domain:/, "")
+		.replace(/^https?:\/\//, "")
+		.replace(/^www\./, "")
+		.replace(/\/.*$/, "")
+		.toLowerCase();
+}
+
+function gscSiteMatchesDomain(siteUrl: string, domain: string): boolean {
+	const host = normalizeGscHost(siteUrl);
+	const bareDomain = domain.replace(/^www\./, "").toLowerCase();
+	if (!host || !bareDomain) return false;
+	if (host === bareDomain) return true;
+	// Domain properties cover all subdomains
+	return bareDomain.endsWith(`.${host}`);
+}
+
 // Helper: fetch search analytics from Google Search Console API
 async function fetchSearchAnalytics(
 	accessToken: string,
@@ -227,27 +247,30 @@ gscRoutes.get("/callback", async (c) => {
 		);
 	}
 
-	// List the user's verified sites from GSC to pick the right site URL
+	// Pick the GSC property that matches this site's domain (fallback: first entry)
+	const siteId = state.site_id;
 	let googleSiteUrl = "";
 	try {
-		const sitesRes = await fetch("https://www.googleapis.com/webmasters/v3/sites", {
-			headers: { Authorization: `Bearer ${accessToken}` },
-		});
+		const [siteRow, sitesRes] = await Promise.all([
+			db.selectFrom("sites").select(["domain"]).where("id", "=", siteId).executeTakeFirst(),
+			fetch("https://www.googleapis.com/webmasters/v3/sites", {
+				headers: { Authorization: `Bearer ${accessToken}` },
+			}),
+		]);
 		if (sitesRes.ok) {
 			const sitesData = (await sitesRes.json()) as {
 				siteEntry?: Array<{ siteUrl: string }>;
 			};
-			// Use the first available site URL (user can configure later)
-			if (sitesData.siteEntry && sitesData.siteEntry.length > 0) {
-				googleSiteUrl = sitesData.siteEntry[0]?.siteUrl ?? "";
-			}
+			const entries = sitesData.siteEntry ?? [];
+			const domain = siteRow?.domain ?? "";
+			const match = domain ? entries.find((e) => gscSiteMatchesDomain(e.siteUrl, domain)) : undefined;
+			googleSiteUrl = (match ?? entries[0])?.siteUrl ?? "";
 		}
 	} catch {
 		// Non-fatal: we'll store what we have
 	}
 
 	// Store as integration
-	const siteId = state.site_id;
 	const config = JSON.stringify({
 		access_token: accessToken,
 		refresh_token: refreshToken,
