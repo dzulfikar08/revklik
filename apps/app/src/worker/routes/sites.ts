@@ -37,13 +37,12 @@ siteRoutes.get("/", async (c) => {
 
 	const sitesWithStats: SiteWithStats[] = await Promise.all(
 		sites.map(async (site) => {
-			const [stats, sparkRows] = await Promise.all([
+			const [stats, sparkRows, revenueRows] = await Promise.all([
 				db
 					.selectFrom("events")
 					.select([
 						({ fn }) => fn.count<number>("id").as("pageviews"),
 						({ fn }) => fn.count<number>("visitor_id").distinct().as("visitors"),
-						({ fn }) => fn.sum<number>("revenue").as("revenue"),
 					])
 					.where("site_id", "=", site.id)
 					.where("event_type", "=", "pageview")
@@ -58,14 +57,25 @@ siteRoutes.get("/", async (c) => {
 					.groupBy(sql`date(${sql.ref("timestamp")})`)
 					.orderBy("timestamp", "asc")
 					.execute(),
+				// Daily revenue across all event types (revenue can ride on conversions too).
+				db
+					.selectFrom("events")
+					.select([({ fn }) => fn.sum<number>("revenue").as("revenue")])
+					.where("site_id", "=", site.id)
+					.where("revenue", ">", 0)
+					.where("timestamp", ">=", startIso)
+					.groupBy(sql`date(${sql.ref("timestamp")})`)
+					.orderBy("timestamp", "asc")
+					.execute(),
 			]);
 
 			return {
 				...site,
 				pageviews: Number(stats?.pageviews ?? 0),
 				visitors: Number(stats?.visitors ?? 0),
-				revenue: Number(stats?.revenue ?? 0),
+				revenue: revenueRows.reduce((sum, r) => sum + Number(r.revenue ?? 0), 0),
 				sparkline: sparkRows.map((r) => Number(r.count)),
+				revenue_sparkline: revenueRows.map((r) => Number(r.revenue ?? 0)),
 			};
 		}),
 	);

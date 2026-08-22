@@ -139,6 +139,7 @@ export interface SiteWithStats extends Site {
 	visitors: number;
 	sparkline: number[];
 	revenue: number;
+	revenue_sparkline: number[];
 }
 
 export interface RevenueBySource {

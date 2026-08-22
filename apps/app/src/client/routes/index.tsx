@@ -1,7 +1,7 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
-import { Area, AreaChart, ResponsiveContainer } from "recharts";
+import { useId, useMemo, useState } from "react";
+import { Area, AreaChart, Bar, BarChart, ResponsiveContainer } from "recharts";
 import { DateTimePicker } from "@/components/time-picker";
 import { createSite, deleteSite, fetchSites } from "@/lib/api";
 import { t } from "@/lib/i18n";
@@ -9,6 +9,7 @@ import { t } from "@/lib/i18n";
 export const Route = createFileRoute("/")({ component: OverviewPage });
 
 function Sparkline({ data, color }: { data: number[]; color?: string }) {
+	const gradId = useId();
 	if (data.length < 2 || data.every((v) => v === 0)) return null;
 	const chartData = data.map((v) => ({ v }));
 	const stroke = color || "var(--accent)";
@@ -17,7 +18,7 @@ function Sparkline({ data, color }: { data: number[]; color?: string }) {
 			<ResponsiveContainer width="100%" height="100%">
 				<AreaChart data={chartData} margin={{ top: 2, right: 0, bottom: 0, left: 0 }}>
 					<defs>
-						<linearGradient id="sparkGrad" x1="0" y1="0" x2="0" y2="1">
+						<linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
 							<stop offset="0%" stopColor={stroke} stopOpacity={0.2} />
 							<stop offset="100%" stopColor={stroke} stopOpacity={0} />
 						</linearGradient>
@@ -27,13 +28,53 @@ function Sparkline({ data, color }: { data: number[]; color?: string }) {
 						dataKey="v"
 						stroke={stroke}
 						strokeWidth={1.5}
-						fill="url(#sparkGrad)"
+						fill={`url(#${gradId})`}
 						dot={false}
 						isAnimationActive={false}
 					/>
 				</AreaChart>
 			</ResponsiveContainer>
 		</div>
+	);
+}
+
+function RevenueBars({ data }: { data: number[] }) {
+	if (data.length < 1 || data.every((v) => !v)) return null;
+	const chartData = data.map((v) => ({ v }));
+	return (
+		<div className="site-card-spark bars">
+			<ResponsiveContainer width="100%" height="100%">
+				<BarChart data={chartData} margin={{ top: 2, right: 0, bottom: 0, left: 0 }}>
+					<Bar
+						dataKey="v"
+						fill="var(--green)"
+						radius={[2, 2, 0, 0]}
+						maxBarSize={14}
+						isAnimationActive={false}
+					/>
+				</BarChart>
+			</ResponsiveContainer>
+		</div>
+	);
+}
+
+function SiteFavicon({ domain, name }: { domain: string; name: string }) {
+	const [failed, setFailed] = useState(false);
+	if (failed) {
+		return (
+			<div className="site-card-favicon site-card-favicon-fallback">
+				{name.charAt(0).toUpperCase()}
+			</div>
+		);
+	}
+	return (
+		<img
+			className="site-card-favicon"
+			src={`https://www.google.com/s2/favicons?domain=${domain}&sz=64`}
+			alt=""
+			loading="lazy"
+			onError={() => setFailed(true)}
+		/>
 	);
 }
 
@@ -195,9 +236,14 @@ function OverviewPage() {
 								onKeyDown={(e) => handleCardKey(e, site.id)}
 							>
 								<div className="site-card-header">
-									<div>
-										<div className="site-card-name">{site.name}</div>
-										<div className="site-card-domain">{site.domain}</div>
+									<div className="site-card-id">
+										<SiteFavicon domain={site.domain} name={site.name} />
+										<div style={{ minWidth: 0 }}>
+											<div className="site-card-name">{site.name}</div>
+											<div className="site-card-domain" style={{ paddingLeft: 0 }}>
+												{site.domain}
+											</div>
+										</div>
 									</div>
 									<button
 										type="button"
@@ -230,6 +276,7 @@ function OverviewPage() {
 									</div>
 								</div>
 								<Sparkline data={site.sparkline} />
+								<RevenueBars data={site.revenue_sparkline} />
 								<div className="site-card-footer">
 									<span>{rangeLabel}</span>
 									<span style={{ color: "var(--accent)" }}>{t("sites.view_details")}</span>
