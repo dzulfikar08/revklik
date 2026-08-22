@@ -3,6 +3,7 @@
 	// and orphans all secrets, the workers.dev URL, and the cron attachments.
 	"$schema": "../node_modules/wrangler/config-schema.json",
 	"name": "klikapa",
+	"account_id": "b7e6f8457bd39fa37a7eea5249799754",
 	"main": "src/worker/index.ts",
 	"compatibility_date": "2025-05-25",
 	"compatibility_flags": ["nodejs_compat"],
