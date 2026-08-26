@@ -1,5 +1,7 @@
 import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import type { Filter } from "@revklik/shared";
+import { fetchSegments, getActiveSiteId } from "@/lib/api";
 import {
 	encodeFilterString,
 	FILTER_DIMENSIONS,
@@ -21,6 +23,25 @@ export function FilterBar({
 	const [newDim, setNewDim] = useState("path");
 	const [newOp, setNewOp] = useState("is");
 	const [newVal, setNewVal] = useState("");
+
+	// Saved segments (Settings → Segments) apply as one-click filter presets.
+	const siteId = getActiveSiteId() ?? "";
+	const { data: segments } = useQuery({
+		queryKey: ["segments", siteId],
+		queryFn: () => fetchSegments(siteId),
+		enabled: !!siteId,
+	});
+
+	const applySegment = (id: string) => {
+		const seg = segments?.find((s) => s.id === id);
+		if (!seg) return;
+		try {
+			const parsed = JSON.parse(seg.filters) as Filter[];
+			if (Array.isArray(parsed)) onFiltersChange(encodeFilterString(parsed));
+		} catch {
+			/* malformed segment — ignore */
+		}
+	};
 
 	const noValue = newOp === "exists" || newOp === "not_exists";
 
@@ -113,6 +134,22 @@ export function FilterBar({
 					alignItems: "center",
 				}}
 			>
+				{segments && segments.length > 0 && (
+					<select
+						value=""
+						onChange={(e) => applySegment(e.target.value)}
+						style={selectStyle}
+						title="Apply a saved segment"
+						aria-label="Apply a saved segment"
+					>
+						<option value="">Saved views</option>
+						{segments.map((s) => (
+							<option key={s.id} value={s.id}>
+								{s.name}
+							</option>
+						))}
+					</select>
+				)}
 				{!showBuilder ? (
 					<button
 						type="button"
