@@ -30,6 +30,7 @@ import { teamRoutes } from "./routes/team";
 import { tokenRoutes } from "./routes/tokens";
 import { trackRoutes } from "./routes/track";
 import { v1Routes } from "./routes/v1";
+import { mcpRoutes } from "./routes/mcp";
 import { webhookRoutes } from "./routes/webhooks";
 import { lemonsqueezyWebhookRoutes } from "./routes/webhooks-lemonsqueezy";
 import { midtransWebhookRoutes } from "./routes/webhooks-midtrans";
@@ -99,6 +100,9 @@ export function createApp(): Hono<Env> {
 
 	// Public API v1 (uses rvt_ and rv_ tokens, not kp_ session tokens)
 	app.route("/v1", v1Routes);
+
+	// MCP server over the same rvt_/rv_ tokens (Streamable HTTP, stateless)
+	app.route("/mcp", mcpRoutes);
 
 	// Auth routes (public — no authMiddleware)
 	app.route("/auth", authRoutes);

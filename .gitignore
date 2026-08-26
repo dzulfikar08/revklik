@@ -61,6 +61,7 @@ apps/app/.env.mobile
 
 # Test / tool artifacts
 .playwright-mcp/
+.mcp.json
 .serena/
 
 # Working screenshots (root-level only; source PNGs live under apps/app/android/)

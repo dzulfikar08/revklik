@@ -14,6 +14,7 @@
 		"deploy": "bun --filter @revklik/app deploy",
 		"typecheck": "bun --filter @revklik/app typecheck && bun --filter @revklik/shared typecheck && bun --filter @revklik/sdk typecheck && bun --filter @revklik/cli typecheck",
 		"lint": "oxlint .",
+		"test": "bun test",
 		"fmt": "oxfmt .",
 		"fmt:check": "oxfmt --check .",
 		"build:sdk": "bun --filter @revklik/sdk build",
