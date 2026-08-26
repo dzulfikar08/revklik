@@ -46,89 +46,37 @@ https://revklik.com/docs.txt`;
 				gap: 0,
 			}}
 		>
-			<Globe />
-			<div style={{ textAlign: "center", marginTop: -80, maxWidth: 480 }}>
+			<div style={{ width: "100%", maxWidth: 500 }}>
+				<Globe />
 				<div
 					style={{
-						fontFamily: "var(--sans)",
-
-						fontSize: 28,
-						color: "var(--text)",
-						marginBottom: 8,
-					}}
-				>
-					{t("sites.waiting")}
-				</div>
-				<p
-					style={{
-						color: "var(--text3)",
-						fontSize: 14,
-						lineHeight: 1.6,
-						marginBottom: 20,
-					}}
-				>
-					{t("sites.script_hint")}
-				</p>
-				<div
-					style={{
-						background: "var(--bg2)",
-						border: "1px solid var(--border)",
-						borderRadius: 10,
-						padding: "14px 18px",
-						fontFamily: "var(--mono)",
-						fontSize: 11,
-						textAlign: "left",
-						width: "100%",
-						color: "var(--text2)",
-						lineHeight: 1.8,
-						wordBreak: "break-all",
-						marginBottom: 16,
-					}}
-				>
-					&lt;script defer data-site-id="{siteId}"<br />
-					&nbsp;&nbsp;src="{window.location.origin}
-					/klikapa.js"&gt;&lt;/script&gt;
-				</div>
-				<button
-					type="button"
-					className="btn-accent"
-					onClick={() => {
-						navigator.clipboard.writeText(snippet);
-						setCopied(true);
-						setTimeout(() => setCopied(false), 2000);
-					}}
-				>
-					{copied ? t("common.copied") : t("common.copy_script")}
-				</button>
-				<div
-					style={{
-						marginTop: 28,
-						width: "100%",
-						textAlign: "left",
+						textAlign: "center",
+						marginTop: "-8%",
+						maxWidth: 480,
+						marginLeft: "auto",
+						marginRight: "auto",
 					}}
 				>
 					<div
 						style={{
-							fontFamily: "var(--mono)",
-							fontSize: 11,
-							fontWeight: 600,
-							textTransform: "uppercase",
-							letterSpacing: "0.08em",
-							color: "var(--text2)",
+							fontFamily: "var(--sans)",
+
+							fontSize: 28,
+							color: "var(--text)",
 							marginBottom: 8,
 						}}
 					>
-						{t("sites.agent_title")}
+						{t("sites.waiting")}
 					</div>
 					<p
 						style={{
 							color: "var(--text3)",
-							fontSize: 13,
+							fontSize: 14,
 							lineHeight: 1.6,
-							marginBottom: 12,
+							marginBottom: 20,
 						}}
 					>
-						{t("sites.agent_hint")}
+						{t("sites.script_hint")}
 					</p>
 					<div
 						style={{
@@ -138,52 +86,114 @@ https://revklik.com/docs.txt`;
 							padding: "14px 18px",
 							fontFamily: "var(--mono)",
 							fontSize: 11,
+							textAlign: "left",
+							width: "100%",
 							color: "var(--text2)",
 							lineHeight: 1.8,
-							whiteSpace: "pre-wrap",
-							wordBreak: "break-word",
-							marginBottom: 12,
+							wordBreak: "break-all",
+							marginBottom: 16,
 						}}
 					>
-						{agentPrompt}
+						&lt;script defer data-site-id="{siteId}"<br />
+						&nbsp;&nbsp;src="{window.location.origin}
+						/klikapa.js"&gt;&lt;/script&gt;
 					</div>
 					<button
 						type="button"
-						className="btn-pill"
+						className="btn-accent"
 						onClick={() => {
-							navigator.clipboard.writeText(agentPrompt);
-							setPromptCopied(true);
-							setTimeout(() => setPromptCopied(false), 2000);
+							navigator.clipboard.writeText(snippet);
+							setCopied(true);
+							setTimeout(() => setCopied(false), 2000);
 						}}
 					>
-						{promptCopied ? t("common.copied") : t("sites.copy_agent_prompt")}
+						{copied ? t("common.copied") : t("common.copy_script")}
 					</button>
-				</div>
-				<div
-					style={{
-						marginTop: 16,
-						fontSize: 12,
-						color: "var(--text3)",
-					}}
-				>
-					{t("sites.full_docs")}{" "}
-					<a
-						href="https://revklik.com/docs.txt"
-						target="_blank"
-						rel="noopener"
-						style={{ color: "var(--accent)" }}
+					<div
+						style={{
+							marginTop: 28,
+							width: "100%",
+							textAlign: "left",
+						}}
 					>
-						docs.txt
-					</a>
-					{" · "}
-					<a
-						href="https://revklik.com/docs.html"
-						target="_blank"
-						rel="noopener"
-						style={{ color: "var(--accent)" }}
+						<div
+							style={{
+								fontFamily: "var(--mono)",
+								fontSize: 11,
+								fontWeight: 600,
+								textTransform: "uppercase",
+								letterSpacing: "0.08em",
+								color: "var(--text2)",
+								marginBottom: 8,
+							}}
+						>
+							{t("sites.agent_title")}
+						</div>
+						<p
+							style={{
+								color: "var(--text3)",
+								fontSize: 13,
+								lineHeight: 1.6,
+								marginBottom: 12,
+							}}
+						>
+							{t("sites.agent_hint")}
+						</p>
+						<div
+							style={{
+								background: "var(--bg2)",
+								border: "1px solid var(--border)",
+								borderRadius: 10,
+								padding: "14px 18px",
+								fontFamily: "var(--mono)",
+								fontSize: 11,
+								color: "var(--text2)",
+								lineHeight: 1.8,
+								whiteSpace: "pre-wrap",
+								wordBreak: "break-word",
+								marginBottom: 12,
+							}}
+						>
+							{agentPrompt}
+						</div>
+						<button
+							type="button"
+							className="btn-pill"
+							onClick={() => {
+								navigator.clipboard.writeText(agentPrompt);
+								setPromptCopied(true);
+								setTimeout(() => setPromptCopied(false), 2000);
+							}}
+						>
+							{promptCopied ? t("common.copied") : t("sites.copy_agent_prompt")}
+						</button>
+					</div>
+					<div
+						style={{
+							marginTop: 16,
+							fontSize: 12,
+							color: "var(--text3)",
+						}}
 					>
-						docs.html
-					</a>
+						{t("sites.full_docs")}{" "}
+						<a
+							href="https://revklik.com/docs.txt"
+							target="_blank"
+							rel="noopener"
+							style={{ color: "var(--accent)" }}
+						>
+							docs.txt
+						</a>
+						{" · "}
+						<a
+							href="https://revklik.com/docs.html"
+							target="_blank"
+							rel="noopener"
+							style={{ color: "var(--accent)" }}
+						>
+							docs.html
+						</a>
+					</div>
 				</div>
 			</div>
 		</div>
