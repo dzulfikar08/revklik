@@ -179,6 +179,10 @@ xenditWebhookRoutes.post("/", async (c) => {
 				browser: null,
 				os: null,
 				revenue: amount,
+				payment_provider: "xendit",
+				payment_method: mappedMethod,
+				currency,
+				subscription_id: recurringId,
 				props: JSON.stringify({
 					xendit_invoice_id: xenditInvoiceId,
 					external_id: externalId,

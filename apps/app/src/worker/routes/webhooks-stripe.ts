@@ -169,6 +169,9 @@ stripeWebhookRoutes.post("/", async (c) => {
 			browser: null,
 			os: null,
 			revenue: amount,
+			payment_provider: "stripe",
+			payment_method: mappedMethod,
+			currency,
 			props: JSON.stringify({
 				stripe_session_id: stripeSessionId,
 				payment_method: mappedMethod,

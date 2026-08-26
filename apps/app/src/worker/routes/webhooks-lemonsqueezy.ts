@@ -172,6 +172,8 @@ lemonsqueezyWebhookRoutes.post("/", async (c) => {
 			browser: null,
 			os: null,
 			revenue: amount,
+			payment_provider: "lemonsqueezy",
+			currency,
 			props: JSON.stringify({
 				lemonsqueezy_order_id: orderId,
 				currency,

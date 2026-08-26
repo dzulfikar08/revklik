@@ -3,8 +3,6 @@ import type { IntegrationType } from "@revklik/shared";
 export const PAYMENT_PROVIDERS = [
 	"midtrans",
 	"xendit",
-	"doku",
-	"nicepay",
 	"stripe",
 	"lemonsqueezy",
 ];
@@ -184,44 +182,7 @@ export const PROVIDERS: {
 			},
 		],
 	},
-	{
-		type: "doku",
-		name: "DOKU",
-		icon: "\uD83D\uDCB3",
-		description: "Indonesian payment gateway \u2014 SNAP standard, virtual accounts, e-wallets",
-		fields: [
-			{
-				key: "client_id",
-				label: "Client ID",
-				placeholder: "your-doku-client-id",
-			},
-			{
-				key: "secret_key",
-				label: "Secret Key",
-				placeholder: "your-doku-secret-key",
-				secret: true,
-			},
-		],
-	},
-	{
-		type: "nicepay",
-		name: "NICEPAY",
-		icon: "\uD83D\uDCB3",
-		description: "Indonesian payment gateway \u2014 e-wallets, QRIS, virtual accounts, paylater",
-		fields: [
-			{
-				key: "client_id",
-				label: "Client ID",
-				placeholder: "your-nicepay-client-id",
-			},
-			{
-				key: "secret_key",
-				label: "Secret Key",
-				placeholder: "your-nicepay-secret-key",
-				secret: true,
-			},
-		],
-	},
+	// doku + nicepay: hidden until webhook handlers exist (apps/app/src/worker/routes/webhooks-doku.ts)
 	{
 		type: "stripe",
 		name: "Stripe",
@@ -255,8 +216,6 @@ export const PROVIDERS: {
 export const WEBHOOK_PATHS: Record<string, string> = {
 	midtrans: "/api/webhooks/midtrans",
 	xendit: "/api/webhooks/xendit",
-	doku: "/api/webhooks/doku",
-	nicepay: "/api/webhooks/nicepay",
 	stripe: "/api/webhooks/stripe",
 	lemonsqueezy: "/api/webhooks/lemonsqueezy",
 };

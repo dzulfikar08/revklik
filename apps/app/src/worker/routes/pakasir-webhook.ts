@@ -130,6 +130,9 @@ pakasirWebhookRoutes.post("/", async (c) => {
 					browser: null,
 					os: null,
 					revenue: planPrice,
+					payment_provider: "pakasir",
+					payment_method: payment_method || null,
+					currency: "IDR",
 					props: JSON.stringify({
 						plan,
 						order_id,

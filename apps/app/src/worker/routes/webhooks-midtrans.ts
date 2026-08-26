@@ -198,6 +198,9 @@ midtransWebhookRoutes.post("/", async (c) => {
 			browser: null,
 			os: null,
 			revenue: amount,
+			payment_provider: "midtrans",
+			payment_method: mappedMethod,
+			currency: "IDR",
 			props: JSON.stringify({
 				order_id: orderId,
 				payment_type: paymentType,

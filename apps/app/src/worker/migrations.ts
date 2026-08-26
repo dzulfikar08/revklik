@@ -533,6 +533,29 @@ export async function migrateDatabase(d1: D1Database): Promise<void> {
 		/* index may already exist */
 	}
 
+	// Backfill payment columns from webhook props (handlers wrote JSON-only before columns existed)
+	for (const stmt of [
+		`UPDATE events
+		 SET payment_provider = REPLACE(json_extract(props, '$.source'), '_webhook', '')
+		 WHERE payment_provider IS NULL
+		 AND revenue > 0
+		 AND json_extract(props, '$.source') IS NOT NULL`,
+		`UPDATE events
+		 SET payment_method = json_extract(props, '$.payment_method')
+		 WHERE payment_method IS NULL
+		 AND json_extract(props, '$.payment_method') IS NOT NULL`,
+		`UPDATE events
+		 SET currency = json_extract(props, '$.currency')
+		 WHERE currency IS NULL
+		 AND json_extract(props, '$.currency') IS NOT NULL`,
+	]) {
+		try {
+			await d1.prepare(stmt).run();
+		} catch {
+			/* props may be invalid JSON */
+		}
+	}
+
 	// Search Console data
 	try {
 		await d1

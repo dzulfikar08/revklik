@@ -206,6 +206,8 @@ polarWebhookRoutes.post("/", async (c) => {
 			browser: null,
 			os: null,
 			revenue: amount,
+			payment_provider: "polar",
+			currency,
 			props: JSON.stringify({
 				[dedupeKey]: orderId,
 				product: productName,

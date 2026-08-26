@@ -196,7 +196,22 @@ export function ChartCard({
 							/>
 						)}
 						<RechartsTooltip
-							content={({ active, payload, label: lbl }) => {
+							content={({
+							active,
+							payload,
+							label: lbl,
+						}: {
+							active?: boolean;
+							payload?: Array<{
+								payload?: {
+									visitors?: number;
+									pageviews?: number;
+									revenue?: number;
+									conversions?: number;
+								};
+							}>;
+							label?: string | number;
+						}) => {
 								if (!active || !payload?.length) return null;
 								const d = payload[0]?.payload;
 								const vis = d?.visitors ?? 0;
