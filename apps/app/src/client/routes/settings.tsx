@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { PageHeader } from "@/components/page-header";
 import {
@@ -610,6 +610,28 @@ function ExcludeTrafficSection() {
 	);
 }
 
+function SettingsLinks() {
+	const navigate = useNavigate();
+	return (
+		<div style={{ display: "flex", gap: 8, marginBottom: 16, flexWrap: "wrap" }}>
+			<button
+				type="button"
+				className="btn-pill"
+				onClick={() => navigate({ to: "/settings/api-tokens" })}
+			>
+				API Tokens
+			</button>
+			<button
+				type="button"
+				className="btn-pill"
+				onClick={() => navigate({ to: "/settings/api-playground" })}
+			>
+				API Playground
+			</button>
+		</div>
+	);
+}
+
 function SettingsPage() {
 	const siteId = getActiveSiteId();
 
@@ -636,6 +658,8 @@ function SettingsPage() {
 					subtitle="Manage segments, annotations, email reports, and sharing"
 					backTo="/site/$siteId"
 				/>
+
+				<SettingsLinks />
 
 				<div style={{ maxWidth: 720 }}>
 					<Section title="Public Dashboard">
