@@ -77,6 +77,38 @@ const endpoints = [
 	},
 	{
 		method: "GET",
+		path: "/api/widgets/live/:token",
+		auth: false,
+		desc: "Live widget stats (token-gated)",
+		note: "Returns { online_now, visitors_today, total_visitors, updated_at }",
+	},
+	{
+		method: "GET",
+		path: "/api/sites/:id/widget/status",
+		auth: true,
+		desc: "Live widget status",
+	},
+	{
+		method: "POST",
+		path: "/api/sites/:id/widget/toggle",
+		auth: true,
+		desc: "Enable/disable live widget (mints/clears token)",
+	},
+	{
+		method: "POST",
+		path: "/api/sites/:id/widget/regenerate",
+		auth: true,
+		desc: "Regenerate live widget token",
+	},
+	{
+		method: "PATCH",
+		path: "/api/sites/:id/widget/config",
+		auth: true,
+		desc: "Update live widget config",
+		body: "{ tz_offset }",
+	},
+	{
+		method: "GET",
 		path: "/api/analytics/export",
 		auth: true,
 		desc: "Export data (CSV/JSON)",

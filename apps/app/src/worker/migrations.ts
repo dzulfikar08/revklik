@@ -661,5 +661,18 @@ export async function migrateDatabase(d1: D1Database): Promise<void> {
 			/* column may already exist */
 		}
 	}
+
+	// Embeddable live-stats widget (per-site opt-in + opaque token + tz offset for "today")
+	for (const stmt of [
+		"ALTER TABLE sites ADD COLUMN widget_enabled INTEGER NOT NULL DEFAULT 0",
+		"ALTER TABLE sites ADD COLUMN widget_token TEXT",
+		"ALTER TABLE sites ADD COLUMN widget_tz_offset INTEGER NOT NULL DEFAULT 0",
+	]) {
+		try {
+			await d1.prepare(stmt).run();
+		} catch {
+			/* column may already exist */
+		}
+	}
 	migrationRan = true;
 }

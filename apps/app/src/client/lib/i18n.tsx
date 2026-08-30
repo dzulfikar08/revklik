@@ -146,6 +146,32 @@ const translations: Record<Lang, Record<string, string>> = {
 		"integrations.view_events": "Lihat Event",
 		"integrations.hide_events": "Sembunyikan Event",
 		"integrations.keep_current": "Kosongkan untuk tetap yang sekarang",
+
+		// Live widget
+		"widget.title": "Widget Live",
+		"widget.subtitle": "Tampilkan jumlah pengunjung langsung di website Anda",
+		"widget.enable": "Aktifkan Widget",
+		"widget.disable": "Matikan Widget",
+		"widget.enabled_badge": "Aktif",
+		"widget.hint":
+			"Widget menampilkan pengunjung online, pengunjung hari ini, dan total seluruh waktu.",
+		"widget.snippet": "Kode Install",
+		"widget.mode_bubble": "Bubble",
+		"widget.mode_badge": "Badge Inline",
+		"widget.tz_offset": "Zona waktu (hitungan 'hari ini')",
+		"widget.tz_hint": "Hitungan 'hari ini' di-reset tiap tengah malam di zona waktu ini.",
+		"widget.regenerate": "Regenerate token",
+		"widget.regenerated": "Token baru dibuat — pasang ulang snippet di website Anda.",
+		"widget.tip_position": "Bubble mode: atur sudut dengan data-position (br, bl, tr, tl).",
+		"widget.tip_show": 'Pilih angka yang tampil dengan data-show="online,today,total".',
+		"widget.tip_face":
+			'Bubble mode: taruh angka langsung di pil dengan data-face="online,total" (default: online).',
+		"widget.tip_target":
+			"Badge inline: masukkan ke elemen mana pun dengan atribut data-klikapa-live-target.",
+		"widget.tip_dark": "Tema otomatis mengikuti light/dark mode pengunjung.",
+		"widget.tip_refresh": "Angka diperbarui otomatis setiap 30 detik tanpa reload halaman.",
+		"widget.tip_hook":
+			"Developer: tangkap angka terbaru via window.klikapaLiveUpdate = (stats) => { ... }.",
 	},
 	en: {
 		"nav.logout": "Logout",
@@ -266,6 +292,31 @@ const translations: Record<Lang, Record<string, string>> = {
 		"integrations.view_events": "View Events",
 		"integrations.hide_events": "Hide Events",
 		"integrations.keep_current": "Leave empty to keep current",
+
+		// Live widget
+		"widget.title": "Live Widget",
+		"widget.subtitle": "Show live visitor numbers on your own website",
+		"widget.enable": "Enable Widget",
+		"widget.disable": "Disable Widget",
+		"widget.enabled_badge": "Enabled",
+		"widget.hint": "The widget shows visitors online, visitors today, and the all-time total.",
+		"widget.snippet": "Install snippet",
+		"widget.mode_bubble": "Bubble",
+		"widget.mode_badge": "Inline badge",
+		"widget.tz_offset": "Timezone (for 'visitors today')",
+		"widget.tz_hint": "The 'today' count resets at midnight in this timezone.",
+		"widget.regenerate": "Regenerate token",
+		"widget.regenerated": "New token generated — re-install the snippet on your site.",
+		"widget.tip_position": "Bubble mode: pick a corner with data-position (br, bl, tr, tl).",
+		"widget.tip_show": 'Choose which numbers show with data-show="online,today,total".',
+		"widget.tip_face":
+			'Bubble mode: put numbers right on the pill with data-face="online,total" (default: online).',
+		"widget.tip_target":
+			"Inline badge: place it inside any element with the data-klikapa-live-target attribute.",
+		"widget.tip_dark": "The theme automatically follows the visitor's light/dark mode.",
+		"widget.tip_refresh": "Numbers refresh automatically every 30 seconds — no page reload needed.",
+		"widget.tip_hook":
+			"Developer: read the latest numbers via window.klikapaLiveUpdate = (stats) => { ... }.",
 	},
 };
 

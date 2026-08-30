@@ -3,6 +3,7 @@ import type { Kysely } from "kysely";
 import type { CreateSitePayload, KlikapaDatabase, Site, SiteWithStats } from "@revklik/shared";
 import { sql } from "../db";
 import { getPlanLimits } from "../lib/plans";
+import { clampTzOffset } from "../lib/widget-live";
 import { fingerprintFromRequest, generateId } from "../utils";
 import { invalidateExcludedCache } from "./track";
 
@@ -322,4 +323,94 @@ siteRoutes.post("/:siteId/purge", async (c) => {
 		},
 		success: true,
 	});
+});
+
+// ---------- Embeddable live-stats widget (public endpoint is /api/widgets/live/:token) ----------
+
+async function loadWidgetForOwner(db: Kysely<KlikapaDatabase>, userId: string, siteId: string) {
+	return db
+		.selectFrom("sites")
+		.select(["id", "widget_enabled", "widget_token", "widget_tz_offset"])
+		.where("id", "=", siteId)
+		.where("user_id", "=", userId)
+		.executeTakeFirst();
+}
+
+siteRoutes.get("/:siteId/widget/status", async (c) => {
+	const db = c.get("db");
+	const userId = c.get("userId");
+	const site = await loadWidgetForOwner(db, userId, c.req.param("siteId"));
+	if (!site) return c.json({ error: "Site not found", success: false }, 404);
+	return c.json({
+		data: {
+			enabled: site.widget_enabled === 1,
+			widget_token: site.widget_token ?? null,
+			tz_offset: clampTzOffset(site.widget_tz_offset ?? 0) ?? 0,
+		},
+		success: true,
+	});
+});
+
+siteRoutes.post("/:siteId/widget/toggle", async (c) => {
+	const db = c.get("db");
+	const userId = c.get("userId");
+	const siteId = c.req.param("siteId");
+	const site = await loadWidgetForOwner(db, userId, siteId);
+	if (!site) return c.json({ error: "Site not found", success: false }, 404);
+
+	if (site.widget_enabled === 1) {
+		await db
+			.updateTable("sites")
+			.set({ widget_enabled: 0, widget_token: null })
+			.where("id", "=", siteId)
+			.execute();
+		return c.json({ data: { enabled: false, widget_token: null }, success: true });
+	}
+
+	const token = site.widget_token || generateId();
+	await db
+		.updateTable("sites")
+		.set({ widget_enabled: 1, widget_token: token })
+		.where("id", "=", siteId)
+		.execute();
+	return c.json({ data: { enabled: true, widget_token: token }, success: true });
+});
+
+siteRoutes.post("/:siteId/widget/regenerate", async (c) => {
+	const db = c.get("db");
+	const userId = c.get("userId");
+	const siteId = c.req.param("siteId");
+	const site = await loadWidgetForOwner(db, userId, siteId);
+	if (!site) return c.json({ error: "Site not found", success: false }, 404);
+	if (site.widget_enabled !== 1) {
+		return c.json({ error: "Widget is not enabled", success: false }, 400);
+	}
+
+	const token = generateId();
+	await db.updateTable("sites").set({ widget_token: token }).where("id", "=", siteId).execute();
+	return c.json({ data: { widget_token: token }, success: true });
+});
+
+siteRoutes.patch("/:siteId/widget/config", async (c) => {
+	const db = c.get("db");
+	const userId = c.get("userId");
+	const siteId = c.req.param("siteId");
+	const site = await loadWidgetForOwner(db, userId, siteId);
+	if (!site) return c.json({ error: "Site not found", success: false }, 404);
+
+	const body = await c.req.json().catch(() => ({}));
+	const tzOffset = clampTzOffset(Number(body?.tz_offset));
+	if (tzOffset === null) {
+		return c.json(
+			{ error: "tz_offset must be an integer between -840 and 840", success: false },
+			400,
+		);
+	}
+
+	await db
+		.updateTable("sites")
+		.set({ widget_tz_offset: tzOffset })
+		.where("id", "=", siteId)
+		.execute();
+	return c.json({ data: { tz_offset: tzOffset }, success: true });
 });

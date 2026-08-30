@@ -23,6 +23,7 @@ import { Route as DocsInstallRouteImport } from './routes/docs.install'
 import { Route as SettingsIndexRouteImport } from './routes/settings.index'
 import { Route as SettingsApiPlaygroundRouteImport } from './routes/settings.api-playground'
 import { Route as SettingsApiTokensRouteImport } from './routes/settings.api-tokens'
+import { Route as SettingsWidgetRouteImport } from './routes/settings.widget'
 import { Route as SiteSiteIdRouteImport } from './routes/site.$siteId'
 
 const IndexRoute = IndexRouteImport.update({
@@ -95,6 +96,11 @@ const SettingsApiTokensRoute = SettingsApiTokensRouteImport.update({
   path: '/api-tokens',
   getParentRoute: () => SettingsRoute,
 } as any)
+const SettingsWidgetRoute = SettingsWidgetRouteImport.update({
+  id: '/widget',
+  path: '/widget',
+  getParentRoute: () => SettingsRoute,
+} as any)
 const SiteSiteIdRoute = SiteSiteIdRouteImport.update({
   id: '/site/$siteId',
   path: '/site/$siteId',
@@ -115,6 +121,7 @@ export interface FileRoutesByFullPath {
   '/docs/install': typeof DocsInstallRoute
   '/settings/api-playground': typeof SettingsApiPlaygroundRoute
   '/settings/api-tokens': typeof SettingsApiTokensRoute
+  '/settings/widget': typeof SettingsWidgetRoute
   '/site/$siteId': typeof SiteSiteIdRoute
   '/settings/': typeof SettingsIndexRoute
 }
@@ -131,6 +138,7 @@ export interface FileRoutesByTo {
   '/docs/install': typeof DocsInstallRoute
   '/settings/api-playground': typeof SettingsApiPlaygroundRoute
   '/settings/api-tokens': typeof SettingsApiTokensRoute
+  '/settings/widget': typeof SettingsWidgetRoute
   '/site/$siteId': typeof SiteSiteIdRoute
   '/settings': typeof SettingsIndexRoute
 }
@@ -149,6 +157,7 @@ export interface FileRoutesById {
   '/docs/install': typeof DocsInstallRoute
   '/settings/api-playground': typeof SettingsApiPlaygroundRoute
   '/settings/api-tokens': typeof SettingsApiTokensRoute
+  '/settings/widget': typeof SettingsWidgetRoute
   '/site/$siteId': typeof SiteSiteIdRoute
   '/settings/': typeof SettingsIndexRoute
 }
@@ -168,6 +177,7 @@ export interface FileRouteTypes {
     | '/docs/install'
     | '/settings/api-playground'
     | '/settings/api-tokens'
+    | '/settings/widget'
     | '/site/$siteId'
     | '/settings/'
   fileRoutesByTo: FileRoutesByTo
@@ -184,6 +194,7 @@ export interface FileRouteTypes {
     | '/docs/install'
     | '/settings/api-playground'
     | '/settings/api-tokens'
+    | '/settings/widget'
     | '/site/$siteId'
     | '/settings'
   id:
@@ -201,6 +212,7 @@ export interface FileRouteTypes {
     | '/docs/install'
     | '/settings/api-playground'
     | '/settings/api-tokens'
+    | '/settings/widget'
     | '/site/$siteId'
     | '/settings/'
   fileRoutesById: FileRoutesById
@@ -320,6 +332,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SettingsApiTokensRouteImport
       parentRoute: typeof SettingsRoute
     }
+    '/settings/widget': {
+      id: '/settings/widget'
+      path: '/widget'
+      fullPath: '/settings/widget'
+      preLoaderRoute: typeof SettingsWidgetRouteImport
+      parentRoute: typeof SettingsRoute
+    }
     '/site/$siteId': {
       id: '/site/$siteId'
       path: '/site/$siteId'
@@ -333,12 +352,14 @@ declare module '@tanstack/react-router' {
 interface SettingsRouteChildren {
   SettingsApiPlaygroundRoute: typeof SettingsApiPlaygroundRoute
   SettingsApiTokensRoute: typeof SettingsApiTokensRoute
+  SettingsWidgetRoute: typeof SettingsWidgetRoute
   SettingsIndexRoute: typeof SettingsIndexRoute
 }
 
 const SettingsRouteChildren: SettingsRouteChildren = {
   SettingsApiPlaygroundRoute: SettingsApiPlaygroundRoute,
   SettingsApiTokensRoute: SettingsApiTokensRoute,
+  SettingsWidgetRoute: SettingsWidgetRoute,
   SettingsIndexRoute: SettingsIndexRoute,
 }
 

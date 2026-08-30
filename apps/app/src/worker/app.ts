@@ -38,6 +38,7 @@ import { polarWebhookRoutes } from "./routes/webhooks-polar";
 import { stripeWebhookRoutes } from "./routes/webhooks-stripe";
 import { xenditWebhookRoutes } from "./routes/webhooks-xendit";
 import { widgetRoutes } from "./routes/widgets";
+import { widgetLiveRoutes } from "./routes/widgets-live";
 import type { Env } from "./types";
 import { hashToken } from "./utils";
 
@@ -286,6 +287,9 @@ export function createApp(): Hono<Env> {
 	});
 
 	app.route("/widget-data", widgetRoutes);
+
+	// Public live-stats widget (no auth — gated by per-site widget_token)
+	app.route("/widgets/live", widgetLiveRoutes);
 
 	// Import routes (regular auth — any authenticated user can import to their own sites)
 	app.use("/import/*", authMiddleware);

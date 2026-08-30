@@ -142,6 +142,21 @@ export interface SiteWithStats extends Site {
 	revenue_sparkline: number[];
 }
 
+// Embeddable live-stats widget
+export interface WidgetStatus {
+	enabled: boolean;
+	widget_token: string | null;
+	/** East-positive UTC offset minutes used for the "visitors today" midnight boundary */
+	tz_offset: number;
+}
+
+export interface WidgetLiveStats {
+	online_now: number;
+	visitors_today: number;
+	total_visitors: number;
+	updated_at: string;
+}
+
 export interface RevenueBySource {
 	source: string;
 	revenue: number;

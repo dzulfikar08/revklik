@@ -1,7 +1,8 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { useQuery } from "@tanstack/react-query";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { PageHeader } from "@/components/page-header";
-import { getActiveSiteId } from "@/lib/api";
+import { fetchWidgetStatus, getActiveSiteId } from "@/lib/api";
 
 export const Route = createFileRoute("/docs/install")({
 	component: InstallGuidePage,
@@ -20,6 +21,122 @@ const PLATFORMS = [
 ] as const;
 
 type PlatformKey = (typeof PLATFORMS)[number]["key"];
+
+function LiveWidgetSection() {
+	const navigate = useNavigate();
+	const siteId = getActiveSiteId();
+	const [copied, setCopied] = useState(false);
+
+	const { data: status } = useQuery({
+		queryKey: ["widget", siteId],
+		queryFn: () => fetchWidgetStatus(siteId as string),
+		enabled: !!siteId,
+	});
+
+	const enabled = !!status?.enabled && !!status.widget_token;
+	const snippet = `<script async src="${window.location.origin}/klikapa-live.js" data-widget-token="${status?.widget_token ?? "YOUR_WIDGET_TOKEN"}"></script>`;
+
+	return (
+		<div
+			style={{
+				marginTop: 24,
+				background: "var(--bg2)",
+				border: "1px solid var(--border)",
+				borderRadius: 12,
+				padding: 20,
+			}}
+		>
+			<div
+				style={{
+					fontSize: 13,
+					color: "var(--text2)",
+					marginBottom: 8,
+					fontWeight: 600,
+				}}
+			>
+				Bonus: Live Widget
+			</div>
+			<p style={{ fontSize: 13, color: "var(--text3)", lineHeight: 1.7, margin: "0 0 12px" }}>
+				Show live numbers on your website &mdash; visitors online, visitors today, and the all-time
+				total. Numbers refresh automatically every 30 seconds. On the floating bubble, add{" "}
+				<code>data-face="online,total"</code> to pin stats onto the pill itself.
+			</p>
+			{enabled ? (
+				<div>
+					<pre
+						style={{
+							background: "var(--bg3)",
+							borderRadius: 8,
+							padding: 14,
+							fontFamily: "var(--mono)",
+							fontSize: 13,
+							overflowX: "auto",
+							position: "relative",
+							color: "var(--text)",
+							lineHeight: 1.6,
+							margin: 0,
+						}}
+					>
+						{snippet}
+						<button
+							type="button"
+							onClick={() => {
+								navigator.clipboard.writeText(snippet);
+								setCopied(true);
+								setTimeout(() => setCopied(false), 2000);
+							}}
+							style={{
+								position: "absolute",
+								top: 8,
+								right: 8,
+								background: "var(--bg4)",
+								border: "1px solid var(--border2)",
+								borderRadius: 6,
+								padding: "4px 10px",
+								fontFamily: "var(--sans)",
+								fontSize: 11,
+								color: copied ? "var(--green)" : "var(--text3)",
+								cursor: "pointer",
+								transition: "color 0.2s",
+							}}
+						>
+							{copied ? "Copied!" : "Copy"}
+						</button>
+					</pre>
+					<p style={{ fontSize: 12, color: "var(--text3)", marginTop: 10, margin: "10px 0 0" }}>
+						This is the floating bubble variant. For an inline badge, options (corner position,
+						which numbers show), and the timezone setting, see{" "}
+						<button
+							type="button"
+							style={{
+								background: "none",
+								border: "none",
+								padding: 0,
+								color: "var(--accent)",
+								cursor: "pointer",
+								fontSize: 12,
+								textDecoration: "underline",
+							}}
+							onClick={() => navigate({ to: "/settings/widget" })}
+						>
+							Settings &rarr; Live Widget
+						</button>
+						.
+					</p>
+				</div>
+			) : (
+				<button
+					type="button"
+					className="btn-accent"
+					style={{ fontSize: 12, padding: "6px 14px" }}
+					onClick={() => navigate({ to: "/settings/widget" })}
+				>
+					Enable in Settings &rarr; Live Widget
+				</button>
+			)}
+		</div>
+	);
+}
 
 const PLATFORM_STEPS: Record<PlatformKey, string> = {
 	html: "Add the script tag to your HTML <head> section, before the closing </head> tag.",
@@ -185,6 +302,9 @@ function InstallGuidePage() {
 					{PLATFORM_STEPS[activePlatform]}
 				</p>
 			</div>
+
+			{/* Live widget section */}
+			<LiveWidgetSection />
 
 			{/* Verification note */}
 			<div

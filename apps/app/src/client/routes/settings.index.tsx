@@ -628,6 +628,13 @@ function SettingsLinks() {
 			>
 				API Playground
 			</button>
+			<button
+				type="button"
+				className="btn-pill"
+				onClick={() => navigate({ to: "/settings/widget" })}
+			>
+				Live Widget
+			</button>
 		</div>
 	);
 }

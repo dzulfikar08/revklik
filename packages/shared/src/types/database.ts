@@ -61,6 +61,9 @@ export interface SiteTable {
 	share_token?: string | null;
 	public_dashboard?: number;
 	excluded_fingerprints?: string | null;
+	widget_enabled?: number;
+	widget_token?: string | null;
+	widget_tz_offset?: number;
 }
 
 export interface UserTable {

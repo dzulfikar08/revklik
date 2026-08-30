@@ -22,6 +22,7 @@ import type {
 	TokenInfo,
 	VisitorProfile,
 	WebhookEventLog,
+	WidgetStatus,
 } from "@revklik/shared";
 import { toast } from "@/components/toast";
 import { getItem, getItemSync, removeItem, setItem } from "./mobile-storage";
@@ -499,6 +500,21 @@ export const togglePublicDashboard = (siteId: string) =>
 	});
 export const fetchShareStatus = (siteId: string) =>
 	apiFetch<{ public: boolean; share_token: string | null }>(`/share/${siteId}/status`);
+
+// Embeddable live-stats widget
+export const fetchWidgetStatus = (siteId: string) =>
+	apiFetch<WidgetStatus>(`/sites/${siteId}/widget/status`);
+export const toggleWidget = (siteId: string) =>
+	apiFetch<{ enabled: boolean; widget_token: string | null }>(`/sites/${siteId}/widget/toggle`, {
+		method: "POST",
+	});
+export const regenerateWidgetToken = (siteId: string) =>
+	apiFetch<{ widget_token: string }>(`/sites/${siteId}/widget/regenerate`, { method: "POST" });
+export const updateWidgetConfig = (siteId: string, config: { tz_offset: number }) =>
+	apiFetch<{ tz_offset: number }>(`/sites/${siteId}/widget/config`, {
+		method: "PATCH",
+		body: JSON.stringify(config),
+	});
 
 // Google Search Console
 export const fetchSearchQueries = (siteId: string): Promise<SearchQueryData[]> =>
