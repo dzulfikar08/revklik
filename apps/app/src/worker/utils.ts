@@ -35,6 +35,90 @@ export function generateId(): string {
 	return crypto.randomUUID();
 }
 
+// Known crawler / bot / headless user-agent markers. Matched case-insensitively as
+// substrings of the User-Agent header. Kept as a plain list so it stays greppable —
+// add specific products, not broad words ("bot" alone matches legit UX strings).
+const BOT_UA_MARKERS = [
+	// Search & AI crawlers
+	"googlebot",
+	"bingbot",
+	"duckduckbot",
+	"yandexbot",
+	"yandeximages",
+	"baiduspider",
+	"sogou",
+	"slurp",
+	"applebot",
+	"petalbot",
+	"bytespider",
+	"gptbot",
+	"claudebot",
+	"ccbot",
+	"anthropic-ai",
+	"perplexitybot",
+	"google-extended",
+	"amazonbot",
+	"facebookexternalhit",
+	"twitterbot",
+	"linkedinbot",
+	"embedly",
+	"discordapp",
+	"telegrambot",
+	"whatsapp",
+	"slack-imglib",
+	"preview",
+	// SEO tools
+	"ahrefsbot",
+	"semrushbot",
+	"mj12bot",
+	"dotbot",
+	"serpstatbot",
+	"screaming frog",
+	"dataforseo",
+	// Headless browsers & automation frameworks
+	"headlesschrome",
+	"phantomjs",
+	"slimerjs",
+	"puppeteer",
+	"playwright",
+	"lighthouse",
+	"pagespeed",
+	"chrome-lighthouse",
+	// HTTP libraries & scrapers (no real browser sends these)
+	"python-requests",
+	"python-urllib",
+	"aiohttp",
+	"httpx",
+	"scrapy",
+	"httrack",
+	"libwww-perl",
+	"curl/",
+	"wget/",
+	"go-http-client",
+	"okhttp",
+	"apache-httpclient",
+	"java/",
+	"node-fetch",
+	"axios/",
+	"gaxios",
+	// Uptime monitors & synthetic checks
+	"uptimerobot",
+	"pingdom",
+	"betteruptime",
+	"statuscake",
+	"site24x7",
+	"cron-job.org",
+];
+
+const BOT_UA_RE = new RegExp(BOT_UA_MARKERS.join("|"), "i");
+
+/** True when the request looks like a crawler or headless client rather than a human. */
+export function isBotUserAgent(ua: string | null | undefined): boolean {
+	// Real browsers always send User-Agent; an absent one means a scripted client.
+	if (!ua) return true;
+	return BOT_UA_RE.test(ua);
+}
+
 export async function fingerprintFromRequest(req: Request, screenRes?: string): Promise<string> {
 	const ip =
 		req.headers.get("cf-connecting-ip") ??

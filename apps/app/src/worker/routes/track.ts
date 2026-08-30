@@ -3,7 +3,12 @@ import type { Kysely } from "kysely";
 import type { IdentifyPayload, KlikapaDatabase, TrackEventPayload } from "@revklik/shared";
 import { sql } from "../db";
 import { enforceSiteQuota, incrementCachedCount } from "../lib/subscription-cache";
-import { countryFromTimezone, fingerprintFromRequest, generateId } from "../utils";
+import {
+	countryFromTimezone,
+	fingerprintFromRequest,
+	generateId,
+	isBotUserAgent,
+} from "../utils";
 
 type Variables = { db: Kysely<KlikapaDatabase> };
 
@@ -88,6 +93,13 @@ trackRoutes.post("/track", async (c) => {
 	// Support batch (array) or single event
 	const payloads: TrackEventPayload[] = Array.isArray(raw) ? raw : [raw];
 	if (payloads.length === 0) return c.json({ error: "empty payload", success: false }, 400);
+
+	// Known crawler/bot user-agents are dropped before any write — they still get a
+	// success response so the tracker never retries. UA-based only; datacenter IPs
+	// that spoof a real browser UA are not caught here.
+	if (isBotUserAgent(c.req.header("user-agent"))) {
+		return c.json({ success: true, excluded: true }, { status: 202 });
+	}
 
 	const first = payloads[0];
 	if (!first) return c.json({ error: "empty payload", success: false }, 400);

@@ -5,6 +5,10 @@
 	if (!SITE_ID) return;
 	const ENDPOINT = `${new URL(el.src).origin}/api/track`;
 
+	// Guard against double-init (duplicated tags, prerendering, SPA re-execution)
+	if (w.__klikapaLoaded) return;
+	w.__klikapaLoaded = true;
+
 	// Session & visitor
 	const sid =
 		sessionStorage.getItem("_kp_sid") ||
@@ -71,12 +75,41 @@
 		};
 	}
 
+	// Attribution persistence: keep the last non-direct campaign in sessionStorage so
+	// events fired on return redirects (e.g. payment gateways dropping query params)
+	// stay attributed to their original source instead of falling back to "direct".
+	const ATTR_KEY = "_kp_utm";
+	function loadAttr() {
+		try {
+			return JSON.parse(sessionStorage.getItem(ATTR_KEY) || "{}");
+		} catch {
+			return {};
+		}
+	}
+	function rememberUTM(utm) {
+		if (!utm.us && !utm.um && !utm.uc) return;
+		try {
+			sessionStorage.setItem(ATTR_KEY, JSON.stringify(utm));
+		} catch {
+			/* private mode — attribution falls back to per-page */
+		}
+	}
+
 	// Queue for batching
 	const queue = [];
 	let flushTimer;
 
 	function send(payload) {
-		queue.push({ ...payload, s: SITE_ID, sid, vid, ts: Date.now(), ...device });
+		// Stored campaign first so an event's own UTM fields always win.
+		queue.push({
+			...loadAttr(),
+			...payload,
+			s: SITE_ID,
+			sid,
+			vid,
+			ts: Date.now(),
+			...device,
+		});
 		clearTimeout(flushTimer);
 		flushTimer = setTimeout(flush, 1000);
 		if (queue.length >= 10) flush();
@@ -110,12 +143,14 @@
 		const p = w.location.pathname;
 		if (p === lastPath) return;
 		lastPath = p;
+		const utm = parseUTM();
+		rememberUTM(utm);
 		send({
 			t: "p",
 			p,
 			h: w.location.hostname,
 			r: d.referrer || undefined,
-			...parseUTM(),
+			...utm,
 		});
 	}
 
@@ -209,8 +244,12 @@
 		if (!target) return;
 		var label =
 			(target.textContent || "").trim().slice(0, 80) ||
+			target.getAttribute("aria-label") ||
+			target.getAttribute("title") ||
+			target.getAttribute("value") ||
+			target.getAttribute("name") ||
 			target.getAttribute("data-track") ||
-			"";
+			(target.id ? `${target.tagName.toLowerCase()}#${target.id}` : "");
 		var href = target.href || "";
 		var tag = target.tagName.toLowerCase();
 		send({
