@@ -384,6 +384,11 @@ export const createPakasirCheckout = (plan: string) =>
 		"/billing/checkout/pakasir",
 		{ method: "POST", body: JSON.stringify({ plan }) },
 	);
+export const verifyPakasirPayment = () =>
+	apiFetch<{ status: "active" | "pending" | "no_pending_order"; plan?: string }>(
+		"/billing/pakasir/verify",
+		{ method: "POST" },
+	);
 export const cancelSubscription = () => apiFetch<void>("/billing/cancel", { method: "POST" });
 
 // Data import

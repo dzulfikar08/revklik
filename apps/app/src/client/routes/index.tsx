@@ -1,12 +1,19 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useId, useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useState } from "react";
 import { Area, AreaChart, Bar, BarChart, ResponsiveContainer } from "recharts";
 import { DateTimePicker } from "@/components/time-picker";
-import { createSite, deleteSite, fetchSites } from "@/lib/api";
+import { toast } from "@/components/toast";
+import { createSite, deleteSite, fetchSites, verifyPakasirPayment } from "@/lib/api";
 import { t } from "@/lib/i18n";
 
-export const Route = createFileRoute("/")({ component: OverviewPage });
+export const Route = createFileRoute("/")({
+	component: OverviewPage,
+	// ?checkout=pakasir_success — return URL from the Pakasir QRIS payment page
+	validateSearch: (search: Record<string, string>): { checkout?: string } => ({
+		checkout: search.checkout || undefined,
+	}),
+});
 
 function Sparkline({ data, color }: { data: number[]; color?: string }) {
 	const gradId = useId();
@@ -87,10 +94,25 @@ const RANGE_PRESETS = [
 function OverviewPage() {
 	const navigate = useNavigate();
 	const queryClient = useQueryClient();
+	const { checkout } = Route.useSearch();
 	const [range, setRange] = useState("7d");
 	const [customStart, setCustomStart] = useState("");
 	const [customEnd, setCustomEnd] = useState("");
 	const [showCustom, setShowCustom] = useState(false);
+
+	// Returning from the Pakasir QRIS page: confirm activation with the worker
+	// (safety net if the webhook was slow), then refresh the subscription state.
+	useEffect(() => {
+		if (checkout !== "pakasir_success") return;
+		window.history.replaceState({}, "", "/");
+		verifyPakasirPayment()
+			.then((res) => {
+				if (res.status === "active") toast("Pembayaran berhasil — paket Anda aktif.", "success");
+				else toast("Pembayaran masih diproses. Refresh beberapa saat lagi.", "info");
+			})
+			.catch(() => toast("Pembayaran masih diproses. Refresh beberapa saat lagi.", "info"))
+			.finally(() => queryClient.invalidateQueries({ queryKey: ["subscription"] }));
+	}, [checkout, queryClient]);
 
 	const effectiveRange = useMemo(
 		() => (showCustom && customStart && customEnd ? `${customStart},${customEnd}` : range),

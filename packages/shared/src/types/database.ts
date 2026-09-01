@@ -290,6 +290,8 @@ export interface SubscriptionTable {
 	cancel_at_period_end: number;
 	polar_subscription_id: string | null;
 	polar_customer_id: string | null;
+	// Pakasir (QRIS) pending order — set at checkout, verified by webhook/verify endpoint.
+	pakasir_order_id: string | null;
 	created_at: string;
 	updated_at: string;
 }

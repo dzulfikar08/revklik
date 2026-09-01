@@ -6,14 +6,17 @@ import { t } from "@/lib/i18n";
 
 export const Route = createFileRoute("/register")({
 	component: RegisterPage,
-	validateSearch: (search: Record<string, string>) => ({
+	validateSearch: (search: Record<string, string>): { ref?: string; plan?: string } => ({
 		ref: search.ref || undefined,
+		// ?plan=micro|starter|growth — set by the landing pricing CTAs;
+		// after signup we drop the user straight into the paywall.
+		plan: search.plan || undefined,
 	}),
 });
 
 function RegisterPage() {
 	const navigate = useNavigate();
-	const { ref } = Route.useSearch();
+	const { ref, plan } = Route.useSearch();
 	const [name, setName] = useState("");
 	const [email, setEmail] = useState("");
 	const [password, setPassword] = useState("");
@@ -21,17 +24,17 @@ function RegisterPage() {
 
 	useEffect(() => {
 		if (isLoggedIn()) {
-			const timer = setTimeout(() => navigate({ to: "/" }), 0);
+			const timer = setTimeout(() => navigate({ to: plan ? "/paywall" : "/" }), 0);
 			return () => clearTimeout(timer);
 		}
-	}, [navigate]);
+	}, [navigate, plan]);
 
 	const handleSubmit = async (e: React.FormEvent) => {
 		e.preventDefault();
 		setError("");
 		try {
 			await register({ name, email, password }, ref);
-			navigate({ to: "/" });
+			navigate({ to: plan ? "/paywall" : "/" });
 		} catch (err) {
 			const msg = err instanceof Error ? err.message : "Registration failed";
 			setError(msg);

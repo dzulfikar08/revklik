@@ -315,6 +315,13 @@ export async function migrateDatabase(d1: D1Database): Promise<void> {
 		/* table may already exist */
 	}
 
+	// Migrate: pakasir_order_id for QRIS checkout verification
+	try {
+		await d1.prepare("ALTER TABLE subscriptions ADD COLUMN pakasir_order_id TEXT").run();
+	} catch {
+		/* column may already exist */
+	}
+
 	// Team members
 	try {
 		await d1

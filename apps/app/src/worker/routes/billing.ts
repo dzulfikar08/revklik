@@ -1,6 +1,7 @@
 import { Hono } from "hono";
 import type { PlanTier } from "../lib/plans";
 import { getFeatures, getPlanLimits, PLANS } from "../lib/plans";
+import { activatePakasirPayment, PAKASIR_PRICES, PAKASIR_PROJECT, verifyWithPakasir } from "../lib/pakasir";
 import type { Env } from "../types";
 import { generateId } from "../utils";
 
@@ -14,15 +15,6 @@ let polarProductsCache: {
 	cachedAt: number;
 } | null = null;
 const POLAR_PRODUCTS_TTL = 5 * 60_000;
-
-// IDR pricing for Pakasir (approximate)
-const IDR_PRICES: Record<string, number> = {
-	micro: 16000,
-	starter: 64000,
-	growth: 192000,
-};
-
-const PAKASIR_SLUG = "revklik";
 
 // Get current subscription with usage info
 billingRoutes.get("/subscription", async (c) => {
@@ -245,17 +237,13 @@ billingRoutes.post("/checkout", async (c) => {
 billingRoutes.post("/checkout/pakasir", async (c) => {
 	const db = c.get("db");
 	const userId = c.get("userId");
-	const pakasirKey = c.env.PAKASIR_API_KEY || "";
 
 	const { plan } = await c.req.json<{ plan: string }>();
 	if (!plan || !PLANS[plan as PlanTier]) {
 		return c.json({ error: "Invalid plan", success: false }, 400);
 	}
-	if (!pakasirKey) {
-		return c.json({ error: "Pakasir not configured", success: false }, 500);
-	}
 
-	const amount = IDR_PRICES[plan];
+	const amount = PAKASIR_PRICES[plan as PlanTier];
 	if (!amount) {
 		return c.json({ error: "No IDR price for this plan", success: false }, 400);
 	}
@@ -273,9 +261,10 @@ billingRoutes.post("/checkout/pakasir", async (c) => {
 	const successUrl = `https://app.revklik.com/?checkout=pakasir_success&plan=${plan}`;
 
 	// Use URL redirect method — simplest integration
-	const checkoutUrl = `https://app.pakasir.com/pay/${PAKASIR_SLUG}/${amount}?order_id=${orderId}&redirect=${encodeURIComponent(successUrl)}&qris_only=1`;
+	const checkoutUrl = `https://app.pakasir.com/pay/${PAKASIR_PROJECT}/${amount}?order_id=${orderId}&redirect=${encodeURIComponent(successUrl)}&qris_only=1`;
 
-	// Store pending order in DB for webhook verification
+	// Store pending order in DB for webhook/verify reconciliation
+	const now = new Date().toISOString();
 	await db
 		.insertInto("subscriptions")
 		.values({
@@ -283,19 +272,21 @@ billingRoutes.post("/checkout/pakasir", async (c) => {
 			user_id: userId,
 			plan: plan,
 			status: "pending",
-			current_period_start: new Date().toISOString(),
+			current_period_start: now,
 			current_period_end: new Date(Date.now() + 30 * 86400000).toISOString(),
 			cancel_at_period_end: 0,
 			polar_subscription_id: null,
 			polar_customer_id: null,
-			created_at: new Date().toISOString(),
-			updated_at: new Date().toISOString(),
+			pakasir_order_id: orderId,
+			created_at: now,
+			updated_at: now,
 		})
 		.onConflict((oc) =>
 			oc.column("user_id").doUpdateSet({
 				plan: plan,
 				status: "pending",
-				updated_at: new Date().toISOString(),
+				pakasir_order_id: orderId,
+				updated_at: now,
 			}),
 		)
 		.execute();
@@ -304,6 +295,44 @@ billingRoutes.post("/checkout/pakasir", async (c) => {
 		data: { url: checkoutUrl, order_id: orderId, amount, plan },
 		success: true,
 	});
+});
+
+// Re-check a pending Pakasir order against the transaction detail API.
+// Safety net for missed webhooks — the paywall calls this after the user
+// returns from the QRIS payment page.
+billingRoutes.post("/pakasir/verify", async (c) => {
+	const db = c.get("db");
+	const userId = c.get("userId");
+	const apiKey = c.env.PAKASIR_API_KEY || "";
+	if (!apiKey) return c.json({ error: "Pakasir not configured", success: false }, 500);
+
+	const sub = await db
+		.selectFrom("subscriptions")
+		.select(["plan", "status", "pakasir_order_id"])
+		.where("user_id", "=", userId)
+		.executeTakeFirst();
+	if (!sub?.pakasir_order_id) {
+		return c.json({ data: { status: "no_pending_order" }, success: true });
+	}
+	if (sub.status === "active") {
+		return c.json({ data: { status: "active", plan: sub.plan }, success: true });
+	}
+
+	const amount = PAKASIR_PRICES[sub.plan as PlanTier];
+	const tx = await verifyWithPakasir(apiKey, sub.pakasir_order_id, amount).catch(() => null);
+	if (!tx || tx.status !== "completed" || tx.amount !== amount) {
+		return c.json({ data: { status: "pending" }, success: true });
+	}
+
+	await activatePakasirPayment(db, {
+		userId,
+		plan: sub.plan as PlanTier,
+		orderId: sub.pakasir_order_id,
+		amount,
+		paymentMethod: tx.payment_method,
+		completedAt: tx.completed_at,
+	});
+	return c.json({ data: { status: "active", plan: sub.plan }, success: true });
 });
 
 // Cancel subscription
