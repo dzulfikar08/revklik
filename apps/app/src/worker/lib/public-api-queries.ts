@@ -249,7 +249,7 @@ export async function queryOverview(ctx: PublicApiCtx, siteId: string | undefine
 	const { start } = getDateRange(range);
 	const startIso = start.toISOString();
 
-	const [pv, vi, se, bo, rev, conv] = await Promise.all([
+	const [pv, vi, se, bo, du, rev, conv] = await Promise.all([
 		db
 			.selectFrom("events")
 			.select(({ fn }) => [fn.count<number>("id").as("count")])
@@ -275,6 +275,20 @@ export async function queryOverview(ctx: PublicApiCtx, siteId: string | undefine
 			.where("site_id", "=", id)
 			.where("started_at", ">=", startIso)
 			.executeTakeFirst(),
+		// Session duration: same formula as the dashboard rollup
+		// (queries/analytics.ts) — sessions with ≥2 events carry ended_at.
+		db
+			.selectFrom("sessions")
+			.select(() => [
+				sql<
+					number | null
+				>`AVG(CASE WHEN ended_at IS NOT NULL THEN (julianday(ended_at) - julianday(started_at)) * 86400 END)`.as(
+					"avg_duration",
+				),
+			])
+			.where("site_id", "=", id)
+			.where("started_at", ">=", startIso)
+			.executeTakeFirst(),
 		db
 			.selectFrom("events")
 			.select(({ fn }) => [fn.sum<number>("revenue").as("total")])
@@ -296,7 +310,7 @@ export async function queryOverview(ctx: PublicApiCtx, siteId: string | undefine
 		visitors: Number(vi?.count ?? 0),
 		sessions: Number(se?.count ?? 0),
 		bounceRate: Math.round(Number(bo?.avg ?? 0) * 100),
-		avgDuration: 0,
+		avgDuration: Math.round(Number(du?.avg_duration ?? 0)),
 		revenue: Number(rev?.total ?? 0),
 		conversions: Number(conv?.count ?? 0),
 	};

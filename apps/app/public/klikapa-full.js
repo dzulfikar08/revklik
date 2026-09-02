@@ -3,6 +3,18 @@
   if (!el) return;
   const SITE_ID = el.getAttribute("data-site-id");
   if (!SITE_ID) return;
+  // Local/dev origins are never analytics: skip entirely unless the tag
+  // opts in with data-track-localhost="true" (integration testing).
+  const _host = w.location.hostname;
+  if (
+    el.getAttribute("data-track-localhost") !== "true" &&
+    (_host === "localhost" ||
+      _host === "127.0.0.1" ||
+      _host === "[::1]" ||
+      _host.endsWith(".localhost") ||
+      _host === "0.0.0.0")
+  )
+    return;
   const ENDPOINT = new URL(el.src).origin + "/api/track";
 
   // Guard against double-init (duplicated tags, prerendering, SPA re-execution)
@@ -39,10 +51,13 @@
     return "Other";
   }
   function detectDevice() {
-    if (/iPad/i.test(ua)) return "tablet";
-    if (ua.includes("Mac OS") || ua.includes("Windows") || ua.includes("Linux")) return "desktop";
-    if (/Mobi|iPhone|Android.*Mobile/i.test(ua)) return "mobile";
-    if (/tablet/i.test(ua)) return "tablet";
+    // Android UAs start with "Linux; Android ..." — device class must be
+    // resolved BEFORE the desktop-OS substrings, or every Android phone
+    // reports "desktop". Android without the "Mobile" token = tablet.
+    if (/iPad|Tablet/i.test(ua)) return "tablet";
+    if (/Android/i.test(ua)) return /Mobile/i.test(ua) ? "mobile" : "tablet";
+    if (/Mobi|iPhone|iPod|Windows Phone/i.test(ua)) return "mobile";
+    if (ua.includes("Mac OS") || ua.includes("Windows") || ua.includes("Linux") || ua.includes("CrOS")) return "desktop";
     return "desktop";
   }
   const device = { dv: detectDevice(), br: detectBrowser(), os: detectOS(), sr: `${screen.width}x${screen.height}`, ln: navigator.language, tz: Intl.DateTimeFormat().resolvedOptions().timeZone || "" };
