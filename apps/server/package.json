@@ -1,0 +1,30 @@
+{
+  "name": "server",
+  "type": "module",
+  "main": "src/index.ts",
+  "scripts": {
+    "build": "tsdown",
+    "check-types": "tsc -b",
+    "compile": "bun build --compile --minify --sourcemap --bytecode ./src/index.ts --outfile server"
+  },
+  "dependencies": {
+    "@orpc/openapi": "catalog:",
+    "@orpc/server": "catalog:",
+    "@orpc/zod": "catalog:",
+    "@revklik-new/api": "workspace:*",
+    "@revklik-new/auth": "workspace:*",
+    "@revklik-new/db": "workspace:*",
+    "@revklik-new/env": "workspace:*",
+    "better-auth": "catalog:",
+    "dotenv": "catalog:",
+    "hono": "catalog:",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "catalog:",
+    "@revklik-new/config": "workspace:*",
+    "@types/node": "catalog:",
+    "tsdown": "^0.22.14",
+    "typescript": "^6.0.3"
+  }
+}
