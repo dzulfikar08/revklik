@@ -55,10 +55,16 @@ const authMiddleware = createMiddleware<Env>(async (c, next) => {
 	const keyHash = await hashToken(token);
 	const apiKey = await db
 		.selectFrom("api_keys")
-		.select(["user_id"])
+		.select(["user_id", "token_type", "expires_at"])
 		.where("key_hash", "=", keyHash)
 		.executeTakeFirst();
 	if (!apiKey) return c.json({ error: "Invalid token", success: false }, 401);
+	// Dashboard API accepts session (kp_) tokens only — rvt_/rv_ public-API
+	// tokens must go through publicAuthMiddleware — and expired tokens are dead.
+	if (apiKey.token_type !== "session")
+		return c.json({ error: "Session token required", success: false }, 401);
+	if (apiKey.expires_at && new Date(apiKey.expires_at) <= new Date())
+		return c.json({ error: "Token expired", success: false }, 401);
 
 	c.set("userId", apiKey.user_id);
 	await next();
@@ -106,7 +112,10 @@ export function createApp(): Hono<Env> {
 	// MCP server over the same rvt_/rv_ tokens (Streamable HTTP, stateless)
 	app.route("/mcp", mcpRoutes);
 
-	// Auth routes (public — no authMiddleware)
+	// Auth routes are public, except /auth/me and /auth/logout which act on the
+	// presented session token and therefore mount behind authMiddleware.
+	app.use("/auth/me", authMiddleware);
+	app.use("/auth/logout", authMiddleware);
 	app.route("/auth", authRoutes);
 
 	app.use("/sites/*", authMiddleware);

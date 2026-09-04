@@ -284,6 +284,8 @@ export interface SiteDashboard {
 		>
 	>;
 	timeseries: TimeSeriesPoint[];
+	/** Same timeseries over the previous equal-length window (compare baseline) */
+	prev_timeseries?: TimeSeriesPoint[];
 	topPages: TopPage[];
 	sources: SourceEntry[];
 	devices: DeviceEntry[];

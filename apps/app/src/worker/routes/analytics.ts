@@ -98,6 +98,7 @@ analyticsRoutes.get("/dashboard", async (c) => {
 		revenueByProvider,
 		channels,
 		prevStats,
+		prevTimeseries,
 	] = await Promise.all([
 		getOverviewStats(db, siteId, startIso, filters, endIso),
 		getTimeseries(db, siteId, startIso, isHourly, filters, endIso),
@@ -147,6 +148,7 @@ analyticsRoutes.get("/dashboard", async (c) => {
 		getRevenueByPaymentProvider(db, siteId, startIso, filters, endIso),
 		getChannelBreakdown(db, siteId, startIso, filters, endIso),
 		getOverviewStats(db, siteId, prevStartIso, filters, startIso),
+		getTimeseries(db, siteId, prevStartIso, isHourly, filters, startIso),
 	]);
 
 	// Period-over-period comparison (current range vs the equal window before it)
@@ -232,6 +234,7 @@ analyticsRoutes.get("/dashboard", async (c) => {
 		stats,
 		compare,
 		timeseries,
+		prev_timeseries: prevTimeseries,
 		topPages,
 		sources,
 		devices,
@@ -462,6 +465,62 @@ analyticsRoutes.get("/geo", async (c) => {
 		.execute();
 
 	return c.json({ data: rows, success: true });
+});
+
+// Campaign performance: visitors/pageviews/conversions/revenue grouped by
+// UTM source + medium + campaign (dashboard shape of GET /v1/analytics/campaigns)
+analyticsRoutes.get("/campaigns", async (c) => {
+	const db = c.get("db");
+	const userId = c.get("userId");
+	const siteId = c.req.query("site_id");
+	const range = c.req.query("range") || "7d";
+	const filtersParam = c.req.query("filters") || "";
+	const filters = parseFilters(filtersParam);
+	if (!siteId) return c.json({ error: "site_id required", success: false }, 400);
+	const site = await validateSite(db, userId, siteId);
+	if (!site) return c.json({ error: "Site not found", success: false }, 404);
+	const { start, end } = getDateRange(range);
+	const startIso = start.toISOString();
+	const endIso = end.toISOString();
+
+	const rows = await applyFilters(
+		db
+			.selectFrom("events")
+			.select([
+				"utm_source",
+				"utm_medium",
+				"utm_campaign",
+				({ fn }) => fn.count<number>("visitor_id").distinct().as("visitors"),
+				sql<string>`sum(case when event_type = 'pageview' then 1 else 0 end)`.as("pageviews"),
+				sql<string>`sum(case when event_type = 'conversion' then 1 else 0 end)`.as("conversions"),
+				sql<string>`coalesce(sum(revenue), 0)`.as("revenue"),
+			])
+			.where("site_id", "=", siteId)
+			.where("timestamp", ">=", startIso)
+			.where("timestamp", "<", endIso),
+		filters,
+	)
+		.groupBy(["utm_source", "utm_medium", "utm_campaign"])
+		.orderBy("visitors", "desc")
+		.limit(50)
+		.execute();
+
+	return c.json({
+		data: rows.map((r) => ({
+			utm_source: r.utm_source ?? "(direct)",
+			utm_medium: r.utm_medium ?? "(none)",
+			utm_campaign: r.utm_campaign ?? "(none)",
+			visitors: Number(r.visitors),
+			pageviews: Number(r.pageviews),
+			conversions: Number(r.conversions),
+			revenue: Number(r.revenue),
+			conversionRate:
+				Number(r.visitors) > 0
+					? Math.round((Number(r.conversions) / Number(r.visitors)) * 10000) / 100
+					: 0,
+		})),
+		success: true,
+	});
 });
 
 // Heatmap analytics (Growth plan only)

@@ -159,6 +159,22 @@ authRoutes.post("/login", async (c) => {
 	});
 });
 
+// POST /auth/logout — delete the presented session token (mounted behind authMiddleware)
+authRoutes.post("/logout", async (c) => {
+	const db = c.get("db");
+	if (!db) return c.json({ error: "DB unavailable", success: false }, 503);
+	const userId = c.get("userId");
+	const authHeader = c.req.header("Authorization");
+	const token = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : "";
+	if (!token) return c.json({ error: "Unauthorized", success: false }, 401);
+	await db
+		.deleteFrom("api_keys")
+		.where("key_hash", "=", await hashToken(token))
+		.where("user_id", "=", userId)
+		.execute();
+	return c.json({ data: { loggedOut: true }, success: true });
+});
+
 // GET /auth/google — initiate Google OAuth flow
 authRoutes.get("/google", (c) => {
 	const clientId = c.env.GOOGLE_CLIENT_ID || "";
