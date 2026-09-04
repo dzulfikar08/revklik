@@ -12,6 +12,8 @@ export interface Point {
   label: string;
   full: string;
   current: number;
+  /** Raw ISO timestamp from the timeseries; used to place annotations. */
+  date?: string;
   /** Visitors in the equivalent previous window; omit when unavailable. */
   previous?: number;
 }

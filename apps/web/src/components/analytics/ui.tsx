@@ -253,9 +253,28 @@ const useGeometry = (points: Point[]) =>
     };
   }, [points]);
 
-export const TrafficChart = ({ points }: { points: Point[] }) => {
+export const TrafficChart = ({
+  points,
+  annotations = [],
+}: {
+  points: Point[];
+  /** Day-marked annotations rendered as gold flags on the timeseries. */
+  annotations?: { date: string; text: string }[];
+}) => {
   const g = useGeometry(points);
   const [hover, setHover] = useState<number | null>(null);
+  const markers = useMemo(
+    () =>
+      annotations
+        .map((a) => {
+          const i = points.findIndex(
+            (p) => p.date?.slice(0, 10) === a.date.slice(0, 10)
+          );
+          return i === -1 ? null : { date: a.date, i, label: a.text };
+        })
+        .filter((m) => m !== null),
+    [annotations, points]
+  );
 
   const onMove = (e: MouseEvent<HTMLDivElement>) => {
     const rect = e.currentTarget.getBoundingClientRect();
@@ -327,6 +346,28 @@ export const TrafficChart = ({ points }: { points: Point[] }) => {
           vectorEffect="non-scaling-stroke"
         />
       </svg>
+      {markers.map((m) => (
+        <div
+          key={`${m.date}-${m.label}-${m.i}`}
+          className="group absolute inset-y-0 w-px"
+          style={{ left: `${(g.x(m.i) / W) * 100}%` }}
+        >
+          <span
+            className="bg-(--money)/40 absolute inset-y-0 -left-px w-px"
+            aria-hidden
+          />
+          <span
+            className="bg-(--money) ring-card absolute top-1 left-0 size-2 -translate-x-1/2 rotate-45 rounded-[2px] ring-2"
+            aria-hidden
+          />
+          <div className="bg-popover/95 ring-foreground/10 pointer-events-none absolute top-4 left-0 z-10 hidden -translate-x-1/2 rounded-lg px-2 py-1.5 text-xs whitespace-nowrap ring-1 backdrop-blur group-hover:block">
+            <p className="text-foreground/90 max-w-48 truncate font-medium">
+              {m.label}
+            </p>
+            <p className="text-muted-foreground font-mono text-[10px]">{m.date}</p>
+          </div>
+        </div>
+      ))}
 
       <span className="text-muted-foreground/80 pointer-events-none absolute top-1 left-1 font-mono text-[11px] tabular-nums">
         {fmt(g.max)}

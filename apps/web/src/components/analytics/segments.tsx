@@ -1,0 +1,231 @@
+/**
+ * Saved segments — chips that apply a segment to the dashboard filters,
+ * plus a save-current-filters popover with manage/delete.
+ * Data: GET/POST/DELETE /segments (see lib/legacy/analytics-settings.ts).
+ */
+import { Button } from "@revklik-new/ui/components/button";
+import { Input } from "@revklik-new/ui/components/input";
+import { Bookmark, Trash2 } from "lucide-react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useRef, useState } from "react";
+import { toast } from "sonner";
+
+import {
+  createSegment,
+  deleteSegment,
+  fetchSegments,
+} from "@/lib/legacy/analytics-settings";
+import type { LegacySegment } from "@/lib/legacy/analytics-settings";
+import {
+  encodeFilterString,
+  LegacyApiError,
+} from "@/lib/legacy/api";
+import type { LegacyFilter } from "@/lib/legacy/api";
+
+const parseSegmentFilters = (raw: string): LegacyFilter[] => {
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    if (!Array.isArray(parsed)) {
+      return [];
+    }
+    return parsed.filter(
+      (f): f is LegacyFilter =>
+        typeof f === "object" &&
+        f !== null &&
+        typeof (f as LegacyFilter).dimension === "string" &&
+        typeof (f as LegacyFilter).operator === "string"
+    );
+  } catch {
+    return [];
+  }
+};
+
+const SegmentPopover = ({
+  siteId,
+  filters,
+  segments,
+  onDone,
+}: {
+  siteId: string;
+  filters: LegacyFilter[];
+  segments: LegacySegment[];
+  onDone: () => void;
+}) => {
+  const qc = useQueryClient();
+  const [name, setName] = useState("");
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const saveMut = useMutation({
+    mutationFn: () => createSegment(siteId, name.trim(), filters),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["legacy", "segments", siteId] });
+      toast.success(`Segment “${name.trim()}” saved`);
+      setName("");
+      onDone();
+    },
+    onError: (e) =>
+      toast.error(e instanceof LegacyApiError ? e.message : "Failed to save segment"),
+  });
+  const deleteMut = useMutation({
+    mutationFn: (id: string) => deleteSegment(id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["legacy", "segments", siteId] });
+      toast.success("Segment deleted");
+    },
+    onError: (e) =>
+      toast.error(e instanceof LegacyApiError ? e.message : "Failed to delete segment"),
+  });
+
+  return (
+    <>
+      <button
+        type="button"
+        aria-label="Close segments menu"
+        className="fixed inset-0 z-30 cursor-default"
+        onClick={onDone}
+      />
+      <div className="bg-popover ring-foreground/10 absolute top-full right-0 z-40 mt-1.5 w-72 rounded-xl p-2.5 ring-1 shadow-lg">
+        <p className="text-muted-foreground mb-1.5 text-[11px] font-medium tracking-wide uppercase">
+          Save current filters
+        </p>
+        <div className="flex gap-1.5">
+          <Input
+            ref={inputRef}
+            value={name}
+            placeholder="Segment name…"
+            onChange={(e) => setName(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && name.trim() && filters.length) {
+                saveMut.mutate();
+              }
+            }}
+            className="h-8 text-xs"
+          />
+          <Button
+            size="sm"
+            className="h-8 text-xs"
+            disabled={!name.trim() || filters.length === 0 || saveMut.isPending}
+            onClick={() => saveMut.mutate()}
+          >
+            Save
+          </Button>
+        </div>
+        {filters.length === 0 ? (
+          <p className="text-muted-foreground mt-1 text-[11px]">
+            Add a filter first, then save it as a segment.
+          </p>
+        ) : null}
+
+        <p className="text-muted-foreground mt-2.5 mb-1 text-[11px] font-medium tracking-wide uppercase">
+          Manage
+        </p>
+        {segments.length === 0 ? (
+          <p className="text-muted-foreground text-[11px]">No saved segments yet.</p>
+        ) : (
+          <ul className="max-h-56 space-y-0.5 overflow-y-auto">
+            {segments.map((s) => (
+              <li
+                key={s.id}
+                className="hover:bg-muted/60 group flex items-center gap-1.5 rounded-lg px-1.5 py-1"
+              >
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-xs font-medium">{s.name}</span>
+                  <span className="text-muted-foreground block truncate font-mono text-[10px]">
+                    {parseSegmentFilters(s.filters)
+                      .map((f) => `${f.dimension} ${f.operator.replaceAll("_", " ")} ${f.value}`)
+                      .join(", ") || "—"}
+                  </span>
+                </span>
+                <button
+                  type="button"
+                  aria-label={`Delete segment ${s.name}`}
+                  disabled={deleteMut.isPending}
+                  onClick={() => deleteMut.mutate(s.id)}
+                  className="text-muted-foreground hover:text-(--down) focus-visible:outline-ring rounded p-1 outline-offset-2 focus-visible:outline-2 disabled:opacity-40"
+                >
+                  <Trash2 className="size-3.5" aria-hidden />
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+    </>
+  );
+};
+
+export const SegmentControls = ({
+  siteId,
+  filters,
+  onApply,
+}: {
+  siteId: string;
+  filters: LegacyFilter[];
+  onApply: (filters: LegacyFilter[]) => void;
+}) => {
+  const [open, setOpen] = useState(false);
+  const { data: segments = [] } = useQuery({
+    enabled: Boolean(siteId),
+    queryFn: () => fetchSegments(siteId),
+    queryKey: ["legacy", "segments", siteId],
+    staleTime: 30_000,
+  });
+
+  const currentStr = encodeFilterString(filters);
+
+  return (
+    <span className="relative ml-auto flex flex-wrap items-center gap-1.5">
+      {segments.map((s) => {
+        const parsed = parseSegmentFilters(s.filters);
+        const active =
+          parsed.length > 0 && encodeFilterString(parsed) === currentStr;
+        return (
+          <button
+            key={s.id}
+            type="button"
+            aria-pressed={active}
+            onClick={() => {
+              if (parsed.length === 0) {
+                return;
+              }
+              onApply(parsed);
+              toast.success(`Segment “${s.name}” applied`, {
+                description: `${parsed.length} filter${parsed.length === 1 ? "" : "s"}`,
+              });
+            }}
+            className={`focus-visible:outline-ring inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium outline-offset-2 focus-visible:outline-2 ${
+              active
+                ? "bg-(--chart) text-background"
+                : "bg-muted/70 hover:bg-muted text-muted-foreground"
+            }`}
+          >
+            <Bookmark className="size-3" aria-hidden />
+            {s.name}
+          </button>
+        );
+      })}
+      <button
+        type="button"
+        aria-label="Save or manage segments"
+        aria-expanded={open}
+        onClick={() => setOpen((v) => !v)}
+        className={`focus-visible:outline-ring inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium outline-offset-2 focus-visible:outline-2 ${
+          open
+            ? "bg-muted text-foreground"
+            : "bg-muted/70 hover:bg-muted text-muted-foreground"
+        }`}
+      >
+        <Bookmark className="size-3" aria-hidden />
+        Save
+      </button>
+      {open ? (
+        <SegmentPopover
+          siteId={siteId}
+          filters={filters}
+          segments={segments}
+          onDone={() => setOpen(false)}
+        />
+      ) : null}
+    </span>
+  );
+};

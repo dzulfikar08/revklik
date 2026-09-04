@@ -3,13 +3,18 @@ import { LogOut } from "lucide-react";
 
 import { LEGACY_API_BASE, getLegacyUser } from "@/lib/legacy/api";
 
+import { EmailReportsSection } from "./email-reports";
+import { TeamSection } from "./team";
+
 import { Panel } from "./ui";
 
 export const SettingsView = ({
   site,
+  siteId,
   onSignOut,
 }: {
   site?: string;
+  siteId: string;
   onSignOut: () => void;
 }) => {
   const user = getLegacyUser();
@@ -64,6 +69,14 @@ export const SettingsView = ({
             </div>
           </dl>
         </Panel>
+
+        <div className="md:col-span-2">
+          <EmailReportsSection siteId={siteId} />
+        </div>
+
+        <div className="md:col-span-2">
+          <TeamSection siteId={siteId} />
+        </div>
 
         <div className="md:col-span-2">
           <Panel title="Session">
