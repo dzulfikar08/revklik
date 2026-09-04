@@ -1,7 +1,13 @@
 import { Button } from "@revklik-new/ui/components/button";
 import { LogOut } from "lucide-react";
 
-import { LEGACY_API_BASE, getLegacyUser } from "@/lib/legacy/api";
+import { authClient } from "@/lib/auth-client";
+import {
+  LEGACY_API_BASE,
+  getLegacyUser,
+  legacyLogout,
+  revokeLegacyToken,
+} from "@/lib/legacy/api";
 
 import { Panel } from "./ui";
 
@@ -12,6 +18,12 @@ export const SettingsView = ({
   site?: string;
   onSignOut: () => void;
 }) => {
+  const handleSignOut = async (): Promise<void> => {
+    await revokeLegacyToken();
+    await authClient.signOut();
+    legacyLogout();
+    onSignOut();
+  };
   const user = getLegacyUser();
 
   return (
@@ -67,7 +79,11 @@ export const SettingsView = ({
 
         <div className="md:col-span-2">
           <Panel title="Session">
-            <Button variant="outline" size="sm" onClick={onSignOut}>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => void handleSignOut()}
+            >
               <LogOut className="size-3.5" aria-hidden />
               Sign out
             </Button>

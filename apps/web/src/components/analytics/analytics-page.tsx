@@ -1,4 +1,3 @@
-import { Button } from "@revklik-new/ui/components/button";
 import { Input } from "@revklik-new/ui/components/input";
 import {
   Select,
@@ -8,6 +7,7 @@ import {
   SelectValue,
 } from "@revklik-new/ui/components/select";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useNavigate } from "@tanstack/react-router";
 import {
   ArrowDownUp,
   ArrowRight,
@@ -33,9 +33,6 @@ import {
   fetchGeo,
   fetchSites,
   fetchVisitors,
-  isLegacyAuthed,
-  legacyLogin,
-  legacyLogout,
   updateVisitor,
 } from "@/lib/legacy/api";
 import type {
@@ -338,93 +335,6 @@ const journeyChip = (s: JourneyStep): string => {
   return s.name ?? s.event_type;
 };
 
-/* ------------------------------- login gate -------------------------------- */
-
-const LEGACY_LOGIN_FIELDS = [
-  { autoComplete: "email", id: "login-email", label: "Email", type: "email" },
-  {
-    autoComplete: "current-password",
-    id: "login-password",
-    label: "Password",
-    type: "password",
-  },
-] as const;
-
-const LegacyLogin = ({ onDone }: { onDone: () => void }) => {
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [err, setErr] = useState<string | null>(null);
-
-  const submit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setBusy(true);
-    setErr(null);
-    try {
-      await legacyLogin(email, password);
-      onDone();
-    } catch (error) {
-      setErr(error instanceof Error ? error.message : "Sign-in failed");
-    }
-    setBusy(false);
-  };
-
-  return (
-    <div
-      className="dark bg-background text-foreground grid min-h-svh place-items-center px-4"
-      style={DARK_TOKENS}
-    >
-      <form
-        className="bg-card ring-foreground/10 w-full max-w-sm rounded-2xl p-6 ring-1"
-        onSubmit={submit}
-      >
-        <div className="mb-5 flex items-center gap-2.5">
-          <img
-            src="/revklik.webp"
-            alt="Revklik logo"
-            className="ring-foreground/10 size-7 rounded-lg object-cover ring-1"
-          />
-          <div>
-            <p className="text-[15px] leading-tight font-semibold">
-              revklik analytics
-            </p>
-            <p className="text-muted-foreground text-xs">
-              Sign in with your revklik account
-            </p>
-          </div>
-        </div>
-        <div className="grid gap-3">
-          {LEGACY_LOGIN_FIELDS.map((f) => (
-            <label key={f.id} htmlFor={f.id} className="grid gap-1.5">
-              <span className="text-xs font-medium">{f.label}</span>
-              <Input
-                id={f.id}
-                type={f.type}
-                required
-                autoComplete={f.autoComplete}
-                value={f.type === "email" ? email : password}
-                onChange={(e) =>
-                  f.type === "email"
-                    ? setEmail(e.target.value)
-                    : setPassword(e.target.value)
-                }
-                className="h-9"
-              />
-            </label>
-          ))}
-          {err ? (
-            <p className="text-xs text-(--down)" role="alert">
-              {err}
-            </p>
-          ) : null}
-          <Button type="submit" disabled={busy} className="mt-1">
-            {busy ? "Signing in…" : "Sign in"}
-          </Button>
-        </div>
-      </form>
-    </div>
-  );
-};
 
 /* ------------------------------ panel helpers ------------------------------ */
 
@@ -1457,7 +1367,7 @@ const StatTiles = ({
 /* --------------------------------- page ------------------------------------ */
 
 const AnalyticsPage = () => {
-  const [authed, setAuthed] = useState(isLegacyAuthed());
+  const navigate = useNavigate();
   const [view, setView] = useState<ViewKey>("home");
   const [rangeKey, setRangeKey] = useState<RangeKey>("30d");
   const [siteIdRaw, setSiteIdRaw] = useState(
@@ -1473,7 +1383,6 @@ const AnalyticsPage = () => {
   }>({ feed: [], online: null });
 
   const sitesQ = useQuery({
-    enabled: authed,
     queryFn: () => fetchSites(rangeKey),
     queryKey: ["legacy", "sites", rangeKey],
     retry: false,
@@ -1494,7 +1403,7 @@ const AnalyticsPage = () => {
   }, [siteId]);
 
   const dashQ = useQuery({
-    enabled: authed && Boolean(siteId),
+    enabled: Boolean(siteId),
     queryFn: () => fetchDashboard(siteId, rangeKey, filterStr),
     queryKey: ["legacy", "dash", siteId, rangeKey, filterStr],
     retry: false,
@@ -1504,7 +1413,7 @@ const AnalyticsPage = () => {
   const loadingDash = dashQ.isLoading;
 
   useEffect(() => {
-    if (!authed || !siteId) {
+    if (!siteId) {
       return;
     }
     return connectSSE(siteId, ({ type, data }) => {
@@ -1534,7 +1443,7 @@ const AnalyticsPage = () => {
         }));
       }
     });
-  }, [authed, siteId]);
+  }, [siteId]);
 
   const hourly = rangeKey === "24h";
   const points: Point[] = useMemo(
@@ -1570,10 +1479,6 @@ const AnalyticsPage = () => {
           ]
     );
   };
-
-  if (!authed) {
-    return <LegacyLogin onDone={() => setAuthed(true)} />;
-  }
 
   const stats = dash?.stats;
   const cmp = dash?.compare;
@@ -1682,10 +1587,7 @@ const AnalyticsPage = () => {
       ) : (
         <SettingsView
           site={site?.domain}
-          onSignOut={() => {
-            legacyLogout();
-            setAuthed(false);
-          }}
+          onSignOut={() => navigate({ to: "/login" })}
         />
       )}
     </div>

@@ -12,6 +12,12 @@ export const db = Cloudflare.D1.Database("database", {
   migrations: "../../packages/db/src/migrations",
 });
 
+// Existing production klikapa database (revklik analytics worker) — adopted
+// by name, never migrated or destroyed by this stack.
+export const klikapaDb = Cloudflare.D1.Database("klikapa-db", {
+  name: "klikapa-db",
+});
+
 export const server = Cloudflare.Worker("server", {
   compatibility: {
     flags: ["nodejs_compat"],
@@ -26,6 +32,7 @@ export const server = Cloudflare.Worker("server", {
     DB: db,
     POLAR_ACCESS_TOKEN: Config.redacted("POLAR_ACCESS_TOKEN"),
     POLAR_SUCCESS_URL: Config.string("POLAR_SUCCESS_URL"),
+    KLIKAPA_DB: klikapaDb,
   },
   main: "../../apps/server/src/index.ts",
 });

@@ -3,23 +3,63 @@
  *
  * The analytics UI reads live data from the deployed backend at
  * app.revklik.com — same D1 (klikapa-db), same routes the old dashboard
- * uses. Auth is the legacy session token (`kp_token`) from /auth/login,
- * sent as a Bearer header. Responses use the `{ success, data, error }`
- * envelope.
+ * uses. Auth is a klikapa session token sent as a Bearer header; responses
+ * use the `{ success, data, error }` envelope.
+ *
+ * The token is minted server-side from the better-auth session (Option B):
+ * the oRPC `legacy.mintToken` procedure looks up the klikapa user with the
+ * same email and returns a `kp_…` token once, which we cache in memory and
+ * localStorage. The old email/password /auth/login flow is gone.
  */
+
+import { ORPCError } from "@orpc/server";
+
+import { client } from "@/utils/orpc";
 
 const API_BASE: string =
   import.meta.env.VITE_LEGACY_API_BASE ?? "https://app.revklik.com/api";
 export const LEGACY_API_BASE = API_BASE;
 
-const ENV_TOKEN: string | undefined = import.meta.env.VITE_LEGACY_API_TOKEN;
+// Dev-only escape hatch: inject a pre-existing klikapa token via env instead
+// of minting one. Never compiled into production builds.
+const ENV_TOKEN: string | undefined = import.meta.env.DEV
+  ? import.meta.env.VITE_LEGACY_API_TOKEN
+  : undefined;
 
 const TOKEN_KEY = "kp_token";
 const USER_KEY = "kp_user";
 
-/** Session token: localStorage first, then the dev env token. */
-const getToken = (): string | null =>
-  localStorage.getItem(TOKEN_KEY) ?? ENV_TOKEN ?? null;
+/** Resolved mint result: plaintext token (shown once) + klikapa user row. */
+interface MintResult {
+  token: string;
+  user: LegacyUser;
+}
+
+let cachedToken: string | null = null;
+
+/**
+ * Session token resolution: in-memory cache → localStorage → dev env token
+ * → mint from the better-auth session via the server (credentials included).
+ */
+const getToken = async (): Promise<string | null> => {
+  if (cachedToken) {
+    return cachedToken;
+  }
+  const stored = localStorage.getItem(TOKEN_KEY);
+  if (stored) {
+    cachedToken = stored;
+    return stored;
+  }
+  if (ENV_TOKEN) {
+    cachedToken = ENV_TOKEN;
+    return ENV_TOKEN;
+  }
+  const minted = await mintLegacyToken();
+  cachedToken = minted.token;
+  localStorage.setItem(TOKEN_KEY, minted.token);
+  localStorage.setItem(USER_KEY, JSON.stringify(minted.user));
+  return minted.token;
+};
 
 export interface LegacyUser {
   id: string;
@@ -253,8 +293,6 @@ export interface LegacyFilter {
 
 /* ---------------------------------- auth ---------------------------------- */
 
-export const isLegacyAuthed = (): boolean => Boolean(getToken());
-
 export const getLegacyUser = (): LegacyUser | null => {
   try {
     const raw = localStorage.getItem(USER_KEY);
@@ -264,7 +302,9 @@ export const getLegacyUser = (): LegacyUser | null => {
   }
 };
 
+/** Drop the cached klikapa token + profile (sign-out or 401 recovery). */
 export const legacyLogout = (): void => {
+  cachedToken = null;
   localStorage.removeItem(TOKEN_KEY);
   localStorage.removeItem(USER_KEY);
   localStorage.removeItem("kp_active_site");
@@ -279,8 +319,42 @@ export class LegacyApiError extends Error {
   }
 }
 
-const legacyFetch = async <T>(path: string, opts?: RequestInit): Promise<T> => {
-  const token = getToken();
+const MINT_STATUS_BY_CODE: Record<string, number> = {
+  UNAUTHORIZED: 401,
+  NOT_FOUND: 404,
+  TOO_MANY_REQUESTS: 429,
+};
+
+/** Mint a klikapa session token from the better-auth session (Option B). */
+const mintLegacyToken = async (): Promise<MintResult> => {
+  try {
+    return await client.legacy.mintToken();
+  } catch (error) {
+    const code = error instanceof ORPCError ? error.code : "";
+    throw new LegacyApiError(
+      error instanceof Error && error.message
+        ? error.message
+        : "Couldn't mint a klikapa session token",
+      MINT_STATUS_BY_CODE[code] ?? 500
+    );
+  }
+};
+
+/**
+ * Revoke the klikapa "revklik-new" session token server-side. Best-effort:
+ * sign-out proceeds even if the bridge errors (e.g. the klikapa account was
+ * deleted) — the local session is discarded regardless.
+ */
+export const revokeLegacyToken = async (): Promise<void> => {
+  try {
+    await client.legacy.revokeToken();
+  } catch {
+    // Server-side token already gone or unreachable; nothing to recover.
+  }
+};
+
+export const legacyFetch = async <T>(path: string, opts?: RequestInit): Promise<T> => {
+  const token = await getToken();
   const res = await fetch(`${API_BASE}${path}`, {
     ...opts,
     headers: {
@@ -290,6 +364,7 @@ const legacyFetch = async <T>(path: string, opts?: RequestInit): Promise<T> => {
     },
   });
   if (res.status === 401) {
+    // Drop the (possibly revoked/expired) token so the next call re-mints.
     legacyLogout();
     throw new LegacyApiError("Session expired — sign in again", 401);
   }
@@ -305,19 +380,6 @@ const legacyFetch = async <T>(path: string, opts?: RequestInit): Promise<T> => {
     throw new LegacyApiError(json.error || "Request failed", res.status);
   }
   return json.data as T;
-};
-
-export const legacyLogin = async (
-  email: string,
-  password: string
-): Promise<LegacyUser> => {
-  const data = await legacyFetch<{ user: LegacyUser; token: string }>(
-    "/auth/login",
-    { body: JSON.stringify({ email, password }), method: "POST" }
-  );
-  localStorage.setItem(TOKEN_KEY, data.token);
-  localStorage.setItem(USER_KEY, JSON.stringify(data.user));
-  return data.user;
 };
 
 /* -------------------------------- endpoints ------------------------------- */
@@ -505,7 +567,7 @@ export const connectSSE = (
     if (aborted || document.hidden) {
       return;
     }
-    const token = getToken();
+    const token = await getToken();
     if (!token) {
       return;
     }

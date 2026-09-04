@@ -31,11 +31,14 @@ async function expoFetch(request: Request, init?: RequestInit) {
 export const link = new RPCLink({
   url: `${env.EXPO_PUBLIC_SERVER_URL}/rpc`,
   fetch(request, init) {
+    // expo's FetchResponse matches the fetch Response contract at runtime;
+    // workers-types' augmented global Response demands extra fields
+    // (webSocket, cf) that expo's type doesn't declare.
     return expoFetch(request, {
       ...init,
       // Better Auth Expo forwards the session cookie manually on native.
       credentials: Platform.OS === "web" ? "include" : "omit",
-    });
+    }) as unknown as Promise<Response>;
   },
   async headers() {
     if (Platform.OS === "web") {
