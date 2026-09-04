@@ -21,6 +21,7 @@ import {
   Plus,
   Share2,
   Settings,
+  Webhook,
   X,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
@@ -70,6 +71,7 @@ import {
   visitorName,
 } from "./data";
 import type { CountRow, Point, RangeKey, Visitor, VisitorEvent } from "./data";
+import { IntegrationsView } from "./integrations-view";
 import { SettingsView } from "./settings";
 import { SitesView } from "./sites-view";
 import { AiInsightsPanel } from "./ai-insights";
@@ -115,7 +117,7 @@ export const DARK_TOKENS = {
   "--up": "oklch(0.75 0.14 155)",
 } as CSSProperties;
 
-type ViewKey = "home" | "settings" | "share" | "billing";
+type ViewKey = "home" | "settings" | "share" | "billing" | "integrations";
 type LocationTabKey = "country" | "region" | "city" | "globe";
 type PageTabKey = "pages" | "entry" | "exit";
 type SourceTabKey = "referrer" | "channel";
@@ -127,6 +129,7 @@ const NAV_TABS = [
   { Icon: Settings, key: "settings" as const, label: "Settings" },
   { Icon: Share2, key: "share" as const, label: "Share" },
   { Icon: CreditCard, key: "billing" as const, label: "Billing" },
+  { Icon: Webhook, key: "integrations" as const, label: "Integrations" },
 ];
 
 const NO_ROWS: GeoRow[] = [];
@@ -1693,6 +1696,8 @@ const AnalyticsPage = () => {
         <ShareWidgetTokensView />
       ) : view === "billing" ? (
         <BillingView />
+      ) : view === "integrations" ? (
+        <IntegrationsView siteId={siteId} />
       ) : (
         <SettingsView
           site={site?.domain}
