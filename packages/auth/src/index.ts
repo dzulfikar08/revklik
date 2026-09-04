@@ -11,6 +11,10 @@ import { polarClient } from "./lib/payments";
 export function createAuth() {
   const db = createDb();
 
+  // Polar's sign-up customer hook hard-fails sign-up on API errors; skip it
+  // entirely for local dev (dummy token) so auth works without Polar.
+  const polarEnabled = !env.POLAR_ACCESS_TOKEN.startsWith("polar_dummy");
+
   return betterAuth({
     database: drizzleAdapter(db, {
       provider: "sqlite",
@@ -50,23 +54,27 @@ export function createAuth() {
       // },
     },
     plugins: [
-      polar({
-        client: polarClient,
-        createCustomerOnSignUp: true,
-        use: [
-          checkout({
-            products: [
-              {
-                productId: "your-product-id",
-                slug: "pro",
-              },
-            ],
-            successUrl: env.POLAR_SUCCESS_URL,
-            authenticatedUsersOnly: true,
-          }),
-          portal(),
-        ],
-      }),
+      ...(polarEnabled
+        ? [
+            polar({
+              client: polarClient,
+              createCustomerOnSignUp: true,
+              use: [
+                checkout({
+                  products: [
+                    {
+                      productId: "your-product-id",
+                      slug: "pro",
+                    },
+                  ],
+                  successUrl: env.POLAR_SUCCESS_URL,
+                  authenticatedUsersOnly: true,
+                }),
+                portal(),
+              ],
+            }),
+          ]
+        : []),
       expo(),
     ],
   });
