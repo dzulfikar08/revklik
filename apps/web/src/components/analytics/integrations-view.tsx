@@ -43,6 +43,7 @@ import {
   syncMarketplaceOrders,
   testIntegration,
   updateIntegration,
+  WORKER_ORIGIN,
 } from "@/lib/legacy/integrations";
 import type {
   CreateIntegrationPayload,
@@ -608,7 +609,7 @@ const PaymentProviderCard = ({
 
   const connected = Boolean(provider);
   const Icon = meta.icon;
-  const webhookUrl = `${window.location.origin}${WEBHOOK_PATHS[meta.type] ?? ""}`;
+  const webhookUrl = `${WORKER_ORIGIN}${WEBHOOK_PATHS[meta.type] ?? ""}`;
 
   const saveMut = useMutation({
     mutationFn: () => createPaymentProvider(siteId, meta.type, filledConfig(meta, form)),

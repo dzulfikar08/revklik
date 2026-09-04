@@ -22,6 +22,9 @@ export type LegacyIntegrationType =
   | "shopee"
   | "tokopedia";
 
+/** Origin of the production klikapa worker — webhook targets and OAuth live there. */
+export const WORKER_ORIGIN = LEGACY_API_BASE.replace(/\/api\/?$/, "");
+
 export interface LegacyIntegration {
   id: string;
   site_id: string;

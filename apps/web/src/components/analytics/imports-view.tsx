@@ -5,15 +5,14 @@ import { Copy, DollarSign, Snowflake } from "lucide-react";
 import { useState } from "react";
 import type { ReactNode } from "react";
 import { toast } from "sonner";
-
-import { LEGACY_API_BASE } from "@/lib/legacy/api";
-import { importOneDollarStats, importPolarOrders } from "@/lib/legacy/integrations";
+import {
+  WORKER_ORIGIN,
+  importOneDollarStats,
+  importPolarOrders,
+} from "@/lib/legacy/integrations";
 import type { OdsImportResult, PolarImportResult } from "@/lib/legacy/integrations";
 
 import { Panel } from "./ui";
-
-/** Origin of the production klikapa worker — webhook targets live there. */
-const WORKER_ORIGIN = LEGACY_API_BASE.replace(/\/api\/?$/, "");
 
 const ResultNote = ({ children }: { children: ReactNode }) => (
   <p className="bg-(--up)/10 text-(--up) mt-2 rounded-lg px-3 py-2 text-xs">{children}</p>
