@@ -18,7 +18,7 @@ const TOKEN_KEY = "kp_token";
 const USER_KEY = "kp_user";
 
 /** Session token: localStorage first, then the dev env token. */
-const getToken = (): string | null =>
+export const getToken = (): string | null =>
   localStorage.getItem(TOKEN_KEY) ?? ENV_TOKEN ?? null;
 
 export interface LegacyUser {
@@ -279,7 +279,7 @@ export class LegacyApiError extends Error {
   }
 }
 
-const legacyFetch = async <T>(path: string, opts?: RequestInit): Promise<T> => {
+export const legacyFetch = async <T>(path: string, opts?: RequestInit): Promise<T> => {
   const token = getToken();
   const res = await fetch(`${API_BASE}${path}`, {
     ...opts,
