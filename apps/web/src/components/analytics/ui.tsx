@@ -1,6 +1,7 @@
 import createGlobe from "cobe";
 import {
   ArrowDownRight,
+  ArrowDownUp,
   ArrowUpRight,
   Monitor,
   Smartphone,
@@ -106,6 +107,29 @@ export const Panel = ({
     </div>
     {children}
   </section>
+);
+
+export const SortHint = ({
+  label,
+  dir,
+  onToggle,
+}: {
+  label: string;
+  dir?: "desc" | "asc";
+  onToggle: () => void;
+}) => (
+  <button
+    type="button"
+    onClick={onToggle}
+    aria-label={`Sort by ${label}${dir ? (dir === "desc" ? ", high to low" : ", low to high") : ""}`}
+    className="text-muted-foreground hover:text-foreground focus-visible:outline-ring inline-flex items-center gap-1 rounded-md px-1 py-0.5 text-xs outline-offset-2 focus-visible:outline-2"
+  >
+    {label}
+    <ArrowDownUp
+      className={`size-3 ${dir === "asc" ? "rotate-180" : ""}`}
+      aria-hidden
+    />
+  </button>
 );
 
 /* -------------------------------- bar rows --------------------------------- */
@@ -419,9 +443,9 @@ export const TrafficChart = ({
                 Previous <span>{fmt(point.previous ?? 0)}</span>
               </p>
             ) : null}
-          </div>
-        </>
-      )}
+            </div>
+          </>
+        )}
 
       <div className="pointer-events-none absolute inset-x-0 -bottom-5 h-4">
         {g.ticks.map(({ i, left }) => (
@@ -440,19 +464,22 @@ export const TrafficChart = ({
 
 /* -------------------------------- LP funnel -------------------------------- */
 
-const BAND_SLOT = 46;
-const BAND_MIN = 14;
-const BAND_MAX = 36;
-const NECK = 12;
 const FW = 1000;
+const FH = 260;
+const FLABEL = 48;
+const FSEAM = 38;
+const FTAIL = 56;
+const FHALF_MIN = 16;
 
-const funnelColor = (i: number, n: number): string => {
+const funnelBandColor = (i: number, n: number): string => {
   const t = n <= 1 ? 0 : i / (n - 1);
-  return `oklch(${(0.78 - 0.34 * t).toFixed(3)} ${(0.15 - 0.05 * t).toFixed(3)} 55)`;
+  // Steel-blue ramp: dense at the mouth, paler as the funnel narrows.
+  return `oklch(${(0.56 + 0.2 * t).toFixed(3)} ${(0.115 - 0.05 * t).toFixed(3)} 252)`;
 };
 
 export const FunnelChart = ({
   steps,
+  rate,
 }: {
   steps: {
     section: string;
@@ -460,96 +487,118 @@ export const FunnelChart = ({
     percentage: number;
     dropoff: number;
   }[];
+  rate?: number;
 }) => {
   const [hover, setHover] = useState<number | null>(null);
   const n = steps.length;
   const max = steps[0]?.visitors ?? 1;
-  const hts = steps.map(
-    (s) => BAND_MIN + (s.visitors / max) * (BAND_MAX - BAND_MIN)
+  const cy = FH / 2;
+  const gap = n > 1 ? FSEAM : 0;
+  const stepW = n > 0 ? (FW - FTAIL - gap * (n - 1)) / n : FW;
+  const halfHs = steps.map((s) =>
+    Math.max(FHALF_MIN, (cy - 10) * Math.min(1, s.visitors / max))
   );
-  const height = n * BAND_SLOT - NECK;
+  const x0 = (i: number) => i * (stepW + gap);
 
   const bands = steps.map((s, i) => {
-    const cy = i * BAND_SLOT + BAND_MAX / 2;
-    return { ...s, color: funnelColor(i, n), cy, h: hts[i], i };
+    const h0 = halfHs[i];
+    const h1 = i < n - 1 ? halfHs[i + 1] : h0;
+    const curve = stepW * 0.4;
+    const d = [
+      `M ${x0(i)} ${cy - h0}`,
+      `C ${x0(i) + curve} ${cy - h0}, ${x0(i) + stepW - curve} ${cy - h1}, ${x0(i) + stepW} ${cy - h1}`,
+      `L ${x0(i) + stepW} ${cy + h1}`,
+      `C ${x0(i) + stepW - curve} ${cy + h1}, ${x0(i) + curve} ${cy + h0}, ${x0(i)} ${cy + h0}`,
+      "Z",
+    ].join(" ");
+    return { ...s, color: funnelBandColor(i, n), d, h: h0, i };
   });
+  const tailH = halfHs[n - 1] ?? 0;
+  const tailX = x0(n - 1) + stepW;
 
   return (
-    <div
-      className="relative mx-auto w-full max-w-3xl"
-      onMouseLeave={() => setHover(null)}
-    >
+    <div className="relative" onMouseLeave={() => setHover(null)}>
       <svg
-        viewBox={`0 0 ${FW} ${height}`}
+        viewBox={`0 0 ${FW} ${FH + FLABEL}`}
         className="h-auto w-full"
-        aria-label="Landing page scroll funnel"
+        aria-label={`Landing page scroll funnel, ${n} steps${rate !== undefined ? `, ${rate}% conversion` : ""}`}
       >
-        {n > 1
-          ? bands.slice(0, -1).map((b, i) => {
-              const gid = `funnel-grad-${i}`;
-              const next = bands[i + 1];
-              return (
-                <defs key={gid}>
-                  <linearGradient id={gid} x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor={b.color} />
-                    <stop offset="100%" stopColor={next.color} />
-                  </linearGradient>
-                </defs>
-              );
-            })
-          : null}
-        {n > 1
-          ? bands.slice(0, -1).map((b, i) => {
-              const next = bands[i + 1];
-              const b1 = b.cy + b.h / 2;
-              const t2 = next.cy - next.h / 2;
-              const b2 = next.cy + next.h / 2;
-              return (
-                <path
-                  key={`neck-${i}`}
-                  d={`M 0,${b1} C ${FW / 2},${b1} ${FW / 2},${t2} ${FW},${t2} L ${FW},${b2} C ${FW / 2},${b2} ${FW / 2},${b1} 0,${b1} Z`}
-                  fill={`url(#funnel-grad-${i})`}
-                  opacity="0.55"
-                />
-              );
-            })
-          : null}
+        <defs>
+          {bands.map((b) => (
+            <linearGradient
+              key={b.section}
+              id={`funnel-band-${b.i}`}
+              x1="0"
+              y1="0"
+              x2="0"
+              y2="1"
+            >
+              <stop offset="0%" stopColor={b.color} stopOpacity="0.82" />
+              <stop offset="100%" stopColor={b.color} stopOpacity="0.82" />
+            </linearGradient>
+          ))}
+        </defs>
+        {n > 0 ? (
+          <path
+            d={`M ${tailX} ${cy - tailH} L ${FW} ${cy - tailH} L ${FW} ${cy + tailH} L ${tailX} ${cy + tailH} Z`}
+            fill={funnelBandColor(Math.max(0, n - 1), n)}
+            opacity="0.75"
+          />
+        ) : null}
         {bands.map((b) => (
           <g
             key={b.section}
             onMouseEnter={() => setHover(b.i)}
-            className="cursor-default"
+            className="cursor-default transition-opacity"
+            opacity={hover === null || hover === b.i ? 1 : 0.4}
           >
-            <rect
-              x="0"
-              y={b.cy - b.h / 2}
-              width={FW}
-              height={b.h}
-              rx={b.h / 2}
-              fill={b.color}
-              opacity={hover === null || hover === b.i ? 1 : 0.55}
-            />
-            <text
-              x="14"
-              y={b.cy + 4}
-              fontSize="11"
-              fontWeight="600"
-              fill="oklch(0.17 0.015 255)"
-            >
-              {b.section}
-            </text>
-            <text x={FW - 14} y={b.cy + 3.5} fontSize="10">
-              {fmt(b.visitors)}
-            </text>
+            <path d={b.d} fill={`url(#funnel-band-${b.i})`} />
           </g>
         ))}
       </svg>
 
-      {hover !== null && bands[hover] ? (
-        <div
-          className="bg-popover/95 ring-foreground/10 pointer-events-none absolute top-2 left-1/2 -translate-x-1/2 rounded-xl px-3 py-2 text-xs ring-1 backdrop-blur"
-          style={{ top: `${((bands[hover].cy + 24) / height) * 100}%` }}
+      {bands
+        .slice(0, -1)
+        .filter((b) => (steps[b.i + 1]?.dropoff ?? 0) > 0)
+        .map((b) => (
+        <span
+          key={`seam-${b.section}`}
+          className="bg-card ring-foreground/15 text-foreground/90 pointer-events-none absolute top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full px-1.5 py-0.5 font-mono text-[10px] tabular-nums ring-1"
+          style={{ left: `${((x0(b.i) + stepW + gap / 2) / FW) * 100}%` }}
         >
+          −{steps[b.i + 1]?.dropoff ?? 0}% →
+        </span>
+      ))}
+
+      {rate !== undefined ? (
+        <div className="pointer-events-none absolute top-2 right-2 text-right">
+          <p className="text-[13px] font-semibold tracking-tight">
+            {rate}% conversion rate
+          </p>
+        </div>
+      ) : null}
+
+      {bands.map((b) => (
+        <div
+          key={`label-${b.section}`}
+          className="pointer-events-none absolute -translate-x-1/2 text-center"
+          style={{
+            left: `${((x0(b.i) + stepW / 2) / FW) * 100}%`,
+            maxWidth: `${(stepW / FW) * 100}%`,
+            top: `${((FH + 6) / (FH + FLABEL)) * 100}%`,
+          }}
+        >
+          <p className="text-[11px] font-semibold tabular-nums">
+            {fmt(b.visitors)} visitors
+          </p>
+          <p className="text-muted-foreground truncate text-[10px]">
+            {b.section}
+          </p>
+        </div>
+      ))}
+
+      {hover !== null && bands[hover] ? (
+        <div className="bg-popover/95 ring-foreground/10 pointer-events-none absolute top-2 left-1/2 -translate-x-1/2 rounded-xl px-3 py-2 text-xs ring-1 backdrop-blur">
           <span className="font-medium">{bands[hover].section}</span>
           <span className="text-muted-foreground font-mono tabular-nums">
             {" "}

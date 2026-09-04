@@ -92,6 +92,7 @@ import {
   Panel,
   PanelTabs,
   PlatformGlyph,
+  SortHint,
   StatTile,
   TrafficChart,
 } from "./ui";
@@ -379,24 +380,27 @@ const PAGES_HINT: Record<PageTabKey, string> = {
 
 const PagesPanel = ({ dash, loading }: DashProps) => {
   const [pageTab, setPageTab] = useState<PageTabKey>("pages");
+  const [pageSort, setPageSort] = useState<"desc" | "asc">("desc");
   const rows: CountRow[] = useMemo(() => {
-    if (pageTab === "entry") {
-      return (dash?.entryPagesRevenue ?? []).map((p) => ({
-        label: p.path,
-        value: p.sessions,
-      }));
-    }
-    if (pageTab === "exit") {
-      return (dash?.exitPages ?? []).map((p) => ({
-        label: p.path,
-        value: p.exits,
-      }));
-    }
-    return (dash?.topPages ?? []).map((p) => ({
-      label: p.path,
-      value: p.pageviews,
-    }));
-  }, [dash, pageTab]);
+    const unsorted: CountRow[] =
+      pageTab === "entry"
+        ? (dash?.entryPagesRevenue ?? []).map((p) => ({
+            label: p.path,
+            value: p.sessions,
+          }))
+        : pageTab === "exit"
+          ? (dash?.exitPages ?? []).map((p) => ({
+              label: p.path,
+              value: p.exits,
+            }))
+          : (dash?.topPages ?? []).map((p) => ({
+              label: p.path,
+              value: p.pageviews,
+            }));
+    return unsorted.toSorted((a, b) =>
+      pageSort === "desc" ? b.value - a.value : a.value - b.value
+    );
+  }, [dash, pageTab, pageSort]);
   const total = rows.reduce((acc, r) => acc + r.value, 0);
 
   return (
@@ -412,7 +416,13 @@ const PagesPanel = ({ dash, loading }: DashProps) => {
           ]}
         />
       }
-      hint={PAGES_HINT[pageTab]}
+      hint={
+        <SortHint
+          dir={pageSort}
+          label={PAGES_HINT[pageTab]}
+          onToggle={() => setPageSort(pageSort === "desc" ? "asc" : "desc")}
+        />
+      }
     >
       <PanelBody
         loading={loading}
@@ -439,23 +449,25 @@ const PagesPanel = ({ dash, loading }: DashProps) => {
     </Panel>
   );
 };
-
 const SourcesPanel = ({ dash, loading }: DashProps) => {
   const [sourceTab, setSourceTab] = useState<SourceTabKey>("referrer");
+  const [sourceSort, setSourceSort] = useState<"desc" | "asc">("desc");
   const rows: CountRow[] = useMemo(() => {
-    if (sourceTab === "channel") {
-      return (dash?.channels ?? []).map((c) => ({
-        label: c.channel,
-        value: c.visitors,
-      }));
-    }
-    return (dash?.sources ?? []).map((s) => ({
-      label: s.source,
-      value: s.visitors,
-    }));
-  }, [dash, sourceTab]);
+    const unsorted: CountRow[] =
+      sourceTab === "channel"
+        ? (dash?.channels ?? []).map((c) => ({
+            label: c.channel,
+            value: c.visitors,
+          }))
+        : (dash?.sources ?? []).map((s) => ({
+            label: s.source,
+            value: s.visitors,
+          }));
+    return unsorted.toSorted((a, b) =>
+      sourceSort === "desc" ? b.value - a.value : a.value - b.value
+    );
+  }, [dash, sourceTab, sourceSort]);
   const total = rows.reduce((acc, r) => acc + r.value, 0);
-
   return (
     <Panel
       tabs={
@@ -468,7 +480,15 @@ const SourcesPanel = ({ dash, loading }: DashProps) => {
           ]}
         />
       }
-      hint="visitors"
+      hint={
+        <SortHint
+          dir={sourceSort}
+          label="visitors"
+          onToggle={() =>
+            setSourceSort(sourceSort === "desc" ? "asc" : "desc")
+          }
+        />
+      }
     >
       <PanelBody
         loading={loading}
@@ -506,6 +526,7 @@ const LocationPanel = ({
   filterStr: string;
 }) => {
   const [locationTab, setLocationTab] = useState<LocationTabKey>("country");
+  const [locationSort, setLocationSort] = useState<"desc" | "asc">("desc");
   const geoQ = useQuery({
     enabled: Boolean(siteId),
     queryFn: () => fetchGeo(siteId, rangeKey, filterStr),
@@ -515,14 +536,16 @@ const LocationPanel = ({
   });
   const geoRows = geoQ.data ?? NO_ROWS;
   const rows: CountRow[] = useMemo(() => {
-    if (locationTab === "region") {
-      return aggregateGeo(geoRows, (r) => r.region);
-    }
-    if (locationTab === "city") {
-      return aggregateGeo(geoRows, (r) => r.city);
-    }
-    return aggregateGeo(geoRows, (r) => r.country);
-  }, [geoRows, locationTab]);
+    const unsorted: CountRow[] =
+      locationTab === "region"
+        ? aggregateGeo(geoRows, (r) => r.region)
+        : locationTab === "city"
+          ? aggregateGeo(geoRows, (r) => r.city)
+          : aggregateGeo(geoRows, (r) => r.country);
+    return unsorted.toSorted((a, b) =>
+      locationSort === "desc" ? b.value - a.value : a.value - b.value
+    );
+  }, [geoRows, locationTab, locationSort]);
   const total = rows.reduce((acc, r) => acc + r.value, 0);
   const globeMarkers = useMemo(
     () =>
@@ -584,7 +607,17 @@ const LocationPanel = ({
           ]}
         />
       }
-      hint="visitors"
+      hint={
+        locationTab === "globe" ? undefined : (
+          <SortHint
+            dir={locationSort}
+            label="visitors"
+            onToggle={() =>
+              setLocationSort(locationSort === "desc" ? "asc" : "desc")
+            }
+          />
+        )
+      }
     >
       {renderBody()}
     </Panel>
@@ -631,16 +664,13 @@ const PlatformPanel = ({ dash, loading }: DashProps) => {
         />
       }
       hint={
-        <button
-          type="button"
-          onClick={() =>
+        <SortHint
+          dir={platformDir}
+          label="Visitors"
+          onToggle={() =>
             setPlatformDir(platformDir === "desc" ? "asc" : "desc")
           }
-          className="text-muted-foreground hover:text-foreground focus-visible:outline-ring inline-flex items-center gap-1 rounded-md px-1 py-0.5 text-xs outline-offset-2 focus-visible:outline-2"
-        >
-          Visitors
-          <ArrowDownUp className="size-3" aria-hidden />
-        </button>
+        />
       }
     >
       <PanelBody
@@ -682,25 +712,28 @@ const RevenuePanel = ({
     retry: false,
     staleTime: 60_000,
   });
+  const [revenueSort, setRevenueSort] = useState<"desc" | "asc">("desc");
   const rows: CountRow[] = useMemo(() => {
-    if (revenueTab === "country") {
-      return (dash?.revenueByCountry ?? []).map((r) => ({
-        flag: countryFlag(r.country) || undefined,
-        label: r.country,
-        value: r.revenue,
-      }));
-    }
-    if (revenueTab === "method") {
-      return (dash?.revenueByMethod ?? []).map((r) => ({
-        label: r.method,
-        value: r.revenue,
-      }));
-    }
-    return (dash?.revenueBySource ?? []).map((r) => ({
-      label: r.source,
-      value: r.revenue,
-    }));
-  }, [dash, revenueTab]);
+    const unsorted: CountRow[] =
+      revenueTab === "country"
+        ? (dash?.revenueByCountry ?? []).map((r) => ({
+            flag: countryFlag(r.country) || undefined,
+            label: r.country,
+            value: r.revenue,
+          }))
+        : revenueTab === "method"
+          ? (dash?.revenueByMethod ?? []).map((r) => ({
+              label: r.method,
+              value: r.revenue,
+            }))
+          : (dash?.revenueBySource ?? []).map((r) => ({
+              label: r.source,
+              value: r.revenue,
+            }));
+    return unsorted.toSorted((a, b) =>
+      revenueSort === "desc" ? b.value - a.value : a.value - b.value
+    );
+  }, [dash, revenueTab, revenueSort]);
   const total = rows.reduce((acc, r) => acc + r.value, 0);
 
   const campaigns = campaignsQ.data ?? [];
@@ -788,7 +821,15 @@ const RevenuePanel = ({
           ]}
         />
       }
-      hint="revenue"
+      hint={
+        <SortHint
+          dir={revenueSort}
+          label="revenue"
+          onToggle={() =>
+            setRevenueSort(revenueSort === "desc" ? "asc" : "desc")
+          }
+        />
+      }
     >
       {revenueTab === "campaign" ? campaignBody() : moneyBody()}
     </Panel>
@@ -887,9 +928,36 @@ const ExplorePanel = ({
   });
 
   const journeys = dash?.journeys ?? NO_JOURNEYS;
+  // "recent" keeps the API order (newest first); "events" ranks by the
+  // non-heartbeat event count so it's obvious which rows are worth opening.
+  const [exploreSort, setExploreSort] = useState<"recent" | "events">(
+    "recent"
+  );
   const visitors = useMemo(
-    () => (visitorsQ.data ?? []).map((p) => profileToVisitor(p, journeys)),
-    [visitorsQ.data, journeys]
+    () =>
+      (visitorsQ.data ?? [])
+        .map((p) => profileToVisitor(p, journeys))
+        .toSorted((a, b) =>
+          exploreSort === "events"
+            ? b.events.length - a.events.length
+            : 0
+        ),
+    [visitorsQ.data, journeys, exploreSort]
+  );
+  const sortedJourneys = useMemo(
+    () =>
+      exploreSort === "events"
+        ? journeys
+            .map((j) => ({
+              j,
+              count: j.steps.filter(
+                (s) => s.event_type !== "custom" || s.name !== "heartbeat"
+              ).length,
+            }))
+            .toSorted((a, b) => b.count - a.count)
+            .map(({ j }) => j)
+        : journeys,
+    [journeys, exploreSort]
   );
   const activeVisitor = visitorRowId
     ? (visitors.find((v) => v.id === visitorRowId) ?? null)
@@ -909,9 +977,12 @@ const ExplorePanel = ({
           />
         }
         hint={
-          exploreTab === "users"
-            ? "click a visitor for the full journey"
-            : "session step flows"
+          <SortHint
+            label={exploreSort === "recent" ? "Recent" : "Events"}
+            onToggle={() =>
+              setExploreSort(exploreSort === "recent" ? "events" : "recent")
+            }
+          />
         }
       >
         {exploreTab === "users" ? (
@@ -985,7 +1056,7 @@ const ExplorePanel = ({
             emptyText="No journeys in this range."
           >
             <div className="max-h-[420px] overflow-y-auto">
-              {journeys.slice(0, 20).map((j) => {
+              {sortedJourneys.slice(0, 20).map((j) => {
                 const realSteps = j.steps.filter(
                   (s) => s.event_type !== "custom" || s.name !== "heartbeat"
                 );
@@ -1088,19 +1159,18 @@ const FunnelSection = ({
     <section className="bg-card ring-foreground/10 rounded-2xl p-3 ring-1">
       <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
         {funnel?.pages.length ? (
-          <PanelTabs
-            value={activePath}
-            onChange={setFunnelPath}
-            tabs={funnel.pages.map((p) => ({ key: p.path, label: p.path }))}
-          />
+          <div className="min-w-0 flex-1 overflow-x-auto [&_[role=tablist]]:w-max">
+            <PanelTabs
+              value={activePath}
+              onChange={setFunnelPath}
+              tabs={funnel.pages.map((p) => ({ key: p.path, label: p.path }))}
+            />
+          </div>
         ) : (
           <h2 className="text-sm font-semibold">Scroll funnel</h2>
         )}
-        <span className="text-muted-foreground text-xs">
-          <span className="font-mono font-medium text-(--chart)">
-            {funnelRate}%
-          </span>{" "}
-          convert · data-section scroll funnel
+        <span className="text-muted-foreground shrink-0 text-xs">
+          data-section scroll funnel
         </span>
       </div>
       <PanelBody
@@ -1108,7 +1178,7 @@ const FunnelSection = ({
         hasData={funnelSteps.length > 0}
         emptyText="No funnel data — needs pageview + scroll_section events."
       >
-        <FunnelChart steps={funnelSteps} />
+        <FunnelChart rate={funnelRate} steps={funnelSteps} />
       </PanelBody>
     </section>
   );
