@@ -831,6 +831,9 @@ const MarketplaceCard = ({
     enabled: showOrders && connected,
     queryFn: () => fetchMarketplaceOrders(marketplace, siteId),
     queryKey: ["legacy", "mp-orders", marketplace, siteId],
+    // Sync failures/order gaps render inline below — no global toast.
+    meta: { silent: true },
+    retry: false,
   });
 
   const handleSync = async () => {
@@ -966,6 +969,9 @@ const GscPanel = ({
   const queriesQ = useQuery({
     queryFn: () => fetchGscQueries(siteId),
     queryKey: ["legacy", "gsc-queries", siteId],
+    // Not-connected answers 404 — the panel shows its own inline state.
+    meta: { silent: true },
+    retry: false,
   });
 
   const rows = queriesQ.data ?? [];

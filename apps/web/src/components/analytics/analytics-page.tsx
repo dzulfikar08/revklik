@@ -696,6 +696,9 @@ const RevenuePanel = ({
     enabled: Boolean(siteId),
     queryFn: () => fetchCampaigns(siteId, rangeKey, filterStr),
     queryKey: ["legacy", "campaigns", siteId, rangeKey, filterStr],
+    // The worker predates this endpoint (404) — fetchCampaigns already
+    // degrades that to "no campaigns", so don't also toast it.
+    meta: { silent: true },
     retry: false,
     staleTime: 60_000,
   });
