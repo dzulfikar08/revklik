@@ -311,10 +311,12 @@ const RecordingReplay = ({
 /* ---------------------------------- panel ---------------------------------- */
 
 export const RecordingsPanel = ({
+  onUpgrade,
   siteId,
   rangeKey,
   filterStr,
 }: {
+  onUpgrade: () => void;
   siteId: string;
   rangeKey: string;
   filterStr: string;
@@ -347,6 +349,7 @@ export const RecordingsPanel = ({
         <GrowthLocked
           blurb="Watch exactly what visitors did with session replay."
           feature="Session recordings"
+          onUpgrade={onUpgrade}
         />
       ) : listQ.error ? (
         <GrowthMsg>{listQ.error.message}</GrowthMsg>

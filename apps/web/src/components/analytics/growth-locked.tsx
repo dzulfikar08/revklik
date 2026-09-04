@@ -26,11 +26,13 @@ const LockedPreview = () => (
 );
 
 export const GrowthLocked = ({
-  feature,
   blurb,
+  feature,
+  onUpgrade,
 }: {
-  feature: string;
   blurb: string;
+  feature: string;
+  onUpgrade: () => void;
 }) => (
   <div className="relative min-h-52 overflow-hidden rounded-xl" role="status">
     <LockedPreview />
@@ -39,15 +41,14 @@ export const GrowthLocked = ({
         <Lock className="h-4 w-4" />
       </span>
       <p className="text-sm font-semibold">{feature} is a Growth feature</p>
-      <p className="text-muted-foreground max-w-72 text-xs">{blurb}</p>
-      {/* Placeholder target — billing/upgrade flow lands on another branch. */}
-      <a
-        href="#upgrade"
+      <button
+        type="button"
+        onClick={onUpgrade}
         className="bg-primary text-primary-foreground hover:bg-primary/90 focus-visible:outline-ring mt-1 inline-flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs font-medium transition-colors focus-visible:outline-2"
       >
         <Sparkles className="h-3.5 w-3.5" aria-hidden />
         Upgrade to Growth
-      </a>
+      </button>
     </div>
   </div>
 );

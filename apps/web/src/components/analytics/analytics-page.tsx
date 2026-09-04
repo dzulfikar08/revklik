@@ -1652,7 +1652,11 @@ const AnalyticsPage = () => {
               <TrafficChart points={points} annotations={annotations} />
             </PanelBody>
           </section>
-          <AiInsightsPanel siteId={siteId} rangeKey={rangeKey} />
+          <AiInsightsPanel
+            onUpgrade={() => setView("billing")}
+            siteId={siteId}
+            rangeKey={rangeKey}
+          />
 
           <div className="grid gap-2.5 md:grid-cols-2 xl:grid-cols-3">
             <PagesPanel dash={dash} loading={loadingDash} />
@@ -1677,17 +1681,22 @@ const AnalyticsPage = () => {
             />
             <ExplorePanel siteId={siteId} dash={dash} loading={loadingDash} />
             <HeatmapPanel
+              onUpgrade={() => setView("billing")}
               filterStr={filterStr}
               rangeKey={rangeKey}
               siteId={siteId}
               topPages={dash?.topPages ?? []}
             />
             <RecordingsPanel
+              onUpgrade={() => setView("billing")}
               filterStr={filterStr}
               rangeKey={rangeKey}
               siteId={siteId}
             />
-            <PredictionsPanel siteId={siteId} />
+            <PredictionsPanel
+              onUpgrade={() => setView("billing")}
+              siteId={siteId}
+            />
           </div>
 
           <FunnelSection

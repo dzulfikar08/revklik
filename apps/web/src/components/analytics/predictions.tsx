@@ -16,7 +16,13 @@ import { Panel } from "./ui";
 const scoreTone = (p: number): string =>
   p >= 70 ? "text-(--up)" : p >= 40 ? "text-(--chart)" : "text-muted-foreground";
 
-export const PredictionsPanel = ({ siteId }: { siteId: string }) => {
+export const PredictionsPanel = ({
+  onUpgrade,
+  siteId,
+}: {
+  onUpgrade: () => void;
+  siteId: string;
+}) => {
   const [refreshing, setRefreshing] = useState(false);
   const q = useQuery({
     enabled: Boolean(siteId),
@@ -55,6 +61,7 @@ export const PredictionsPanel = ({ siteId }: { siteId: string }) => {
         <GrowthLocked
           blurb="Score visitors by conversion likelihood and predicted lifetime value."
           feature="Predictive scoring"
+          onUpgrade={onUpgrade}
         />
       ) : q.error ? (
         <GrowthMsg>{q.error.message}</GrowthMsg>

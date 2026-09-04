@@ -30,9 +30,11 @@ const TYPE_COLORS: Record<InsightType, string> = {
 };
 
 export const AiInsightsPanel = ({
+  onUpgrade,
   siteId,
   rangeKey,
 }: {
+  onUpgrade: () => void;
   siteId: string;
   rangeKey: string;
 }) => {
@@ -69,6 +71,7 @@ export const AiInsightsPanel = ({
         <GrowthLocked
           blurb="Let AI surface what drives revenue and where funnel opportunities are hiding."
           feature="AI insights"
+          onUpgrade={onUpgrade}
         />
       ) : q.error ? (
         <GrowthMsg>{q.error.message}</GrowthMsg>

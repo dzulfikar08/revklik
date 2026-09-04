@@ -90,11 +90,13 @@ const paintClickGrid = (canvas: HTMLCanvasElement, grid: number[][]): void => {
 };
 
 export const HeatmapPanel = ({
+  onUpgrade,
   siteId,
   rangeKey,
   filterStr,
   topPages,
 }: {
+  onUpgrade: () => void;
   siteId: string;
   rangeKey: RangeKey;
   filterStr: string;
@@ -137,6 +139,7 @@ export const HeatmapPanel = ({
         <GrowthLocked
           blurb="See where visitors click and how far they scroll on every page."
           feature="Heatmaps"
+          onUpgrade={onUpgrade}
         />
       ) : q.error ? (
         <GrowthMsg>{q.error.message}</GrowthMsg>
