@@ -12,6 +12,7 @@ import {
   ArrowDownUp,
   ArrowRight,
   Check,
+  CreditCard,
   FileText,
   Globe,
   Home,
@@ -49,6 +50,7 @@ import type {
   VisitorProfile,
 } from "@/lib/legacy/api";
 
+import { BillingView, SubscriptionBanner } from "./billing-view";
 import {
   FILTER_DIMS,
   FILTER_OPS,
@@ -102,7 +104,7 @@ export const DARK_TOKENS = {
   "--up": "oklch(0.75 0.14 155)",
 } as CSSProperties;
 
-type ViewKey = "home" | "settings";
+type ViewKey = "home" | "settings" | "billing";
 type LocationTabKey = "country" | "region" | "city" | "globe";
 type PageTabKey = "pages" | "entry" | "exit";
 type SourceTabKey = "referrer" | "channel";
@@ -111,7 +113,7 @@ type RevenueTabKey = "source" | "country" | "method" | "campaign";
 
 const NAV_TABS = [
   { Icon: Home, key: "home" as const, label: "Home" },
-  { Icon: Settings, key: "settings" as const, label: "Settings" },
+  { Icon: CreditCard, key: "billing" as const, label: "Billing" },
 ];
 
 const NO_ROWS: GeoRow[] = [];
@@ -1602,6 +1604,7 @@ const AnalyticsPage = () => {
 
       {view === "home" ? (
         <main className="mx-auto max-w-7xl px-3 pt-3 pb-6 md:px-4">
+          <SubscriptionBanner onUpgrade={() => setView("billing")} />
           {errorMsg ? (
             <p
               className="mb-2.5 rounded-xl bg-(--down)/10 px-3 py-2 text-xs text-(--down)"
@@ -1679,6 +1682,8 @@ const AnalyticsPage = () => {
             filterStr={filterStr}
           />
         </main>
+      ) : view === "billing" ? (
+        <BillingView />
       ) : (
         <SettingsView
           site={site?.domain}

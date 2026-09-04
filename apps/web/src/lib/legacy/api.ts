@@ -279,7 +279,7 @@ export class LegacyApiError extends Error {
   }
 }
 
-const legacyFetch = async <T>(path: string, opts?: RequestInit): Promise<T> => {
+export const legacyFetch = async <T>(path: string, opts?: RequestInit): Promise<T> => {
   const token = getToken();
   const res = await fetch(`${API_BASE}${path}`, {
     ...opts,
