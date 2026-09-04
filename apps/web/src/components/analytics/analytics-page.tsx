@@ -74,6 +74,10 @@ import {
 import type { CountRow, Point, RangeKey, Visitor, VisitorEvent } from "./data";
 import { IntegrationsView } from "./integrations-view";
 import { SettingsView } from "./settings";
+import {
+  fetchVisitorProfile,
+  type VisitorProfileResult,
+} from "@/lib/legacy/growth";
 import { SitesView } from "./sites-view";
 import { AiInsightsPanel } from "./ai-insights";
 import { HeatmapPanel } from "./heatmap";
@@ -1484,17 +1488,39 @@ const AnalyticsPage = () => {
       queryClient.invalidateQueries({ queryKey: ["legacy", "visitors"] });
     },
   });
+  const [sheetFetched, setSheetFetched] = useState<VisitorProfileResult | null>(
+    null
+  );
   const sheetVisitor = useMemo(() => {
     if (!visitorSheetId) {
       return null;
     }
-    const profile = (sheetProfilesQ.data ?? []).find(
+    const local = (sheetProfilesQ.data ?? []).find(
       (x) => x.visitor_id === visitorSheetId
     );
-    return profile
-      ? profileToVisitor(profile, dash?.journeys ?? NO_JOURNEYS)
+    if (local) {
+      return profileToVisitor(local, dash?.journeys ?? NO_JOURNEYS);
+    }
+    return sheetFetched?.profile.visitor_id === visitorSheetId
+      ? profileToVisitor(sheetFetched.profile, sheetFetched.journeys)
       : null;
-  }, [visitorSheetId, sheetProfilesQ.data, dash]);
+  }, [visitorSheetId, sheetProfilesQ.data, sheetFetched, dash]);
+
+  const openVisitorSheet = (id: string) => {
+    const known = (sheetProfilesQ.data ?? []).some((x) => x.visitor_id === id);
+    if (known) {
+      setVisitorSheetId(id);
+      return;
+    }
+    fetchVisitorProfile(id, siteId, rangeKey)
+      .then((res) => {
+        setSheetFetched(res);
+        setVisitorSheetId(id);
+      })
+      .catch(() => {
+        toast.error("Couldn't load that visitor's profile.");
+      });
+  };
 
   useEffect(() => {
     if (!siteId) {
@@ -1706,18 +1732,7 @@ const AnalyticsPage = () => {
               siteId={siteId}
             />
             <PredictionsPanel
-              onOpenVisitor={(id) => {
-                const known = (sheetProfilesQ.data ?? []).some(
-                  (x) => x.visitor_id === id
-                );
-                if (!known) {
-                  toast.error(
-                    "That visitor's profile isn't loaded for this site yet."
-                  );
-                  return;
-                }
-                setVisitorSheetId(id);
-              }}
+              onOpenVisitor={openVisitorSheet}
               onUpgrade={() => setView("billing")}
               siteId={siteId}
             />

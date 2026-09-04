@@ -8,6 +8,7 @@
  * GrowthPlanLockedError (required_plan is "growth" on every one of these
  * routes).
  */
+import type { VisitorJourney, VisitorProfile } from "./api";
 import { LegacyApiError, legacyFetch } from "./api";
 
 /* ---------------------------------- types ---------------------------------- */
@@ -176,3 +177,27 @@ export const refreshPredictions = (
   growthFetch(`/predictions/refresh?site_id=${encodeURIComponent(siteId)}`, {
     method: "POST",
   });
+
+/* --------------------------- visitor deep-linking --------------------------- */
+
+export interface VisitorProfileResult {
+  profile: VisitorProfile;
+  journeys: VisitorJourney[];
+}
+
+/**
+ * GET /analytics/visitors/:visitorId — profile + recent journeys for one
+ * visitor. Powers deep-links (e.g. prediction rows) whose profile is outside
+ * the paginated visitors list. 404 when the visitor has no profile for the
+ * site.
+ */
+export const fetchVisitorProfile = async (
+  visitorId: string,
+  siteId: string,
+  range = "30d"
+): Promise<VisitorProfileResult> =>
+  legacyFetch(
+    `/analytics/visitors/${encodeURIComponent(
+      visitorId
+    )}?site_id=${encodeURIComponent(siteId)}&range=${encodeURIComponent(range)}`
+  );
