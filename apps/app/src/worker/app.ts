@@ -59,9 +59,10 @@ const authMiddleware = createMiddleware<Env>(async (c, next) => {
 		.where("key_hash", "=", keyHash)
 		.executeTakeFirst();
 	if (!apiKey) return c.json({ error: "Invalid token", success: false }, 401);
-	// Dashboard API accepts session (kp_) tokens only — rvt_/rv_ public-API
-	// tokens must go through publicAuthMiddleware — and expired tokens are dead.
-	if (apiKey.token_type !== "session")
+	// Dashboard API accepts user-scoped tokens only: session (kp_) and account
+	// (rvt_) — site-scoped rv_ tokens must go through publicAuthMiddleware —
+	// and expired tokens are dead.
+	if (apiKey.token_type !== "session" && apiKey.token_type !== "account")
 		return c.json({ error: "Session token required", success: false }, 401);
 	if (apiKey.expires_at && new Date(apiKey.expires_at) <= new Date())
 		return c.json({ error: "Token expired", success: false }, 401);

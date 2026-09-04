@@ -405,7 +405,117 @@ analyticsRoutes.get("/visitors", async (c) => {
 	return c.json({ data: visitors, success: true });
 });
 
-analyticsRoutes.patch("/visitors/:visitorId", async (c) => {
+// Single visitor: profile + recent journeys (deep-links, e.g. prediction panels).
+analyticsRoutes.get("/visitors/:visitorId", async (c) => {
+	const db = c.get("db");
+	const userId = c.get("userId");
+	const visitorId = c.req.param("visitorId");
+	const siteId = c.req.query("site_id");
+	if (!siteId) return c.json({ error: "site_id required", success: false }, 400);
+	const site = await validateSite(db, userId, siteId);
+	if (!site) return c.json({ error: "Site not found", success: false }, 404);
+
+	const profile = await db
+		.selectFrom("visitor_profiles")
+		.select([
+			"id",
+			"visitor_id",
+			"name",
+			"email",
+			"phone",
+			"first_seen",
+			"last_seen",
+			"country",
+			"region",
+			"city",
+			"device_type",
+			"browser",
+			"os",
+			"total_sessions",
+			"total_pageviews",
+			"total_revenue",
+			"tags",
+			"notes",
+		])
+		.where("visitor_id", "=", visitorId)
+		.where("site_id", "=", siteId)
+		.executeTakeFirst();
+	if (!profile) return c.json({ error: "Not found", success: false }, 404);
+
+	const { start } = getDateRange(c.req.query("range") ?? "30d");
+	const startIso = start.toISOString();
+	const sessions = await db
+		.selectFrom("sessions")
+		.select([
+			"id",
+			"visitor_id",
+			"started_at",
+			"country",
+			"region",
+			"city",
+			"device_type",
+			"browser",
+			"os",
+			"utm_source",
+			"referrer",
+			"page_count",
+		])
+		.where("site_id", "=", siteId)
+		.where("visitor_id", "=", visitorId)
+		.where("started_at", ">=", startIso)
+		.orderBy("started_at", "desc")
+		.limit(20)
+		.execute();
+
+	const sessionIds = sessions.map((s) => s.id);
+	const events = sessionIds.length
+		? await db
+			.selectFrom("events")
+			.select(["session_id", "path", "event_type", "name", "timestamp", "revenue", "props"])
+			.where("session_id", "in", sessionIds)
+			.where("site_id", "=", siteId)
+			.orderBy("timestamp", "asc")
+			.execute()
+		: [];
+	const eventsBySession = new Map<string, typeof events>();
+	for (const e of events) {
+		if (!eventsBySession.has(e.session_id)) eventsBySession.set(e.session_id, []);
+		eventsBySession.get(e.session_id)?.push(e);
+	}
+
+	const journeys = sessions.map((sess) => {
+		const sessEvents = eventsBySession.get(sess.id) ?? [];
+		return {
+			session_id: sess.id,
+			visitor_id: sess.visitor_id,
+			visitor_name: profile.name ?? null,
+			visitor_email: profile.email ?? null,
+			country: sess.country ?? profile.country ?? null,
+			region: sess.region ?? profile.region ?? null,
+			city: sess.city ?? profile.city ?? null,
+			device_type: sess.device_type ?? null,
+			browser: sess.browser ?? null,
+			os: sess.os ?? null,
+			utm_source: sess.utm_source ?? null,
+			referrer: sess.referrer ?? null,
+			started_at: sess.started_at,
+			steps: sessEvents.map((e) => ({
+				path: e.path,
+				event_type: e.event_type,
+				name: e.name,
+				timestamp: e.timestamp,
+				revenue: e.revenue,
+				props: e.props,
+			})),
+			total_revenue: sessEvents.reduce((s, e) => s + Number(e.revenue ?? 0), 0),
+			is_identified: !!(profile.name || profile.email),
+		};
+	});
+
+	return c.json({ data: { profile, journeys }, success: true });
+});
+
+ analyticsRoutes.patch("/visitors/:visitorId", async (c) => {
 	const db = c.get("db");
 	const userId = c.get("userId");
 	const profileId = c.req.param("visitorId");
