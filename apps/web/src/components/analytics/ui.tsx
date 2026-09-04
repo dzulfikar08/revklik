@@ -263,6 +263,7 @@ export const TrafficChart = ({
 }) => {
   const g = useGeometry(points);
   const [hover, setHover] = useState<number | null>(null);
+  const [hoverMarker, setHoverMarker] = useState<number | null>(null);
   const markers = useMemo(
     () =>
       annotations
@@ -346,26 +347,32 @@ export const TrafficChart = ({
           vectorEffect="non-scaling-stroke"
         />
       </svg>
-      {markers.map((m) => (
+      {markers.map((m, idx) => (
         <div
           key={`${m.date}-${m.label}-${m.i}`}
-          className="group absolute inset-y-0 w-px"
+          className="absolute inset-y-0 z-10 w-4 -translate-x-1/2 cursor-help"
           style={{ left: `${(g.x(m.i) / W) * 100}%` }}
+          onMouseEnter={() => setHoverMarker(idx)}
+          onMouseLeave={() => setHoverMarker(null)}
         >
           <span
-            className="bg-(--money)/40 absolute inset-y-0 -left-px w-px"
+            className="bg-(--money)/40 absolute inset-y-0 left-1/2 w-px -translate-x-1/2"
             aria-hidden
           />
           <span
-            className="bg-(--money) ring-card absolute top-1 left-0 size-2 -translate-x-1/2 rotate-45 rounded-[2px] ring-2"
+            className="bg-(--money) ring-card absolute top-1 left-1/2 size-2 -translate-x-1/2 rotate-45 rounded-[2px] ring-2"
             aria-hidden
           />
-          <div className="bg-popover/95 ring-foreground/10 pointer-events-none absolute top-4 left-0 z-10 hidden -translate-x-1/2 rounded-lg px-2 py-1.5 text-xs whitespace-nowrap ring-1 backdrop-blur group-hover:block">
-            <p className="text-foreground/90 max-w-48 truncate font-medium">
-              {m.label}
-            </p>
-            <p className="text-muted-foreground font-mono text-[10px]">{m.date}</p>
-          </div>
+          {hoverMarker === idx ? (
+            <div className="bg-popover/95 ring-foreground/10 pointer-events-none absolute top-4 left-1/2 z-10 -translate-x-1/2 rounded-lg px-2 py-1.5 text-xs whitespace-nowrap ring-1 backdrop-blur">
+              <p className="text-foreground/90 max-w-48 truncate font-medium">
+                {m.label}
+              </p>
+              <p className="text-muted-foreground font-mono text-[10px]">
+                {m.date}
+              </p>
+            </div>
+          ) : null}
         </div>
       ))}
 
