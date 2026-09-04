@@ -23,10 +23,10 @@ const TYPE_GLYPHS: Record<InsightType, string> = {
 
 const TYPE_COLORS: Record<InsightType, string> = {
   funnel_optimization: "var(--chart)",
-  geo_opportunities: "#60a5fa",
-  revenue_drivers: "#34d399",
-  revenue_prediction: "#fb923c",
-  traffic_roi: "#a78bfa",
+  geo_opportunities: "var(--compare)",
+  revenue_drivers: "var(--up)",
+  revenue_prediction: "var(--money)",
+  traffic_roi: "var(--violet)",
 };
 
 export const AiInsightsPanel = ({

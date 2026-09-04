@@ -2,7 +2,6 @@ import type { RouterClient } from "@orpc/server";
 
 import { protectedProcedure, publicProcedure } from "../index";
 import { legacyRouter } from "./legacy";
-import { todoRouter } from "./todo";
 
 export const appRouter = {
   healthCheck: publicProcedure.handler(() => {
@@ -14,7 +13,6 @@ export const appRouter = {
       user: context.session?.user,
     };
   }),
-  todo: todoRouter,
   legacy: legacyRouter,
 };
 export type AppRouter = typeof appRouter;

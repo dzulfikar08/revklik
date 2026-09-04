@@ -1,10 +1,13 @@
 import { useQuery } from "@tanstack/react-query";
-import { RefreshCw, TrendingUp } from "lucide-react";
+import { RefreshCw } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 
+import { avatarUrl, nameFromVisitorId } from "./identity";
+
 import {
   fetchPredictions,
+
   GrowthPlanLockedError,
   refreshPredictions,
 } from "@/lib/legacy/growth";
@@ -17,9 +20,11 @@ const scoreTone = (p: number): string =>
   p >= 70 ? "text-(--up)" : p >= 40 ? "text-(--chart)" : "text-muted-foreground";
 
 export const PredictionsPanel = ({
+  onOpenVisitor,
   onUpgrade,
   siteId,
 }: {
+  onOpenVisitor?: (visitorId: string) => void;
   onUpgrade: () => void;
   siteId: string;
 }) => {
@@ -56,7 +61,10 @@ export const PredictionsPanel = ({
   const busy = refreshing || q.isRefetching;
 
   return (
-    <Panel title="Revenue Predictions" hint="top 5 visitors">
+    <Panel
+      hint={onOpenVisitor ? "click a visitor for the journey" : "top 5 visitors"}
+      title="Revenue Predictions"
+    >
       {q.error instanceof GrowthPlanLockedError ? (
         <GrowthLocked
           blurb="Score visitors by conversion likelihood and predicted lifetime value."
@@ -97,16 +105,24 @@ export const PredictionsPanel = ({
                   className="border-border/40 border-b last:border-b-0"
                   key={p.visitor_id}
                 >
-                  <td className="max-w-28 truncate py-1.5 pr-2 font-mono">
-                    <span
-                      className="text-muted-foreground mr-1 inline-flex align-[-2px]"
-                      title={p.factors.join(" · ")}
+                  <td className="py-1.5 pr-2">
+                    <button
+                      className="focus-visible:outline-ring hover:text-(--chart) -mx-1 flex min-w-0 items-center gap-1.5 rounded px-1 py-0.5 text-left transition-colors focus-visible:outline-2 disabled:cursor-default"
+                      disabled={!onOpenVisitor}
+                      onClick={() => onOpenVisitor?.(p.visitor_id)}
+                      title={`${p.visitor_id} — ${p.factors.join(" · ")}`}
+                      type="button"
                     >
-                      <TrendingUp aria-hidden className="h-3 w-3" />
-                    </span>
-                    {p.visitor_id.length > 12
-                      ? `${p.visitor_id.slice(0, 12)}…`
-                      : p.visitor_id}
+                      <img
+                        alt=""
+                        aria-hidden
+                        className="size-4 shrink-0 rounded-full"
+                        src={avatarUrl(nameFromVisitorId(p.visitor_id))}
+                      />
+                      <span className="truncate">
+                        {nameFromVisitorId(p.visitor_id)}
+                      </span>
+                    </button>
                   </td>
                   <td
                     className={`py-1.5 pr-2 text-right font-mono font-semibold tabular-nums ${scoreTone(

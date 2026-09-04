@@ -50,9 +50,9 @@ const deviceOf = (
 
 const EVENT_COLORS: Record<RecordingEventType, string> = {
   interaction: "var(--chart)",
-  mutation: "#fbbf24",
-  resize: "#c084fc",
-  scroll: "#6ee7b7",
+  mutation: "var(--money)",
+  resize: "var(--violet)",
+  scroll: "var(--up)",
 };
 
 const EventIcon = ({ type }: { type: RecordingEventType }) => {

@@ -25,7 +25,7 @@ import {
   X,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
-import type { CSSProperties, ReactNode } from "react";
+import type { ReactNode } from "react";
 import { toast } from "sonner";
 
 import {
@@ -92,31 +92,6 @@ import {
   TrafficChart,
 } from "./ui";
 import { VisitorSheet } from "./visitors";
-/* Scoped to this page: deep blue-charcoal surface, orange traffic, gold money. */
-export const DARK_TOKENS = {
-  "--accent": "oklch(0.262 0.018 260)",
-  "--accent-foreground": "oklch(0.955 0.006 250)",
-  "--background": "oklch(0.165 0.014 260)",
-  "--border": "oklch(0.28 0.017 260)",
-  "--card": "oklch(0.207 0.016 260)",
-  "--card-foreground": "oklch(0.955 0.006 250)",
-  "--chart": "oklch(0.78 0.13 55)",
-  "--compare": "oklch(0.6 0.012 255)",
-  "--down": "oklch(0.66 0.19 25)",
-  "--foreground": "oklch(0.955 0.006 250)",
-  "--input": "oklch(0.262 0.018 260)",
-  "--money": "oklch(0.8 0.13 88)",
-  "--muted": "oklch(0.262 0.018 260)",
-  "--muted-foreground": "oklch(0.685 0.015 255)",
-  "--popover": "oklch(0.222 0.017 260)",
-  "--popover-foreground": "oklch(0.955 0.006 250)",
-  "--primary": "oklch(0.955 0.006 250)",
-  "--primary-foreground": "oklch(0.2 0.016 260)",
-  "--ring": "oklch(0.62 0.02 255)",
-  "--secondary": "oklch(0.262 0.018 260)",
-  "--secondary-foreground": "oklch(0.955 0.006 250)",
-  "--up": "oklch(0.75 0.14 155)",
-} as CSSProperties;
 
 type ViewKey = "home" | "settings" | "share" | "billing" | "integrations";
 type LocationTabKey = "country" | "region" | "city" | "globe";
@@ -1484,6 +1459,43 @@ const AnalyticsPage = () => {
   const dash = dashQ.data;
   const loadingDash = dashQ.isLoading;
 
+  const queryClient = useQueryClient();
+  const [visitorSheetId, setVisitorSheetId] = useState<string | null>(null);
+  const sheetProfilesQ = useQuery({
+    enabled: Boolean(siteId),
+    queryFn: () => fetchVisitors(siteId),
+    queryKey: ["legacy", "visitors", siteId],
+    retry: false,
+    staleTime: 30_000,
+  });
+  const saveSheetVisitor = useMutation({
+    mutationFn: ({
+      id,
+      patch,
+    }: {
+      id: string;
+      patch: { tags: string[]; note: string };
+    }) =>
+      updateVisitor(id, {
+        notes: patch.note,
+        tags: JSON.stringify(patch.tags),
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["legacy", "visitors"] });
+    },
+  });
+  const sheetVisitor = useMemo(() => {
+    if (!visitorSheetId) {
+      return null;
+    }
+    const profile = (sheetProfilesQ.data ?? []).find(
+      (x) => x.visitor_id === visitorSheetId
+    );
+    return profile
+      ? profileToVisitor(profile, dash?.journeys ?? NO_JOURNEYS)
+      : null;
+  }, [visitorSheetId, sheetProfilesQ.data, dash]);
+
   useEffect(() => {
     if (!siteId) {
       return;
@@ -1582,8 +1594,7 @@ const AnalyticsPage = () => {
 
   return (
     <div
-      className="dark bg-background text-foreground min-h-svh"
-      style={DARK_TOKENS}
+      className="bg-background text-foreground min-h-svh"
     >
       <TopBar
         view={view}
@@ -1695,11 +1706,22 @@ const AnalyticsPage = () => {
               siteId={siteId}
             />
             <PredictionsPanel
+              onOpenVisitor={(id) => {
+                const known = (sheetProfilesQ.data ?? []).some(
+                  (x) => x.visitor_id === id
+                );
+                if (!known) {
+                  toast.error(
+                    "That visitor's profile isn't loaded for this site yet."
+                  );
+                  return;
+                }
+                setVisitorSheetId(id);
+              }}
               onUpgrade={() => setView("billing")}
               siteId={siteId}
             />
           </div>
-
           <FunnelSection
             siteId={siteId}
             rangeKey={rangeKey}
@@ -1720,6 +1742,16 @@ const AnalyticsPage = () => {
         />
       )}
       <SitesView open={sitesOpen} onClose={() => setSitesOpen(false)} />
+      {sheetVisitor ? (
+        <VisitorSheet
+          key={sheetVisitor.id}
+          visitor={sheetVisitor}
+          onClose={() => setVisitorSheetId(null)}
+          onSave={async (patch) => {
+            await saveSheetVisitor.mutateAsync({ id: sheetVisitor.id, patch });
+          }}
+        />
+      ) : null}
     </div>
   );
 };

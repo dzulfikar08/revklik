@@ -1,34 +1,19 @@
 import { Link } from "@tanstack/react-router";
 
-import { ModeToggle } from "./mode-toggle";
 import UserMenu from "./user-menu";
 
 export default function Header() {
-  const links = [
-    { label: "Home", to: "/" },
-    { label: "Dashboard", to: "/dashboard" },
-    { label: "Analytics", to: "/analytics" },
-    { label: "Todos", to: "/todos" },
-  ] as const;
-
   return (
-    <div>
-      <div className="flex flex-row items-center justify-between px-2 py-1">
-        <nav className="flex gap-4 text-lg">
-          {links.map(({ to, label }) => {
-            return (
-              <Link key={to} to={to}>
-                {label}
-              </Link>
-            );
-          })}
-        </nav>
-        <div className="flex items-center gap-2">
-          <ModeToggle />
-          <UserMenu />
-        </div>
+    <div className="bg-card border-border border-b">
+      <div className="flex flex-row items-center justify-between px-3 py-1.5">
+        <Link to="/analytics" className="flex items-center gap-2">
+          <img src="/revklik.webp" alt="" className="size-5 rounded-sm" />
+          <span className="text-foreground text-sm font-semibold tracking-tight">
+            revklik
+          </span>
+        </Link>
+        <UserMenu />
       </div>
-      <hr />
     </div>
   );
 }
