@@ -67,6 +67,10 @@ import {
 import type { CountRow, Point, RangeKey, Visitor, VisitorEvent } from "./data";
 import { SettingsView } from "./settings";
 import { SitesView } from "./sites-view";
+import { AiInsightsPanel } from "./ai-insights";
+import { HeatmapPanel } from "./heatmap";
+import { PredictionsPanel } from "./predictions";
+import { RecordingsPanel } from "./recordings";
 import {
   CountBarRow,
   FunnelChart,
@@ -1618,6 +1622,7 @@ const AnalyticsPage = () => {
               <TrafficChart points={points} />
             </PanelBody>
           </section>
+          <AiInsightsPanel siteId={siteId} rangeKey={rangeKey} />
 
           <div className="grid gap-2.5 md:grid-cols-2 xl:grid-cols-3">
             <PagesPanel dash={dash} loading={loadingDash} />
@@ -1641,6 +1646,18 @@ const AnalyticsPage = () => {
               feed={live.feed}
             />
             <ExplorePanel siteId={siteId} dash={dash} loading={loadingDash} />
+            <HeatmapPanel
+              filterStr={filterStr}
+              rangeKey={rangeKey}
+              siteId={siteId}
+              topPages={dash?.topPages ?? []}
+            />
+            <RecordingsPanel
+              filterStr={filterStr}
+              rangeKey={rangeKey}
+              siteId={siteId}
+            />
+            <PredictionsPanel siteId={siteId} />
           </div>
 
           <FunnelSection

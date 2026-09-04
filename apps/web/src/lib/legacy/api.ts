@@ -351,8 +351,7 @@ export const revokeLegacyToken = async (): Promise<void> => {
   } catch {
     // Server-side token already gone or unreachable; nothing to recover.
   }
-export const legacyFetch = async <T>(path: string, opts?: RequestInit): Promise<T> => {
-  const token = await getToken();
+};
 export const legacyFetch = async <T>(path: string, opts?: RequestInit): Promise<T> => {
   const token = await getToken();
   const res = await fetch(`${API_BASE}${path}`, {
