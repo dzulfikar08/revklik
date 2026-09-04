@@ -20,10 +20,18 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: "autoUpdate",
+      // Navigate-fallback must never swallow API endpoints: Google OAuth
+      // starts with a full-page navigation to /api/auth/google, and a cached
+      // index.html there renders the app's 404 instead of the redirect.
+      workbox: {
+        navigateFallbackDenylist: [/^\/api\//],
+        skipWaiting: true,
+        clientsClaim: true,
+      },
       manifest: {
-        name: "revklik-new",
-        short_name: "revklik-new",
-        description: "revklik-new - PWA Application",
+        name: "revklik",
+        short_name: "revklik",
+        description: "revklik — privacy-friendly web analytics",
         theme_color: "#0c0c0c",
       },
       pwaAssets: { disabled: false, config: true },
