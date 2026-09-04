@@ -74,11 +74,15 @@ export function applyFilters<DB, TB extends keyof DB, O>(
 	qb: SelectQueryBuilder<DB, TB, O>,
 	filters?: ParsedFilter[],
 	alias?: string,
+	skip: readonly string[] = [],
 ): SelectQueryBuilder<DB, TB, O> {
 	if (!filters || filters.length === 0) return qb;
 	const col = (dim: string) => (alias ? `${alias}.${dim}` : dim);
 	for (const f of filters) {
 		if (!VALID_DIMENSIONS.has(f.dimension)) continue;
+		// Dimension not present on this table (e.g. "path" on sessions) —
+		// D1 would silently treat the quoted identifier as a string literal.
+		if (skip.includes(f.dimension)) continue;
 		const c = col(f.dimension);
 		if (f.operator === "is") {
 			qb = qb.where(c as never, "=", f.value as never);

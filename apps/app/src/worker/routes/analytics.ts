@@ -24,6 +24,7 @@ import {
 	getChannelBreakdown,
 	getDeviceBreakdown,
 	getEntryPagesRevenue,
+	getExitPages,
 	getOverviewStats,
 	getReferrers,
 	getRevenueByCountry,
@@ -91,6 +92,7 @@ analyticsRoutes.get("/dashboard", async (c) => {
 		revenueByCountry,
 		revenueTimeseries,
 		entryPagesRevenue,
+		exitPages,
 		revenueByMethod,
 		revenueByProvider,
 		channels,
@@ -101,7 +103,10 @@ analyticsRoutes.get("/dashboard", async (c) => {
 		getTopPages(db, siteId, startIso, 10, filters, endIso),
 		getReferrers(db, siteId, startIso, 10, filters, endIso),
 		getDeviceBreakdown(db, siteId, startIso, filters, endIso),
-		applyFilters(recentSessionsQ, filters).orderBy("started_at", "desc").limit(100).execute(),
+		applyFilters(recentSessionsQ, filters, undefined, ["path"])
+			.orderBy("started_at", "desc")
+			.limit(100)
+			.execute(),
 		db
 			.selectFrom("visitor_profiles")
 			.select([
@@ -132,6 +137,7 @@ analyticsRoutes.get("/dashboard", async (c) => {
 		getRevenueByCountry(db, siteId, startIso, filters, endIso),
 		getRevenueTimeseries(db, siteId, startIso, isHourly, filters, endIso),
 		getEntryPagesRevenue(db, siteId, startIso, filters, endIso),
+		getExitPages(db, siteId, startIso, filters, endIso),
 		getRevenueByPaymentMethod(db, siteId, startIso, filters, endIso),
 		getRevenueByPaymentProvider(db, siteId, startIso, filters, endIso),
 		getChannelBreakdown(db, siteId, startIso, filters, endIso),
@@ -231,6 +237,7 @@ analyticsRoutes.get("/dashboard", async (c) => {
 		revenueByCountry,
 		revenueTimeseries,
 		entryPagesRevenue,
+		exitPages,
 		revenueByMethod,
 		revenueByProvider,
 		channels,

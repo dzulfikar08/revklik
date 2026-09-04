@@ -90,7 +90,7 @@ export async function getOverviewStats(
 
 	const [ev, se] = await Promise.all([
 		applyFilters(eventQ, filters).executeTakeFirst(),
-		applyFilters(sessionQ, filters).executeTakeFirst(),
+		applyFilters(sessionQ, filters, undefined, ["path"]).executeTakeFirst(),
 	]);
 
 	return {
@@ -234,13 +234,13 @@ export async function getDeviceBreakdown(
 	};
 
 	const [deviceRows, osRows, browserRows] = await Promise.all([
-		applyFilters(base("device_type"), filters)
+		applyFilters(base("device_type"), filters, undefined, ["path"])
 			.groupBy("device_type")
 			.orderBy("visitors", "desc")
 			.limit(10)
 			.execute(),
-		applyFilters(base("os"), filters).groupBy("os").orderBy("visitors", "desc").limit(10).execute(),
-		applyFilters(base("browser"), filters)
+		applyFilters(base("os"), filters, undefined, ["path"]).groupBy("os").orderBy("visitors", "desc").limit(10).execute(),
+		applyFilters(base("browser"), filters, undefined, ["path"])
 			.groupBy("browser")
 			.orderBy("visitors", "desc")
 			.limit(10)
@@ -288,6 +288,39 @@ export async function getGeoData(
 		.orderBy("visitors", "desc")
 		.limit(limit)
 		.execute();
+}
+
+export interface ExitPage {
+	path: string;
+	exits: number;
+}
+
+export async function getExitPages(
+	db: Kysely<KlikapaDatabase>,
+	siteId: string,
+	startIso: string,
+	filters?: ParsedFilter[],
+	endIso?: string,
+): Promise<ExitPage[]> {
+	let q = db
+		.selectFrom("sessions")
+		.select([
+			"exit_path as path",
+			({ fn }) => fn.count<number>("id").as("exits"),
+		])
+		.where("site_id", "=", siteId)
+		.where("started_at", ">=", startIso);
+	if (endIso) q = q.where("started_at", "<", endIso);
+
+	const rows = await applyFilters(q, filters, undefined, ["path"])
+		.groupBy("exit_path")
+		.orderBy("exits", "desc")
+		.limit(10)
+		.execute();
+	return rows.map((r) => ({
+		path: String(r.path ?? "/"),
+		exits: Number(r.exits),
+	}));
 }
 
 export async function getRevenueBySource(

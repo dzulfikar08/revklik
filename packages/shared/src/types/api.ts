@@ -295,6 +295,7 @@ export interface SiteDashboard {
 	revenueTimeseries: RevenueTimeSeriesPoint[];
 	channels: ChannelEntry[];
 	entryPagesRevenue: EntryPageRevenue[];
+	exitPages: { path: string; exits: number }[];
 	revenueByMethod: RevenueByPaymentMethod[];
 	revenueByProvider: RevenueByPaymentProvider[];
 }
