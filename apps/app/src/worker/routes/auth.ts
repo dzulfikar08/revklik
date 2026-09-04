@@ -1,8 +1,33 @@
 import { Hono } from "hono";
+import { Kysely } from "kysely";
+import type { KlikapaDatabase } from "@revklik/shared";
 import type { Env } from "../types";
 import { generateApiKey, generateId, hashPassword, hashToken } from "../utils";
 
 export const authRoutes = new Hono<Env>();
+
+/**
+ * Resolve the dashboard user from the presented Bearer token. /auth/me and
+ * /auth/logout act on the caller's own token, so they resolve it inline —
+ * session (kp_) and account (rvt_) tokens accepted, site-scoped rv_ and
+ * expired tokens rejected — instead of relying on app-level middleware
+ * mounts, which silently fail to fire for these exact-path routes.
+ */
+async function resolveTokenUserId(
+	db: Kysely<KlikapaDatabase> | undefined,
+	authHeader: string | undefined,
+): Promise<string | null> {
+	if (!db || !authHeader?.startsWith("Bearer ")) return null;
+	const apiKey = await db
+		.selectFrom("api_keys")
+		.select(["user_id", "token_type", "expires_at"])
+		.where("key_hash", "=", await hashToken(authHeader.slice(7)))
+		.executeTakeFirst();
+	if (!apiKey) return null;
+	if (apiKey.token_type !== "session" && apiKey.token_type !== "account") return null;
+	if (apiKey.expires_at && new Date(apiKey.expires_at) <= new Date()) return null;
+	return apiKey.user_id;
+}
 
 // POST /auth/register — with referral tracking
 authRoutes.post("/register", async (c) => {
@@ -159,17 +184,19 @@ authRoutes.post("/login", async (c) => {
 	});
 });
 
-// POST /auth/logout — delete the presented session token (mounted behind authMiddleware)
+// POST /auth/logout — delete the presented session token (resolves its own auth)
 authRoutes.post("/logout", async (c) => {
 	const db = c.get("db");
 	if (!db) return c.json({ error: "DB unavailable", success: false }, 503);
-	const userId = c.get("userId");
-	const authHeader = c.req.header("Authorization");
-	const token = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : "";
-	if (!token) return c.json({ error: "Unauthorized", success: false }, 401);
+	const userId = await resolveTokenUserId(db, c.req.header("Authorization"));
+	if (!userId) return c.json({ error: "Unauthorized", success: false }, 401);
 	await db
 		.deleteFrom("api_keys")
-		.where("key_hash", "=", await hashToken(token))
+		.where(
+			"key_hash",
+			"=",
+			await hashToken(c.req.header("Authorization")!.slice(7)),
+		)
 		.where("user_id", "=", userId)
 		.execute();
 	return c.json({ data: { loggedOut: true }, success: true });
@@ -343,11 +370,11 @@ authRoutes.get("/google/callback", async (c) => {
 	return c.redirect(appUrl);
 });
 
-// GET /auth/me — return current user info based on session token
+// GET /auth/me — return current user info for the presented session token
 authRoutes.get("/me", async (c) => {
 	const db = c.get("db");
 	if (!db) return c.json({ error: "DB unavailable", success: false }, 503);
-	const userId = c.get("userId");
+	const userId = await resolveTokenUserId(db, c.req.header("Authorization"));
 	if (!userId) return c.json({ error: "Unauthorized", success: false }, 401);
 	const user = await db
 		.selectFrom("users")

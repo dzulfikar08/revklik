@@ -39,6 +39,10 @@ cp -r "$DIST/." "$OUT/"                    # new UI: index.html, assets/, sw.js 
 
 echo "==> Deploying klikapa worker"
 cd "$ROOT/apps/app"
+# A prior `vite build` leaves .wrangler/deploy/config.json pointing at a frozen
+# dist/klikapa artifact — without this cleanup `wrangler deploy` silently
+# uploads that stale worker instead of bundling src/worker.
+rm -rf .wrangler/deploy dist/klikapa
 bunx wrangler deploy
 
 echo "==> Done. Rollback if needed: cd apps/app && bunx wrangler rollback"

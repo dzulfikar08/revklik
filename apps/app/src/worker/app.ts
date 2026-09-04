@@ -89,7 +89,7 @@ export function createApp(): Hono<Env> {
 	app.use(cors());
 
 	app.get("/", (c) => c.json({ message: "klikapa", version: "0.7.0", success: true }));
-	app.get("/health", (c) => c.json({ status: "ok", success: true }));
+	app.get("/health", (c) => c.json({ status: "ok", build: "native-auth-v2", success: true }));
 	app.route("/docs", docsRoutes);
 
 	app.use(async (c, next) => {
@@ -113,10 +113,8 @@ export function createApp(): Hono<Env> {
 	// MCP server over the same rvt_/rv_ tokens (Streamable HTTP, stateless)
 	app.route("/mcp", mcpRoutes);
 
-	// Auth routes are public, except /auth/me and /auth/logout which act on the
-	// presented session token and therefore mount behind authMiddleware.
-	app.use("/auth/me", authMiddleware);
-	app.use("/auth/logout", authMiddleware);
+	// Auth routes are public. /auth/me and /auth/logout resolve the caller's
+	// own Bearer token inline (resolveTokenUserId in routes/auth.ts).
 	app.route("/auth", authRoutes);
 
 	app.use("/sites/*", authMiddleware);
