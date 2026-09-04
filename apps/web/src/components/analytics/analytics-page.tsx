@@ -153,7 +153,8 @@ const NavTabs = ({
       <button
         key={key}
         type="button"
-        aria-pressed={view === key}
+        role="tab"
+        aria-selected={view === key}
         onClick={() => onView(key)}
         className={`focus-visible:outline-ring flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[13px] font-medium outline-offset-2 focus-visible:outline-2 ${
           view === key

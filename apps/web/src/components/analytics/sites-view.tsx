@@ -83,7 +83,9 @@ const SnippetModal = ({
         role="dialog"
         aria-modal="true"
         aria-label={`Tracking snippet for ${site.domain}`}
-        className="bg-card ring-foreground/10 animate-in fade-in zoom-in-95 relative w-full max-w-xl rounded-2xl p-4 ring-1 duration-150"
+        tabIndex={-1}
+        autoFocus
+        className="bg-card ring-foreground/10 animate-in fade-in zoom-in-95 relative w-full max-w-xl rounded-2xl p-4 ring-1 duration-150 outline-none"
       >
         <div className="mb-3 flex items-start gap-2">
           <div className="min-w-0">
@@ -449,7 +451,14 @@ export const SitesView = ({
           onClick={onClose}
           className="animate-in fade-in absolute inset-0 bg-black/55 backdrop-blur-[2px]"
         />
-        <aside className="bg-card ring-foreground/10 animate-in slide-in-from-right-8 absolute inset-y-0 right-0 flex w-full max-w-[560px] flex-col rounded-l-2xl ring-1 duration-200">
+        <aside
+          role="dialog"
+          aria-modal="true"
+          aria-label="Manage sites"
+          tabIndex={-1}
+          autoFocus
+          className="bg-card ring-foreground/10 animate-in slide-in-from-right-8 absolute inset-y-0 right-0 flex w-full max-w-[560px] flex-col rounded-l-2xl ring-1 duration-200 outline-none"
+        >
           <div className="border-border/60 flex items-center gap-2 border-b p-3">
             <p className="text-sm font-semibold">
               Sites{" "}

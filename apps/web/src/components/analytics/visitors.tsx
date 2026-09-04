@@ -213,7 +213,14 @@ export const VisitorSheet = ({
           onClick={onClose}
           className="animate-in fade-in absolute inset-0 bg-black/55 backdrop-blur-[2px]"
         />
-        <aside className="bg-card ring-foreground/10 animate-in slide-in-from-right-8 absolute inset-y-0 right-0 flex w-full max-w-[560px] flex-col rounded-l-2xl ring-1 duration-200">
+        <aside
+          role="dialog"
+          aria-modal="true"
+          aria-label={`Journey for ${displayName}`}
+          tabIndex={-1}
+          autoFocus
+          className="bg-card ring-foreground/10 animate-in slide-in-from-right-8 absolute inset-y-0 right-0 flex w-full max-w-[560px] flex-col rounded-l-2xl ring-1 duration-200 outline-none"
+        >
           <div className="border-border/60 flex items-center gap-2 border-b p-3">
             <p className="truncate text-sm font-semibold">
               Journey{" "}
@@ -223,7 +230,7 @@ export const VisitorSheet = ({
               <button
                 type="button"
                 onClick={() => setOldestFirst(!oldestFirst)}
-                className="text-muted-foreground hover:text-foreground hover:bg-muted inline-flex items-center gap-1 rounded-md px-1.5 py-1 font-mono text-[10px] tracking-wider uppercase"
+                className="text-muted-foreground hover:text-foreground hover:bg-muted focus-visible:outline-ring focus-visible:outline-2 outline-offset-2 inline-flex items-center gap-1 rounded-md px-1.5 py-1 font-mono text-[10px] tracking-wider uppercase"
               >
                 <ArrowDownUp className="size-3" aria-hidden />
                 {oldestFirst ? "Oldest first" : "Newest first"}
@@ -231,7 +238,7 @@ export const VisitorSheet = ({
               <button
                 type="button"
                 onClick={copy}
-                className="text-muted-foreground hover:text-foreground hover:bg-muted inline-flex items-center gap-1 rounded-md px-1.5 py-1 font-mono text-[10px] tracking-wider uppercase"
+                className="text-muted-foreground hover:text-foreground hover:bg-muted focus-visible:outline-ring focus-visible:outline-2 outline-offset-2 inline-flex items-center gap-1 rounded-md px-1.5 py-1 font-mono text-[10px] tracking-wider uppercase"
               >
                 {copied ? (
                   <Check className="size-3" aria-hidden />

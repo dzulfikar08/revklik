@@ -166,8 +166,12 @@ const RecordingReplay = ({
   return (
     <div className="bg-background/60 fixed inset-0 z-40" onClick={onClose}>
       <aside
+        role="dialog"
+        aria-modal="true"
         aria-label="Session recording replay"
-        className="bg-card ring-foreground/10 fixed top-0 right-0 z-50 flex h-dvh w-full max-w-md flex-col shadow-2xl ring-1 sm:max-w-lg"
+        tabIndex={-1}
+        autoFocus
+        className="bg-card ring-foreground/10 fixed top-0 right-0 z-50 flex h-dvh w-full max-w-md flex-col shadow-2xl ring-1 outline-none sm:max-w-lg"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="border-border/60 flex items-center gap-2 border-b px-4 py-3">
@@ -177,11 +181,11 @@ const RecordingReplay = ({
           </span>
           <button
             aria-label="Close replay"
-            className="text-muted-foreground hover:text-foreground rounded p-1"
+            className="text-muted-foreground hover:text-foreground hover:bg-muted focus-visible:outline-ring focus-visible:outline-2 outline-offset-2 rounded p-1"
             onClick={onClose}
             type="button"
           >
-            <X className="h-4 w-4" />
+            <X className="h-4 w-4" aria-hidden />
           </button>
         </div>
 
@@ -190,7 +194,7 @@ const RecordingReplay = ({
           <div className="flex items-center gap-2">
             <button
               aria-label={playing ? "Pause" : "Play"}
-              className="bg-primary text-primary-foreground hover:bg-primary/90 flex h-8 w-8 items-center justify-center rounded-md text-sm"
+              className="bg-primary text-primary-foreground hover:bg-primary/90 focus-visible:outline-ring focus-visible:outline-2 outline-offset-2 flex h-8 w-8 items-center justify-center rounded-md text-sm"
               onClick={() => setPlaying(!playing)}
               type="button"
             >
@@ -198,7 +202,7 @@ const RecordingReplay = ({
             </button>
             <button
               aria-label="Back to start"
-              className="bg-muted text-foreground flex h-8 w-8 items-center justify-center rounded-md text-sm"
+              className="bg-muted text-foreground focus-visible:outline-ring focus-visible:outline-2 outline-offset-2 flex h-8 w-8 items-center justify-center rounded-md text-sm"
               onClick={reset}
               type="button"
             >
@@ -339,6 +343,20 @@ export const RecordingsPanel = ({
 
   const recordings = listQ.data ?? [];
   const listLocked = listQ.error instanceof GrowthPlanLockedError;
+
+  // Esc closes whichever recording overlay is open (replay, loading, error).
+  useEffect(() => {
+    if (!activeId) {
+      return;
+    }
+    const onKey = (e: globalThis.KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setActiveId(null);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [activeId]);
 
   return (
     <Panel

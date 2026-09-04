@@ -66,12 +66,13 @@ export const PanelTabs = <T extends string>({
   value: T;
   onChange: (key: T) => void;
 }) => (
-  <div className="bg-muted/70 flex rounded-lg p-0.5">
+  <div role="tablist" className="bg-muted/70 flex rounded-lg p-0.5">
     {tabs.map((t) => (
       <button
         key={t.key}
         type="button"
-        aria-pressed={value === t.key}
+        role="tab"
+        aria-selected={value === t.key}
         onClick={() => onChange(t.key)}
         className={`focus-visible:outline-ring rounded-md px-2 py-1 text-xs font-medium outline-offset-1 focus-visible:outline-2 ${
           value === t.key
