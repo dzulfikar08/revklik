@@ -18,6 +18,7 @@ import {
   Globe,
   Home,
   Plus,
+  Share2,
   Settings,
   X,
 } from "lucide-react";
@@ -74,6 +75,7 @@ import { HeatmapPanel } from "./heatmap";
 import { PredictionsPanel } from "./predictions";
 import { RecordingsPanel } from "./recordings";
 import { SegmentControls } from "./segments";
+import { ShareWidgetTokensView } from "./share-widget-tokens";
 import {
   CountBarRow,
   FunnelChart,
@@ -111,7 +113,7 @@ export const DARK_TOKENS = {
   "--up": "oklch(0.75 0.14 155)",
 } as CSSProperties;
 
-type ViewKey = "home" | "settings";
+type ViewKey = "home" | "settings" | "share";
 type LocationTabKey = "country" | "region" | "city" | "globe";
 type PageTabKey = "pages" | "entry" | "exit";
 type SourceTabKey = "referrer" | "channel";
@@ -121,6 +123,7 @@ type RevenueTabKey = "source" | "country" | "method" | "campaign";
 const NAV_TABS = [
   { Icon: Home, key: "home" as const, label: "Home" },
   { Icon: Settings, key: "settings" as const, label: "Settings" },
+  { Icon: Share2, key: "share" as const, label: "Share" },
 ];
 
 const NO_ROWS: GeoRow[] = [];
@@ -1682,6 +1685,8 @@ const AnalyticsPage = () => {
             filterStr={filterStr}
           />
         </main>
+      ) : view === "share" ? (
+        <ShareWidgetTokensView />
       ) : (
         <SettingsView
           site={site?.domain}
