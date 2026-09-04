@@ -3,27 +3,6 @@ import { RPCLink } from "@orpc/client/fetch";
 import { createTanstackQueryUtils } from "@orpc/tanstack-query";
 import type { AppRouterClient } from "@revklik-new/api/routers/index";
 import { env } from "@revklik-new/env/web";
-import { QueryCache, QueryClient } from "@tanstack/react-query";
-import { toast } from "sonner";
-
-export function createQueryClient() {
-  return new QueryClient({
-    queryCache: new QueryCache({
-      onError: (error, query) => {
-        toast.error(`Error: ${error.message}`, {
-          action: {
-            label: "retry",
-            onClick: () => {
-              query.invalidate();
-            },
-          },
-        });
-      },
-    }),
-  });
-}
-
-export const queryClient = createQueryClient();
 
 function getServerUrl(url: string) {
   const processEnv = (
