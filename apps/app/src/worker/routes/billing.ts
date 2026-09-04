@@ -122,39 +122,53 @@ billingRoutes.get("/plans", async (c) => {
 		checkout_url: null as string | null,
 	}));
 
-	// If Polar token is configured, generate checkout links
+	// If Polar token is configured, generate checkout links. Failures are
+	// non-fatal: log them and surface a note instead of dropping the plans list.
+	let polarProductsError: string | null = null;
 	if (polarToken) {
 		try {
 			const now = Date.now();
 			if (!polarProductsCache || now - polarProductsCache.cachedAt > POLAR_PRODUCTS_TTL) {
-				const products = await fetch(
+				const res = await fetch(
 					`${POLAR_API}/products/?organization_id=${c.env.POLAR_ORG_ID || ""}`,
 					{
 						headers: { Authorization: `Bearer ${polarToken}` },
 					},
-				)
-					.then((r) => r.json())
-					.catch(() => ({}) as Record<string, unknown>);
-				polarProductsCache = {
-					data: products as { items?: Array<{ name?: string; checkout_url?: string }> },
-					cachedAt: now,
-				};
+				);
+				const bodyText = await res.text();
+				let parsed: { items?: Array<{ name?: string; checkout_url?: string }> } | null = null;
+				if (res.ok) {
+					try {
+						parsed = JSON.parse(bodyText);
+					} catch {
+						/* non-JSON body — reported below */
+					}
+				}
+				if (parsed && Array.isArray(parsed.items)) {
+					polarProductsCache = { data: parsed, cachedAt: now };
+				} else {
+					polarProductsError = `Polar products unavailable (HTTP ${res.status})`;
+					console.error(
+						`[billing] /plans: ${polarProductsError}: ${bodyText.slice(0, 300) || "empty body"}`,
+					);
+				}
 			}
 			const products = polarProductsCache?.data;
-			if (products && Array.isArray(products.items)) {
+			if (products) {
 				for (const plan of plans) {
-					const product = products.items.find((p) => p.name?.toLowerCase().includes(plan.tier));
+					const product = products.items?.find((p) => p.name?.toLowerCase().includes(plan.tier));
 					if (product?.checkout_url) {
 						plan.checkout_url = product.checkout_url;
 					}
 				}
 			}
-		} catch {
-			/* Polar API unavailable */
+		} catch (err) {
+			polarProductsError = `Polar products unavailable: ${err instanceof Error ? err.message : String(err)}`;
+			console.error("[billing] /plans:", err);
 		}
 	}
 
-	return c.json({ data: plans, success: true });
+	return c.json({ data: plans, polar_products_error: polarProductsError, success: true });
 });
 
 // Create Polar checkout session
@@ -218,11 +232,22 @@ billingRoutes.post("/checkout", async (c) => {
 			}),
 		});
 
-		const session = (await res.json()) as { url?: string };
-		if (!session.url) throw new Error("No checkout URL returned");
+		const raw = await res.text();
+		let session: { url?: string } = {};
+		try {
+			session = JSON.parse(raw) as { url?: string };
+		} catch {
+			/* non-JSON body — reported verbatim below */
+		}
+		if (!session.url) {
+			throw new Error(
+				`Polar checkout failed (HTTP ${res.status}): ${raw.slice(0, 300) || "empty response"}`,
+			);
+		}
 
 		return c.json({ data: { url: session.url }, success: true });
 	} catch (err) {
+		console.error("[billing] /checkout:", err instanceof Error ? err.message : err);
 		return c.json(
 			{
 				error: err instanceof Error ? err.message : String(err) || "Checkout creation failed",
