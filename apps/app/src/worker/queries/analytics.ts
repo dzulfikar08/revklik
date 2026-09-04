@@ -419,7 +419,7 @@ export async function getEntryPagesRevenue(
 		.where("events.site_id", "=", siteId);
 	if (endIso) q = q.where("sessions.started_at", "<", endIso);
 
-	const rows = await applyFilters(q, filters)
+	const rows = await applyFilters(q, filters, "events")
 		.groupBy("sessions.entry_path")
 		.orderBy("revenue", "desc")
 		.limit(20)
