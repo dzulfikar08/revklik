@@ -6,7 +6,7 @@ import {
   createRootRouteWithContext,
   useRouterState,
 } from "@tanstack/react-router";
-import { lazy, Suspense } from "react";
+import { lazy, Suspense, useEffect } from "react";
 
 import { ThemeProvider } from "@/components/theme-provider";
 
@@ -55,10 +55,39 @@ const QueryDevtools = import.meta.env.DEV
     )
   : () => null;
 
-/* Async so the better-auth client (user menu) stays out of the entry chunk. */
+/* Async so the user menu stays out of the entry chunk. */
 const Header = lazy(() => import("@/components/header"));
 
+/**
+ * Google OAuth callback landing: klikapa redirects to /#token=<session>.
+ * Store it, resolve the user profile, then enter the dashboard. Runs before
+ * the router renders, so any route can absorb the redirect. The relative
+ * /api path is same-origin in production (klikapa serves UI and API); local
+ * dev signs in with the injected env token instead of Google.
+ */
+function captureOAuthToken(): void {
+  const match = window.location.hash.match(/^#token=(.+)$/);
+  if (!match) return;
+  const token = decodeURIComponent(match[1]);
+  history.replaceState(null, "", window.location.pathname);
+  fetch("/api/auth/me", {
+    headers: { Authorization: `Bearer ${token}` },
+  })
+    .then(async (res) => {
+      if (!res.ok) throw new Error(String(res.status));
+      const json = (await res.json()) as { data?: { user?: unknown } };
+      if (!json.data?.user) throw new Error("no user");
+      localStorage.setItem("kp_token", token);
+      localStorage.setItem("kp_user", JSON.stringify(json.data.user));
+      window.location.replace("/analytics");
+    })
+    .catch(() => {
+      // Bad/expired token: stay put; the login guard takes it from here.
+    });
+}
+
 function RootComponent() {
+  useEffect(captureOAuthToken, []);
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const chromeless = pathname.startsWith("/analytics");
 

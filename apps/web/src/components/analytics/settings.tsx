@@ -1,13 +1,7 @@
 import { Button } from "@revklik-new/ui/components/button";
 import { LogOut } from "lucide-react";
 
-import { authClient } from "@/lib/auth-client";
-import {
-  LEGACY_API_BASE,
-  getLegacyUser,
-  legacyLogout,
-  revokeLegacyToken,
-} from "@/lib/legacy/api";
+import { getLegacyUser, LEGACY_API_BASE, legacySignOut } from "@/lib/legacy/api";
 
 import { EmailReportsSection } from "./email-reports";
 import { TeamSection } from "./team";
@@ -24,9 +18,7 @@ export const SettingsView = ({
   onSignOut: () => void;
 }) => {
   const handleSignOut = async (): Promise<void> => {
-    await revokeLegacyToken();
-    await authClient.signOut();
-    legacyLogout();
+    await legacySignOut();
     onSignOut();
   };
   const user = getLegacyUser();

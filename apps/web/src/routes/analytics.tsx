@@ -1,14 +1,20 @@
 import { createFileRoute, redirect } from "@tanstack/react-router";
 
 import AnalyticsPage from "@/components/analytics/analytics-page";
+import { getToken, LEGACY_API_BASE, legacyLogout } from "@/lib/legacy/api";
 
 export const Route = createFileRoute("/analytics")({
   beforeLoad: async () => {
-    // Dynamic import keeps better-auth (and the whole auth client) out of the
-    // entry chunk; it is only needed when this route's guard actually runs.
-    const { authClient } = await import("@/lib/auth-client");
-    const session = await authClient.getSession();
-    if (!session.data) {
+    // Validate the klikapa session on entry; a dead token lands on /login.
+    const token = await getToken();
+    if (!token) {
+      throw redirect({ to: "/login" });
+    }
+    const res = await fetch(`${LEGACY_API_BASE}/auth/me`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) {
+      legacyLogout();
       throw redirect({ to: "/login" });
     }
   },

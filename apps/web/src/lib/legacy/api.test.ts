@@ -1,18 +1,9 @@
 /**
  * Offline unit tests for the legacy API client: envelope unwrapping,
- * error mapping, token resolution order, and filter encoding.
- * All network and oRPC access is mocked — no production calls.
+ * error mapping, native auth flows, token resolution order, and filter
+ * encoding. All network access is mocked — no production calls.
  */
-import { ORPCError } from "@orpc/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-
-const mocks = vi.hoisted(() => ({
-  mintToken: vi.fn(),
-}));
-
-vi.mock("@/utils/orpc", () => ({
-  client: { legacy: { mintToken: mocks.mintToken } },
-}));
 
 import {
   LEGACY_API_BASE,
@@ -21,7 +12,10 @@ import {
   getToken,
   getLegacyUser,
   legacyFetch,
+  legacyLogin,
   legacyLogout,
+  legacyRegister,
+  legacySignOut,
   type LegacyFilter,
 } from "./api";
 
@@ -38,10 +32,12 @@ const TEST_USER = { id: "u1", name: "A", email: "a@b.c", role: "owner" };
 beforeEach(() => {
   localStorage.clear();
   legacyLogout();
-  mocks.mintToken.mockReset();
-  // Tests that never reach the mint path still need it to resolve sanely.
-  mocks.mintToken.mockResolvedValue({ token: "kp_minted", user: TEST_USER });
 });
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
+
 describe("legacyFetch envelope unwrapping", () => {
   it("returns the unwrapped data and sends the bearer token", async () => {
     localStorage.setItem("kp_token", "kp_stored");
@@ -57,7 +53,6 @@ describe("legacyFetch envelope unwrapping", () => {
         Authorization: "Bearer kp_stored",
       },
     });
-    expect(mocks.mintToken).not.toHaveBeenCalled();
   });
 
   it("merges caller headers over the defaults", async () => {
@@ -133,79 +128,132 @@ describe("legacyFetch 401 recovery", () => {
     expect(localStorage.getItem("kp_token")).toBeNull();
   });
 
-  it("re-mints on the next call after a 401", async () => {
-    localStorage.setItem("kp_token", "kp_dead");
-    mocks.mintToken.mockResolvedValue({
-      token: "kp_fresh",
-      user: { id: "u1", name: "A", email: "a@b.c", role: "owner" },
-    });
+  it("sends no Authorization header when signed out", async () => {
     const fetch = fetchMock();
-    fetch.mockImplementation(async () => ({ ok: false, status: 401 }));
+    fetch.mockResolvedValue(okEnvelope([]));
     vi.stubGlobal("fetch", fetch);
 
-    await legacyFetch("/x").catch(() => undefined);
-    fetch.mockImplementation(async () => okEnvelope([]));
-
     await expect(legacyFetch("/x")).resolves.toEqual([]);
-    expect(mocks.mintToken).toHaveBeenCalledExactlyOnceWith();
-    const [url, init] = fetch.mock.calls[1] as unknown as [
+    const [, init] = fetch.mock.calls[0] as unknown as [
       string,
       { headers: Record<string, string> },
     ];
-    expect(url).toBe(`${LEGACY_API_BASE}/x`);
-    expect(init.headers.Authorization).toBe("Bearer kp_fresh");
+    expect(init.headers.Authorization).toBeUndefined();
+  });
+});
+
+describe("native auth flows", () => {
+  it("legacyLogin persists the token + user and returns the user", async () => {
+    const fetch = fetchMock();
+    fetch.mockResolvedValue(
+      okEnvelope({ user: TEST_USER, token: "kp_session" })
+    );
+    vi.stubGlobal("fetch", fetch);
+
+    await expect(legacyLogin("a@b.c", "pw123456")).resolves.toEqual(TEST_USER);
+
+    const [url, init] = fetch.mock.calls[0] as unknown as [
+      string,
+      { method: string; body: string; headers: Record<string, string> },
+    ];
+    expect(url).toBe(`${LEGACY_API_BASE}/auth/login`);
+    expect(init.method).toBe("POST");
+    expect(JSON.parse(init.body)).toEqual({ email: "a@b.c", password: "pw123456" });
+    expect(localStorage.getItem("kp_token")).toBe("kp_session");
+    expect(getLegacyUser()).toEqual(TEST_USER);
+    await expect(getToken()).resolves.toBe("kp_session");
+  });
+
+  it("legacyRegister posts name/email/password to /auth/register", async () => {
+    const fetch = fetchMock();
+    fetch.mockResolvedValue(
+      okEnvelope({ user: TEST_USER, token: "kp_new" })
+    );
+    vi.stubGlobal("fetch", fetch);
+
+    await expect(legacyRegister("A", "a@b.c", "pw123456")).resolves.toEqual(
+      TEST_USER
+    );
+
+    const [url, init] = fetch.mock.calls[0] as unknown as [
+      string,
+      { method: string; body: string },
+    ];
+    expect(url).toBe(`${LEGACY_API_BASE}/auth/register`);
+    expect(JSON.parse(init.body)).toEqual({
+      name: "A",
+      email: "a@b.c",
+      password: "pw123456",
+    });
+    expect(localStorage.getItem("kp_token")).toBe("kp_new");
+  });
+
+  it("surfaces the API error message on bad credentials", async () => {
+    const fetch = fetchMock();
+    fetch.mockResolvedValue({
+      ok: false,
+      status: 401,
+      json: async () => ({ success: false, error: "Invalid credentials" }),
+    });
+    vi.stubGlobal("fetch", fetch);
+
+    const err = await legacyLogin("a@b.c", "wrong").catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(LegacyApiError);
+    expect((err as LegacyApiError).message).toBe("Invalid credentials");
+    expect((err as LegacyApiError).status).toBe(401);
+    // Nothing persisted on failure.
+    expect(localStorage.getItem("kp_token")).toBeNull();
+    expect(getLegacyUser()).toBeNull();
+  });
+
+  it("legacySignOut deletes the session server-side and clears local state", async () => {
+    localStorage.setItem("kp_token", "kp_bye");
+    localStorage.setItem("kp_user", JSON.stringify(TEST_USER));
+    localStorage.setItem("kp_active_site", "s1");
+    const fetch = fetchMock();
+    fetch.mockResolvedValue(okEnvelope({ loggedOut: true }));
+    vi.stubGlobal("fetch", fetch);
+
+    await legacySignOut();
+
+    const [url, init] = fetch.mock.calls[0] as unknown as [
+      string,
+      { method: string; headers: Record<string, string> },
+    ];
+    expect(url).toBe(`${LEGACY_API_BASE}/auth/logout`);
+    expect(init.method).toBe("POST");
+    expect(init.headers.Authorization).toBe("Bearer kp_bye");
+    expect(localStorage.getItem("kp_token")).toBeNull();
+    expect(getLegacyUser()).toBeNull();
+    expect(localStorage.getItem("kp_active_site")).toBeNull();
+  });
+
+  it("legacySignOut clears locally even when the network fails", async () => {
+    localStorage.setItem("kp_token", "kp_bye");
+    const fetch = fetchMock();
+    fetch.mockRejectedValue(new Error("offline"));
+    vi.stubGlobal("fetch", fetch);
+
+    await expect(legacySignOut()).resolves.toBeUndefined();
+    expect(localStorage.getItem("kp_token")).toBeNull();
   });
 });
 
 describe("getToken resolution order", () => {
-  it("returns the localStorage token without minting", async () => {
+  it("returns the localStorage token", async () => {
     localStorage.setItem("kp_token", "kp_stored");
-
     await expect(getToken()).resolves.toBe("kp_stored");
-    expect(mocks.mintToken).not.toHaveBeenCalled();
   });
 
-  it("mints, persists token + user, and then serves from memory", async () => {
-    const user = { id: "u1", name: "A", email: "a@b.c", role: "owner" };
-    mocks.mintToken.mockResolvedValue({ token: "kp_minted", user });
-
-    await expect(getToken()).resolves.toBe("kp_minted");
-    expect(mocks.mintToken).toHaveBeenCalledExactlyOnceWith();
-    expect(localStorage.getItem("kp_token")).toBe("kp_minted");
-    expect(getLegacyUser()).toEqual(user);
-
-    // A rotated localStorage value must lose to the in-memory cache.
+  it("serves the in-memory cache over a rotated localStorage value", async () => {
+    localStorage.setItem("kp_token", "kp_first");
+    await expect(getToken()).resolves.toBe("kp_first");
     localStorage.setItem("kp_token", "kp_rotated");
-    await expect(getToken()).resolves.toBe("kp_minted");
-    expect(mocks.mintToken).toHaveBeenCalledExactlyOnceWith();
+    await expect(getToken()).resolves.toBe("kp_first");
   });
 
-  it("maps UNAUTHORIZED mint failures to LegacyApiError 401", async () => {
-    mocks.mintToken.mockRejectedValue(
-      new ORPCError("UNAUTHORIZED", { message: "not signed in" })
-    );
-
-    const err = await getToken().catch((e: unknown) => e);
-    expect(err).toBeInstanceOf(LegacyApiError);
-    expect((err as LegacyApiError).status).toBe(401);
-    expect((err as LegacyApiError).message).toBe("not signed in");
-  });
-
-  it("maps unknown mint failures to LegacyApiError 500", async () => {
-    mocks.mintToken.mockRejectedValue(new ORPCError("INTERNAL_SERVER_ERROR"));
-
-    const err = await getToken().catch((e: unknown) => e);
-    expect((err as LegacyApiError).status).toBe(500);
-  });
-
-  it("keeps the upstream message when mint fails with a plain error", async () => {
-    mocks.mintToken.mockRejectedValue(new Error("offline"));
-
-    await expect(getToken()).rejects.toMatchObject({
-      name: "LegacyApiError",
-      message: "offline",
-      status: 500,
-    });
+  it("returns null when signed out", async () => {
+    await expect(getToken()).resolves.toBeNull();
   });
 });
 

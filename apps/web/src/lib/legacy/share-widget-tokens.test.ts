@@ -1,9 +1,6 @@
 /** Offline tests for the public share/widget URL derivation. */
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 
-vi.mock("@/utils/orpc", () => ({
-  client: { legacy: { mintToken: vi.fn() } },
-}));
 
 import { API_ORIGIN, shareUrl, widgetScriptUrl } from "./share-widget-tokens";
 

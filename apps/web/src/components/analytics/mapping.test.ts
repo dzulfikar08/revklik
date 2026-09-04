@@ -2,11 +2,7 @@
  * Offline tests for the analytics-page data mapping helpers
  * (stepToEvent, profileToVisitor, aggregateGeo — exported for testability).
  */
-import { describe, expect, it, vi } from "vitest";
-
-vi.mock("@/utils/orpc", () => ({
-  client: { legacy: { mintToken: vi.fn() } },
-}));
+import { describe, expect, it } from "vitest";
 
 import type {
   GeoRow,
