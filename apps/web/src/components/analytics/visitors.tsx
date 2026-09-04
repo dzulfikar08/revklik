@@ -225,6 +225,9 @@ export const VisitorSheet = ({
             <p className="truncate text-sm font-semibold">
               Journey{" "}
               <span className="text-muted-foreground">· {displayName}</span>
+              <span className="bg-muted text-muted-foreground ml-1.5 rounded px-1 py-0.5 font-mono text-[10px]">
+                {fmt(visitor.events.length)} events
+              </span>
             </p>
             <div className="ms-auto flex items-center gap-1">
               <button

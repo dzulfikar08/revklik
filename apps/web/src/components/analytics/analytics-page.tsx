@@ -945,6 +945,9 @@ const ExplorePanel = ({
                       <span className="min-w-0">
                         <span className="block truncate font-medium">
                           {visitorName(v)}
+                          <span className="bg-muted text-muted-foreground ml-1.5 rounded px-1 py-0.5 font-mono text-[10px] font-normal">
+                            {fmt(v.events.length)} events
+                          </span>
                         </span>
                         <span className="text-muted-foreground flex items-center gap-1 text-xs">
                           <span aria-hidden>{v.flag}</span>
@@ -983,12 +986,10 @@ const ExplorePanel = ({
           >
             <div className="max-h-[420px] overflow-y-auto">
               {journeys.slice(0, 20).map((j) => {
-                const chips = j.steps
-                  .filter(
-                    (s) => s.event_type !== "custom" || s.name !== "heartbeat"
-                  )
-                  .slice(0, 6)
-                  .map(journeyChip);
+                const realSteps = j.steps.filter(
+                  (s) => s.event_type !== "custom" || s.name !== "heartbeat"
+                );
+                const chips = realSteps.slice(0, 6).map(journeyChip);
                 return (
                   <div
                     key={j.session_id}
@@ -1015,6 +1016,9 @@ const ExplorePanel = ({
                           </span>
                         </span>
                       ))}
+                    </span>
+                    <span className="bg-muted text-muted-foreground rounded-md px-1.5 py-0.5 font-mono text-[10px]">
+                      {fmt(realSteps.length)} events
                     </span>
                     {j.visitor_name ? (
                       <span className="rounded-full bg-(--chart)/10 px-2 py-0.5 text-[11px] text-(--chart)">
@@ -1436,6 +1440,9 @@ const AnalyticsPage = () => {
   const sitesQ = useQuery({
     queryFn: () => fetchSites(rangeKey),
     queryKey: ["legacy", "sites", rangeKey],
+    // Keep the previous list visible while a new range loads: a blank list
+    // makes siteId fall back to "" and the picker appear to reset.
+    placeholderData: (prev) => prev,
     retry: false,
     staleTime: 60_000,
   });
