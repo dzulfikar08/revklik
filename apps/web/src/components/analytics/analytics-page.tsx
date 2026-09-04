@@ -3,6 +3,7 @@ import {
   Select,
   SelectContent,
   SelectItem,
+  SelectSeparator,
   SelectTrigger,
   SelectValue,
 } from "@revklik-new/ui/components/select";
@@ -12,6 +13,7 @@ import {
   ArrowDownUp,
   ArrowRight,
   Check,
+  Download,
   FileText,
   Globe,
   Home,
@@ -21,6 +23,7 @@ import {
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import type { CSSProperties, ReactNode } from "react";
+import { toast } from "sonner";
 
 import {
   CITY_COORDS,
@@ -45,6 +48,7 @@ import type {
   VisitorJourney,
   VisitorProfile,
 } from "@/lib/legacy/api";
+import { exportLegacyFile } from "@/lib/legacy/sites";
 
 import {
   FILTER_DIMS,
@@ -62,6 +66,7 @@ import {
 } from "./data";
 import type { CountRow, Point, RangeKey, Visitor, VisitorEvent } from "./data";
 import { SettingsView } from "./settings";
+import { SitesView } from "./sites-view";
 import {
   CountBarRow,
   FunnelChart,
@@ -1115,6 +1120,9 @@ const TopBar = ({
   rangeKey,
   onRange,
   online,
+  onManageSites,
+  onExport,
+  exporting,
 }: {
   view: ViewKey;
   onView: (v: ViewKey) => void;
@@ -1125,6 +1133,9 @@ const TopBar = ({
   rangeKey: RangeKey;
   onRange: (r: RangeKey) => void;
   online: number | null;
+  onManageSites: () => void;
+  onExport: () => void;
+  exporting: boolean;
 }) => (
   <header className="border-border/60 bg-background/85 sticky top-0 z-20 border-b backdrop-blur">
     <div className="relative mx-auto flex max-w-7xl flex-wrap items-center gap-2 px-3 py-2 md:px-4">
@@ -1139,7 +1150,16 @@ const TopBar = ({
         </span>
       </div>
 
-      <Select value={siteId} onValueChange={(v) => onPickSite(String(v))}>
+      <Select
+        value={siteId}
+        onValueChange={(v) => {
+          if (v === "__manage") {
+            onManageSites();
+            return;
+          }
+          onPickSite(String(v));
+        }}
+      >
         <SelectTrigger
           aria-label="Website"
           className="bg-card ring-foreground/10 focus-visible:outline-ring data-[placeholder]:text-foreground hover:bg-accent dark:bg-card dark:hover:bg-accent h-auto w-auto gap-2 rounded-full px-2.5 py-1 text-[13px] font-medium ring-1"
@@ -1156,6 +1176,13 @@ const TopBar = ({
               {s.domain}
             </SelectItem>
           ))}
+          <SelectSeparator />
+          <SelectItem value="__manage">
+            <span className="flex items-center gap-1.5">
+              <Plus className="size-3.5" aria-hidden />
+              Manage sites
+            </span>
+          </SelectItem>
         </SelectContent>
       </Select>
 
@@ -1178,6 +1205,20 @@ const TopBar = ({
               </button>
             ))}
           </div>
+          <Button
+            size="icon"
+            variant="ghost"
+            aria-label="Export CSV"
+            title="Export CSV (events)"
+            disabled={exporting || !siteId}
+            onClick={onExport}
+            className="ring-foreground/10 bg-card hover:bg-accent size-7 rounded-full ring-1"
+          >
+            <Download
+              className={`size-3.5 ${exporting ? "animate-pulse" : ""}`}
+              aria-hidden
+            />
+          </Button>
           <span className="bg-card ring-foreground/10 hidden items-center gap-2 rounded-full px-2.5 py-1 text-[13px] ring-1 sm:flex">
             <span className="relative flex size-2">
               <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-(--up) opacity-50 motion-reduce:animate-none" />
@@ -1381,6 +1422,8 @@ const AnalyticsPage = () => {
     online: number | null;
     feed: LiveFeedItem[];
   }>({ feed: [], online: null });
+  const [sitesOpen, setSitesOpen] = useState(false);
+  const [exporting, setExporting] = useState(false);
 
   const sitesQ = useQuery({
     queryFn: () => fetchSites(rangeKey),
@@ -1480,6 +1523,25 @@ const AnalyticsPage = () => {
     );
   };
 
+  const exportSiteCsv = () => {
+    if (!siteId || exporting) {
+      return;
+    }
+    setExporting(true);
+    exportLegacyFile({
+      siteId,
+      range: rangeKey,
+      type: "events",
+      format: "csv",
+      filters: filterStr,
+    })
+      .then((name) => toast.success(`Exported ${name}`))
+      .catch((e: unknown) =>
+        toast.error(e instanceof Error ? e.message : "Export failed")
+      )
+      .finally(() => setExporting(false));
+  };
+
   const stats = dash?.stats;
   const cmp = dash?.compare;
   const deltaPct = (k: keyof NonNullable<SiteDashboard["compare"]>): number =>
@@ -1503,6 +1565,9 @@ const AnalyticsPage = () => {
         rangeKey={rangeKey}
         onRange={setRangeKey}
         online={live.online}
+        onManageSites={() => setSitesOpen(true)}
+        onExport={exportSiteCsv}
+        exporting={exporting}
       />
 
       {view === "home" ? (
@@ -1590,6 +1655,7 @@ const AnalyticsPage = () => {
           onSignOut={() => navigate({ to: "/login" })}
         />
       )}
+      <SitesView open={sitesOpen} onClose={() => setSitesOpen(false)} />
     </div>
   );
 };

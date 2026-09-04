@@ -41,7 +41,7 @@ let cachedToken: string | null = null;
  * Session token resolution: in-memory cache → localStorage → dev env token
  * → mint from the better-auth session via the server (credentials included).
  */
-const getToken = async (): Promise<string | null> => {
+export const getToken = async (): Promise<string | null> => {
   if (cachedToken) {
     return cachedToken;
   }
@@ -351,8 +351,8 @@ export const revokeLegacyToken = async (): Promise<void> => {
   } catch {
     // Server-side token already gone or unreachable; nothing to recover.
   }
-};
-
+export const legacyFetch = async <T>(path: string, opts?: RequestInit): Promise<T> => {
+  const token = await getToken();
 export const legacyFetch = async <T>(path: string, opts?: RequestInit): Promise<T> => {
   const token = await getToken();
   const res = await fetch(`${API_BASE}${path}`, {
