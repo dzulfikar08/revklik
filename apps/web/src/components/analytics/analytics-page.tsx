@@ -17,6 +17,7 @@ import {
   Home,
   Plus,
   Settings,
+  Webhook,
   X,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
@@ -64,6 +65,7 @@ import {
   visitorName,
 } from "./data";
 import type { CountRow, Point, RangeKey, Visitor, VisitorEvent } from "./data";
+import { IntegrationsView } from "./integrations-view";
 import { SettingsView } from "./settings";
 import {
   CountBarRow,
@@ -102,7 +104,7 @@ export const DARK_TOKENS = {
   "--up": "oklch(0.75 0.14 155)",
 } as CSSProperties;
 
-type ViewKey = "home" | "settings";
+type ViewKey = "home" | "settings" | "integrations";
 type LocationTabKey = "country" | "region" | "city" | "globe";
 type PageTabKey = "pages" | "entry" | "exit";
 type SourceTabKey = "referrer" | "channel";
@@ -112,6 +114,7 @@ type RevenueTabKey = "source" | "country" | "method" | "campaign";
 const NAV_TABS = [
   { Icon: Home, key: "home" as const, label: "Home" },
   { Icon: Settings, key: "settings" as const, label: "Settings" },
+  { Icon: Webhook, key: "integrations" as const, label: "Integrations" },
 ];
 
 const NO_ROWS: GeoRow[] = [];
@@ -1679,6 +1682,8 @@ const AnalyticsPage = () => {
             filterStr={filterStr}
           />
         </main>
+      ) : view === "integrations" ? (
+        <IntegrationsView siteId={siteId} />
       ) : (
         <SettingsView
           site={site?.domain}
