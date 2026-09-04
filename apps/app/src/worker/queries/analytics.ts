@@ -16,7 +16,10 @@ import type {
 } from "@revklik/shared";
 import { sql } from "../db";
 import type { ParsedFilter } from "../lib/analytics-queries";
-import { applyFilters } from "../lib/analytics-queries";
+import {
+	applyFilters,
+	applySessionFilters,
+} from "../lib/analytics-queries";
 
 const sourceSql = sql<string>`COALESCE(utm_source,
   CASE WHEN referrer IS NULL OR referrer = '' THEN 'direct'
@@ -90,7 +93,11 @@ export async function getOverviewStats(
 
 	const [ev, se] = await Promise.all([
 		applyFilters(eventQ, filters).executeTakeFirst(),
-		applyFilters(sessionQ, filters, undefined, ["path"]).executeTakeFirst(),
+		applySessionFilters(
+			sessionQ,
+			{ db, siteId, startIso, endIso },
+			filters,
+		).executeTakeFirst(),
 	]);
 
 	return {
@@ -234,13 +241,25 @@ export async function getDeviceBreakdown(
 	};
 
 	const [deviceRows, osRows, browserRows] = await Promise.all([
-		applyFilters(base("device_type"), filters, undefined, ["path"])
+		applySessionFilters(
+			base("device_type"),
+			{ db, siteId, startIso, endIso },
+			filters,
+		)
 			.groupBy("device_type")
 			.orderBy("visitors", "desc")
 			.limit(10)
 			.execute(),
-		applyFilters(base("os"), filters, undefined, ["path"]).groupBy("os").orderBy("visitors", "desc").limit(10).execute(),
-		applyFilters(base("browser"), filters, undefined, ["path"])
+		applySessionFilters(base("os"), { db, siteId, startIso, endIso }, filters)
+			.groupBy("os")
+			.orderBy("visitors", "desc")
+			.limit(10)
+			.execute(),
+		applySessionFilters(
+			base("browser"),
+			{ db, siteId, startIso, endIso },
+			filters,
+		)
 			.groupBy("browser")
 			.orderBy("visitors", "desc")
 			.limit(10)
@@ -308,11 +327,11 @@ export async function getExitPages(
 			"exit_path as path",
 			({ fn }) => fn.count<number>("id").as("exits"),
 		])
-		.where("site_id", "=", siteId)
-		.where("started_at", ">=", startIso);
-	if (endIso) q = q.where("started_at", "<", endIso);
-
-	const rows = await applyFilters(q, filters, undefined, ["path"])
+	const rows = await applySessionFilters(
+		q,
+		{ db, siteId, startIso, endIso },
+		filters,
+	)
 		.groupBy("exit_path")
 		.orderBy("exits", "desc")
 		.limit(10)

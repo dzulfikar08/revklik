@@ -105,6 +105,47 @@ export function applyFilters<DB, TB extends keyof DB, O>(
 	return qb;
 }
 
+interface SessionScope {
+	db: Kysely<KlikapaDatabase>;
+	siteId: string;
+	startIso: string;
+	endIso?: string;
+}
+
+/**
+ * Apply parsed filters to a sessions query. Sessions carry every dimension
+ * except `path`; a path filter is honoured through a semi-join against the
+ * session's events, so "path:is:/pricing" narrows session-derived panels to
+ * sessions that actually had a pageview on that path.
+ */
+export function applySessionFilters<DB, TB extends keyof DB, O>(
+	qb: SelectQueryBuilder<DB, TB, O>,
+	scope: SessionScope,
+	filters?: ParsedFilter[],
+): SelectQueryBuilder<DB, TB, O> {
+	if (!filters || filters.length === 0) return qb;
+	const pathFilters = filters.filter((f) => f.dimension === "path");
+	let out = applyFilters(
+		qb,
+		filters.filter((f) => f.dimension !== "path"),
+	);
+	for (const f of pathFilters) {
+		out = out.where((eb) => {
+			let sq = scope.db
+				.selectFrom("events")
+				.select("events.session_id")
+				.where("events.site_id", "=", scope.siteId)
+				.where("events.timestamp", ">=", scope.startIso);
+			if (scope.endIso) {
+				sq = sq.where("events.timestamp", "<", scope.endIso);
+			}
+			sq = applyFilters(sq, [f], "events");
+			return eb("sessions.id" as never, "in", sq as never);
+		});
+	}
+	return out;
+}
+
 /**
  * Convert an array of row objects to a CSV string using the given column order.
  */

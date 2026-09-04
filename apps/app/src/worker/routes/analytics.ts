@@ -11,6 +11,7 @@ import { createDb, sql } from "../db";
 import type { FunnelStep } from "../lib/analytics-queries";
 import {
 	applyFilters,
+	applySessionFilters,
 	buildDepthSteps,
 	buildFunnelSteps,
 	buildHeatmapData,
@@ -103,7 +104,11 @@ analyticsRoutes.get("/dashboard", async (c) => {
 		getTopPages(db, siteId, startIso, 10, filters, endIso),
 		getReferrers(db, siteId, startIso, 10, filters, endIso),
 		getDeviceBreakdown(db, siteId, startIso, filters, endIso),
-		applyFilters(recentSessionsQ, filters, undefined, ["path"])
+		applySessionFilters(
+			recentSessionsQ,
+			{ db, siteId, startIso, endIso },
+			filters,
+		)
 			.orderBy("started_at", "desc")
 			.limit(100)
 			.execute(),
