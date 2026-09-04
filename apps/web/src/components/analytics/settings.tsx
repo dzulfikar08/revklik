@@ -9,13 +9,18 @@ import {
   revokeLegacyToken,
 } from "@/lib/legacy/api";
 
+import { EmailReportsSection } from "./email-reports";
+import { TeamSection } from "./team";
+
 import { Panel } from "./ui";
 
 export const SettingsView = ({
   site,
+  siteId,
   onSignOut,
 }: {
   site?: string;
+  siteId: string;
   onSignOut: () => void;
 }) => {
   const handleSignOut = async (): Promise<void> => {
@@ -76,6 +81,14 @@ export const SettingsView = ({
             </div>
           </dl>
         </Panel>
+
+        <div className="md:col-span-2">
+          <EmailReportsSection siteId={siteId} />
+        </div>
+
+        <div className="md:col-span-2">
+          <TeamSection siteId={siteId} />
+        </div>
 
         <div className="md:col-span-2">
           <Panel title="Session">

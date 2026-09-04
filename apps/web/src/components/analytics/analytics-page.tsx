@@ -49,7 +49,9 @@ import type {
   VisitorProfile,
 } from "@/lib/legacy/api";
 import { exportLegacyFile } from "@/lib/legacy/sites";
+import type { LegacyAnnotation } from "@/lib/legacy/analytics-settings";
 
+import { AnnotationsControl } from "./annotations";
 import {
   FILTER_DIMS,
   FILTER_OPS,
@@ -71,6 +73,7 @@ import { AiInsightsPanel } from "./ai-insights";
 import { HeatmapPanel } from "./heatmap";
 import { PredictionsPanel } from "./predictions";
 import { RecordingsPanel } from "./recordings";
+import { SegmentControls } from "./segments";
 import {
   CountBarRow,
   FunnelChart,
@@ -1243,6 +1246,7 @@ const TopBar = ({
 );
 
 const FiltersBar = ({
+  siteId,
   filters,
   setFilters,
   draftDim,
@@ -1262,6 +1266,7 @@ const FiltersBar = ({
   draftValue: string;
   setDraftValue: (v: string) => void;
   addFilter: () => void;
+  siteId: string;
 }) => {
   const voidOp = draftOp === "exists" || draftOp === "not_exists";
   return (
@@ -1364,6 +1369,11 @@ const FiltersBar = ({
           Clear all
         </button>
       ) : null}
+      <SegmentControls
+        siteId={siteId}
+        filters={filters}
+        onApply={(next) => setFilters(() => next)}
+      />
     </div>
   );
 };
@@ -1428,6 +1438,7 @@ const AnalyticsPage = () => {
   }>({ feed: [], online: null });
   const [sitesOpen, setSitesOpen] = useState(false);
   const [exporting, setExporting] = useState(false);
+  const [annotations, setAnnotations] = useState<LegacyAnnotation[]>([]);
 
   const sitesQ = useQuery({
     queryFn: () => fetchSites(rangeKey),
@@ -1497,6 +1508,7 @@ const AnalyticsPage = () => {
     () =>
       (dash?.timeseries ?? []).map((t) => ({
         ...pointLabel(t.date, hourly),
+        date: t.date,
         current: t.visitors,
       })),
     [dash, hourly]
@@ -1586,6 +1598,7 @@ const AnalyticsPage = () => {
           ) : null}
 
           <FiltersBar
+            siteId={siteId}
             filters={filters}
             setFilters={setFilters}
             draftDim={draftDim}
@@ -1609,9 +1622,12 @@ const AnalyticsPage = () => {
                   Visitors
                 </span>
               </div>
-              <span className="text-muted-foreground font-mono text-xs tabular-nums">
-                {points[0]?.full}
-                {points.length > 1 ? ` – ${points.at(-1)?.full}` : ""}
+              <span className="flex flex-wrap items-center gap-2">
+                <AnnotationsControl siteId={siteId} onAnnotations={setAnnotations} />
+                <span className="text-muted-foreground font-mono text-xs tabular-nums">
+                  {points[0]?.full}
+                  {points.length > 1 ? ` – ${points.at(-1)?.full}` : ""}
+                </span>
               </span>
             </div>
             <PanelBody
@@ -1619,7 +1635,7 @@ const AnalyticsPage = () => {
               hasData={points.length > 0}
               emptyText="No traffic in this range."
             >
-              <TrafficChart points={points} />
+              <TrafficChart points={points} annotations={annotations} />
             </PanelBody>
           </section>
           <AiInsightsPanel siteId={siteId} rangeKey={rangeKey} />
@@ -1669,6 +1685,7 @@ const AnalyticsPage = () => {
       ) : (
         <SettingsView
           site={site?.domain}
+          siteId={siteId}
           onSignOut={() => navigate({ to: "/login" })}
         />
       )}
