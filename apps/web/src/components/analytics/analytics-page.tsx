@@ -1,0 +1,1695 @@
+import { Button } from "@revklik-new/ui/components/button";
+import { Input } from "@revklik-new/ui/components/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@revklik-new/ui/components/select";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  ArrowDownUp,
+  ArrowRight,
+  Check,
+  FileText,
+  Globe,
+  Home,
+  Plus,
+  Settings,
+  X,
+} from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import type { CSSProperties, ReactNode } from "react";
+
+import {
+  CITY_COORDS,
+  connectSSE,
+  countryFlag,
+  encodeFilterString,
+  fetchCampaigns,
+  fetchDashboard,
+  fetchFunnel,
+  fetchGeo,
+  fetchSites,
+  fetchVisitors,
+  isLegacyAuthed,
+  legacyLogin,
+  legacyLogout,
+  updateVisitor,
+} from "@/lib/legacy/api";
+import type {
+  CampaignPerformance,
+  FilterOperator,
+  GeoRow,
+  JourneyStep,
+  LegacyFilter,
+  SiteDashboard,
+  VisitorJourney,
+  VisitorProfile,
+} from "@/lib/legacy/api";
+
+import {
+  FILTER_DIMS,
+  FILTER_OPS,
+  RANGES,
+  agoLabel,
+  duration,
+  fmt,
+  fmtC,
+  fmtPct,
+  money,
+  pointLabel,
+  visitorAvatar,
+  visitorName,
+} from "./data";
+import type { CountRow, Point, RangeKey, Visitor, VisitorEvent } from "./data";
+import { SettingsView } from "./settings";
+import {
+  CountBarRow,
+  FunnelChart,
+  GlobePanel,
+  Panel,
+  PanelTabs,
+  PlatformGlyph,
+  StatTile,
+  TrafficChart,
+} from "./ui";
+import { VisitorSheet } from "./visitors";
+/* Scoped to this page: deep blue-charcoal surface, orange traffic, gold money. */
+export const DARK_TOKENS = {
+  "--accent": "oklch(0.262 0.018 260)",
+  "--accent-foreground": "oklch(0.955 0.006 250)",
+  "--background": "oklch(0.165 0.014 260)",
+  "--border": "oklch(0.28 0.017 260)",
+  "--card": "oklch(0.207 0.016 260)",
+  "--card-foreground": "oklch(0.955 0.006 250)",
+  "--chart": "oklch(0.78 0.13 55)",
+  "--compare": "oklch(0.6 0.012 255)",
+  "--down": "oklch(0.66 0.19 25)",
+  "--foreground": "oklch(0.955 0.006 250)",
+  "--input": "oklch(0.262 0.018 260)",
+  "--money": "oklch(0.8 0.13 88)",
+  "--muted": "oklch(0.262 0.018 260)",
+  "--muted-foreground": "oklch(0.685 0.015 255)",
+  "--popover": "oklch(0.222 0.017 260)",
+  "--popover-foreground": "oklch(0.955 0.006 250)",
+  "--primary": "oklch(0.955 0.006 250)",
+  "--primary-foreground": "oklch(0.2 0.016 260)",
+  "--ring": "oklch(0.62 0.02 255)",
+  "--secondary": "oklch(0.262 0.018 260)",
+  "--secondary-foreground": "oklch(0.955 0.006 250)",
+  "--up": "oklch(0.75 0.14 155)",
+} as CSSProperties;
+
+type ViewKey = "home" | "settings";
+type LocationTabKey = "country" | "region" | "city" | "globe";
+type PageTabKey = "pages" | "entry" | "exit";
+type SourceTabKey = "referrer" | "channel";
+type PlatformTabKey = "browser" | "os" | "device";
+type RevenueTabKey = "source" | "country" | "method" | "campaign";
+
+const NAV_TABS = [
+  { Icon: Home, key: "home" as const, label: "Home" },
+  { Icon: Settings, key: "settings" as const, label: "Settings" },
+];
+
+const NO_ROWS: GeoRow[] = [];
+const NO_JOURNEYS: VisitorJourney[] = [];
+
+const NavTabs = ({
+  view,
+  onView,
+  className,
+}: {
+  view: ViewKey;
+  onView: (v: ViewKey) => void;
+  className?: string;
+}) => (
+  <nav
+    aria-label="Sections"
+    className={`bg-muted/70 flex rounded-full p-1 ${className ?? ""}`}
+  >
+    {NAV_TABS.map(({ key, label, Icon }) => (
+      <button
+        key={key}
+        type="button"
+        aria-pressed={view === key}
+        onClick={() => onView(key)}
+        className={`focus-visible:outline-ring flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[13px] font-medium outline-offset-2 focus-visible:outline-2 ${
+          view === key
+            ? "bg-card text-foreground ring-foreground/10 ring-1"
+            : "text-muted-foreground hover:text-foreground"
+        }`}
+      >
+        <Icon className="size-3.5" aria-hidden />
+        {label}
+      </button>
+    ))}
+  </nav>
+);
+
+/* -------------------------------- mapping ---------------------------------- */
+
+const hostOf = (referrer: string | null | undefined): string => {
+  if (!referrer) {
+    return "";
+  }
+  try {
+    return new URL(referrer).host.replace(/^www\./u, "");
+  } catch {
+    return referrer;
+  }
+};
+
+const parseTags = (raw: string | null): string[] => {
+  if (!raw) {
+    return [];
+  }
+  try {
+    const parsed = JSON.parse(raw) as unknown;
+    if (Array.isArray(parsed)) {
+      return parsed.map((t) => `${t}`);
+    }
+  } catch {
+    /* plain string */
+  }
+  return raw
+    .split(",")
+    .map((t) => t.trim())
+    .filter(Boolean);
+};
+
+const parseProps = (raw: string | null): [string, string][] => {
+  if (!raw) {
+    return [];
+  }
+  try {
+    const obj = JSON.parse(raw) as Record<string, unknown>;
+    return Object.entries(obj).map(([k, v]) => [k, `${v}`]);
+  } catch {
+    return [];
+  }
+};
+
+const stepToEvent = (s: JourneyStep): VisitorEvent | null => {
+  if (s.event_type === "pageview") {
+    return { kind: "view", page: s.path, time: s.timestamp };
+  }
+  if (s.event_type === "conversion") {
+    const p = parseProps(s.props);
+    return {
+      event: s.name ?? "conversion",
+      kind: "conversion",
+      props: p.length ? p : undefined,
+      revenue: s.revenue ? money(s.revenue) : undefined,
+      time: s.timestamp,
+    };
+  }
+  if (s.event_type !== "custom") {
+    return { event: s.name ?? s.event_type, kind: "event", time: s.timestamp };
+  }
+  const p = parseProps(s.props);
+  const kv = Object.fromEntries(p);
+  const withProps = p.length ? p : undefined;
+  if (s.name === "heartbeat") {
+    return null;
+  }
+  if (s.name === "scroll") {
+    return {
+      kind: "scroll",
+      milestone: Number(kv["depth"] ?? 0) || null,
+      props: withProps,
+      time: s.timestamp,
+    };
+  }
+  if (s.name === "scroll_section") {
+    return {
+      kind: "section",
+      props: withProps,
+      section: kv["section_id"] ?? kv["section"] ?? s.path,
+      time: s.timestamp,
+    };
+  }
+  if (s.name === "click") {
+    return {
+      click: kv["text"] ?? kv["target"] ?? s.path,
+      kind: "click",
+      props: withProps,
+      time: s.timestamp,
+    };
+  }
+  return {
+    event: s.name ?? "custom",
+    kind: "event",
+    props: withProps,
+    time: s.timestamp,
+  };
+};
+
+const profileToVisitor = (
+  p: VisitorProfile,
+  journeys: VisitorJourney[]
+): Visitor => {
+  const mine = journeys
+    .filter((j) => j.visitor_id === p.visitor_id)
+    .toSorted((a, b) => a.started_at.localeCompare(b.started_at));
+  const events = mine
+    .flatMap((j) => j.steps.map(stepToEvent))
+    .filter((e): e is VisitorEvent => e !== null)
+    .toSorted((a, b) => a.time.localeCompare(b.time));
+  const source = mine[0]?.utm_source ?? hostOf(mine[0]?.referrer) ?? "direct";
+  const now = Date.now();
+  const activity = Array.from({ length: 7 }, (_, i) => {
+    const dayStart = new Date(now - (6 - i) * 86_400_000);
+    dayStart.setHours(0, 0, 0, 0);
+    const dayEnd = dayStart.getTime() + 86_400_000;
+    return mine.some((j) => {
+      const t = new Date(j.started_at).getTime();
+      return t >= dayStart.getTime() && t < dayEnd;
+    })
+      ? 1
+      : 0;
+  });
+  return {
+    activity,
+    browser: p.browser,
+    city: p.city,
+    country: p.country,
+    customer: p.total_revenue > 0,
+    device: p.device_type,
+    email: p.email,
+    events,
+    flag: countryFlag(p.country),
+    id: p.id,
+    lastSeen: agoLabel(p.last_seen),
+    name: p.name,
+    note: p.notes ?? "",
+    os: p.os,
+    params: [],
+    source,
+    spent: p.total_revenue > 0 ? money(p.total_revenue) : null,
+    tags: parseTags(p.tags),
+    visitorId: p.visitor_id,
+  };
+};
+
+const aggregateGeo = (
+  rows: GeoRow[],
+  keyOf: (r: GeoRow) => string | null
+): CountRow[] => {
+  const map = new Map<string, number>();
+  for (const r of rows) {
+    const key = keyOf(r);
+    if (!key) {
+      continue;
+    }
+    map.set(key, (map.get(key) ?? 0) + r.visitors);
+  }
+  return [...map.entries()]
+    .toSorted((a, b) => b[1] - a[1])
+    .map(([label, value]) => ({
+      flag: countryFlag(label) || undefined,
+      label,
+      value,
+    }));
+};
+
+const deviceGlyph = (device: string) => {
+  const d = device.toLowerCase();
+  if (d.includes("mobile") || d.includes("phone")) {
+    return { device: "mobile" as const };
+  }
+  if (d.includes("tablet")) {
+    return { device: "tablet" as const };
+  }
+  return { device: "desktop" as const };
+};
+
+const NEUTRAL_GLYPH = { bg: "oklch(0.34 0.02 260)", shape: "square" as const };
+
+const journeyChip = (s: JourneyStep): string => {
+  if (s.event_type === "pageview") {
+    return s.path || "/";
+  }
+  if (s.event_type === "conversion") {
+    return `${s.name ?? "purchase"} ${money(s.revenue ?? 0)}`;
+  }
+  return s.name ?? s.event_type;
+};
+
+/* ------------------------------- login gate -------------------------------- */
+
+const LEGACY_LOGIN_FIELDS = [
+  { autoComplete: "email", id: "login-email", label: "Email", type: "email" },
+  {
+    autoComplete: "current-password",
+    id: "login-password",
+    label: "Password",
+    type: "password",
+  },
+] as const;
+
+const LegacyLogin = ({ onDone }: { onDone: () => void }) => {
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setBusy(true);
+    setErr(null);
+    try {
+      await legacyLogin(email, password);
+      onDone();
+    } catch (error) {
+      setErr(error instanceof Error ? error.message : "Sign-in failed");
+    }
+    setBusy(false);
+  };
+
+  return (
+    <div
+      className="dark bg-background text-foreground grid min-h-svh place-items-center px-4"
+      style={DARK_TOKENS}
+    >
+      <form
+        className="bg-card ring-foreground/10 w-full max-w-sm rounded-2xl p-6 ring-1"
+        onSubmit={submit}
+      >
+        <div className="mb-5 flex items-center gap-2.5">
+          <img
+            src="/revklik.webp"
+            alt="Revklik logo"
+            className="ring-foreground/10 size-7 rounded-lg object-cover ring-1"
+          />
+          <div>
+            <p className="text-[15px] leading-tight font-semibold">
+              revklik analytics
+            </p>
+            <p className="text-muted-foreground text-xs">
+              Sign in with your revklik account
+            </p>
+          </div>
+        </div>
+        <div className="grid gap-3">
+          {LEGACY_LOGIN_FIELDS.map((f) => (
+            <label key={f.id} htmlFor={f.id} className="grid gap-1.5">
+              <span className="text-xs font-medium">{f.label}</span>
+              <Input
+                id={f.id}
+                type={f.type}
+                required
+                autoComplete={f.autoComplete}
+                value={f.type === "email" ? email : password}
+                onChange={(e) =>
+                  f.type === "email"
+                    ? setEmail(e.target.value)
+                    : setPassword(e.target.value)
+                }
+                className="h-9"
+              />
+            </label>
+          ))}
+          {err ? (
+            <p className="text-xs text-(--down)" role="alert">
+              {err}
+            </p>
+          ) : null}
+          <Button type="submit" disabled={busy} className="mt-1">
+            {busy ? "Signing in…" : "Sign in"}
+          </Button>
+        </div>
+      </form>
+    </div>
+  );
+};
+
+/* ------------------------------ panel helpers ------------------------------ */
+
+const PanelMsg = ({ children }: { children: ReactNode }) => (
+  <p className="text-muted-foreground py-6 text-center text-xs">{children}</p>
+);
+
+const PanelBody = ({
+  loading,
+  hasData,
+  emptyText,
+  children,
+}: {
+  loading: boolean;
+  hasData: boolean;
+  emptyText: string;
+  children: ReactNode;
+}) => {
+  if (loading) {
+    return <PanelMsg>Loading…</PanelMsg>;
+  }
+  if (!hasData) {
+    return <PanelMsg>{emptyText}</PanelMsg>;
+  }
+  return children;
+};
+
+interface DashProps {
+  dash: SiteDashboard | undefined;
+  loading: boolean;
+}
+
+/* --------------------------------- panels ---------------------------------- */
+
+const PAGES_HINT: Record<PageTabKey, string> = {
+  entry: "sessions",
+  exit: "exits",
+  pages: "views",
+};
+
+const PagesPanel = ({ dash, loading }: DashProps) => {
+  const [pageTab, setPageTab] = useState<PageTabKey>("pages");
+  const rows: CountRow[] = useMemo(() => {
+    if (pageTab === "entry") {
+      return (dash?.entryPagesRevenue ?? []).map((p) => ({
+        label: p.path,
+        value: p.sessions,
+      }));
+    }
+    if (pageTab === "exit") {
+      return (dash?.exitPages ?? []).map((p) => ({
+        label: p.path,
+        value: p.exits,
+      }));
+    }
+    return (dash?.topPages ?? []).map((p) => ({
+      label: p.path,
+      value: p.pageviews,
+    }));
+  }, [dash, pageTab]);
+  const total = rows.reduce((acc, r) => acc + r.value, 0);
+
+  return (
+    <Panel
+      tabs={
+        <PanelTabs
+          value={pageTab}
+          onChange={setPageTab}
+          tabs={[
+            { key: "pages", label: "Pages" },
+            { key: "entry", label: "Entry" },
+            { key: "exit", label: "Exit" },
+          ]}
+        />
+      }
+      hint={PAGES_HINT[pageTab]}
+    >
+      <PanelBody
+        loading={loading}
+        hasData={rows.length > 0}
+        emptyText="No data yet."
+      >
+        <div className="grid gap-1">
+          {rows.map((p) => (
+            <CountBarRow
+              key={p.label}
+              glyph={
+                <FileText
+                  className="text-muted-foreground size-4 shrink-0"
+                  aria-hidden
+                />
+              }
+              label={p.label}
+              value={fmtC(p.value)}
+              share={(p.value / total) * 100}
+            />
+          ))}
+        </div>
+      </PanelBody>
+    </Panel>
+  );
+};
+
+const SourcesPanel = ({ dash, loading }: DashProps) => {
+  const [sourceTab, setSourceTab] = useState<SourceTabKey>("referrer");
+  const rows: CountRow[] = useMemo(() => {
+    if (sourceTab === "channel") {
+      return (dash?.channels ?? []).map((c) => ({
+        label: c.channel,
+        value: c.visitors,
+      }));
+    }
+    return (dash?.sources ?? []).map((s) => ({
+      label: s.source,
+      value: s.visitors,
+    }));
+  }, [dash, sourceTab]);
+  const total = rows.reduce((acc, r) => acc + r.value, 0);
+
+  return (
+    <Panel
+      tabs={
+        <PanelTabs
+          value={sourceTab}
+          onChange={setSourceTab}
+          tabs={[
+            { key: "referrer", label: "Referrer" },
+            { key: "channel", label: "Channel" },
+          ]}
+        />
+      }
+      hint="visitors"
+    >
+      <PanelBody
+        loading={loading}
+        hasData={rows.length > 0}
+        emptyText="No data yet."
+      >
+        <div className="grid gap-1">
+          {rows.map((s) => (
+            <CountBarRow
+              key={s.label}
+              glyph={
+                <Globe
+                  className="text-muted-foreground size-4 shrink-0"
+                  aria-hidden
+                />
+              }
+              label={s.label}
+              value={fmtC(s.value)}
+              share={(s.value / total) * 100}
+            />
+          ))}
+        </div>
+      </PanelBody>
+    </Panel>
+  );
+};
+
+const LocationPanel = ({
+  siteId,
+  rangeKey,
+  filterStr,
+}: {
+  siteId: string;
+  rangeKey: RangeKey;
+  filterStr: string;
+}) => {
+  const [locationTab, setLocationTab] = useState<LocationTabKey>("country");
+  const geoQ = useQuery({
+    enabled: Boolean(siteId),
+    queryFn: () => fetchGeo(siteId, rangeKey, filterStr),
+    queryKey: ["legacy", "geo", siteId, rangeKey, filterStr],
+    retry: false,
+    staleTime: 60_000,
+  });
+  const geoRows = geoQ.data ?? NO_ROWS;
+  const rows: CountRow[] = useMemo(() => {
+    if (locationTab === "region") {
+      return aggregateGeo(geoRows, (r) => r.region);
+    }
+    if (locationTab === "city") {
+      return aggregateGeo(geoRows, (r) => r.city);
+    }
+    return aggregateGeo(geoRows, (r) => r.country);
+  }, [geoRows, locationTab]);
+  const total = rows.reduce((acc, r) => acc + r.value, 0);
+  const globeMarkers = useMemo(
+    () =>
+      geoRows
+        .filter((r) => r.city && CITY_COORDS[r.city])
+        .slice(0, 8)
+        .map((r) => ({
+          city: r.city as string,
+          location: CITY_COORDS[r.city as string],
+        })),
+    [geoRows]
+  );
+  const renderBody = () => {
+    if (locationTab === "globe") {
+      if (geoQ.isLoading) {
+        return <PanelMsg>Loading…</PanelMsg>;
+      }
+      if (!globeMarkers.length) {
+        return <PanelMsg>No geolocated cities in this range.</PanelMsg>;
+      }
+      return <GlobePanel markers={globeMarkers} />;
+    }
+    return (
+      <PanelBody
+        loading={geoQ.isLoading}
+        hasData={rows.length > 0}
+        emptyText="No data yet."
+      >
+        <div className="grid gap-1">
+          {rows.map((c) => (
+            <CountBarRow
+              key={c.label}
+              glyph={
+                <span className="text-[15px] leading-none" aria-hidden>
+                  {c.flag ?? "🌐"}
+                </span>
+              }
+              label={c.label}
+              value={fmtC(c.value)}
+              share={(c.value / total) * 100}
+            />
+          ))}
+        </div>
+      </PanelBody>
+    );
+  };
+
+  return (
+    <Panel
+      tabs={
+        <PanelTabs
+          value={locationTab}
+          onChange={setLocationTab}
+          tabs={[
+            { key: "country", label: "Countries" },
+            { key: "region", label: "Region" },
+            { key: "city", label: "City" },
+            { key: "globe", label: "Globe" },
+          ]}
+        />
+      }
+      hint="visitors"
+    >
+      {renderBody()}
+    </Panel>
+  );
+};
+
+const PlatformPanel = ({ dash, loading }: DashProps) => {
+  const [platformTab, setPlatformTab] = useState<PlatformTabKey>("device");
+  const [platformDir, setPlatformDir] = useState<"desc" | "asc">("desc");
+  const src = useMemo(() => {
+    if (platformTab === "browser") {
+      return dash?.browsers;
+    }
+    if (platformTab === "os") {
+      return dash?.os;
+    }
+    return dash?.devices;
+  }, [dash, platformTab]);
+  const { sorted, total } = useMemo(() => {
+    const rows = (src ?? []).map((d) => ({
+      glyph: platformTab === "device" ? deviceGlyph(d.device) : NEUTRAL_GLYPH,
+      label: d.device,
+      value: d.visitors,
+    }));
+    return {
+      sorted: rows.toSorted((a, b) =>
+        platformDir === "desc" ? b.value - a.value : a.value - b.value
+      ),
+      total: rows.reduce((acc, r) => acc + r.value, 0),
+    };
+  }, [src, platformTab, platformDir]);
+
+  return (
+    <Panel
+      tabs={
+        <PanelTabs
+          value={platformTab}
+          onChange={setPlatformTab}
+          tabs={[
+            { key: "browser", label: "Browser" },
+            { key: "os", label: "OS" },
+            { key: "device", label: "Device" },
+          ]}
+        />
+      }
+      hint={
+        <button
+          type="button"
+          onClick={() =>
+            setPlatformDir(platformDir === "desc" ? "asc" : "desc")
+          }
+          className="text-muted-foreground hover:text-foreground focus-visible:outline-ring inline-flex items-center gap-1 rounded-md px-1 py-0.5 text-xs outline-offset-2 focus-visible:outline-2"
+        >
+          Visitors
+          <ArrowDownUp className="size-3" aria-hidden />
+        </button>
+      }
+    >
+      <PanelBody
+        loading={loading}
+        hasData={sorted.length > 0}
+        emptyText="No data yet."
+      >
+        <div className="grid gap-1">
+          {sorted.map((d) => (
+            <CountBarRow
+              key={d.label}
+              glyph={<PlatformGlyph row={d.glyph} />}
+              label={d.label}
+              value={fmtC(d.value)}
+              share={(d.value / total) * 100}
+            />
+          ))}
+        </div>
+      </PanelBody>
+    </Panel>
+  );
+};
+
+const RevenuePanel = ({
+  dash,
+  loading,
+  siteId,
+  rangeKey,
+  filterStr,
+}: DashProps & { siteId: string; rangeKey: RangeKey; filterStr: string }) => {
+  const [revenueTab, setRevenueTab] = useState<RevenueTabKey>("source");
+  const campaignsQ = useQuery({
+    enabled: Boolean(siteId),
+    queryFn: () => fetchCampaigns(siteId, rangeKey, filterStr),
+    queryKey: ["legacy", "campaigns", siteId, rangeKey, filterStr],
+    retry: false,
+    staleTime: 60_000,
+  });
+  const rows: CountRow[] = useMemo(() => {
+    if (revenueTab === "country") {
+      return (dash?.revenueByCountry ?? []).map((r) => ({
+        flag: countryFlag(r.country) || undefined,
+        label: r.country,
+        value: r.revenue,
+      }));
+    }
+    if (revenueTab === "method") {
+      return (dash?.revenueByMethod ?? []).map((r) => ({
+        label: r.method,
+        value: r.revenue,
+      }));
+    }
+    return (dash?.revenueBySource ?? []).map((r) => ({
+      label: r.source,
+      value: r.revenue,
+    }));
+  }, [dash, revenueTab]);
+  const total = rows.reduce((acc, r) => acc + r.value, 0);
+
+  const campaigns = campaignsQ.data ?? [];
+  const campaignBody = () => {
+    if (campaignsQ.isLoading) {
+      return <PanelMsg>Loading…</PanelMsg>;
+    }
+    if (!campaigns.length) {
+      return <PanelMsg>No campaigns recorded.</PanelMsg>;
+    }
+    return (
+      <div className="grid grid-cols-[1fr_auto_auto] items-center gap-x-4 gap-y-1 text-[13px]">
+        <span className="text-muted-foreground pb-1 text-xs">Campaign</span>
+        <span className="text-muted-foreground pb-1 text-end text-xs">
+          Visitors
+        </span>
+        <span className="text-muted-foreground pb-1 text-end text-xs">
+          Revenue
+        </span>
+        {campaigns.map((c: CampaignPerformance) => (
+          <div
+            key={`${c.utm_source}-${c.utm_medium}-${c.utm_campaign}`}
+            className="border-border/60 col-span-3 grid grid-cols-subgrid items-center border-t py-1.5"
+          >
+            <span className="min-w-0">
+              <span className="block truncate font-medium">
+                {c.utm_campaign || "(none)"}
+              </span>
+              <span className="text-muted-foreground block truncate text-xs">
+                {c.utm_source || "—"} · {c.utm_medium || "—"} ·{" "}
+                {c.conversionRate}% convert
+              </span>
+            </span>
+            <span className="text-end font-mono text-xs tabular-nums">
+              {fmt(c.visitors)}
+            </span>
+            <span className="text-end font-mono text-xs text-(--money) tabular-nums">
+              {money(c.revenue)}
+            </span>
+          </div>
+        ))}
+      </div>
+    );
+  };
+
+  const moneyBody = () => (
+    <PanelBody
+      loading={loading}
+      hasData={rows.length > 0}
+      emptyText="No revenue in this range."
+    >
+      <div className="grid gap-1">
+        {rows.map((r) => (
+          <CountBarRow
+            key={r.label}
+            glyph={
+              <span
+                className="grid size-4 shrink-0 place-items-center rounded-[5px] bg-(--money)/15 font-mono text-[9px] font-bold text-(--money)"
+                aria-hidden
+              >
+                $
+              </span>
+            }
+            label={r.label}
+            value={money(r.value)}
+            share={(r.value / total) * 100}
+            fill="var(--money)"
+          />
+        ))}
+      </div>
+    </PanelBody>
+  );
+
+  return (
+    <Panel
+      tabs={
+        <PanelTabs
+          value={revenueTab}
+          onChange={setRevenueTab}
+          tabs={[
+            { key: "source", label: "Source" },
+            { key: "country", label: "Country" },
+            { key: "method", label: "Method" },
+            { key: "campaign", label: "Campaign" },
+          ]}
+        />
+      }
+      hint="revenue"
+    >
+      {revenueTab === "campaign" ? campaignBody() : moneyBody()}
+    </Panel>
+  );
+};
+
+const LIVE_FEED_MAX = 8;
+
+interface LiveFeedItem {
+  key: string;
+  flag: string;
+  path: string;
+  source: string;
+  at: number;
+}
+
+const LivePanel = ({
+  domain,
+  online,
+  feed,
+}: {
+  domain: string | undefined;
+  online: number | null;
+  feed: LiveFeedItem[];
+}) => (
+  <Panel title="Live" hint="right now">
+    <p className="mb-1.5 flex items-center gap-2 text-[13px]">
+      <span className="relative flex size-2">
+        <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-(--up) opacity-50 motion-reduce:animate-none" />
+        <span className="relative inline-flex size-2 rounded-full bg-(--up)" />
+      </span>
+      {online ?? "…"} visitors on {domain ?? "…"}
+    </p>
+    <div>
+      <PanelBody
+        loading={false}
+        hasData={feed.length > 0}
+        emptyText="Waiting for live events…"
+      >
+        <div>
+          {feed.map((v) => (
+            <div
+              key={v.key}
+              className="border-border/60 flex items-center gap-3 border-t py-1.5 text-[13px] first:border-t-0"
+            >
+              <span aria-hidden>{v.flag || "🌐"}</span>
+              <span className="min-w-0 flex-1 truncate font-mono text-xs">
+                {v.path}
+              </span>
+              <span className="text-muted-foreground hidden truncate text-xs sm:block">
+                {v.source}
+              </span>
+              <span className="text-muted-foreground w-10 text-end font-mono text-xs tabular-nums">
+                {agoLabel(new Date(v.at).toISOString())}
+              </span>
+            </div>
+          ))}
+        </div>
+      </PanelBody>
+    </div>
+  </Panel>
+);
+
+const ExplorePanel = ({
+  siteId,
+  dash,
+  loading,
+}: DashProps & { siteId: string }) => {
+  const [exploreTab, setExploreTab] = useState<"users" | "journeys">("users");
+  const [visitorRowId, setVisitorRowId] = useState<string | null>(null);
+  const queryClient = useQueryClient();
+
+  const visitorsQ = useQuery({
+    enabled: Boolean(siteId),
+    queryFn: () => fetchVisitors(siteId),
+    queryKey: ["legacy", "visitors", siteId],
+    retry: false,
+    staleTime: 30_000,
+  });
+
+  const saveVisitor = useMutation({
+    mutationFn: ({
+      id,
+      patch,
+    }: {
+      id: string;
+      patch: { tags: string[]; note: string };
+    }) =>
+      updateVisitor(id, {
+        notes: patch.note,
+        tags: JSON.stringify(patch.tags),
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["legacy", "visitors"] });
+    },
+  });
+
+  const journeys = dash?.journeys ?? NO_JOURNEYS;
+  const visitors = useMemo(
+    () => (visitorsQ.data ?? []).map((p) => profileToVisitor(p, journeys)),
+    [visitorsQ.data, journeys]
+  );
+  const activeVisitor = visitorRowId
+    ? (visitors.find((v) => v.id === visitorRowId) ?? null)
+    : null;
+
+  return (
+    <div className="md:col-span-2 xl:col-span-3">
+      <Panel
+        tabs={
+          <PanelTabs
+            value={exploreTab}
+            onChange={setExploreTab}
+            tabs={[
+              { key: "users", label: "Users" },
+              { key: "journeys", label: "Journeys" },
+            ]}
+          />
+        }
+        hint={
+          exploreTab === "users"
+            ? "click a visitor for the full journey"
+            : "session step flows"
+        }
+      >
+        {exploreTab === "users" ? (
+          <PanelBody
+            loading={visitorsQ.isLoading}
+            hasData={visitors.length > 0}
+            emptyText="No visitors yet."
+          >
+            <div>
+              <div className="text-muted-foreground border-border/60 grid grid-cols-[minmax(0,1fr)_auto] gap-3 border-b pb-1.5 text-[11px] sm:grid-cols-[minmax(0,1fr)_130px_64px_170px]">
+                <span>Visitor</span>
+                <span className="hidden sm:block">Source</span>
+                <span className="hidden text-end sm:block">Spent</span>
+                <span className="text-end">Last seen</span>
+              </div>
+              <div className="max-h-[420px] overflow-y-auto">
+                {visitors.map((v) => (
+                  <button
+                    key={v.id}
+                    type="button"
+                    onClick={() => setVisitorRowId(v.id)}
+                    className="border-border/60 hover:bg-foreground/[0.03] focus-visible:outline-ring -mx-1 grid w-[calc(100%+8px)] grid-cols-[minmax(0,1fr)_auto] items-center gap-3 border-b px-1 py-2 text-left text-[13px] outline-offset-2 last:border-b-0 focus-visible:outline-2 sm:grid-cols-[minmax(0,1fr)_130px_64px_170px]"
+                  >
+                    <span className="flex min-w-0 items-center gap-2.5">
+                      <img
+                        src={visitorAvatar(v)}
+                        alt=""
+                        loading="lazy"
+                        className="ring-foreground/10 bg-card size-9 shrink-0 rounded-full ring-1"
+                      />
+                      <span className="min-w-0">
+                        <span className="block truncate font-medium">
+                          {visitorName(v)}
+                        </span>
+                        <span className="text-muted-foreground flex items-center gap-1 text-xs">
+                          <span aria-hidden>{v.flag}</span>
+                          {v.country ?? "Unknown"} · {v.device ?? "—"} ·{" "}
+                          {v.os ?? "—"} · {v.browser ?? "—"}
+                        </span>
+                      </span>
+                    </span>
+                    <span className="text-muted-foreground hidden truncate text-xs sm:block">
+                      {v.source}
+                    </span>
+                    <span className="hidden text-end font-mono text-xs tabular-nums sm:block">
+                      {v.spent ?? "—"}
+                    </span>
+                    <span className="text-end">
+                      <span className="block text-xs">{v.lastSeen}</span>
+                      <span className="mt-1 flex justify-end gap-1">
+                        {v.activity.map((a, i) => (
+                          <span
+                            key={i}
+                            className={`size-1.5 rounded-full ${a ? "bg-(--chart)" : "bg-muted"}`}
+                          />
+                        ))}
+                      </span>
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          </PanelBody>
+        ) : (
+          <PanelBody
+            loading={loading}
+            hasData={journeys.length > 0}
+            emptyText="No journeys in this range."
+          >
+            <div className="max-h-[420px] overflow-y-auto">
+              {journeys.slice(0, 20).map((j) => {
+                const chips = j.steps
+                  .filter(
+                    (s) => s.event_type !== "custom" || s.name !== "heartbeat"
+                  )
+                  .slice(0, 6)
+                  .map(journeyChip);
+                return (
+                  <div
+                    key={j.session_id}
+                    className="border-border/60 flex flex-wrap items-center gap-x-2 gap-y-1.5 border-t py-1.5 text-[13px] first:border-t-0"
+                  >
+                    <span aria-hidden>{countryFlag(j.country) || "🌐"}</span>
+                    <span className="bg-muted text-muted-foreground rounded-md px-1.5 py-0.5 font-mono text-[10px]">
+                      {j.utm_source || hostOf(j.referrer) || "direct"}
+                    </span>
+                    <span className="flex min-w-0 flex-1 flex-wrap items-center gap-1">
+                      {chips.map((s, i) => (
+                        <span
+                          key={`${s}-${i}`}
+                          className="flex items-center gap-1"
+                        >
+                          {i > 0 ? (
+                            <ArrowRight
+                              className="text-muted-foreground/60 size-3"
+                              aria-hidden
+                            />
+                          ) : null}
+                          <span className="bg-muted/70 rounded-full px-2 py-0.5 font-mono text-[11px]">
+                            {s}
+                          </span>
+                        </span>
+                      ))}
+                    </span>
+                    {j.visitor_name ? (
+                      <span className="rounded-full bg-(--chart)/10 px-2 py-0.5 text-[11px] text-(--chart)">
+                        {j.visitor_name}
+                      </span>
+                    ) : null}
+                    <span className="text-muted-foreground font-mono text-xs tabular-nums">
+                      {agoLabel(j.started_at)}
+                    </span>
+                    {j.total_revenue > 0 ? (
+                      <span className="inline-flex items-center gap-1 rounded-full bg-(--chart)/10 px-2 py-0.5 font-mono text-[11px] text-(--chart)">
+                        <Check className="size-3" aria-hidden />
+                        {money(j.total_revenue)}
+                      </span>
+                    ) : (
+                      <span className="bg-muted text-muted-foreground rounded-full px-2 py-0.5 text-[11px]">
+                        Exited
+                      </span>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </PanelBody>
+        )}
+      </Panel>
+
+      {activeVisitor ? (
+        <VisitorSheet
+          key={activeVisitor.id}
+          visitor={activeVisitor}
+          onClose={() => setVisitorRowId(null)}
+          onSave={async (patch) => {
+            await saveVisitor.mutateAsync({ id: activeVisitor.id, patch });
+          }}
+        />
+      ) : null}
+    </div>
+  );
+};
+
+const FunnelSection = ({
+  siteId,
+  rangeKey,
+  filterStr,
+}: {
+  siteId: string;
+  rangeKey: RangeKey;
+  filterStr: string;
+}) => {
+  const [funnelPath, setFunnelPath] = useState("");
+  const funnelQ = useQuery({
+    enabled: Boolean(siteId),
+    queryFn: () => fetchFunnel(siteId, rangeKey, filterStr),
+    queryKey: ["legacy", "funnel", siteId, rangeKey, filterStr],
+    retry: false,
+    staleTime: 60_000,
+  });
+  const funnel = funnelQ.data;
+  const funnelPage =
+    funnel?.pages.find((p) => p.path === funnelPath) ?? funnel?.pages[0];
+  const funnelSteps = funnelPage?.steps ?? funnel?.steps ?? [];
+  const funnelRate = funnelPage?.conversionRate ?? funnel?.conversionRate ?? 0;
+  const activePath = funnelPage?.path ?? "";
+
+  return (
+    <section className="bg-card ring-foreground/10 rounded-2xl p-3 ring-1">
+      <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+        {funnel?.pages.length ? (
+          <PanelTabs
+            value={activePath}
+            onChange={setFunnelPath}
+            tabs={funnel.pages.map((p) => ({ key: p.path, label: p.path }))}
+          />
+        ) : (
+          <h2 className="text-sm font-semibold">Scroll funnel</h2>
+        )}
+        <span className="text-muted-foreground text-xs">
+          <span className="font-mono font-medium text-(--chart)">
+            {funnelRate}%
+          </span>{" "}
+          convert · data-section scroll funnel
+        </span>
+      </div>
+      <PanelBody
+        loading={funnelQ.isLoading}
+        hasData={funnelSteps.length > 0}
+        emptyText="No funnel data — needs pageview + scroll_section events."
+      >
+        <FunnelChart steps={funnelSteps} />
+      </PanelBody>
+    </section>
+  );
+};
+
+const TopBar = ({
+  view,
+  onView,
+  sites,
+  siteId,
+  onPickSite,
+  sitesLoading,
+  rangeKey,
+  onRange,
+  online,
+}: {
+  view: ViewKey;
+  onView: (v: ViewKey) => void;
+  sites: { id: string; domain: string }[];
+  siteId: string;
+  onPickSite: (id: string) => void;
+  sitesLoading: boolean;
+  rangeKey: RangeKey;
+  onRange: (r: RangeKey) => void;
+  online: number | null;
+}) => (
+  <header className="border-border/60 bg-background/85 sticky top-0 z-20 border-b backdrop-blur">
+    <div className="relative mx-auto flex max-w-7xl flex-wrap items-center gap-2 px-3 py-2 md:px-4">
+      <div className="flex items-center gap-2.5">
+        <img
+          src="/revklik.webp"
+          alt="Revklik logo"
+          className="ring-foreground/10 size-7 rounded-lg object-cover ring-1"
+        />
+        <span className="text-[15px] font-semibold tracking-tight">
+          revklik
+        </span>
+      </div>
+
+      <Select value={siteId} onValueChange={(v) => onPickSite(String(v))}>
+        <SelectTrigger
+          aria-label="Website"
+          className="bg-card ring-foreground/10 focus-visible:outline-ring data-[placeholder]:text-foreground hover:bg-accent dark:bg-card dark:hover:bg-accent h-auto w-auto gap-2 rounded-full px-2.5 py-1 text-[13px] font-medium ring-1"
+        >
+          <span className="size-2 rounded-full bg-(--chart)" aria-hidden />
+          <SelectValue placeholder={sitesLoading ? "Loading…" : "Site"}>
+            {sites.find((s) => s.id === siteId)?.domain ??
+              (sitesLoading ? "Loading…" : "Site")}
+          </SelectValue>
+        </SelectTrigger>
+        <SelectContent align="start" className="min-w-44">
+          {sites.map((s) => (
+            <SelectItem key={s.id} value={s.id}>
+              {s.domain}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+
+      {view === "home" ? (
+        <div className="ms-auto flex items-center gap-2">
+          <div className="bg-muted/70 flex rounded-full p-1">
+            {RANGES.map((r) => (
+              <button
+                key={r.key}
+                type="button"
+                aria-pressed={rangeKey === r.key}
+                onClick={() => onRange(r.key)}
+                className={`focus-visible:outline-ring rounded-full px-2.5 py-1 text-[13px] font-medium outline-offset-2 focus-visible:outline-2 ${
+                  rangeKey === r.key
+                    ? "bg-card text-foreground ring-foreground/10 ring-1"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                {r.label}
+              </button>
+            ))}
+          </div>
+          <span className="bg-card ring-foreground/10 hidden items-center gap-2 rounded-full px-2.5 py-1 text-[13px] ring-1 sm:flex">
+            <span className="relative flex size-2">
+              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-(--up) opacity-50 motion-reduce:animate-none" />
+              <span className="relative inline-flex size-2 rounded-full bg-(--up)" />
+            </span>
+            {online ?? "…"} online
+          </span>
+        </div>
+      ) : null}
+
+      <NavTabs
+        view={view}
+        onView={onView}
+        className="order-last w-full justify-center md:absolute md:top-1/2 md:left-1/2 md:order-none md:w-auto md:-translate-x-1/2 md:-translate-y-1/2"
+      />
+    </div>
+  </header>
+);
+
+const FiltersBar = ({
+  filters,
+  setFilters,
+  draftDim,
+  setDraftDim,
+  draftOp,
+  setDraftOp,
+  draftValue,
+  setDraftValue,
+  addFilter,
+}: {
+  filters: LegacyFilter[];
+  setFilters: (updater: (prev: LegacyFilter[]) => LegacyFilter[]) => void;
+  draftDim: string;
+  setDraftDim: (d: string) => void;
+  draftOp: FilterOperator;
+  setDraftOp: (o: FilterOperator) => void;
+  draftValue: string;
+  setDraftValue: (v: string) => void;
+  addFilter: () => void;
+}) => {
+  const voidOp = draftOp === "exists" || draftOp === "not_exists";
+  return (
+    <div className="mb-2.5 flex flex-wrap items-center gap-2">
+      <span className="text-muted-foreground text-xs font-medium">Filters</span>
+      <Select
+        value={draftDim}
+        onValueChange={(v) => {
+          setDraftDim(String(v));
+          setDraftValue("");
+        }}
+      >
+        <SelectTrigger
+          aria-label="Filter dimension"
+          className="h-8 w-36 text-xs"
+        >
+          <SelectValue placeholder="Dimension" />
+        </SelectTrigger>
+        <SelectContent>
+          {FILTER_DIMS.map((d) => (
+            <SelectItem key={d.value} value={d.value}>
+              {d.label}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      {draftDim ? (
+        <>
+          <Select
+            value={draftOp}
+            onValueChange={(v) => setDraftOp(String(v) as FilterOperator)}
+          >
+            <SelectTrigger
+              aria-label="Filter operator"
+              className="h-8 w-28 text-xs"
+            >
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {FILTER_OPS.map((o) => (
+                <SelectItem key={o.value} value={o.value}>
+                  {o.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          {voidOp ? null : (
+            <Input
+              aria-label="Filter value"
+              value={draftValue}
+              placeholder="Value…"
+              onChange={(e) => setDraftValue(e.target.value)}
+              className="h-8 w-44 text-xs"
+            />
+          )}
+        </>
+      ) : null}
+      <button
+        type="button"
+        onClick={addFilter}
+        disabled={!draftDim}
+        className="bg-muted/70 hover:bg-muted focus-visible:outline-ring flex items-center gap-1 rounded-lg px-2 py-1.5 text-xs font-medium outline-offset-2 focus-visible:outline-2 disabled:pointer-events-none disabled:opacity-40"
+      >
+        <Plus className="size-3" aria-hidden />
+        Add
+      </button>
+      {filters.map((flt) => (
+        <span
+          key={`${flt.dimension}-${flt.operator}-${flt.value}`}
+          className="inline-flex items-center gap-1 rounded-full bg-(--chart)/10 px-2 py-0.5 text-xs font-medium text-(--chart)"
+        >
+          {flt.dimension} {flt.operator.replaceAll("_", " ")} {flt.value}
+          <button
+            type="button"
+            aria-label={`Remove filter ${flt.dimension} ${flt.value}`}
+            onClick={() =>
+              setFilters((prev) =>
+                prev.filter(
+                  (x) =>
+                    !(
+                      x.dimension === flt.dimension &&
+                      x.operator === flt.operator &&
+                      x.value === flt.value
+                    )
+                )
+              )
+            }
+            className="hover:text-foreground focus-visible:outline-ring outline-offset-2 focus-visible:outline-2"
+          >
+            <X className="size-3" aria-hidden />
+          </button>
+        </span>
+      ))}
+      {filters.length ? (
+        <button
+          type="button"
+          onClick={() => setFilters(() => [])}
+          className="text-muted-foreground hover:text-foreground text-xs underline-offset-2 hover:underline"
+        >
+          Clear all
+        </button>
+      ) : null}
+    </div>
+  );
+};
+
+const StatTiles = ({
+  stats,
+  deltaPct,
+}: {
+  stats: SiteDashboard["stats"] | undefined;
+  deltaPct: (k: keyof NonNullable<SiteDashboard["compare"]>) => number;
+}) => (
+  <div className="mb-2.5 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
+    <StatTile
+      label="Visitors"
+      value={stats ? fmt(stats.visitors) : "…"}
+      delta={fmtPct(deltaPct("visitors"))}
+      tone={deltaPct("visitors") >= 0 ? "good" : "bad"}
+    />
+    <StatTile
+      label="Pageviews"
+      value={stats ? fmt(stats.pageviews) : "…"}
+      delta={fmtPct(deltaPct("pageviews"))}
+      tone={deltaPct("pageviews") >= 0 ? "good" : "bad"}
+    />
+    <StatTile
+      label="Bounce rate"
+      value={stats ? `${stats.bounceRate.toFixed(1)}%` : "…"}
+      delta={fmtPct(deltaPct("bounceRate"))}
+      tone={deltaPct("bounceRate") <= 0 ? "good" : "bad"}
+    />
+    <StatTile
+      label="Visit duration"
+      value={stats ? duration(stats.avgDuration) : "…"}
+      delta={fmtPct(deltaPct("avgDuration"))}
+      tone={deltaPct("avgDuration") >= 0 ? "good" : "bad"}
+    />
+    <StatTile
+      label="Revenue"
+      value={stats ? money(stats.revenue) : "…"}
+      delta={fmtPct(deltaPct("revenue"))}
+      tone={deltaPct("revenue") >= 0 ? "good" : "bad"}
+    />
+  </div>
+);
+
+/* --------------------------------- page ------------------------------------ */
+
+const AnalyticsPage = () => {
+  const [authed, setAuthed] = useState(isLegacyAuthed());
+  const [view, setView] = useState<ViewKey>("home");
+  const [rangeKey, setRangeKey] = useState<RangeKey>("30d");
+  const [siteIdRaw, setSiteIdRaw] = useState(
+    () => localStorage.getItem("kp_active_site") ?? ""
+  );
+  const [filters, setFilters] = useState<LegacyFilter[]>([]);
+  const [draftDim, setDraftDim] = useState("");
+  const [draftOp, setDraftOp] = useState<FilterOperator>("is");
+  const [draftValue, setDraftValue] = useState("");
+  const [live, setLive] = useState<{
+    online: number | null;
+    feed: LiveFeedItem[];
+  }>({ feed: [], online: null });
+
+  const sitesQ = useQuery({
+    enabled: authed,
+    queryFn: () => fetchSites(rangeKey),
+    queryKey: ["legacy", "sites", rangeKey],
+    retry: false,
+    staleTime: 60_000,
+  });
+
+  const sites = sitesQ.data ?? [];
+  const siteId = sites.some((s) => s.id === siteIdRaw)
+    ? siteIdRaw
+    : (sites[0]?.id ?? "");
+  const site = sites.find((s) => s.id === siteId);
+  const filterStr = encodeFilterString(filters);
+
+  useEffect(() => {
+    if (siteId) {
+      localStorage.setItem("kp_active_site", siteId);
+    }
+  }, [siteId]);
+
+  const dashQ = useQuery({
+    enabled: authed && Boolean(siteId),
+    queryFn: () => fetchDashboard(siteId, rangeKey, filterStr),
+    queryKey: ["legacy", "dash", siteId, rangeKey, filterStr],
+    retry: false,
+    staleTime: 60_000,
+  });
+  const dash = dashQ.data;
+  const loadingDash = dashQ.isLoading;
+
+  useEffect(() => {
+    if (!authed || !siteId) {
+      return;
+    }
+    return connectSSE(siteId, ({ type, data }) => {
+      if (type === "stats") {
+        const d = data as { live_visitors?: number };
+        setLive((s) => ({ ...s, online: d.live_visitors ?? s.online }));
+      } else if (type === "visitor") {
+        const d = data as {
+          path?: string;
+          country?: string;
+          referrer?: string;
+          utm_source?: string;
+          ts?: number;
+        };
+        setLive((s) => ({
+          ...s,
+          feed: [
+            {
+              at: Date.now(),
+              flag: countryFlag(d.country),
+              key: `${d.ts ?? Date.now()}-${d.path ?? ""}`,
+              path: d.path ?? "/",
+              source: d.utm_source || hostOf(d.referrer) || "direct",
+            },
+            ...s.feed,
+          ].slice(0, LIVE_FEED_MAX),
+        }));
+      }
+    });
+  }, [authed, siteId]);
+
+  const hourly = rangeKey === "24h";
+  const points: Point[] = useMemo(
+    () =>
+      (dash?.timeseries ?? []).map((t) => ({
+        ...pointLabel(t.date, hourly),
+        current: t.visitors,
+      })),
+    [dash, hourly]
+  );
+
+  const pickSite = (id: string) => {
+    setSiteIdRaw(id);
+    setLive({ feed: [], online: null });
+  };
+
+  const addFilter = () => {
+    const needsValue = draftOp !== "exists" && draftOp !== "not_exists";
+    if (!draftDim || (needsValue && !draftValue)) {
+      return;
+    }
+    setFilters((prev) =>
+      prev.some(
+        (x) =>
+          x.dimension === draftDim &&
+          x.operator === draftOp &&
+          x.value === draftValue
+      )
+        ? prev
+        : [
+            ...prev,
+            { dimension: draftDim, operator: draftOp, value: draftValue },
+          ]
+    );
+  };
+
+  if (!authed) {
+    return <LegacyLogin onDone={() => setAuthed(true)} />;
+  }
+
+  const stats = dash?.stats;
+  const cmp = dash?.compare;
+  const deltaPct = (k: keyof NonNullable<SiteDashboard["compare"]>): number =>
+    cmp?.[k]?.changePct ?? 0;
+
+  const firstError = [sitesQ.error, dashQ.error].find(Boolean);
+  const errorMsg = firstError instanceof Error ? firstError.message : "";
+
+  return (
+    <div
+      className="dark bg-background text-foreground min-h-svh"
+      style={DARK_TOKENS}
+    >
+      <TopBar
+        view={view}
+        onView={setView}
+        sites={sites}
+        siteId={siteId}
+        onPickSite={pickSite}
+        sitesLoading={sitesQ.isLoading}
+        rangeKey={rangeKey}
+        onRange={setRangeKey}
+        online={live.online}
+      />
+
+      {view === "home" ? (
+        <main className="mx-auto max-w-7xl px-3 pt-3 pb-6 md:px-4">
+          {errorMsg ? (
+            <p
+              className="mb-2.5 rounded-xl bg-(--down)/10 px-3 py-2 text-xs text-(--down)"
+              role="alert"
+            >
+              {errorMsg}
+            </p>
+          ) : null}
+
+          <FiltersBar
+            filters={filters}
+            setFilters={setFilters}
+            draftDim={draftDim}
+            setDraftDim={setDraftDim}
+            draftOp={draftOp}
+            setDraftOp={setDraftOp}
+            draftValue={draftValue}
+            setDraftValue={setDraftValue}
+            addFilter={addFilter}
+          />
+
+          <StatTiles stats={stats} deltaPct={deltaPct} />
+          <section className="bg-card ring-foreground/10 mb-2.5 rounded-2xl p-3 ring-1">
+            <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+              <div className="text-muted-foreground flex items-center gap-4 text-xs">
+                <span className="flex items-center gap-1.5">
+                  <span
+                    className="h-0.5 w-4 rounded-full bg-(--chart)"
+                    aria-hidden
+                  />
+                  Visitors
+                </span>
+              </div>
+              <span className="text-muted-foreground font-mono text-xs tabular-nums">
+                {points[0]?.full}
+                {points.length > 1 ? ` – ${points.at(-1)?.full}` : ""}
+              </span>
+            </div>
+            <PanelBody
+              loading={loadingDash}
+              hasData={points.length > 0}
+              emptyText="No traffic in this range."
+            >
+              <TrafficChart points={points} />
+            </PanelBody>
+          </section>
+
+          <div className="grid gap-2.5 md:grid-cols-2 xl:grid-cols-3">
+            <PagesPanel dash={dash} loading={loadingDash} />
+            <SourcesPanel dash={dash} loading={loadingDash} />
+            <LocationPanel
+              siteId={siteId}
+              rangeKey={rangeKey}
+              filterStr={filterStr}
+            />
+            <PlatformPanel dash={dash} loading={loadingDash} />
+            <RevenuePanel
+              dash={dash}
+              loading={loadingDash}
+              siteId={siteId}
+              rangeKey={rangeKey}
+              filterStr={filterStr}
+            />
+            <LivePanel
+              domain={site?.domain}
+              online={live.online}
+              feed={live.feed}
+            />
+            <ExplorePanel siteId={siteId} dash={dash} loading={loadingDash} />
+          </div>
+
+          <FunnelSection
+            siteId={siteId}
+            rangeKey={rangeKey}
+            filterStr={filterStr}
+          />
+        </main>
+      ) : (
+        <SettingsView
+          site={site?.domain}
+          onSignOut={() => {
+            legacyLogout();
+            setAuthed(false);
+          }}
+        />
+      )}
+    </div>
+  );
+};
+
+export default AnalyticsPage;
