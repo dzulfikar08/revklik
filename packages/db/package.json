@@ -23,7 +23,7 @@
   },
   "devDependencies": {
     "@revklik-new/config": "workspace:*",
-    "drizzle-kit": "^0.31.10",
+    "drizzle-kit": "^1.0.0-rc.5-ab785fc",
     "typescript": "^6.0.3"
   }
 }
