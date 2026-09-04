@@ -170,9 +170,9 @@ const NavTabs = ({
 
 /* -------------------------------- mapping ---------------------------------- */
 
-const hostOf = (referrer: string | null | undefined): string => {
+const hostOf = (referrer: string | null | undefined): string | null => {
   if (!referrer) {
-    return "";
+    return null;
   }
   try {
     return new URL(referrer).host.replace(/^www\./u, "");
@@ -211,7 +211,7 @@ const parseProps = (raw: string | null): [string, string][] => {
   }
 };
 
-const stepToEvent = (s: JourneyStep): VisitorEvent | null => {
+export const stepToEvent = (s: JourneyStep): VisitorEvent | null => {
   if (s.event_type === "pageview") {
     return { kind: "view", page: s.path, time: s.timestamp };
   }
@@ -266,7 +266,7 @@ const stepToEvent = (s: JourneyStep): VisitorEvent | null => {
   };
 };
 
-const profileToVisitor = (
+export const profileToVisitor = (
   p: VisitorProfile,
   journeys: VisitorJourney[]
 ): Visitor => {
@@ -313,7 +313,7 @@ const profileToVisitor = (
   };
 };
 
-const aggregateGeo = (
+export const aggregateGeo = (
   rows: GeoRow[],
   keyOf: (r: GeoRow) => string | null
 ): CountRow[] => {
