@@ -51,6 +51,7 @@ import type {
   VisitorJourney,
   VisitorProfile,
 } from "@/lib/legacy/api";
+import { Button } from "@revklik-new/ui/components/button";
 import { exportLegacyFile } from "@/lib/legacy/sites";
 import type { LegacyAnnotation } from "@/lib/legacy/analytics-settings";
 

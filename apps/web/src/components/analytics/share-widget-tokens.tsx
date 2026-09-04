@@ -14,7 +14,7 @@ import { Check, Copy, KeyRound, Plus, RefreshCw } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 
-import { fetchSites, isLegacyAuthed } from "@/lib/legacy/api";
+import { fetchSites } from "@/lib/legacy/api";
 import type { SiteWithStats } from "@/lib/legacy/api";
 import {
   createApiToken,
@@ -47,7 +47,6 @@ const useActiveSite = (): {
   sitesLoading: boolean;
 } => {
   const sitesQ = useQuery({
-    enabled: isLegacyAuthed(),
     queryFn: () => fetchSites("30d"),
     queryKey: ["legacy", "sites", "30d"],
     retry: false,
