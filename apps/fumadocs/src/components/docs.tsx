@@ -35,7 +35,19 @@ export function Docs({
           enabled: false,
         }}
         nav={{
-          title: "Fumadocs on Astro",
+          title: (
+            <a
+              href="https://app.revklik.com"
+              className="text-fd-foreground inline-flex items-center gap-2.5 text-[15px] font-semibold tracking-tight"
+            >
+              <img
+                alt="klikapa logo"
+                className="ring-fd-border size-7 rounded-lg object-cover ring-1"
+                src="/revklik.webp"
+              />
+              klikapa
+            </a>
+          ),
         }}
       >
         <DocsPage {...page}>{children}</DocsPage>
