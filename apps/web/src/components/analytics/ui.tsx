@@ -503,14 +503,21 @@ export const FunnelChart = ({
   const x0 = (i: number) => i * stepW;
 
   const bands = steps.map((s, i) => {
+    // Each stage is a plateau at its own height with a short pinch (neck)
+    // right after its start easing from the previous stage's height —
+    // reads as distinct beads on a string, like the reference design.
     const h0 = halfHs[i];
-    const h1 = i < n - 1 ? halfHs[i + 1] : h0;
-    const curve = stepW * 0.4;
+    const prev = i > 0 ? halfHs[i - 1] : h0;
+    const pinch = stepW * 0.3;
+    const c1 = x0(i) + pinch * 0.35;
+    const c2 = x0(i) + pinch * 0.65;
     const d = [
-      `M ${x0(i)} ${cy - h0}`,
-      `C ${x0(i) + curve} ${cy - h0}, ${x0(i) + stepW - curve} ${cy - h1}, ${x0(i) + stepW} ${cy - h1}`,
-      `L ${x0(i) + stepW} ${cy + h1}`,
-      `C ${x0(i) + stepW - curve} ${cy + h1}, ${x0(i) + curve} ${cy + h0}, ${x0(i)} ${cy + h0}`,
+      `M ${x0(i)} ${cy - prev}`,
+      `C ${c1} ${cy - prev}, ${c2} ${cy - h0}, ${x0(i) + pinch} ${cy - h0}`,
+      `L ${x0(i) + stepW} ${cy - h0}`,
+      `L ${x0(i) + stepW} ${cy + h0}`,
+      `L ${x0(i) + pinch} ${cy + h0}`,
+      `C ${c2} ${cy + h0}, ${c1} ${cy + prev}, ${x0(i)} ${cy + prev}`,
       "Z",
     ].join(" ");
     return { ...s, color: funnelBandColor(i, n), d, h: h0, i };
@@ -561,13 +568,12 @@ export const FunnelChart = ({
       {bands
         .slice(0, -1)
         .filter((b) => (steps[b.i + 1]?.dropoff ?? 0) >= 1)
-        .map((b, k) => (
+        .map((b) => (
           <span
             key={`seam-${b.section}`}
-            className="bg-card ring-foreground/15 text-foreground/90 pointer-events-none absolute -translate-x-1/2 rounded-full px-1.5 py-0.5 font-mono text-[10px] tabular-nums ring-1"
+            className="bg-card ring-foreground/15 text-foreground/90 pointer-events-none absolute top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full px-1.5 py-0.5 font-mono text-[10px] tabular-nums ring-1"
             style={{
-              left: `${(x0(b.i + 1) / FW) * 100}%`,
-              top: `${(k % 2) * 20 + 2}px`,
+              left: `${((x0(b.i + 1) + stepW * 0.15) / FW) * 100}%`,
             }}
           >
             −{steps[b.i + 1]?.dropoff ?? 0}% →
