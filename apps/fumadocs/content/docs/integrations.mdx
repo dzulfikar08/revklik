@@ -1,0 +1,92 @@
+---
+title: Integrations
+description: Connect klikapa to webhooks, payments, marketplaces, and Google Search Console — plus sharing, email reports, and team access.
+---
+
+The **Integrations** view (top-bar tab) has five tabs: Webhooks, Payments,
+Marketplace, Search, and Imports.
+
+## Webhooks
+
+API-key integrations for email and ads — connect once and klikapa pulls the
+data in:
+
+| Integration | What it syncs | Config |
+| --- | --- | --- |
+| Mailchimp | Subscriber data and email engagement | API key + server prefix |
+| ConvertKit | Audience data | API key |
+| Kit | Kit (formerly ConvertKit) v3 API | API key |
+| Beehiiv | Newsletter subscriber activity | API key + publication ID |
+| Meta Ads | Ad performance and conversions | Access token + pixel ID |
+| Google Ads | Campaign data | Client ID, client secret, refresh token, customer ID |
+
+Each connection can be configured, tested, enabled, and disabled. The event
+log records every webhook and test with direction, status, and time.
+
+## Payments
+
+Payment-gateway integrations are **webhook-driven**: copy the klikapa webhook
+URL shown on each card and paste it into the provider's webhook settings, then
+store the signing key. Revenue lands in your revenue panels automatically.
+
+| Provider | Coverage |
+| --- | --- |
+| Midtrans | GoPay, QRIS, bank transfer, credit card, ShopeePay |
+| Xendit | OVO, DANA, ShopeePay, virtual accounts |
+| Stripe | Cards, wallets, bank debits, subscriptions |
+| Lemon Squeezy | Digital products and SaaS billing |
+
+## Marketplace
+
+Connect **Shopee** and **Tokopedia** with OAuth (or re-authorize when a grant
+expires), then **Sync orders** to pull orders into klikapa. **View orders**
+lists recent orders with amount, status, and date.
+
+## Search
+
+**Google Search Console** imports search performance: authorize with Google,
+then **Sync now** to pull clicks, impressions, CTR, and position per query.
+The panel shows 30-day totals and a per-query table.
+
+## Imports
+
+Bring history in without waiting for it to accumulate:
+
+- **Polar** — live orders stream in via a webhook URL; a one-time import can
+  backfill existing orders, customers, and countries with a Polar
+  organization ID and access token (`orders:read`,
+  `subscriptions:read`, `organizations:read` scopes).
+- **OneDollarStats** — import visitors, pages, countries, and sources with an
+  API key and the site domain as registered there.
+
+## Share and access
+
+The **Share** tab bundles everything public:
+
+- **Public dashboard** — a read-only link to your analytics; disable it any
+  time.
+- **Live widget** — an embeddable live-visitor bubble or badge:
+
+  ```html
+  <script
+    async
+    src="https://app.revklik.com/klikapa-live.js"
+    data-widget-token="YOUR_TOKEN"
+  ></script>
+  ```
+
+- **API tokens** — account- or site-scoped tokens with granular scopes
+  (`sites:read`, `analytics:read`, `analytics:export`, `tokens:read`,
+  `tokens:write`). Limits depend on your plan — see [billing](/billing).
+
+## Email reports
+
+In **Settings → Email reports**, schedule a recurring summary to your account
+email — **daily, weekly, or monthly**. Reports can be toggled on and off and
+show when they were last sent.
+
+## Team
+
+In **Settings → Team**, invite teammates by email as **Admin**, **Editor**, or
+**Viewer**. Invitees need an existing revklik account; owners can change roles
+and remove members at any time.

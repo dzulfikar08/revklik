@@ -1,0 +1,4 @@
+{
+  "title": "Dashboard",
+  "pages": ["overview", "sites", "visitors", "funnels", "predictions"]
+}

@@ -1,0 +1,89 @@
+---
+title: Dashboard overview
+description: The klikapa dashboard — stat tiles, traffic chart, breakdown panels, filters, segments, and live visitors at a glance.
+---
+
+The dashboard opens on the **overview** for the site selected in the top bar.
+Everything on this page honours the active time range and any filters you
+apply.
+
+## Stat tiles
+
+Five tiles summarise the range:
+
+| Stat | What it shows |
+| --- | --- |
+| Visitors | Unique visitors in the range. |
+| Pageviews | Pages viewed. |
+| Bounce rate | Share of visits with a single interaction. |
+| Visit duration | Average time on site. |
+| Revenue | Money attributed to conversions. |
+
+Each tile carries a delta pill (for example `+12.3%`) comparing it with the
+equivalent previous window. Bounce rate treats a decrease as good; everything
+else treats an increase as good.
+
+## Time range
+
+Switch between **24h · 7d · 30d · 90d** with the pills in the top bar. The
+default is 30 days. Every stat, chart, panel, funnel, and export respects the
+selected range.
+
+## Traffic chart
+
+The main chart plots visitors over time — hourly buckets for 24h, day buckets
+otherwise. The previous period is drawn as a dashed comparison line, and the
+tooltip shows both values side by side.
+
+<Callout type="info" title="Annotations">
+  Use the flag button on the chart to add a dated note (for example
+  “Launch v2”). Annotations show as gold flags on the chart so you can
+  explain traffic changes later.
+</Callout>
+
+## Breakdown panels
+
+Each panel is a ranked bar list with tabs and a sort toggle:
+
+- **Pages** — top pages by views, entry pages, or exit pages.
+- **Sources** — referrers or marketing channels.
+- **Location** — countries, regions, cities, or a rotating globe of your
+  visitors.
+- **Platform** — browsers, operating systems, and devices.
+- **Revenue** — revenue by source, country, payment method, or campaign.
+
+## Home panels
+
+Below the breakdowns, the home view also mounts:
+
+- **Live** — the current online count and a feed of the latest pageviews with
+  country, path, and source, streamed in realtime.
+- **Heatmap** — where visitors click and how far they scroll, per page
+  *(Growth plan)*.
+- **Recordings** — replay real sessions with clicks, scrolls, and DOM changes
+  *(Growth plan)*.
+- **Revenue Predictions** and **AI insights** — see
+  [Predictions](/dashboard/predictions) *(Growth plan)*.
+
+## Filters and segments
+
+Use **Filters** to slice everything: pick a dimension (Page, Country, Region,
+City, Device, Browser, OS, Referrer, UTM source, UTM medium, UTM campaign),
+an operator (is, is not, contains, excludes, starts with, exists, missing),
+and a value. Applied filters appear as removable chips.
+
+Save a filtered view with **Save** to create a **segment** — a named chip you
+can reapply any time. Applying a segment replaces the current filter set.
+
+## Explore: users and journeys
+
+The **Explore** panel lists recent **Users** — avatar, event count, country,
+device, source, total spent, and last-seen time — and **Journeys**: up to six
+step chips per session with source, event count, and whether the session
+converted or exited. Click a row to open the full visitor profile in the
+[visitors](/dashboard/visitors) view.
+
+## Export
+
+The download button in the top bar exports the site's raw events for the
+current range and filters as a CSV file.

@@ -1,3 +1,4 @@
 {
-  "pages": ["..."]
+  "title": "klikapa docs",
+  "pages": ["introduction", "getting-started", "dashboard", "integrations", "billing", "faq"]
 }
