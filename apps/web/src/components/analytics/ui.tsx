@@ -467,7 +467,7 @@ export const TrafficChart = ({
 const FW = 1000;
 const FH = 260;
 const FLABEL = 48;
-const FSEAM = 38;
+const FTOP = 44;
 const FTAIL = 56;
 const FHALF_MIN = 16;
 
@@ -492,13 +492,15 @@ export const FunnelChart = ({
   const [hover, setHover] = useState<number | null>(null);
   const n = steps.length;
   const max = steps[0]?.visitors ?? 1;
-  const cy = FH / 2;
-  const gap = n > 1 ? FSEAM : 0;
-  const stepW = n > 0 ? (FW - FTAIL - gap * (n - 1)) / n : FW;
+  const cy = FTOP + (FH - FTOP) / 2;
+  const stepW = n > 0 ? (FW - FTAIL) / n : FW;
   const halfHs = steps.map((s) =>
-    Math.max(FHALF_MIN, (cy - 10) * Math.min(1, s.visitors / max))
+    Math.max(
+      FHALF_MIN,
+      ((FH - FTOP) / 2 - 8) * Math.min(1, s.visitors / max)
+    )
   );
-  const x0 = (i: number) => i * (stepW + gap);
+  const x0 = (i: number) => i * stepW;
 
   const bands = steps.map((s, i) => {
     const h0 = halfHs[i];
@@ -556,19 +558,21 @@ export const FunnelChart = ({
           </g>
         ))}
       </svg>
-
       {bands
         .slice(0, -1)
-        .filter((b) => (steps[b.i + 1]?.dropoff ?? 0) > 0)
-        .map((b) => (
-        <span
-          key={`seam-${b.section}`}
-          className="bg-card ring-foreground/15 text-foreground/90 pointer-events-none absolute top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full px-1.5 py-0.5 font-mono text-[10px] tabular-nums ring-1"
-          style={{ left: `${((x0(b.i) + stepW + gap / 2) / FW) * 100}%` }}
-        >
-          −{steps[b.i + 1]?.dropoff ?? 0}% →
-        </span>
-      ))}
+        .filter((b) => (steps[b.i + 1]?.dropoff ?? 0) >= 1)
+        .map((b, k) => (
+          <span
+            key={`seam-${b.section}`}
+            className="bg-card ring-foreground/15 text-foreground/90 pointer-events-none absolute -translate-x-1/2 rounded-full px-1.5 py-0.5 font-mono text-[10px] tabular-nums ring-1"
+            style={{
+              left: `${(x0(b.i + 1) / FW) * 100}%`,
+              top: `${(k % 2) * 20 + 2}px`,
+            }}
+          >
+            −{steps[b.i + 1]?.dropoff ?? 0}% →
+          </span>
+        ))}
 
       {rate !== undefined ? (
         <div className="pointer-events-none absolute top-2 right-2 text-right">

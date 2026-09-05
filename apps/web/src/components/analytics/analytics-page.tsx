@@ -429,7 +429,7 @@ const PagesPanel = ({ dash, loading }: DashProps) => {
         hasData={rows.length > 0}
         emptyText="No data yet."
       >
-        <div className="grid gap-1">
+        <div className="grid max-h-[420px] gap-1 overflow-y-auto">
           {rows.map((p) => (
             <CountBarRow
               key={p.label}
@@ -495,7 +495,7 @@ const SourcesPanel = ({ dash, loading }: DashProps) => {
         hasData={rows.length > 0}
         emptyText="No data yet."
       >
-        <div className="grid gap-1">
+        <div className="grid max-h-[420px] gap-1 overflow-y-auto">
           {rows.map((s) => (
             <CountBarRow
               key={s.label}
@@ -574,7 +574,7 @@ const LocationPanel = ({
         hasData={rows.length > 0}
         emptyText="No data yet."
       >
-        <div className="grid gap-1">
+        <div className="grid max-h-[420px] gap-1 overflow-y-auto">
           {rows.map((c) => (
             <CountBarRow
               key={c.label}
@@ -678,7 +678,7 @@ const PlatformPanel = ({ dash, loading }: DashProps) => {
         hasData={sorted.length > 0}
         emptyText="No data yet."
       >
-        <div className="grid gap-1">
+        <div className="grid max-h-[420px] gap-1 overflow-y-auto">
           {sorted.map((d) => (
             <CountBarRow
               key={d.label}
@@ -785,7 +785,7 @@ const RevenuePanel = ({
       hasData={rows.length > 0}
       emptyText="No revenue in this range."
     >
-      <div className="grid gap-1">
+      <div className="grid max-h-[420px] gap-1 overflow-y-auto">
         {rows.map((r) => (
           <CountBarRow
             key={r.label}
