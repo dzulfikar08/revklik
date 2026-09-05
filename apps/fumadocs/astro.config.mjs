@@ -1,8 +1,8 @@
 import { unified } from "@astrojs/markdown-remark";
 import mdx from "@astrojs/mdx";
 import react from "@astrojs/react";
+import sitemap from "@astrojs/sitemap";
 import tailwindcss from "@tailwindcss/vite";
-// @ts-check
 import { defineConfig } from "astro/config";
 import {
   rehypeCode,
@@ -21,6 +21,7 @@ const remarkPlugins = [
 const rehypePlugins = [rehypeCode];
 
 export default defineConfig({
+  site: "https://docs.revklik.com",
   markdown: {
     processor: unified({
       syntaxHighlight: false,
@@ -33,6 +34,11 @@ export default defineConfig({
     mdx({
       extendMarkdownConfig: true,
       syntaxHighlight: false,
+    }),
+    sitemap({
+      // "/" is a redirect to the introduction; only index real pages.
+      // The filter receives absolute page URLs.
+      filter: (page) => new URL(page).pathname !== "/",
     }),
   ],
   vite: {

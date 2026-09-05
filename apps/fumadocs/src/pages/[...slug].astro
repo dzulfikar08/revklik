@@ -3,13 +3,15 @@ import { render, type CollectionEntry } from "astro:content";
 import { Docs } from "@/components/docs";
 import defaultMdxComponents from "fumadocs-ui/mdx";
 import "@/styles/global.css";
-import { getPageImageUrl, source } from "@/lib/source";
+import { breadcrumbs, getPageImageUrl, source } from "@/lib/source";
 import Layout from "@/components/layout.astro";
 import type { TOCItemType } from "fumadocs-core/toc";
 
 interface Props {
   page: CollectionEntry<"docs">;
 }
+
+const SITE = Astro.site ?? new URL("https://docs.revklik.com");
 
 export async function getStaticPaths() {
   return source.getPages().map((page) => ({
@@ -22,7 +24,20 @@ const { page } = Astro.props;
 const { Content, headings } = await render(page);
 const slugs = typeof Astro.params.slug === "string" ? Astro.params.slug.split("/") : [];
 const docsPage = source.getPage(slugs)!;
+const pathname = "/" + slugs.filter(Boolean).join("/");
 const image = getPageImageUrl(docsPage);
+const trail = breadcrumbs(pathname);
+
+const breadcrumbJsonLd = JSON.stringify({
+  "@context": "https://schema.org",
+  "@type": "BreadcrumbList",
+  itemListElement: trail.map((crumb, index) => ({
+    "@type": "ListItem",
+    position: index + 1,
+    name: crumb.title,
+    ...(index < trail.length - 1 ? { item: new URL(crumb.url, SITE).href } : {}),
+  })),
+});
 
 const toc: TOCItemType[] = headings.map((heading) => ({
   depth: heading.depth,
@@ -31,11 +46,18 @@ const toc: TOCItemType[] = headings.map((heading) => ({
 }));
 ---
 
-<Layout>
-  <title>{page.data.title}</title>
-  <meta name="title" content={page.data.title} />
-  <meta name="description" content={page.data.description} />
-  <meta property="og:image" content={image} />
+<Layout
+  title={page.data.title}
+  description={page.data.description}
+  pathname={pathname}
+  image={image}
+>
+  <script
+    is:inline
+    slot="json-ld"
+    type="application/ld+json"
+    set:html={breadcrumbJsonLd}
+  />
   <Docs
     tree={source.getPageTree()}
     pathname={Astro.url.pathname}

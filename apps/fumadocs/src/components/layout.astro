@@ -1,10 +1,74 @@
 ---
-import { ClientRouter } from 'astro:transitions';
+import { ClientRouter } from "astro:transitions";
+
+interface Props {
+  /** Page title without the site suffix; omit for the docs home. */
+  title?: string;
+  description?: string;
+  /** Site-root-relative path used for canonical + og:url, e.g. `/dashboard/overview`. */
+  pathname?: string;
+  /** Site-root-relative OG image path. */
+  image?: string;
+}
+
+const SITE = Astro.site ?? new URL("https://docs.revklik.com");
+
+const {
+  title,
+  description = "Documentation for klikapa — privacy-first web and revenue analytics by revklik.",
+  pathname = "/",
+  image = "/og/docs/introduction/image.png",
+} = Astro.props;
+
+const canonical = new URL(pathname, SITE).href;
+const ogImage = new URL(image, SITE).href;
+const pageTitle = title ? `${title} · klikapa` : "klikapa docs";
+const ogTitle = title ?? "klikapa docs";
+const siteDescription =
+  "Documentation for klikapa — privacy-first web and revenue analytics by revklik.";
+
+const websiteJsonLd = JSON.stringify({
+  "@context": "https://schema.org",
+  "@type": "WebSite",
+  name: "klikapa docs",
+  url: SITE.href,
+  description: siteDescription,
+  publisher: {
+    "@type": "Organization",
+    name: "revklik",
+    url: "https://app.revklik.com",
+  },
+});
 ---
 
 <html lang="en">
   <head>
     <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{pageTitle}</title>
+    <meta name="description" content={description} />
+    <link rel="canonical" href={canonical} />
+    <link rel="icon" href="/favicon.ico" sizes="48x48" />
+    <link rel="sitemap" href="/sitemap-index.xml" />
+    <meta name="generator" content={Astro.generator} />
+    <meta name="theme-color" content="#0b0e14" />
+
+    <meta property="og:site_name" content="klikapa docs" />
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content={ogTitle} />
+    <meta property="og:description" content={description} />
+    <meta property="og:url" content={canonical} />
+    <meta property="og:image" content={ogImage} />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content={ogTitle} />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content={ogTitle} />
+    <meta name="twitter:description" content={description} />
+    <meta name="twitter:image" content={ogImage} />
+
+    <script is:inline type="application/ld+json" set:html={websiteJsonLd} />
+    <slot name="json-ld" />
     <ClientRouter />
   </head>
   <body
