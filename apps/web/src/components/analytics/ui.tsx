@@ -314,7 +314,7 @@ export const TrafficChart = ({
 
   return (
     <div
-      className="relative h-52 w-full cursor-crosshair md:h-60"
+      className="relative mb-5 h-52 w-full cursor-crosshair md:h-60"
       onMouseMove={onMove}
       onMouseLeave={() => setHover(null)}
     >

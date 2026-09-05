@@ -1767,13 +1767,15 @@ const AnalyticsPage = () => {
               <TrafficChart points={points} annotations={annotations} />
             </PanelBody>
           </section>
-          <AiInsightsPanel
-            onUpgrade={() => setView("billing")}
-            siteId={siteId}
-            rangeKey={rangeKey}
-          />
+          <div className="mb-2.5">
+            <AiInsightsPanel
+              onUpgrade={() => setView("billing")}
+              siteId={siteId}
+              rangeKey={rangeKey}
+            />
+          </div>
 
-          <div className="grid gap-2.5 md:grid-cols-2 xl:grid-cols-3">
+          <div className="mb-2.5 grid gap-2.5 md:grid-cols-2 xl:grid-cols-3">
             <PagesPanel dash={dash} loading={loadingDash} />
             <SourcesPanel dash={dash} loading={loadingDash} />
             <LocationPanel
