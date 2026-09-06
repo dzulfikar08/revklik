@@ -10,6 +10,8 @@ export type Bindings = {
 	EMAIL: EmailBinding;
 	ASSETS: Fetcher;
 	AI: Ai;
+	// Daily DB dump destination
+	BACKUP_BUCKET: R2Bucket;
 	// Polar billing
 	POLAR_ACCESS_TOKEN?: string;
 	POLAR_ORG_ID?: string;

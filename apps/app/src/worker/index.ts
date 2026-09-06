@@ -1,5 +1,6 @@
 import { createApp } from "./app";
 import { createDb } from "./db";
+import { backupDatabase } from "./backup";
 import { processPolarOrder, refreshPolarOrder } from "./lib/polar";
 import type { Bindings } from "./types";
 
@@ -12,6 +13,11 @@ export default {
 		return env.ASSETS.fetch(request);
 	},
 	async scheduled(controller: ScheduledController, env: Bindings, _ctx: ExecutionContext) {
+		if (controller.cron === "0 3 * * *") {
+			await backupDatabase(env);
+			return;
+		}
+
 		const polarToken = env.POLAR_ACCESS_TOKEN || "";
 		const polarOrgId = env.POLAR_ORG_ID || "";
 		if (!polarToken || !polarOrgId || !env.DB) {
