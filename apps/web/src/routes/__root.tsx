@@ -6,7 +6,7 @@ import {
   createRootRouteWithContext,
   useRouterState,
 } from "@tanstack/react-router";
-import { lazy, Suspense, useEffect } from "react";
+import { lazy, Suspense } from "react";
 
 import { ThemeProvider } from "@/components/theme-provider";
 
@@ -60,16 +60,18 @@ const Header = lazy(() => import("@/components/header"));
 
 /**
  * Google OAuth callback landing: klikapa redirects to /#token=<session>.
- * Store it, resolve the user profile, then enter the dashboard. Runs before
- * the router renders, so any route can absorb the redirect. The relative
- * /api path is same-origin in production (klikapa serves UI and API); local
- * dev signs in with the injected env token instead of Google.
+ * Runs at MODULE EVALUATION — before the router's beforeLoad guards read the
+ * session. A useEffect is too late: the redirect chain (/, /analytics →
+ * /login) rewrites the URL and strips the hash before any effect fires.
+ * Store the token optimistically; /analytics's guard then validates it via
+ * /auth/me and legacyLogout bounces back if it is dead.
  */
 function captureOAuthToken(): void {
   const match = window.location.hash.match(/^#token=(.+)$/);
   if (!match) return;
   const token = decodeURIComponent(match[1]);
   history.replaceState(null, "", window.location.pathname);
+  localStorage.setItem("kp_token", token);
   fetch("/api/auth/me", {
     headers: { Authorization: `Bearer ${token}` },
   })
@@ -77,17 +79,19 @@ function captureOAuthToken(): void {
       if (!res.ok) throw new Error(String(res.status));
       const json = (await res.json()) as { data?: { user?: unknown } };
       if (!json.data?.user) throw new Error("no user");
-      localStorage.setItem("kp_token", token);
       localStorage.setItem("kp_user", JSON.stringify(json.data.user));
       window.location.replace("/analytics");
     })
     .catch(() => {
-      // Bad/expired token: stay put; the login guard takes it from here.
+      // Bad/expired token: drop it; the login guard takes it from here.
+      localStorage.removeItem("kp_token");
+      localStorage.removeItem("kp_user");
     });
 }
 
+captureOAuthToken();
+
 function RootComponent() {
-  useEffect(captureOAuthToken, []);
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const chromeless = pathname.startsWith("/analytics");
 
