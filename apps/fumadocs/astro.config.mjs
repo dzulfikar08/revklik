@@ -35,11 +35,7 @@ export default defineConfig({
       extendMarkdownConfig: true,
       syntaxHighlight: false,
     }),
-    sitemap({
-      // "/" is a redirect to the introduction; only index real pages.
-      // The filter receives absolute page URLs.
-      filter: (page) => new URL(page).pathname !== "/",
-    }),
+    sitemap(),
   ],
   vite: {
     plugins: [tailwindcss()],
