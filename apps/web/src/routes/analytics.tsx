@@ -1,6 +1,5 @@
-import { createFileRoute, redirect } from "@tanstack/react-router";
+import { createFileRoute, Outlet, redirect } from "@tanstack/react-router";
 
-import AnalyticsPage from "@/components/analytics/analytics-page";
 import { getToken, LEGACY_API_BASE, legacyLogout } from "@/lib/legacy/api";
 
 export const Route = createFileRoute("/analytics")({
@@ -18,6 +17,8 @@ export const Route = createFileRoute("/analytics")({
       throw redirect({ to: "/login" });
     }
   },
-  component: AnalyticsPage,
+  // Layout route: /analytics renders the sites overview, /analytics/$siteId
+  // the per-site dashboard. Both pass through this session guard.
+  component: () => <Outlet />,
   head: () => ({ meta: [{ title: "Analytics · revklik" }] }),
 });

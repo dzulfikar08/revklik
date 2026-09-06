@@ -1488,13 +1488,10 @@ const StatTiles = ({
 
 /* --------------------------------- page ------------------------------------ */
 
-const AnalyticsPage = () => {
+const AnalyticsPage = ({ siteId: siteIdParam }: { siteId: string }) => {
   const navigate = useNavigate();
   const [view, setView] = useState<ViewKey>("home");
   const [rangeKey, setRangeKey] = useState<RangeKey>("30d");
-  const [siteIdRaw, setSiteIdRaw] = useState(
-    () => localStorage.getItem("kp_active_site") ?? ""
-  );
   const [filters, setFilters] = useState<LegacyFilter[]>([]);
   const [draftDim, setDraftDim] = useState("");
   const [draftOp, setDraftOp] = useState<FilterOperator>("is");
@@ -1518,17 +1515,20 @@ const AnalyticsPage = () => {
   });
 
   const sites = sitesQ.data ?? [];
-  const siteId = sites.some((s) => s.id === siteIdRaw)
-    ? siteIdRaw
-    : (sites[0]?.id ?? "");
+  const siteId = sites.some((s) => s.id === siteIdParam) ? siteIdParam : "";
+
+  // Stale URL param (site deleted elsewhere): fall back to the overview.
+  const siteMissing =
+    sitesQ.isSuccess &&
+    sites.length > 0 &&
+    !sites.some((s) => s.id === siteIdParam);
+  useEffect(() => {
+    if (siteMissing) {
+      void navigate({ to: "/analytics" });
+    }
+  }, [siteMissing, navigate]);
   const site = sites.find((s) => s.id === siteId);
   const filterStr = encodeFilterString(filters);
-
-  useEffect(() => {
-    if (siteId) {
-      localStorage.setItem("kp_active_site", siteId);
-    }
-  }, [siteId]);
 
   const dashQ = useQuery({
     enabled: Boolean(siteId),
@@ -1644,8 +1644,8 @@ const AnalyticsPage = () => {
   );
 
   const pickSite = (id: string) => {
-    setSiteIdRaw(id);
     setLive({ feed: [], online: null });
+    void navigate({ to: "/analytics/$siteId", params: { siteId: id } });
   };
 
   const addFilter = () => {
