@@ -4,7 +4,7 @@ import { createMiddleware } from "hono/factory";
 import type { Kysely } from "kysely";
 import type { KlikapaDatabase } from "@revklik/shared";
 import { createDb } from "./db";
-import { migrateDatabase } from "./migrations";
+import { hasMigrated, migrateDatabase } from "./migrations";
 import { adminRoutes } from "./routes/admin";
 import { affiliateRoutes } from "./routes/affiliates";
 import { aiInsightsRoutes } from "./routes/ai-insights";
@@ -92,15 +92,23 @@ export function createApp(): Hono<Env> {
 	app.get("/health", (c) => c.json({ status: "ok", build: "native-auth-v2", success: true }));
 	app.route("/docs", docsRoutes);
 
+	const MIGRATION_RETRY_MS = 60_000;
+	let lastMigrationAttempt = 0;
+
 	app.use(async (c, next) => {
-		try {
-			const d1 = c.env.DB;
-			if (d1) {
-				await migrateDatabase(d1);
-				c.set("db", createDb(d1));
+		const d1 = c.env.DB;
+		if (d1) {
+			// Bind first: the API must serve even when migrations fail.
+			c.set("db", createDb(d1));
+			// Throttle failed-migration retries to one attempt per minute per isolate.
+			if (!hasMigrated() && Date.now() - lastMigrationAttempt > MIGRATION_RETRY_MS) {
+				lastMigrationAttempt = Date.now();
+				try {
+					await migrateDatabase(d1);
+				} catch (err) {
+					console.error("Migration error:", err);
+				}
 			}
-		} catch (err) {
-			console.error("Migration error:", err);
 		}
 		await next();
 	});

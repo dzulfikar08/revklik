@@ -1,5 +1,8 @@
 let migrationRan = false;
 
+/** True once migrateDatabase has completed successfully on this isolate. */
+export const hasMigrated = (): boolean => migrationRan;
+
 export async function migrateDatabase(d1: D1Database): Promise<void> {
 	if (migrationRan) return;
 
@@ -47,13 +50,24 @@ export async function migrateDatabase(d1: D1Database): Promise<void> {
 	try {
 		await d1.prepare("SELECT user_id FROM sites LIMIT 1").all();
 	} catch {
-		await d1.batch([
-			d1.prepare("DROP TABLE IF EXISTS sites"),
-			d1.prepare(
-				"CREATE TABLE sites (id TEXT PRIMARY KEY, user_id TEXT NOT NULL, name TEXT NOT NULL, domain TEXT NOT NULL, created_at TEXT NOT NULL DEFAULT (datetime('now')))",
-			),
-			d1.prepare("CREATE INDEX IF NOT EXISTS idx_sites_user ON sites(user_id)"),
-		]);
+		// The SELECT can fail transiently (or because the DB is briefly
+		// unreachable) — never drop a table because of it. Only create the
+		// table when it genuinely does not exist.
+		try {
+			const sitesTable = await d1
+				.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='sites'")
+				.first();
+			if (!sitesTable) {
+				await d1.batch([
+					d1.prepare(
+						"CREATE TABLE sites (id TEXT PRIMARY KEY, user_id TEXT NOT NULL, name TEXT NOT NULL, domain TEXT NOT NULL, created_at TEXT NOT NULL DEFAULT (datetime('now')))",
+					),
+					d1.prepare("CREATE INDEX IF NOT EXISTS idx_sites_user ON sites(user_id)"),
+				]);
+			}
+		} catch (err) {
+			console.error("sites table bootstrap skipped:", err);
+		}
 	}
 
 	// Migrate: add region and city columns to existing tables
