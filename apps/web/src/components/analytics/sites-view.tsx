@@ -43,6 +43,7 @@ const SnippetModal = ({
   onClose: () => void;
 }) => {
   const [copied, setCopied] = useState(false);
+  const [promptCopied, setPromptCopied] = useState(false);
   const snippetQ = useQuery({
     queryKey: ["legacy", "snippet", site.id],
     queryFn: () => fetchSiteSnippet(site.id),
@@ -60,6 +61,12 @@ const SnippetModal = ({
   }, [onClose]);
 
   const snippet = snippetQ.data?.snippet ?? "";
+  const agentPrompt = `Install RevKlik analytics on this website.
+
+Site ID: ${site.id}
+
+Fetch and follow the full setup guide, then implement it:
+https://revklik.com/docs.txt`;
 
   const copy = async () => {
     try {
@@ -68,6 +75,16 @@ const SnippetModal = ({
       setTimeout(() => setCopied(false), 1600);
     } catch {
       toast.error("Couldn't copy the snippet");
+    }
+  };
+
+  const copyAgentPrompt = async () => {
+    try {
+      await navigator.clipboard.writeText(agentPrompt);
+      setPromptCopied(true);
+      setTimeout(() => setPromptCopied(false), 1600);
+    } catch {
+      toast.error("Couldn't copy the prompt");
     }
   };
 
@@ -129,6 +146,49 @@ const SnippetModal = ({
             )}
             {copied ? "Copied" : "Copy snippet"}
           </Button>
+        </div>
+
+        <div className="border-foreground/10 mt-4 border-t pt-4">
+          <h3 className="text-xs font-semibold tracking-wider uppercase">
+            Set up with an AI agent
+          </h3>
+          <p className="text-muted-foreground mt-1 text-xs">
+            Paste this prompt into Claude Code, Cursor, or any other agent — it
+            installs the tracker correctly for you.
+          </p>
+          <pre className="bg-background ring-foreground/10 mt-2 max-h-40 overflow-auto rounded-xl p-3 font-mono text-[11px] leading-relaxed whitespace-pre-wrap break-words ring-1">
+            {agentPrompt}
+          </pre>
+          <div className="mt-3 flex items-center justify-between gap-2">
+            <p className="text-muted-foreground text-[11px]">
+              Full docs:{" "}
+              <a
+                href="https://revklik.com/docs.txt"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="hover:text-foreground underline-offset-2 hover:underline"
+              >
+                docs.txt
+              </a>{" "}
+              ·{" "}
+              <a
+                href="https://revklik.com/docs.html"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="hover:text-foreground underline-offset-2 hover:underline"
+              >
+                docs.html
+              </a>
+            </p>
+            <Button size="sm" variant="outline" onClick={copyAgentPrompt}>
+              {promptCopied ? (
+                <Check className="size-3.5" aria-hidden />
+              ) : (
+                <Copy className="size-3.5" aria-hidden />
+              )}
+              {promptCopied ? "Copied" : "Copy agent prompt"}
+            </Button>
+          </div>
         </div>
       </div>
     </div>
