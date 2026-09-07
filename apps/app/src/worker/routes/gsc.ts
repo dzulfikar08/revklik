@@ -263,7 +263,9 @@ gscRoutes.get("/callback", async (c) => {
 			};
 			const entries = sitesData.siteEntry ?? [];
 			const domain = siteRow?.domain ?? "";
-			const match = domain ? entries.find((e) => gscSiteMatchesDomain(e.siteUrl, domain)) : undefined;
+			const match = domain
+				? entries.find((e) => gscSiteMatchesDomain(e.siteUrl, domain))
+				: undefined;
 			googleSiteUrl = (match ?? entries[0])?.siteUrl ?? "";
 		}
 	} catch {

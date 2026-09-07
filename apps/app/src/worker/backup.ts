@@ -27,13 +27,9 @@ export async function backupDatabase(env: {
 
 	// Prune: keep only the newest KEEP dumps.
 	const listed = await env.BACKUP_BUCKET.list({ prefix: "klikapa-db/" });
-	const oldest = listed.objects.sort(
-		(a, b) => a.uploaded.getTime() - b.uploaded.getTime(),
-	);
+	const oldest = listed.objects.sort((a, b) => a.uploaded.getTime() - b.uploaded.getTime());
 	const stale = oldest.slice(0, Math.max(0, oldest.length - KEEP));
 	await Promise.all(stale.map((object) => env.BACKUP_BUCKET!.delete(object.key)));
 
-	console.log(
-		`DB backup: wrote ${key} (${dump.byteLength} bytes); pruned ${stale.length}`,
-	);
+	console.log(`DB backup: wrote ${key} (${dump.byteLength} bytes); pruned ${stale.length}`);
 }

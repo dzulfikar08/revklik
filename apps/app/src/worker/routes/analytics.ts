@@ -105,11 +105,7 @@ analyticsRoutes.get("/dashboard", async (c) => {
 		getTopPages(db, siteId, startIso, 10, filters, endIso),
 		getReferrers(db, siteId, startIso, 10, filters, endIso),
 		getDeviceBreakdown(db, siteId, startIso, filters, endIso),
-		applySessionFilters(
-			recentSessionsQ,
-			{ db, siteId, startIso, endIso },
-			filters,
-		)
+		applySessionFilters(recentSessionsQ, { db, siteId, startIso, endIso }, filters)
 			.orderBy("started_at", "desc")
 			.limit(100)
 			.execute(),
@@ -470,12 +466,12 @@ analyticsRoutes.get("/visitors/:visitorId", async (c) => {
 	const sessionIds = sessions.map((s) => s.id);
 	const events = sessionIds.length
 		? await db
-			.selectFrom("events")
-			.select(["session_id", "path", "event_type", "name", "timestamp", "revenue", "props"])
-			.where("session_id", "in", sessionIds)
-			.where("site_id", "=", siteId)
-			.orderBy("timestamp", "asc")
-			.execute()
+				.selectFrom("events")
+				.select(["session_id", "path", "event_type", "name", "timestamp", "revenue", "props"])
+				.where("session_id", "in", sessionIds)
+				.where("site_id", "=", siteId)
+				.orderBy("timestamp", "asc")
+				.execute()
 		: [];
 	const eventsBySession = new Map<string, typeof events>();
 	for (const e of events) {
@@ -515,7 +511,7 @@ analyticsRoutes.get("/visitors/:visitorId", async (c) => {
 	return c.json({ data: { profile, journeys }, success: true });
 });
 
- analyticsRoutes.patch("/visitors/:visitorId", async (c) => {
+analyticsRoutes.patch("/visitors/:visitorId", async (c) => {
 	const db = c.get("db");
 	const userId = c.get("userId");
 	const profileId = c.req.param("visitorId");

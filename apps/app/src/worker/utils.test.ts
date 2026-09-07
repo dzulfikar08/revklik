@@ -3,8 +3,14 @@ import { isBotUserAgent } from "./utils";
 
 describe("isBotUserAgent", () => {
 	it("flags search and AI crawlers", () => {
-		expect(isBotUserAgent("Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)")).toBe(true);
-		expect(isBotUserAgent("Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko; compatible; GPTBot/1.2; +https://openai.com/gptbot)")).toBe(true);
+		expect(
+			isBotUserAgent("Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)"),
+		).toBe(true);
+		expect(
+			isBotUserAgent(
+				"Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko; compatible; GPTBot/1.2; +https://openai.com/gptbot)",
+			),
+		).toBe(true);
 		expect(isBotUserAgent("ClaudeBot/1.0 (+claudebot@anthropic.com)")).toBe(true);
 	});
 

@@ -192,11 +192,7 @@ authRoutes.post("/logout", async (c) => {
 	if (!userId) return c.json({ error: "Unauthorized", success: false }, 401);
 	await db
 		.deleteFrom("api_keys")
-		.where(
-			"key_hash",
-			"=",
-			await hashToken(c.req.header("Authorization")!.slice(7)),
-		)
+		.where("key_hash", "=", await hashToken(c.req.header("Authorization")!.slice(7)))
 		.where("user_id", "=", userId)
 		.execute();
 	return c.json({ data: { loggedOut: true }, success: true });

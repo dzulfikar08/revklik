@@ -24,13 +24,13 @@ One command once prerequisites are met: `./scripts/deploy-new-ui.sh`.
 
 ## What the swap changes
 
-| Route | Before | After |
-|---|---|---|
-| `/`, `/login`, `/register`, `/paywall`, `/integrations`, `/settings*` | old SPA pages | new UI routes (`/` is the new app root — **redirect `/` → `/analytics` pre-cutover**, see below); old routes not in the new UI fall through to the SPA shell |
-| `/analytics` | old SPA dashboard | new UI dashboard (full parity per matrix) |
-| `/api/*` | klikapa worker | unchanged (`run_worker_first`) |
-| `/klikapa*.js`, `/klikapa-live.js` | static assets | unchanged (copied from `apps/app/public`) |
-| `/api/public/:token`, `/api/widgets/live/:token`, `/api/widget-data` | worker JSON | unchanged |
+| Route                                                                 | Before            | After                                                                                                                                                        |
+| --------------------------------------------------------------------- | ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `/`, `/login`, `/register`, `/paywall`, `/integrations`, `/settings*` | old SPA pages     | new UI routes (`/` is the new app root — **redirect `/` → `/analytics` pre-cutover**, see below); old routes not in the new UI fall through to the SPA shell |
+| `/analytics`                                                          | old SPA dashboard | new UI dashboard (full parity per matrix)                                                                                                                    |
+| `/api/*`                                                              | klikapa worker    | unchanged (`run_worker_first`)                                                                                                                               |
+| `/klikapa*.js`, `/klikapa-live.js`                                    | static assets     | unchanged (copied from `apps/app/public`)                                                                                                                    |
+| `/api/public/:token`, `/api/widgets/live/:token`, `/api/widget-data`  | worker JSON       | unchanged                                                                                                                                                    |
 
 **Required pre-cutover tweak (revklik-new):** make the new root route redirect to
 `/analytics` (old users land on `https://app.revklik.com/` bookmarks). One-line
