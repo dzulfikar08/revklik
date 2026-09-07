@@ -12,11 +12,13 @@ export const db = Cloudflare.D1.Database("database", {
   migrations: "../../packages/db/src/migrations",
 });
 
-// Existing production klikapa database (revklik analytics worker) — adopted
-// by name, never migrated or destroyed by this stack.
+// Production klikapa database (revklik analytics worker) — adopted by name so
+// the server worker can bind it. RETAINED: alchemy never calls delete on it,
+// so a stack destroy, orphaning, or replacement can never delete production
+// again (incident 2026-09-06: DEV-16).
 export const klikapaDb = Cloudflare.D1.Database("klikapa-db", {
   name: "klikapa-db",
-});
+}).pipe(Alchemy.RemovalPolicy.retain());
 
 export const server = Cloudflare.Worker("server", {
   compatibility: {
