@@ -129,8 +129,11 @@ const NavTabs = ({
   className?: string;
 }) => (
   <nav
+    role="tablist"
     aria-label="Sections"
-    className={`bg-muted/70 flex rounded-full p-1 ${className ?? ""}`}
+    className={`bg-muted/70 flex max-w-full overflow-x-auto rounded-full p-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden md:overflow-visible ${
+      className ?? ""
+    }`}
   >
     {NAV_TABS.map(({ key, label, Icon }) => (
       <button
@@ -1425,7 +1428,7 @@ const TopBar = ({
       <NavTabs
         view={view}
         onView={onView}
-        className="order-last w-full justify-center md:absolute md:top-1/2 md:left-1/2 md:order-none md:w-auto md:-translate-x-1/2 md:-translate-y-1/2"
+        className="order-last w-full min-w-0 justify-start sm:justify-center md:absolute md:top-1/2 md:left-1/2 md:order-none md:w-auto md:min-w-fit md:-translate-x-1/2 md:-translate-y-1/2"
       />
     </div>
   </header>

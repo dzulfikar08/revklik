@@ -67,7 +67,7 @@ export const PanelTabs = <T extends string>({
   value: T;
   onChange: (key: T) => void;
 }) => (
-  <div role="tablist" className="bg-muted/70 flex rounded-lg p-0.5">
+  <div role="tablist" className="bg-muted/70 flex flex-wrap rounded-lg p-0.5">
     {tabs.map((t) => (
       <button
         key={t.key}
