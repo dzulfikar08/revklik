@@ -1,6 +1,8 @@
 import { Hono } from "hono";
 import type { Kysely } from "kysely";
 import type {
+	CrawlerSlot,
+	CrawlersResponse,
 	KlikapaDatabase,
 	RecordingDetail,
 	RecordingSummary,
@@ -1114,5 +1116,84 @@ analyticsRoutes.get("/export", async (c) => {
 			"Content-Type": "text/csv",
 			"Content-Disposition": `attachment; filename="events-${siteId}-${range}.csv"`,
 		},
+	});
+});
+
+// AI crawler traffic for the Crawlers panel: category totals, per-bot
+// breakdown, and a continuous hourly/daily series. Source is crawler_hits —
+// bots recorded at /api/track instead of being dropped (see track.ts).
+analyticsRoutes.get("/crawlers", async (c) => {
+	const db = c.get("db");
+	const userId = c.get("userId");
+	const siteId = c.req.query("site_id");
+	const range = c.req.query("range") || "7d";
+	if (!siteId) return c.json({ error: "site_id required", success: false }, 400);
+	const site = await validateSite(db, userId, siteId);
+	if (!site) return c.json({ error: "Site not found", success: false }, 404);
+
+	const { start, end } = getDateRange(range);
+	const startIso = start.toISOString();
+	const endIso = end.toISOString();
+	const isHourly = (end.getTime() - start.getTime()) / 3_600_000 <= 48;
+	const bucket = isHourly
+		? sql<string>`strftime('%Y-%m-%dT%H:00:00', ${sql.ref("timestamp")})`
+		: sql<string>`date(${sql.ref("timestamp")})`;
+
+	const inRange = () =>
+		db
+			.selectFrom("crawler_hits")
+			.where("site_id", "=", siteId)
+			.where("timestamp", ">=", startIso)
+			.where("timestamp", "<", endIso);
+
+	const [catRows, botRows, seriesRows] = await Promise.all([
+		inRange()
+			.select(["category", ({ fn }) => fn.count<number>("id").as("count")])
+			.groupBy("category")
+			.execute(),
+		inRange()
+			.select(["bot", "category", ({ fn }) => fn.count<number>("id").as("count")])
+			.groupBy(["bot", "category"])
+			.orderBy("count", "desc")
+			.execute(),
+		inRange()
+			.select([bucket.as("date"), "category", ({ fn }) => fn.count<number>("id").as("count")])
+			.groupBy([bucket, "category"])
+			.orderBy("date", "asc")
+			.execute(),
+	]);
+
+	const totals = { all: 0, ai_answers: 0, indexing: 0, training: 0, other: 0 };
+	for (const r of catRows) {
+		const n = Number(r.count);
+		totals[r.category] = n;
+		totals.all += n;
+	}
+
+	// Fill gaps so the chart gets one bucket per key, matching /dashboard series
+	const slotByDate: Record<string, CrawlerSlot> = {};
+	for (const r of seriesRows) {
+		slotByDate[String(r.date)] ??= { date: String(r.date), ai_answers: 0, indexing: 0, training: 0, other: 0 };
+		slotByDate[String(r.date)][r.category] = Number(r.count);
+	}
+	const stepMs = isHourly ? 3_600_000 : 86_400_000;
+	const startMs = new Date(startIso).getTime();
+	const endMs = Math.min(end.getTime(), Date.now());
+	const series: CrawlerSlot[] = [];
+	for (let t = startMs; t <= endMs; t += stepMs) {
+		const key = isHourly
+			? new Date(t).toISOString().slice(0, 13) + ":00:00"
+			: new Date(t).toISOString().slice(0, 10);
+		series.push(
+			slotByDate[key] ?? { date: key, ai_answers: 0, indexing: 0, training: 0, other: 0 },
+		);
+	}
+	return c.json({
+		data: {
+			totals,
+			bots: botRows.map((r) => ({ bot: r.bot, category: r.category, count: Number(r.count) })),
+			series,
+		} satisfies CrawlersResponse,
+		success: true,
 	});
 });

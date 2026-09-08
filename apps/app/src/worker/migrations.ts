@@ -695,5 +695,30 @@ export async function migrateDatabase(d1: D1Database): Promise<void> {
 			/* column may already exist */
 		}
 	}
+	// AI/other crawler hits for the Crawlers analytics panel (bots excluded
+	// from human analytics are recorded here instead of being dropped)
+	try {
+		await d1
+			.prepare(`CREATE TABLE IF NOT EXISTS crawler_hits (
+      id TEXT PRIMARY KEY,
+      site_id TEXT NOT NULL,
+      bot TEXT NOT NULL,
+      category TEXT NOT NULL,
+      path TEXT,
+      user_agent TEXT,
+      country TEXT,
+      timestamp TEXT NOT NULL DEFAULT (datetime('now'))
+    )`)
+			.run();
+		await d1.batch([
+			d1.prepare("CREATE INDEX IF NOT EXISTS idx_ch_site_time ON crawler_hits(site_id, timestamp)"),
+			d1.prepare(
+				"CREATE INDEX IF NOT EXISTS idx_ch_site_bot ON crawler_hits(site_id, bot, timestamp)",
+			),
+		]);
+	} catch {
+		/* table may already exist */
+	}
+
 	migrationRan = true;
 }

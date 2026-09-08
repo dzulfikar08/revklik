@@ -119,6 +119,74 @@ export function isBotUserAgent(ua: string | null | undefined): boolean {
 	return BOT_UA_RE.test(ua);
 }
 
+export type CrawlerCategory = "ai_answers" | "indexing" | "training" | "other";
+
+export interface CrawlerClassification {
+	bot: string;
+	category: CrawlerCategory;
+}
+
+// AI-crawler registry: marker (substring, case-insensitive) -> product + purpose.
+// Purposes follow each vendor's documented crawler list. Order matters only for
+// overlapping markers (longer form first, e.g. applebot-extended before applebot).
+const AI_CRAWLERS: Array<{ marker: string; bot: string; category: CrawlerCategory }> = [
+	// OpenAI
+	{ marker: "chatgpt-user", bot: "ChatGPT", category: "ai_answers" },
+	{ marker: "oai-searchbot", bot: "ChatGPT", category: "indexing" },
+	{ marker: "gptbot", bot: "ChatGPT", category: "training" },
+	// Anthropic
+	{ marker: "claude-user", bot: "Claude", category: "ai_answers" },
+	{ marker: "claude-searchbot", bot: "Claude", category: "indexing" },
+	{ marker: "claudebot", bot: "Claude", category: "training" },
+	{ marker: "anthropic-ai", bot: "Claude", category: "training" },
+	// Google / Gemini
+	{ marker: "google-extended", bot: "Gemini", category: "training" },
+	{ marker: "googlebot", bot: "Google", category: "indexing" },
+	// Apple (applebot-extended must precede applebot — substring)
+	{ marker: "applebot-extended", bot: "Apple", category: "training" },
+	{ marker: "applebot", bot: "Apple", category: "indexing" },
+	// Perplexity
+	{ marker: "perplexity-user", bot: "Perplexity", category: "ai_answers" },
+	{ marker: "perplexitybot", bot: "Perplexity", category: "indexing" },
+	// DuckDuckGo
+	{ marker: "duckassistbot", bot: "DuckDuckGo", category: "ai_answers" },
+	{ marker: "duckduckbot", bot: "DuckDuckGo", category: "indexing" },
+	// Model trainers
+	{ marker: "meta-externalagent", bot: "Meta AI", category: "training" },
+	{ marker: "bytespider", bot: "ByteDance", category: "training" },
+	{ marker: "ccbot", bot: "Common Crawl", category: "training" },
+	{ marker: "amazonbot", bot: "Amazon", category: "training" },
+	{ marker: "cohere-ai", bot: "Cohere", category: "training" },
+	{ marker: "mistralai-training", bot: "Mistral", category: "training" },
+	{ marker: "mistralai-user", bot: "Mistral", category: "ai_answers" },
+	{ marker: "pangubot", bot: "Huawei", category: "training" },
+	{ marker: "imagesift", bot: "Hive", category: "training" },
+	{ marker: "diffbot", bot: "Diffbot", category: "training" },
+	{ marker: "youbot", bot: "You.com", category: "ai_answers" },
+];
+
+const AI_CRAWLERS_LOWER = AI_CRAWLERS.map((c) => ({
+	marker: c.marker.toLowerCase(),
+	bot: c.bot,
+	category: c.category,
+}));
+
+/**
+ * Classify a User-Agent as a crawler hit. Returns null for real browsers.
+ * AI products get a named bot + purpose (ai_answers / indexing / training);
+ * every other bot (headless, scrapers, monitors, social previews) falls into
+ * the "other" bucket.
+ */
+export function classifyCrawler(ua: string | null | undefined): CrawlerClassification | null {
+	if (!ua) return { bot: "Unknown", category: "other" };
+	const lower = ua.toLowerCase();
+	for (const c of AI_CRAWLERS_LOWER) {
+		if (lower.includes(c.marker)) return { bot: c.bot, category: c.category };
+	}
+	if (isBotUserAgent(ua)) return { bot: "Other", category: "other" };
+	return null;
+}
+
 export async function fingerprintFromRequest(req: Request, screenRes?: string): Promise<string> {
 	const ip =
 		req.headers.get("cf-connecting-ip") ??

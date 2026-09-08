@@ -163,6 +163,17 @@ export interface EmailReportTable {
 	created_at: string;
 }
 
+export interface CrawlerHitTable {
+	id: string;
+	site_id: string;
+	bot: string;
+	category: "ai_answers" | "indexing" | "training" | "other";
+	path: string | null;
+	user_agent: string | null;
+	country: string | null;
+	timestamp: string;
+}
+
 export interface KlikapaDatabase {
 	events: EventTable;
 	sessions: SessionTable;
@@ -175,6 +186,7 @@ export interface KlikapaDatabase {
 	session_recordings: SessionRecordingTable;
 	heatmap_aggregates: HeatmapAggregateTable;
 	integrations: IntegrationTable;
+	crawler_hits: CrawlerHitTable;
 	webhook_events: WebhookEventTable;
 	ai_insights: AiInsightTable;
 	subscriptions: SubscriptionTable;

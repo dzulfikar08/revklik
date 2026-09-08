@@ -3,7 +3,7 @@ import type { Kysely } from "kysely";
 import type { IdentifyPayload, KlikapaDatabase, TrackEventPayload } from "@revklik/shared";
 import { sql } from "../db";
 import { enforceSiteQuota, incrementCachedCount } from "../lib/subscription-cache";
-import { countryFromTimezone, fingerprintFromRequest, generateId, isBotUserAgent } from "../utils";
+import { countryFromTimezone, classifyCrawler, fingerprintFromRequest, generateId, isBotUserAgent } from "../utils";
 
 type Variables = { db: Kysely<KlikapaDatabase> };
 
@@ -89,10 +89,42 @@ trackRoutes.post("/track", async (c) => {
 	const payloads: TrackEventPayload[] = Array.isArray(raw) ? raw : [raw];
 	if (payloads.length === 0) return c.json({ error: "empty payload", success: false }, 400);
 
-	// Known crawler/bot user-agents are dropped before any write — they still get a
-	// success response so the tracker never retries. UA-based only; datacenter IPs
-	// that spoof a real browser UA are not caught here.
-	if (isBotUserAgent(c.req.header("user-agent"))) {
+	// Known crawler/bot user-agents never enter human analytics. AI crawlers
+	// (and every other bot, bucketed as "other") are recorded fire-and-forget
+	// into crawler_hits for the Crawlers analytics panel. The response is
+	// always a silent success so the tracker never retries. UA-based only;
+	// datacenter IPs that spoof a real browser UA are not caught here.
+	const botUa = c.req.header("user-agent");
+	if (isBotUserAgent(botUa)) {
+		const hit = classifyCrawler(botUa);
+		const botSiteId = payloads[0]?.s;
+		if (hit && botSiteId) {
+			const botPath = payloads[0]?.p ?? null;
+			const botTs = new Date().toISOString();
+			c.executionCtx.waitUntil(
+				(async () => {
+					const site = await db
+						.selectFrom("sites")
+						.select(["id"])
+						.where("id", "=", botSiteId)
+						.executeTakeFirst();
+					if (!site) return;
+					await db
+						.insertInto("crawler_hits")
+						.values({
+							id: generateId(),
+							site_id: botSiteId,
+							bot: hit.bot,
+							category: hit.category,
+							path: botPath,
+							user_agent: botUa ?? null,
+							country: cfCountry,
+							timestamp: botTs,
+						})
+						.execute();
+				})().catch(() => {}),
+			);
+		}
 		return c.json({ success: true, excluded: true }, { status: 202 });
 	}
 

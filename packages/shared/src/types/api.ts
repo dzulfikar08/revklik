@@ -640,3 +640,20 @@ export interface MarketplaceOrder {
 	ordered_at: string;
 	synced_at: string;
 }
+
+// AI crawler traffic (Crawlers panel) — GET /api/analytics/crawlers
+export type CrawlerCategory = "ai_answers" | "indexing" | "training" | "other";
+
+export interface CrawlerSlot {
+	date: string;
+	ai_answers: number;
+	indexing: number;
+	training: number;
+	other: number;
+}
+
+export interface CrawlersResponse {
+	totals: { all: number } & Record<CrawlerCategory, number>;
+	bots: Array<{ bot: string; category: CrawlerCategory; count: number }>;
+	series: CrawlerSlot[];
+}

@@ -70,3 +70,4 @@ apps/app/.env.mobile
 # Sibling projects / tool dirs at repo parent (hoisted layout)
 /revklik-landing/
 /.commandcode/
+klikapa-db-*-backup-*.sql
