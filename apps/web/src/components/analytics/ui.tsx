@@ -8,7 +8,7 @@ import {
   Tablet,
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { MouseEvent, ReactNode } from "react";
+import type { MouseEvent, ReactNode, TouchEvent } from "react";
 
 import { fmt, niceMax } from "./data";
 import type { Point } from "./data";
@@ -248,7 +248,20 @@ const tooltipShift = (idx: number, n: number): string => {
   return "-translate-x-1/2";
 };
 
-const useGeometry = (points: Point[]) =>
+const useIsWide = (): boolean => {
+  const [wide, setWide] = useState(
+    () => typeof window === "undefined" || window.matchMedia("(min-width: 640px)").matches
+  );
+  useEffect(() => {
+    const mq = window.matchMedia("(min-width: 640px)");
+    const onChange = (e: MediaQueryListEvent) => setWide(e.matches);
+    mq.addEventListener("change", onChange);
+    return () => mq.removeEventListener("change", onChange);
+  }, []);
+  return wide;
+};
+
+const useGeometry = (points: Point[], wide: boolean) =>
   useMemo(() => {
     const n = points.length;
     const peak = Math.max(
@@ -259,11 +272,22 @@ const useGeometry = (points: Point[]) =>
     const y = (v: number) => H - 8 - (v / max) * (H - 28);
     const cur = points.map((p, i) => [x(i), y(p.current)] as const);
     const prev = points.map((p, i) => [x(i), y(p.previous ?? 0)] as const);
-    const tickEvery = Math.ceil(n / 8);
-    const ticks = points
-      .map((_, i) => i)
-      .filter((i) => i % tickEvery === 0)
-      .map((i) => ({ i, left: (x(i) / W) * 100 }));
+    // Fewer ticks on phones; the last index is always labelled and, when it
+    // sits too close to the previous tick, replaces it instead of colliding.
+    const tickEvery = Math.ceil(n / (wide ? 8 : 4));
+    const tickIdx: number[] = [];
+    for (let i = 0; i < n; i += tickEvery) {
+      tickIdx.push(i);
+    }
+    if (n > 0) {
+      const prevTick = tickIdx.at(-1) ?? 0;
+      if (n - 1 - prevTick < tickEvery / 2) {
+        tickIdx[tickIdx.length - 1] = n - 1;
+      } else {
+        tickIdx.push(n - 1);
+      }
+    }
+    const ticks = tickIdx.map((i) => ({ i, left: (x(i) / W) * 100 }));
     const hasPrev = points.some((p) => (p.previous ?? 0) > 0);
     return {
       area: `${smoothPath(cur)} L ${W},${H} L 0,${H} Z`,
@@ -276,7 +300,7 @@ const useGeometry = (points: Point[]) =>
       x,
       y,
     };
-  }, [points]);
+  }, [points, wide]);
 
 export const TrafficChart = ({
   points,
@@ -286,7 +310,8 @@ export const TrafficChart = ({
   /** Day-marked annotations rendered as gold flags on the timeseries. */
   annotations?: { date: string; text: string }[];
 }) => {
-  const g = useGeometry(points);
+  const wide = useIsWide();
+  const g = useGeometry(points, wide);
   const [hover, setHover] = useState<number | null>(null);
   const [hoverMarker, setHoverMarker] = useState<number | null>(null);
   const markers = useMemo(
@@ -308,15 +333,26 @@ export const TrafficChart = ({
     setHover(Math.min(g.n - 1, Math.max(0, idx)));
   };
 
+  const onTouch = (e: TouchEvent<HTMLDivElement>) => {
+    const t = e.touches[0] ?? e.changedTouches[0];
+    if (!t) return;
+    const rect = e.currentTarget.getBoundingClientRect();
+    const idx = Math.round(((t.clientX - rect.left) / rect.width) * (g.n - 1));
+    setHover(Math.min(g.n - 1, Math.max(0, idx)));
+  };
+
   const point = hover === null ? null : points[hover];
   const [first] = points;
   const last = points.at(-1);
 
   return (
     <div
-      className="relative mb-5 h-52 w-full cursor-crosshair md:h-60"
+      className="relative mb-5 h-52 w-full cursor-crosshair touch-pan-y md:h-60"
       onMouseMove={onMove}
       onMouseLeave={() => setHover(null)}
+      onTouchStart={onTouch}
+      onTouchMove={onTouch}
+      onTouchEnd={() => setHover(null)}
     >
       <p className="sr-only">
         Visitors trend, {first?.full} to {last?.full}, compared with the
@@ -446,12 +482,11 @@ export const TrafficChart = ({
             </div>
           </>
         )}
-
       <div className="pointer-events-none absolute inset-x-0 -bottom-5 h-4">
         {g.ticks.map(({ i, left }) => (
           <span
             key={points[i].label}
-            className={`text-muted-foreground/80 absolute top-0 font-mono text-[11px] tabular-nums ${tickAlign(i, g.n)}`}
+            className={`text-muted-foreground/80 absolute top-0 whitespace-nowrap font-mono text-[11px] tabular-nums ${tickAlign(i, g.n)}`}
             style={{ left: `${left}%` }}
           >
             {points[i].label}
