@@ -466,6 +466,38 @@ export const fetchGeo = (
   return legacyFetch(`/analytics/geo?${p}`);
 };
 
+export interface CrawlerSlot {
+  date: string;
+  ai_answers: number;
+  indexing: number;
+  training: number;
+  other: number;
+}
+
+export interface CrawlersResponse {
+  totals: {
+    all: number;
+    ai_answers: number;
+    indexing: number;
+    training: number;
+    other: number;
+  };
+  bots: Array<{
+    bot: string;
+    category: "ai_answers" | "indexing" | "training" | "other";
+    count: number;
+  }>;
+  series: CrawlerSlot[];
+}
+
+export const fetchCrawlers = (
+  siteId: string,
+  range: string
+): Promise<CrawlersResponse> =>
+  legacyFetch(
+    `/analytics/crawlers?${rangeQuery(new URLSearchParams({ site_id: siteId }), range)}`
+  );
+
 export const updateVisitor = (
   id: string,
   data: Partial<Pick<VisitorProfile, "tags" | "notes" | "name" | "email">>

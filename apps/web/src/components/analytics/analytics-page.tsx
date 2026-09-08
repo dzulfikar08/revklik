@@ -34,6 +34,7 @@ import {
   countryFlag,
   encodeFilterString,
   fetchCampaigns,
+  fetchCrawlers,
   fetchDashboard,
   fetchFunnel,
   fetchGeo,
@@ -43,6 +44,8 @@ import {
 } from "@/lib/legacy/api";
 import type {
   CampaignPerformance,
+  CrawlerSlot,
+  CrawlersResponse,
   FilterOperator,
   GeoRow,
   JourneyStep,
@@ -376,6 +379,122 @@ const PAGES_HINT: Record<PageTabKey, string> = {
   entry: "sessions",
   exit: "exits",
   pages: "views",
+};
+
+type CrawlerTabKey = "all" | "ai_answers" | "indexing" | "training";
+
+const CRAWLER_TABS: readonly {
+  readonly key: CrawlerTabKey;
+  readonly label: string;
+}[] = [
+  { key: "all", label: "All" },
+  { key: "ai_answers", label: "AI answers" },
+  { key: "indexing", label: "Indexing" },
+  { key: "training", label: "Training" },
+];
+
+const CRAWLER_DOT: Record<CrawlersResponse["bots"][number]["category"], string> = {
+  ai_answers: "bg-violet-400",
+  indexing: "bg-sky-400",
+  training: "bg-amber-400",
+  other: "bg-muted-foreground/50",
+};
+
+const slotValue = (slot: CrawlerSlot, tab: CrawlerTabKey): number =>
+  tab === "all"
+    ? slot.ai_answers + slot.indexing + slot.training + slot.other
+    : slot[tab];
+
+/**
+ * AI-crawler traffic (ChatGPT, Claude, Gemini, …) bucketed by purpose.
+ * Source: crawler_hits — bots the tracker recognizes but excludes from human
+ * analytics. Note: pure HTML fetchers never run the tracker script, so this
+ * sees JS-executing bots (agents, headless browsers, prefetchers).
+ */
+const CrawlersPanel = ({
+  siteId,
+  rangeKey,
+}: {
+  siteId: string;
+  rangeKey: RangeKey;
+}) => {
+  const [crawlerTab, setCrawlerTab] = useState<CrawlerTabKey>("all");
+  const crawlersQ = useQuery({
+    enabled: Boolean(siteId),
+    queryFn: () => fetchCrawlers(siteId, rangeKey),
+    queryKey: ["legacy", "crawlers", siteId, rangeKey],
+    retry: false,
+    staleTime: 60_000,
+  });
+
+  const data = crawlersQ.data;
+  const hourly = rangeKey === "24h";
+  const points: Point[] = useMemo(
+    () =>
+      (data?.series ?? []).map((slot) => ({
+        ...pointLabel(slot.date, hourly),
+        date: slot.date,
+        current: slotValue(slot, crawlerTab),
+      })),
+    [crawlerTab, data, hourly]
+  );
+
+  const botRows = useMemo(() => {
+    const bots = (data?.bots ?? []).filter(
+      (b) => crawlerTab === "all" || b.category === crawlerTab
+    );
+    const top = Math.max(1, ...bots.map((b) => b.count));
+    return bots.map((b) => ({ ...b, share: (b.count / top) * 100 }));
+  }, [crawlerTab, data]);
+
+  const tabLabel = (key: CrawlerTabKey): string => {
+    if (!data) {
+      return CRAWLER_TABS.find((t) => t.key === key)?.label ?? key;
+    }
+    const n =
+      key === "all"
+        ? data.totals.all
+        : data.totals[key];
+    return `${CRAWLER_TABS.find((t) => t.key === key)?.label ?? key} ${fmt(n)}`;
+  };
+
+  return (
+    <Panel
+      title="AI crawlers"
+      hint={data ? `${fmt(data.totals.all)} hits` : undefined}
+    >
+      <PanelBody
+        loading={crawlersQ.isLoading}
+        hasData={(data?.totals.all ?? 0) > 0}
+        emptyText="No crawler hits yet."
+      >
+        <div className="mb-1.5 flex flex-wrap items-center gap-2">
+          <PanelTabs
+            value={crawlerTab}
+            onChange={setCrawlerTab}
+            tabs={CRAWLER_TABS.map((t) => ({ ...t, label: tabLabel(t.key) }))}
+          />
+        </div>
+        <TrafficChart points={points} />
+        <div className="grid gap-1">
+          {botRows.map((b) => (
+            <CountBarRow
+              key={`${b.bot}-${b.category}`}
+              glyph={
+                <span
+                  className={`size-2 shrink-0 rounded-full ${CRAWLER_DOT[b.category]}`}
+                  aria-hidden
+                />
+              }
+              label={b.bot}
+              value={fmt(b.count)}
+              share={b.share}
+            />
+          ))}
+        </div>
+      </PanelBody>
+    </Panel>
+  );
 };
 
 const PagesPanel = ({ dash, loading }: DashProps) => {
@@ -1778,6 +1897,7 @@ const AnalyticsPage = ({ siteId: siteIdParam }: { siteId: string }) => {
           <div className="mb-2.5 grid gap-2.5 md:grid-cols-2 xl:grid-cols-3">
             <PagesPanel dash={dash} loading={loadingDash} />
             <SourcesPanel dash={dash} loading={loadingDash} />
+            <CrawlersPanel siteId={siteId} rangeKey={rangeKey} />
             <LocationPanel
               siteId={siteId}
               rangeKey={rangeKey}
