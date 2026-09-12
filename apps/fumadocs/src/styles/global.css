@@ -1,0 +1,51 @@
+@import "tailwindcss";
+@import "fumadocs-ui/css/neutral.css";
+@import "fumadocs-ui/css/preset.css";
+
+html {
+	scrollbar-gutter: stable;
+}
+
+html > body[data-scroll-locked] {
+	margin-right: 0px !important;
+	--removed-body-scroll-bar-size: 0px !important;
+}
+
+/* ----------------------------------------------------------------------------
+   klikapa brand — deep blue-charcoal surfaces with an orange accent, applied
+   to :root and .dark alike so the docs are theme-independent (mirrors
+   apps/web/src/index.css). Fumadocs variable names are preserved so every
+   fd-* component keeps working; only the values change.
+   -------------------------------------------------------------------------- */
+:root,
+.dark {
+	--color-fd-background: oklch(0.165 0.014 260);
+	--color-fd-foreground: oklch(0.955 0.006 250);
+	--color-fd-card: oklch(0.207 0.016 260);
+	--color-fd-card-foreground: oklch(0.955 0.006 250);
+	--color-fd-popover: oklch(0.222 0.017 260);
+	--color-fd-popover-foreground: oklch(0.955 0.006 250);
+	--color-fd-muted: oklch(0.262 0.018 260);
+	--color-fd-muted-foreground: oklch(0.685 0.015 255);
+	--color-fd-secondary: oklch(0.262 0.018 260);
+	--color-fd-secondary-foreground: oklch(0.955 0.006 250);
+	--color-fd-accent: oklch(0.262 0.018 260);
+	--color-fd-accent-foreground: oklch(0.955 0.006 250);
+	--color-fd-border: oklch(0.28 0.017 260);
+	--color-fd-primary: oklch(0.78 0.13 55);
+	--color-fd-primary-foreground: oklch(0.165 0.014 260);
+	--color-fd-ring: oklch(0.62 0.02 255);
+	--color-fd-overlay: oklch(0 0 0 / 60%);
+
+	--color-fd-info: oklch(0.72 0.14 300);
+	--color-fd-warning: oklch(0.8 0.13 88);
+	--color-fd-error: oklch(0.66 0.19 25);
+	--color-fd-success: oklch(0.75 0.14 155);
+}
+
+/* neutral.css tints the sidebar only under .dark — re-tint it with the brand values. */
+.dark #nd-sidebar {
+	--color-fd-muted: oklch(0.262 0.018 260);
+	--color-fd-secondary: oklch(0.262 0.018 260);
+	--color-fd-muted-foreground: oklch(0.685 0.015 255);
+}

@@ -1,0 +1,41 @@
+---
+title: Sites
+description: Add, snippet, and manage the sites you track in klikapa — including self-traffic exclusions and purging your own visits.
+---
+
+All tracked sites live under **Manage sites** (open it from the site picker in
+the dashboard's top bar).
+
+## Add a site
+
+Enter a **name** (e.g. `My blog`) and a **domain** (e.g. `example.com`) and
+click **Add site**. Domains are lowercased and must be unique — a duplicate is
+rejected with _That domain is already added_.
+
+## Snippet
+
+Every row has a **Snippet** button that opens the
+_Tracking snippet · domain_ modal. The snippet is generated per site; copy it
+and paste it into your site's HTML. See
+[getting started](/getting-started#3-install-the-tracking-snippet) for the
+full walkthrough.
+
+## Row stats
+
+Each site shows its visitor count, view count, and revenue (when there is
+any) so you can compare properties at a glance.
+
+## Exclusions and purging
+
+Expand a row to manage your own traffic:
+
+- **Exclude this device** — the current browser stops being tracked from now
+  on. The fingerprint combines IP, user-agent, and language; excluded
+  devices are listed with per-item remove.
+- **Purge my past visits** — deletes all events, sessions, and visitor
+  profiles already recorded for this device.
+
+## Delete a site
+
+The trash icon deletes the site **and all of its data** after an inline
+confirmation. The tracking snippet stops reporting from that property.

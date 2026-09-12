@@ -1,18 +1,24 @@
-# bhvr/.gitignore
-# dependencies
+# Dependencies
 node_modules
 .pnp
 .pnp.js
 
-# testing
+# Testing
 coverage
+.nyc_output
 
-# production
+# Production / build outputs
 dist
 build
+*.tsbuildinfo
+tsconfig.tsbuildinfo
 
-# misc
-.DS_Store
+# Generated files
+apps/web/src/routeTree.gen.ts
+local.db
+local.db-*
+
+# Environment variables
 .env
 .env.local
 .env.development.local
@@ -20,29 +26,42 @@ build
 .env.production.local
 .env*.local
 
-# logs
+# Logs
+logs
+.evlog/
+*.log
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+lerna-debug.log*
 pnpm-debug.log*
 
-# editor directories and files
+# Editor directories and files
 .idea
 .vscode/*
 !.vscode/extensions.json
 !.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
 *.suo
 *.ntvs*
 *.njsproj
 *.sln
 *.sw?
+*~
+
+# OS
+.DS_Store
 
 # Bun
 bun.lockb
 .turbo
+.nx
 
-# Wrangler
+# Wrangler / Alchemy deploy artifacts
 .wrangler
+.alchemy
+.vercel
 
 # Capacitor native build artifacts
 apps/app/android/app/build
@@ -53,9 +72,6 @@ apps/app/ios/DerivedData
 # Mobile debug builds
 *.apk
 
-# TypeScript build cache
-tsconfig.tsbuildinfo
-
 # Capacitor local env
 apps/app/.env.mobile
 
@@ -63,6 +79,10 @@ apps/app/.env.mobile
 .playwright-mcp/
 .mcp.json
 .serena/
+.cache
+tmp
+temp
+rw-crews/
 
 # Working screenshots (root-level only; source PNGs live under apps/app/android/)
 /*.png
@@ -70,7 +90,7 @@ apps/app/.env.mobile
 # Sibling projects / tool dirs at repo parent (hoisted layout)
 /revklik-landing/
 /.commandcode/
-klikapa-db-*-backup-*.sql
 
 # Database backup exports (kept local + R2; too bulky/PII for git)
+klikapa-db-*-backup-*.sql
 /klikapa-db-*.sql

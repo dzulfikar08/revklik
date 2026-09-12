@@ -1,0 +1,3 @@
+# Scope bun test to the klikapa worker suite; apps/web has its own vitest suite
+[test]
+root = "apps/app/src"

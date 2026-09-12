@@ -1,0 +1,46 @@
+---
+title: Funnels
+description: klikapa's scroll funnel shows where visitors stop engaging — derived automatically from data-section markers on your pages.
+---
+
+The **Scroll funnel** panel on the dashboard shows how far visitors read down
+your pages, stage by stage, with a conversion rate and dropoff between every
+step.
+
+## No funnel builder needed
+
+klikapa funnels are **derived automatically** from scroll-section events.
+Mark up the sections of your pages once:
+
+```html
+<section data-section="hero">…</section>
+<section data-section="features">…</section>
+<section data-section="pricing">…</section>
+<section data-section="signup">…</section>
+```
+
+The tracking script reports each section a visitor reads, and the funnel
+ranks those sections in page order. There is no manual funnel editor to
+maintain — every page with sections gets a funnel for free.
+
+<Callout type="info" title="Requirements">
+	A funnel needs **pageview + scroll_section events**. Before any are recorded, the panel says: *No
+	funnel data — needs pageview + scroll_section events.*
+</Callout>
+
+## Reading the funnel
+
+- Each stage shows the section name and the visitors that reached it.
+- The seams between stages show the dropoff percentage.
+- The panel header shows the overall **conversion rate** — the share of
+  visitors that reached the last section.
+- Hovering a stage shows its visitors, share, and dropoff in a tooltip.
+- Filters and the time range apply: combine with
+  [segments](/dashboard/overview#filters-and-segments) to compare funnels for,
+  say, paid traffic only.
+
+## Multi-page funnels
+
+If your site reports sections across several paths, per-path tabs appear so
+you can switch between the funnel of each page (for example `/` versus
+`/pricing`).

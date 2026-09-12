@@ -1,0 +1,124 @@
+import { Toaster } from "@revklik/ui/components/sonner";
+import type { QueryClient } from "@tanstack/react-query";
+import {
+	HeadContent,
+	Outlet,
+	createRootRouteWithContext,
+	useRouterState,
+} from "@tanstack/react-router";
+import { lazy, Suspense } from "react";
+
+import { ThemeProvider } from "@/components/theme-provider";
+
+import "../index.css";
+
+export interface RouterAppContext {
+	queryClient: QueryClient;
+}
+
+export const Route = createRootRouteWithContext<RouterAppContext>()({
+	component: RootComponent,
+	head: () => ({
+		meta: [
+			{
+				title: "revklik",
+			},
+			{
+				name: "description",
+				content: "revklik — privacy-friendly web analytics",
+			},
+		],
+		links: [
+			{
+				rel: "icon",
+				type: "image/webp",
+				href: "/revklik.webp",
+			},
+		],
+	}),
+});
+
+/* Dev-only tooling: kept out of the production bundle entirely. */
+const RouterDevtools = import.meta.env.DEV
+	? lazy(() =>
+			import("@tanstack/react-router-devtools").then((m) => ({
+				default: m.TanStackRouterDevtools,
+			})),
+		)
+	: () => null;
+
+const QueryDevtools = import.meta.env.DEV
+	? lazy(() =>
+			import("@tanstack/react-query-devtools").then((m) => ({
+				default: m.ReactQueryDevtools,
+			})),
+		)
+	: () => null;
+
+/* Async so the user menu stays out of the entry chunk. */
+const Header = lazy(() => import("@/components/header"));
+
+/**
+ * Google OAuth callback landing: klikapa redirects to /#token=<session>.
+ * Runs at MODULE EVALUATION — before the router's beforeLoad guards read the
+ * session. A useEffect is too late: the redirect chain (/, /analytics →
+ * /login) rewrites the URL and strips the hash before any effect fires.
+ * Store the token optimistically; /analytics's guard then validates it via
+ * /auth/me and legacyLogout bounces back if it is dead.
+ */
+function captureOAuthToken(): void {
+	const match = window.location.hash.match(/^#token=(.+)$/);
+	if (!match) return;
+	const token = decodeURIComponent(match[1]);
+	history.replaceState(null, "", window.location.pathname);
+	localStorage.setItem("kp_token", token);
+	fetch("/api/auth/me", {
+		headers: { Authorization: `Bearer ${token}` },
+	})
+		.then(async (res) => {
+			if (!res.ok) throw new Error(String(res.status));
+			const json = (await res.json()) as { data?: { user?: unknown } };
+			if (!json.data?.user) throw new Error("no user");
+			localStorage.setItem("kp_user", JSON.stringify(json.data.user));
+			window.location.replace("/analytics");
+		})
+		.catch(() => {
+			// Bad/expired token: drop it; the login guard takes it from here.
+			localStorage.removeItem("kp_token");
+			localStorage.removeItem("kp_user");
+		});
+}
+
+captureOAuthToken();
+
+function RootComponent() {
+	const pathname = useRouterState({ select: (s) => s.location.pathname });
+	const chromeless =
+		pathname.startsWith("/analytics") || pathname === "/login" || pathname === "/success";
+
+	return (
+		<>
+			<HeadContent />
+			<ThemeProvider
+				attribute="class"
+				defaultTheme="dark"
+				disableTransitionOnChange
+				storageKey="vite-ui-theme"
+			>
+				<div className="grid h-svh grid-cols-[minmax(0,1fr)] grid-rows-[auto_1fr] [&>*]:min-w-0">
+					{!chromeless && (
+						<Suspense fallback={null}>
+							<Header />
+						</Suspense>
+					)}
+					<Outlet />
+				</div>
+				<Toaster richColors />
+			</ThemeProvider>
+			<Suspense fallback={null}>
+				<RouterDevtools position="bottom-left" />
+				<QueryDevtools position="bottom" buttonPosition="bottom-right" />
+			</Suspense>
+		</>
+	);
+}

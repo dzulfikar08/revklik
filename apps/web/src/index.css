@@ -1,0 +1,61 @@
+@import "@revklik/ui/globals.css";
+
+/* ----------------------------------------------------------------------------
+   revklik analytics theme — the single global theme.
+   Deep blue-charcoal surfaces, orange traffic accent, gold money.
+   Applied to :root and .dark alike so the palette is theme-independent;
+   swap the values here to re-skin the entire app.
+   -------------------------------------------------------------------------- */
+:root,
+.dark {
+	--background: oklch(0.165 0.014 260);
+	--foreground: oklch(0.955 0.006 250);
+	--card: oklch(0.207 0.016 260);
+	--card-foreground: oklch(0.955 0.006 250);
+	--popover: oklch(0.222 0.017 260);
+	--popover-foreground: oklch(0.955 0.006 250);
+	--primary: oklch(0.955 0.006 250);
+	--primary-foreground: oklch(0.2 0.016 260);
+	--secondary: oklch(0.262 0.018 260);
+	--secondary-foreground: oklch(0.955 0.006 250);
+	--muted: oklch(0.262 0.018 260);
+	--muted-foreground: oklch(0.685 0.015 255);
+	--accent: oklch(0.262 0.018 260);
+	--accent-foreground: oklch(0.955 0.006 250);
+	--border: oklch(0.28 0.017 260);
+	--input: oklch(0.262 0.018 260);
+	--ring: oklch(0.62 0.02 255);
+	--chart-1: oklch(0.78 0.13 55);
+	--chart-2: oklch(0.8 0.13 88);
+	--chart-3: oklch(0.75 0.14 155);
+	--chart-4: oklch(0.66 0.19 25);
+	--chart-5: oklch(0.72 0.14 3);
+	--sidebar: oklch(0.207 0.016 260);
+	--sidebar-foreground: oklch(0.955 0.006 250);
+	--sidebar-primary: oklch(0.78 0.13 55);
+	--sidebar-primary-foreground: oklch(0.2 0.016 260);
+	--sidebar-accent: oklch(0.262 0.018 260);
+	--sidebar-accent-foreground: oklch(0.955 0.006 250);
+	--sidebar-border: oklch(0.28 0.017 260);
+	--sidebar-ring: oklch(0.62 0.02 255);
+}
+
+/* Analytics-specific viz tokens (referenced as var(--chart), text-(--money), …). */
+:root {
+	--chart: oklch(0.78 0.13 55);
+	--compare: oklch(0.6 0.012 255);
+	--money: oklch(0.8 0.13 88);
+	--up: oklch(0.75 0.14 155);
+	--down: oklch(0.66 0.19 25);
+	--violet: oklch(0.72 0.14 300);
+}
+
+/* Expose them as first-class Tailwind utilities (bg-money, text-up, …). */
+@theme inline {
+	--color-chart: var(--chart);
+	--color-compare: var(--compare);
+	--color-money: var(--money);
+	--color-up: var(--up);
+	--color-down: var(--down);
+	--color-violet: var(--violet);
+}
