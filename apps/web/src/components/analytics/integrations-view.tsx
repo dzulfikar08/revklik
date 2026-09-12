@@ -1,8 +1,11 @@
 import { Button } from "@revklik-new/ui/components/button";
 import { Input } from "@revklik-new/ui/components/input";
 import { Label } from "@revklik-new/ui/components/label";
+import { Textarea } from "@revklik-new/ui/components/textarea";
+import { syncAppStore } from "@/lib/legacy/appstoreconnect";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
+  Apple,
   Bird,
   Citrus,
   Copy,
@@ -64,6 +67,10 @@ interface ProviderField {
   label: string;
   placeholder: string;
   secret?: boolean;
+  /** Multi-secret paste (e.g. PEM) — renders a textarea instead of an input. */
+  multiline?: boolean;
+  /** Where to find the value, shown under the field. */
+  hint?: string;
 }
 
 interface ProviderMeta {
@@ -72,10 +79,11 @@ interface ProviderMeta {
   description: string;
   icon: LucideIcon;
   fields: ProviderField[];
+  /** Step-by-step acquisition guide rendered inside the connect form. */
+  instructions?: ReactNode;
 }
-
 /* API-key webhook integrations — configured inline, tested against the provider. */
-const WEBHOOK_PROVIDERS: ProviderMeta[] = [
+export const WEBHOOK_PROVIDERS: ProviderMeta[] = [
   {
     type: "mailchimp",
     name: "Mailchimp",
@@ -135,6 +143,109 @@ const WEBHOOK_PROVIDERS: ProviderMeta[] = [
       { key: "refresh_token", label: "Refresh Token", placeholder: "your-refresh-token", secret: true },
       { key: "customer_id", label: "Customer ID", placeholder: "123-456-7890" },
     ],
+  },
+  {
+    type: "appstoreconnect",
+    name: "App Store Connect",
+    description:
+      "Sync App Store downloads, proceeds, and price changes into the same view as web revenue",
+    icon: Apple,
+    fields: [
+      {
+        key: "issuer_id",
+        label: "Issuer ID",
+        placeholder: "69a6de7c-…  (UUID)",
+        hint: "App Store Connect → Users and Access → Integrations → App Store Connect API — shown above the keys table.",
+      },
+      {
+        key: "key_id",
+        label: "Key ID",
+        placeholder: "ABC123DEFG",
+        hint: "Same page — the 10-character ID next to the key you generate in step 2 below.",
+      },
+      {
+        key: "private_key",
+        label: "Private Key (.p8)",
+        placeholder: "-----BEGIN PRIVATE KEY-----\nMIGT…\n-----END PRIVATE KEY-----",
+        secret: true,
+        multiline: true,
+        hint: "The full .p8 contents including the BEGIN/END lines. Downloaded once when the key is created — if lost, revoke the key and create a new one.",
+      },
+      {
+        key: "app_id",
+        label: "App ID (Apple ID)",
+        placeholder: "123456789",
+        hint: "Apps → your app → General → App Information → Apple ID (the 10-digit number).",
+      },
+      {
+        key: "vendor_number",
+        label: "Vendor Number",
+        placeholder: "1234567",
+        hint: "Payments and Financial Reports → top-left, under your Legal Entity Name.",
+      },
+      {
+        key: "backfill_days",
+        label: "Backfill Days (optional)",
+        placeholder: "30",
+        hint: "How far back to pull on first sync (max 90). Apple keeps 13 months of reports.",
+      },
+    ],
+    instructions: (
+      <div className="bg-muted/50 border-border/60 grid gap-1.5 rounded-lg border px-3 py-2.5 text-[11px] leading-relaxed">
+        <p className="text-foreground/80 font-semibold">Before you start</p>
+        <p className="text-muted-foreground">
+          The Paid Applications Agreement must be signed (Agreements, Tax, and
+          Banking) — without it Apple has no sales reports to give.
+        </p>
+        <p className="text-foreground/80 font-semibold">Step 1 — create an API key</p>
+        <ol className="text-muted-foreground list-decimal space-y-1 pl-4">
+          <li>
+            Go to{" "}
+            <a
+              className="underline underline-offset-2"
+              href="https://appstoreconnect.apple.com/access/integrations/api"
+              target="_blank"
+              rel="noreferrer"
+            >
+              appstoreconnect.apple.com → Users and Access → Integrations
+            </a>{" "}
+            and note the <strong className="text-foreground">Issuer ID</strong> shown
+            above the keys table.
+          </li>
+          <li>
+            Click <strong className="text-foreground">+</strong> to generate a new
+            key. Name it (e.g. "RevKlik analytics") and pick the{" "}
+            <strong className="text-foreground">Admin</strong> role — Admin enables
+            engagement metrics (impressions, page views). The roles "Finance" or
+            "Sales and Reports" also work, but only for downloads and proceeds.
+          </li>
+          <li>
+            <strong className="text-foreground">Download</strong> the .p8 file —
+            Apple lets you download it exactly once. Paste its full contents
+            below, and copy the key's <strong className="text-foreground">Key ID</strong>{" "}
+            from the table.
+          </li>
+        </ol>
+        <p className="text-foreground/80 font-semibold">Step 2 — app and vendor numbers</p>
+        <ol className="text-muted-foreground list-decimal space-y-1 pl-4">
+          <li>
+            App ID: <strong className="text-foreground">Apps → your app → General →
+            App Information → Apple ID</strong>.
+          </li>
+          <li>
+            Vendor Number: <strong className="text-foreground">Payments and Financial
+            Reports</strong> — top-left corner, under your Legal Entity Name.
+          </li>
+        </ol>
+        <p className="text-muted-foreground">
+          After connecting, hit <strong className="text-foreground">Test</strong> to
+          verify the key, then <strong className="text-foreground">Sync now</strong>.
+          Data lands in the Revenue panel under "App Store"; price changes show up
+          as flags on the main chart. Reports arrive daily, so new days appear
+          every morning (US Pacific).
+        </p>
+      </div>
+    ),
   },
 ];
 
@@ -262,7 +373,7 @@ const filledConfig = (meta: ProviderMeta, form: Record<string, string>) => {
 
 /* ------------------------------- config form -------------------------------- */
 
-const IntegrationForm = ({
+export const IntegrationForm = ({
   meta,
   integration,
   siteId,
@@ -331,19 +442,33 @@ const IntegrationForm = ({
           className="h-8 font-mono text-xs"
         />
       </div>
+      {meta.instructions}
       {meta.fields.map((f) => (
         <div key={f.key} className="grid gap-1">
           <Label htmlFor={`int-${meta.type}-${f.key}`} className="text-[10px]">
             {f.label}
           </Label>
-          <Input
-            id={`int-${meta.type}-${f.key}`}
-            type={f.secret ? "password" : "text"}
-            value={form[f.key] ?? ""}
-            onChange={(e) => setForm((prev) => ({ ...prev, [f.key]: e.target.value }))}
-            placeholder={integration ? "leave empty to keep current" : f.placeholder}
-            className="h-8 font-mono text-xs"
-          />
+          {f.multiline ? (
+            <Textarea
+              id={`int-${meta.type}-${f.key}`}
+              value={form[f.key] ?? ""}
+              onChange={(e) => setForm((prev) => ({ ...prev, [f.key]: e.target.value }))}
+              placeholder={integration ? "leave empty to keep current" : f.placeholder}
+              className="min-h-24 font-mono text-xs"
+            />
+          ) : (
+            <Input
+              id={`int-${meta.type}-${f.key}`}
+              type={f.secret ? "password" : "text"}
+              value={form[f.key] ?? ""}
+              onChange={(e) => setForm((prev) => ({ ...prev, [f.key]: e.target.value }))}
+              placeholder={integration ? "leave empty to keep current" : f.placeholder}
+              className="h-8 font-mono text-xs"
+            />
+          )}
+          {f.hint ? (
+            <p className="text-muted-foreground text-[10px]">{f.hint}</p>
+          ) : null}
         </div>
       ))}
       {error ? <ErrText>{error}</ErrText> : null}
@@ -469,6 +594,16 @@ const WebhookProviderCard = ({
     onError: (err: Error) => toast.error(err.message),
   });
 
+  const syncMut = useMutation({
+    mutationFn: () => syncAppStore(siteId),
+    onSuccess: (r) => {
+      qc.invalidateQueries({ queryKey: ["legacy", "appstore-metrics", siteId] });
+      toast.success(
+        `Synced ${r.days_synced} day(s), ${r.price_changes} price change(s) flagged`,
+      );
+    },
+    onError: (err: Error) => toast.error(err.message),
+  });
   const runTest = async () => {
     setTesting(true);
     setTest(null);
@@ -530,6 +665,16 @@ const WebhookProviderCard = ({
               <Button variant="outline" size="sm" onClick={runTest} disabled={testing}>
                 {testing ? "Testing…" : "Test"}
               </Button>
+              {meta.type === "appstoreconnect" ? (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => syncMut.mutate()}
+                  disabled={syncMut.isPending}
+                >
+                  {syncMut.isPending ? "Syncing…" : "Sync now"}
+                </Button>
+              ) : null}
               <Button
                 variant="outline"
                 size="sm"

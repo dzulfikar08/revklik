@@ -51,7 +51,13 @@ export interface BillingAlerts {
 export const fetchSubscription = (): Promise<BillingSubscription> =>
   legacyFetch("/billing/subscription");
 
-export const fetchPlans = (): Promise<BillingPlan[]> =>
+export interface PlansResponse {
+  plans: BillingPlan[];
+  /** QRIS only works with Indonesian payment apps — hidden elsewhere. */
+  qris_available: boolean;
+}
+
+export const fetchPlans = (): Promise<PlansResponse> =>
   legacyFetch("/billing/plans");
 
 /** Polar card checkout — returns the hosted checkout URL to redirect to. */

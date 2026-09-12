@@ -240,12 +240,14 @@ const PlanCard = ({
   busy,
   onCard,
   onQris,
+  qrisAvailable,
 }: {
   plan: BillingPlan;
   isCurrent: boolean;
   busy: boolean;
   onCard: (tier: PlanTier) => void;
   onQris: (tier: PlanTier) => void;
+  qrisAvailable: boolean;
 }) => {
   const popular = plan.tier === POPULAR_TIER;
   return (
@@ -304,16 +306,21 @@ const PlanCard = ({
             <CreditCard className="size-3.5" aria-hidden />
             Pay with card
           </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            className="w-full"
-            disabled={busy}
-            onClick={() => onQris(plan.tier)}
-          >
-            <QrCode className="size-3.5" aria-hidden />
-            Pay with QRIS
-          </Button>
+          {qrisAvailable ? (
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={busy}
+              onClick={() => onQris(plan.tier)}
+            >
+              <QrCode className="size-3.5" aria-hidden />
+              Pay with QRIS
+            </Button>
+          ) : (
+            <p className="text-muted-foreground px-1 text-[10px]">
+              QRIS is available for Indonesian payment apps only.
+            </p>
+          )}
         </div>
       )}
     </div>
@@ -382,7 +389,10 @@ export const BillingView = () => {
     },
   });
 
-  const plans = plansQ.data ?? [];
+  const plans = plansQ.data?.plans ?? [];
+  // QRIS needs an Indonesian bank/e-wallet app; the server decides by the
+  // visitor's country and the worker hard-rejects non-ID checkouts anyway.
+  const qrisAvailable = plansQ.data?.qris_available ?? false;
   const busy = checkoutMut.isPending || pakasirMut.isPending;
   const isPaid = sub ? sub.plan !== "micro" : false;
   const isActive = sub
@@ -562,7 +572,10 @@ export const BillingView = () => {
                   isCurrent={sub?.plan === plan.tier && isActive}
                   busy={busy}
                   onCard={(tier) => checkoutMut.mutate(tier)}
-                  onQris={(tier) => pakasirMut.mutate(tier)}
+                  onQris={
+                    qrisAvailable ? (tier) => pakasirMut.mutate(tier) : () => {}
+                  }
+                  qrisAvailable={qrisAvailable}
                 />
               ))}
             </div>

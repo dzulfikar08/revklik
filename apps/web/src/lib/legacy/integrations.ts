@@ -13,6 +13,7 @@ export type LegacyIntegrationType =
   | "meta_ads"
   | "google_ads"
   | "google_search_console"
+  | "appstoreconnect"
   | "midtrans"
   | "xendit"
   | "doku"

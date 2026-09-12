@@ -1,3 +1,6 @@
+import { getLegacyUser } from "@/lib/legacy/api";
+import { AdminView } from "./admin-view";
+import { Button } from "@revklik-new/ui/components/button";
 import { Input } from "@revklik-new/ui/components/input";
 import {
   Select,
@@ -13,6 +16,7 @@ import {
   ArrowDownUp,
   ArrowRight,
   Check,
+  ShieldCheck,
   CreditCard,
   Download,
   FileText,
@@ -54,8 +58,8 @@ import type {
   VisitorJourney,
   VisitorProfile,
 } from "@/lib/legacy/api";
-import { Button } from "@revklik-new/ui/components/button";
 import { exportLegacyFile } from "@/lib/legacy/sites";
+import { fetchAppStoreMetrics } from "@/lib/legacy/appstoreconnect";
 import type { LegacyAnnotation } from "@/lib/legacy/analytics-settings";
 
 import { AnnotationsControl } from "./annotations";
@@ -101,18 +105,19 @@ import {
 } from "./ui";
 import { VisitorSheet } from "./visitors";
 
-type ViewKey = "home" | "settings" | "share" | "billing" | "integrations";
+type ViewKey = "home" | "settings" | "share" | "billing" | "integrations" | "admin";
 type LocationTabKey = "country" | "region" | "city" | "globe";
 type PageTabKey = "pages" | "entry" | "exit";
 type SourceTabKey = "referrer" | "channel";
 type PlatformTabKey = "browser" | "os" | "device";
-type RevenueTabKey = "source" | "country" | "method" | "campaign";
+type RevenueTabKey = "source" | "country" | "method" | "campaign" | "appstore";
 
 const NAV_TABS = [
   { Icon: Home, key: "home" as const, label: "Home" },
   { Icon: Settings, key: "settings" as const, label: "Settings" },
   { Icon: Share2, key: "share" as const, label: "Share" },
   { Icon: CreditCard, key: "billing" as const, label: "Billing" },
+  { Icon: ShieldCheck, key: "admin" as const, label: "Admin" },
   { Icon: Webhook, key: "integrations" as const, label: "Integrations" },
 ];
 
@@ -127,7 +132,10 @@ const NavTabs = ({
   view: ViewKey;
   onView: (v: ViewKey) => void;
   className?: string;
-}) => (
+}) => {
+  const isAdmin = getLegacyUser()?.role === "super_admin";
+  const tabs = NAV_TABS.filter((t) => t.key !== "admin" || isAdmin);
+  return (
   <nav
     role="tablist"
     aria-label="Sections"
@@ -135,7 +143,7 @@ const NavTabs = ({
       className ?? ""
     }`}
   >
-    {NAV_TABS.map(({ key, label, Icon }) => (
+    {tabs.map(({ key, label, Icon }) => (
       <button
         key={key}
         type="button"
@@ -153,7 +161,8 @@ const NavTabs = ({
       </button>
     ))}
   </nav>
-);
+  );
+};
 
 /* -------------------------------- mapping ---------------------------------- */
 
@@ -824,6 +833,15 @@ const RevenuePanel = ({
   filterStr,
 }: DashProps & { siteId: string; rangeKey: RangeKey; filterStr: string }) => {
   const [revenueTab, setRevenueTab] = useState<RevenueTabKey>("source");
+  const ascQ = useQuery({
+    enabled: Boolean(siteId) && revenueTab === "appstore",
+    queryFn: () => fetchAppStoreMetrics(siteId, rangeKey),
+    queryKey: ["legacy", "appstore-metrics", siteId, rangeKey],
+    // No App Store Connect integration on the site → 404; expected, stay quiet.
+    meta: { silent: true },
+    retry: false,
+    staleTime: 60_000,
+  });
   const campaignsQ = useQuery({
     enabled: Boolean(siteId),
     queryFn: () => fetchCampaigns(siteId, rangeKey, filterStr),
@@ -837,7 +855,13 @@ const RevenuePanel = ({
   const [revenueSort, setRevenueSort] = useState<"desc" | "asc">("desc");
   const rows: CountRow[] = useMemo(() => {
     const unsorted: CountRow[] =
-      revenueTab === "country"
+      revenueTab === "appstore"
+        ? (ascQ.data?.byCountry ?? []).map((r) => ({
+            flag: countryFlag(r.country) || undefined,
+            label: r.country,
+            value: r.proceeds,
+          }))
+        : revenueTab === "country"
         ? (dash?.revenueByCountry ?? []).map((r) => ({
             flag: countryFlag(r.country) || undefined,
             label: r.country,
@@ -855,7 +879,7 @@ const RevenuePanel = ({
     return unsorted.toSorted((a, b) =>
       revenueSort === "desc" ? b.value - a.value : a.value - b.value
     );
-  }, [dash, revenueTab, revenueSort]);
+  }, [dash, revenueTab, revenueSort, ascQ.data]);
   const total = rows.reduce((acc, r) => acc + r.value, 0);
 
   const campaigns = campaignsQ.data ?? [];
@@ -928,6 +952,47 @@ const RevenuePanel = ({
       </div>
     </PanelBody>
   );
+  const ascBody = () => {
+    const asc = ascQ.data;
+    const hasAsc = Boolean(
+      asc &&
+        (asc.totals.downloads > 0 || asc.totals.proceeds > 0 || rows.length > 0)
+    );
+    return (
+      <PanelBody
+        loading={loading || ascQ.isLoading}
+        hasData={hasAsc}
+        emptyText={
+          asc
+            ? "No App Store sales in this range."
+            : "No App Store Connect data — attach the integration to this site first."
+        }
+      >
+        {asc && (
+          <div className="text-muted-foreground mb-2 flex items-center gap-4 px-1 text-xs">
+            <span>{fmt(asc.totals.downloads)} downloads</span>
+            <span className="font-mono text-(--money)">
+              {money(asc.totals.proceeds)}
+            </span>
+            {asc.totals.iap_proceeds > 0 ? (
+              <span>· IAP {money(asc.totals.iap_proceeds)}</span>
+            ) : null}
+          </div>
+        )}
+        <div className="grid max-h-[420px] gap-1 overflow-y-auto">
+          {rows.map((r) => (
+            <CountBarRow
+              key={r.label}
+              label={r.label}
+              value={money(r.value)}
+              share={(r.value / total) * 100}
+              fill="var(--money)"
+            />
+          ))}
+        </div>
+      </PanelBody>
+    );
+  };
 
   return (
     <Panel
@@ -940,6 +1005,7 @@ const RevenuePanel = ({
             { key: "country", label: "Country" },
             { key: "method", label: "Method" },
             { key: "campaign", label: "Campaign" },
+            { key: "appstore", label: "App Store" },
           ]}
         />
       }
@@ -953,7 +1019,11 @@ const RevenuePanel = ({
         />
       }
     >
-      {revenueTab === "campaign" ? campaignBody() : moneyBody()}
+      {revenueTab === "campaign"
+        ? campaignBody()
+        : revenueTab === "appstore"
+          ? ascBody()
+          : moneyBody()}
     </Panel>
   );
 };
@@ -1949,6 +2019,8 @@ const AnalyticsPage = ({ siteId: siteIdParam }: { siteId: string }) => {
         <ShareWidgetTokensView />
       ) : view === "billing" ? (
         <BillingView />
+      ) : view === "admin" ? (
+        <AdminView />
       ) : view === "integrations" ? (
         <IntegrationsView siteId={siteId} />
       ) : (
