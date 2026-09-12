@@ -11,7 +11,7 @@
 		"dev": "bun --filter @revklik/app dev",
 		"build": "bun --filter @revklik/app build",
 		"preview": "bun --filter @revklik/app preview",
-		"deploy": "bun --filter @revklik/app deploy",
+		"deploy": "bun run typecheck && bun run lint && bun run test && bun --filter @revklik/app deploy",
 		"typecheck": "bun --filter @revklik/app typecheck && bun --filter @revklik/shared typecheck && bun --filter @revklik/sdk typecheck && bun --filter @revklik/cli typecheck",
 		"lint": "oxlint .",
 		"test": "bun test",

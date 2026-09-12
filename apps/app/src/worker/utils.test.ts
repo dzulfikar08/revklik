@@ -51,9 +51,7 @@ describe("classifyCrawler", () => {
 			),
 		).toEqual({ bot: "ChatGPT", category: "training" });
 		expect(
-			classifyCrawler(
-				"Mozilla/5.0 (compatible; ChatGPT-User/1.0; +https://openai.com/bot)",
-			),
+			classifyCrawler("Mozilla/5.0 (compatible; ChatGPT-User/1.0; +https://openai.com/bot)"),
 		).toEqual({ bot: "ChatGPT", category: "ai_answers" });
 		expect(classifyCrawler("ClaudeBot/1.0 (+claudebot@anthropic.com)")).toEqual({
 			bot: "Claude",
@@ -64,7 +62,9 @@ describe("classifyCrawler", () => {
 				"Mozilla/5.0 (compatible; PerplexityBot/1.0; +https://perplexity.ai/perplexitybot)",
 			),
 		).toEqual({ bot: "Perplexity", category: "indexing" });
-		expect(classifyCrawler("Mozilla/5.0 (compatible; DuckAssistBot/1.0; +https://duckduckgo.com)")).toEqual({
+		expect(
+			classifyCrawler("Mozilla/5.0 (compatible; DuckAssistBot/1.0; +https://duckduckgo.com)"),
+		).toEqual({
 			bot: "DuckDuckGo",
 			category: "ai_answers",
 		});

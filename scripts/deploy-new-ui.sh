@@ -14,10 +14,23 @@
 #   1. REVKLIK_NEW pointing at the revklik-new checkout (default: sibling dir).
 #      Auth is klikapa legacy (session token in localStorage) — no server URL
 #      needs to be baked into the bundle anymore.
+#
+# Preflight gates: typecheck + lint + tests for BOTH repos run before anything
+# is built or uploaded — a failing check aborts the deploy (mechanical
+# no-bugs guard).
+#
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 REVKLIK_NEW="${REVKLIK_NEW:-$(dirname "$ROOT")/revklik-new}"
+cd "$ROOT"
+echo "==> Gates: klikapa (typecheck, lint, tests)"
+bun run typecheck
+bun run lint
+bun test
+echo "==> Gates: revklik-new web (typecheck, tests)"
+(cd "$REVKLIK_NEW/apps/web" && bun run check-types && bun run test)
+
 
 echo "==> Building new UI from $REVKLIK_NEW"
 (cd "$REVKLIK_NEW" && bun install --frozen-lockfile \

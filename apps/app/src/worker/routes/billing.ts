@@ -173,7 +173,18 @@ billingRoutes.get("/plans", async (c) => {
 		}
 	}
 
-	return c.json({ data: plans, polar_products_error: polarProductsError, success: true });
+	// QRIS visibility follows the visitor's country (ID only); unknown
+	// (local dev) defaults to available so the button never vanishes in dev.
+	const country =
+		c.req.header("CF-IPCountry") ||
+		(c.req.raw.cf as { country?: string } | undefined)?.country ||
+		"";
+	return c.json({
+		data: plans,
+		polar_products_error: polarProductsError,
+		qris_available: country === "" || country === "ID",
+		success: true,
+	});
 });
 
 // Create Polar checkout session
@@ -271,6 +282,22 @@ billingRoutes.post("/checkout/pakasir", async (c) => {
 	const { plan } = await c.req.json<{ plan: string }>();
 	if (!plan || !PLANS[plan as PlanTier]) {
 		return c.json({ error: "Invalid plan", success: false }, 400);
+	}
+
+	// QRIS is payable only with Indonesian bank/e-wallet apps — hard-reject
+	// other regions (the UI hides the button via /plans qris_available).
+	const country =
+		c.req.header("CF-IPCountry") ||
+		(c.req.raw.cf as { country?: string } | undefined)?.country ||
+		"";
+	if (country && country !== "ID") {
+		return c.json(
+			{
+				error: "QRIS is only available with Indonesian payment apps — please use card checkout",
+				success: false,
+			},
+			403,
+		);
 	}
 
 	const amount = PAKASIR_PRICES[plan as PlanTier];

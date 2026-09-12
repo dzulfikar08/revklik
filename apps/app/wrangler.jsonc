@@ -19,8 +19,8 @@
 	"d1_databases": [
 		{
 			"binding": "DB",
-			"database_name": "klikapa-db-active",
-			"database_id": "27aaa930-4a2f-43fb-8c70-e3dd972a33bf",
+			"database_name": "klikapa-db",
+			"database_id": "06842ad9-7e94-49db-a207-7a58683092d7",
 		},
 	],
 	"send_email": [
@@ -38,6 +38,6 @@
 		},
 	],
 	"triggers": {
-		"crons": ["0 */6 * * *", "0 5 * * *", "0 3 * * *"],
+		"crons": ["0 */6 * * *", "0 5 * * *", "0 3 * * *", "0 18 * * *"],
 	},
 }

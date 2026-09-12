@@ -410,6 +410,7 @@ export type IntegrationType =
 	| "meta_ads"
 	| "google_ads"
 	| "google_search_console"
+	| "appstoreconnect"
 	| "midtrans"
 	| "xendit"
 	| "doku"
@@ -435,6 +436,37 @@ export interface CreateIntegrationPayload {
 	type: IntegrationType;
 	name: string;
 	config: Record<string, string>;
+}
+
+// App Store Connect analytics (sales-report sync)
+export interface AscMetricsResponse {
+	totals: {
+		downloads: number;
+		proceeds: number;
+		iap_units: number;
+		iap_proceeds: number;
+		currency: string | null;
+	};
+	timeseries: Array<{
+		date: string;
+		downloads: number;
+		proceeds: number;
+		iap_proceeds: number;
+	}>;
+	byCountry: Array<{
+		country: string;
+		downloads: number;
+		proceeds: number;
+		price: number | null;
+		currency: string | null;
+	}>;
+}
+
+export interface AscPriceEntry {
+	country: string;
+	currency: string | null;
+	price: number | null;
+	since: string;
 }
 
 export interface WebhookEventLog {

@@ -10,6 +10,7 @@ import { affiliateRoutes } from "./routes/affiliates";
 import { aiInsightsRoutes } from "./routes/ai-insights";
 import { analyticsRoutes } from "./routes/analytics";
 import { annotationRoutes } from "./routes/annotations";
+import { ascRoutes } from "./routes/appstoreconnect";
 import { authRoutes } from "./routes/auth";
 import { billingRoutes } from "./routes/billing";
 import { billingWebhookRoutes } from "./routes/billing-webhook";
@@ -136,6 +137,9 @@ export function createApp(): Hono<Env> {
 
 	app.use("/integrations/*", authMiddleware);
 	app.route("/integrations", integrationRoutes);
+
+	app.use("/appstoreconnect/*", authMiddleware);
+	app.route("/appstoreconnect", ascRoutes);
 
 	app.use("/tokens/*", authMiddleware);
 	app.route("/tokens", tokenRoutes);

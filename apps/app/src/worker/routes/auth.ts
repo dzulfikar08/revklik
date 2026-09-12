@@ -3,6 +3,7 @@ import { Kysely } from "kysely";
 import type { KlikapaDatabase } from "@revklik/shared";
 import type { Env } from "../types";
 import { generateApiKey, generateId, hashPassword, hashToken } from "../utils";
+import { sendNewSignupAlert } from "../lib/email";
 
 export const authRoutes = new Hono<Env>();
 
@@ -74,6 +75,12 @@ authRoutes.post("/register", async (c) => {
 			created_at: new Date().toISOString(),
 		})
 		.execute();
+	// Fire-and-forget admin notification (skip self-registration of the admin).
+	if (c.env.SUPER_ADMIN_EMAIL && email !== c.env.SUPER_ADMIN_EMAIL) {
+		c.executionCtx.waitUntil(
+			sendNewSignupAlert(c.env.SUPER_ADMIN_EMAIL, { name, email, via: "password" }, c.env.EMAIL),
+		);
+	}
 
 	// Referral tracking: check for ref code in query or body
 	const refCode = c.req.query("ref");
@@ -340,6 +347,20 @@ authRoutes.get("/google/callback", async (c) => {
 				updated_at: now.toISOString(),
 			})
 			.execute();
+		// Fire-and-forget admin notification (skip self-registration of the admin).
+		if (c.env.SUPER_ADMIN_EMAIL && googleEmail !== c.env.SUPER_ADMIN_EMAIL) {
+			c.executionCtx.waitUntil(
+				sendNewSignupAlert(
+					c.env.SUPER_ADMIN_EMAIL,
+					{
+						name: profile.name || googleEmail.split("@")[0] || googleEmail,
+						email: googleEmail,
+						via: "google",
+					},
+					c.env.EMAIL,
+				),
+			);
+		}
 	}
 
 	// Issue API key

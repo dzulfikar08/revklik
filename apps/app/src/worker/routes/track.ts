@@ -3,7 +3,13 @@ import type { Kysely } from "kysely";
 import type { IdentifyPayload, KlikapaDatabase, TrackEventPayload } from "@revklik/shared";
 import { sql } from "../db";
 import { enforceSiteQuota, incrementCachedCount } from "../lib/subscription-cache";
-import { countryFromTimezone, classifyCrawler, fingerprintFromRequest, generateId, isBotUserAgent } from "../utils";
+import {
+	countryFromTimezone,
+	classifyCrawler,
+	fingerprintFromRequest,
+	generateId,
+	isBotUserAgent,
+} from "../utils";
 
 type Variables = { db: Kysely<KlikapaDatabase> };
 

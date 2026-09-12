@@ -71,3 +71,6 @@ apps/app/.env.mobile
 /revklik-landing/
 /.commandcode/
 klikapa-db-*-backup-*.sql
+
+# Database backup exports (kept local + R2; too bulky/PII for git)
+/klikapa-db-*.sql

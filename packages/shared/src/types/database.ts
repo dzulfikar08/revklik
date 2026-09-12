@@ -174,6 +174,35 @@ export interface CrawlerHitTable {
 	timestamp: string;
 }
 
+export interface AscDailyMetricTable {
+	id: string;
+	site_id: string;
+	app_id: string;
+	date: string;
+	units: number;
+	proceeds: number;
+	iap_units: number;
+	iap_proceeds: number;
+	proceeds_currency: string | null;
+	impressions: number | null;
+	page_views: number | null;
+	paying_users: number | null;
+	synced_at: string;
+}
+
+export interface AscDailyCountryTable {
+	id: string;
+	site_id: string;
+	app_id: string;
+	date: string;
+	country: string;
+	units: number;
+	proceeds: number;
+	customer_price: number | null;
+	customer_currency: string | null;
+	synced_at: string;
+}
+
 export interface KlikapaDatabase {
 	events: EventTable;
 	sessions: SessionTable;
@@ -198,6 +227,8 @@ export interface KlikapaDatabase {
 	annotations: AnnotationTable;
 	email_reports: EmailReportTable;
 	search_console_data: SearchConsoleDataTable;
+	asc_daily_metrics: AscDailyMetricTable;
+	asc_daily_country: AscDailyCountryTable;
 	marketplace_orders: MarketplaceOrderTable;
 	affiliates: AffiliateTable;
 	referrals: ReferralTable;

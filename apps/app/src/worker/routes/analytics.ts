@@ -1173,7 +1173,13 @@ analyticsRoutes.get("/crawlers", async (c) => {
 	// Fill gaps so the chart gets one bucket per key, matching /dashboard series
 	const slotByDate: Record<string, CrawlerSlot> = {};
 	for (const r of seriesRows) {
-		slotByDate[String(r.date)] ??= { date: String(r.date), ai_answers: 0, indexing: 0, training: 0, other: 0 };
+		slotByDate[String(r.date)] ??= {
+			date: String(r.date),
+			ai_answers: 0,
+			indexing: 0,
+			training: 0,
+			other: 0,
+		};
 		slotByDate[String(r.date)][r.category] = Number(r.count);
 	}
 	const stepMs = isHourly ? 3_600_000 : 86_400_000;

@@ -720,5 +720,60 @@ export async function migrateDatabase(d1: D1Database): Promise<void> {
 		/* table may already exist */
 	}
 
+	// App Store Connect: daily app totals (sales-report sync) and per-country
+	// detail. customer_price is the per-unit tier price actually charged that
+	// day — price-change annotations are derived from it.
+	try {
+		await d1
+			.prepare(`CREATE TABLE IF NOT EXISTS asc_daily_metrics (
+      id TEXT PRIMARY KEY,
+      site_id TEXT NOT NULL,
+      app_id TEXT NOT NULL,
+      date TEXT NOT NULL,
+      units INTEGER NOT NULL DEFAULT 0,
+      proceeds REAL NOT NULL DEFAULT 0,
+      iap_units INTEGER NOT NULL DEFAULT 0,
+      iap_proceeds REAL NOT NULL DEFAULT 0,
+      proceeds_currency TEXT,
+      impressions INTEGER,
+      page_views INTEGER,
+      paying_users INTEGER,
+      synced_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )`)
+			.run();
+		await d1.batch([
+			d1.prepare(
+				"CREATE UNIQUE INDEX IF NOT EXISTS idx_asc_m_unique ON asc_daily_metrics(site_id, app_id, date)",
+			),
+			d1.prepare("CREATE INDEX IF NOT EXISTS idx_asc_m_site ON asc_daily_metrics(site_id, date)"),
+		]);
+	} catch {
+		/* table may already exist */
+	}
+	try {
+		await d1
+			.prepare(`CREATE TABLE IF NOT EXISTS asc_daily_country (
+      id TEXT PRIMARY KEY,
+      site_id TEXT NOT NULL,
+      app_id TEXT NOT NULL,
+      date TEXT NOT NULL,
+      country TEXT NOT NULL,
+      units INTEGER NOT NULL DEFAULT 0,
+      proceeds REAL NOT NULL DEFAULT 0,
+      customer_price REAL,
+      customer_currency TEXT,
+      synced_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )`)
+			.run();
+		await d1.batch([
+			d1.prepare(
+				"CREATE UNIQUE INDEX IF NOT EXISTS idx_asc_c_unique ON asc_daily_country(site_id, app_id, date, country)",
+			),
+			d1.prepare("CREATE INDEX IF NOT EXISTS idx_asc_c_site ON asc_daily_country(site_id, date)"),
+		]);
+	} catch {
+		/* table may already exist */
+	}
+
 	migrationRan = true;
 }

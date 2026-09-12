@@ -1,6 +1,7 @@
 import { createApp } from "./app";
 import { createDb } from "./db";
 import { backupDatabase } from "./backup";
+import { syncAllAppStoreConnect } from "./lib/appstoreconnect";
 import { processPolarOrder, refreshPolarOrder } from "./lib/polar";
 import type { Bindings } from "./types";
 
@@ -15,6 +16,11 @@ export default {
 	async scheduled(controller: ScheduledController, env: Bindings, _ctx: ExecutionContext) {
 		if (controller.cron === "0 3 * * *") {
 			await backupDatabase(env);
+			return;
+		}
+		if (controller.cron === "0 18 * * *") {
+			// App Store Connect daily sync (reports land ~8am Pacific).
+			if (env.DB) await syncAllAppStoreConnect(createDb(env.DB));
 			return;
 		}
 

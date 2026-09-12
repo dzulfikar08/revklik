@@ -41,6 +41,25 @@ export async function sendEmail(
 	}
 }
 
+/** Notify the admin that a new account registered. */
+export async function sendNewSignupAlert(
+	adminEmail: string,
+	user: { name: string; email: string; via: "password" | "google" },
+	emailBinding?: EmailBinding,
+): Promise<void> {
+	if (!adminEmail || adminEmail === user.email) return;
+	const method = user.via === "google" ? "Google sign-in" : "email + password";
+	const subject = `RevKlik — new signup: ${user.email}`;
+	const html = `
+  <p>New RevKlik registration:</p>
+  <ul>
+    <li><strong>${user.email}</strong> (${user.name})</li>
+    <li>via ${method}</li>
+    <li>${new Date().toISOString()}</li>
+  </ul>`;
+	await sendEmail({ to: adminEmail, subject, html }, emailBinding);
+}
+
 export async function sendMilestoneAlert(
 	_db: Kysely<KlikapaDatabase>,
 	_siteId: string,

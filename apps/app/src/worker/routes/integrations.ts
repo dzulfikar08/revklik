@@ -2,6 +2,7 @@ import { Hono } from "hono";
 import type { Kysely } from "kysely";
 import type { Integration, IntegrationType, KlikapaDatabase } from "@revklik/shared";
 import { generateId } from "../utils";
+import { signAscToken } from "../lib/appstoreconnect";
 
 type Variables = { db: Kysely<KlikapaDatabase>; userId: string };
 export const integrationRoutes = new Hono<{ Variables: Variables }>();
@@ -13,6 +14,7 @@ const VALID_TYPES: IntegrationType[] = [
 	"beehiiv",
 	"meta_ads",
 	"google_ads",
+	"appstoreconnect",
 ];
 
 function maskApiKey(key: string): string {
@@ -23,7 +25,16 @@ function maskApiKey(key: string): string {
 function maskConfig(config: Record<string, string>): Record<string, string> {
 	const masked: Record<string, string> = {};
 	for (const [k, v] of Object.entries(config)) {
-		if (["api_key", "api_secret", "access_token", "client_secret", "refresh_token"].includes(k)) {
+		if (
+			[
+				"api_key",
+				"api_secret",
+				"access_token",
+				"client_secret",
+				"refresh_token",
+				"private_key",
+			].includes(k)
+		) {
 			masked[k] = maskApiKey(v);
 		} else {
 			masked[k] = v;
@@ -154,7 +165,7 @@ integrationRoutes.patch("/:id", async (c) => {
 
 	const integration = await db
 		.selectFrom("integrations")
-		.select(["id", "site_id"])
+		.select(["id", "site_id", "config"])
 		.where("id", "=", integrationId)
 		.executeTakeFirst();
 	if (!integration) return c.json({ error: "Integration not found", success: false }, 404);
@@ -167,7 +178,16 @@ integrationRoutes.patch("/:id", async (c) => {
 	if (body.config !== undefined) {
 		if (typeof body.config !== "object")
 			return c.json({ error: "config must be an object", success: false }, 400);
-		updates.config = JSON.stringify(body.config);
+		// Merge — the dashboard form only sends fields the user changed, and
+		// secrets come back masked (never round-tripped), so replacing wholesale
+		// would drop every unedited field.
+		let current: Record<string, string> = {};
+		try {
+			current = JSON.parse(integration.config || "{}");
+		} catch {
+			/* stored config may be invalid JSON — start clean */
+		}
+		updates.config = JSON.stringify({ ...current, ...body.config });
 	}
 	if (body.enabled !== undefined) updates.enabled = body.enabled ? 1 : 0;
 
@@ -398,6 +418,39 @@ async function testConnection(
 				message: "Google Ads authentication failed",
 				detail: (errData as Record<string, string>).error_description || `HTTP ${tokenRes.status}`,
 			};
+		}
+		case "appstoreconnect": {
+			const { issuer_id, key_id, private_key, app_id, vendor_number } = config;
+			if (!issuer_id || !key_id || !private_key || !app_id || !vendor_number) {
+				return {
+					ok: false,
+					message: "issuer_id, key_id, private_key (.p8), app_id, and vendor_number are required",
+				};
+			}
+			try {
+				const token = await signAscToken({ issuer_id, key_id, private_key });
+				const res = await fetch(
+					`https://api.appstoreconnect.apple.com/v1/apps/${encodeURIComponent(app_id)}`,
+					{ headers: { Authorization: `Bearer ${token}` } },
+				);
+				if (res.ok) return { ok: true, message: "App Store Connect connection successful" };
+				return {
+					ok: false,
+					message: "App Store Connect authentication failed",
+					detail:
+						res.status === 401
+							? "Key rejected — check issuer_id, key_id, and the .p8 key"
+							: res.status === 403
+								? "Key lacks access to this app (needs Admin or App Manager role)"
+								: `HTTP ${res.status}`,
+				};
+			} catch (err) {
+				return {
+					ok: false,
+					message: "Invalid .p8 private key",
+					detail: err instanceof Error ? err.message : undefined,
+				};
+			}
 		}
 		default:
 			return { ok: false, message: `Unknown integration type: ${type}` };
