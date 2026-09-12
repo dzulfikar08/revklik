@@ -7,7 +7,7 @@ export const GET: APIRoute = ({ site }) => {
 	const lines = [
 		"# klikapa docs",
 		"",
-		"> Documentation for klikapa — privacy-first web and revenue analytics by revklik.",
+		"> Documentation for klikapa: privacy-first web and revenue analytics by revklik.",
 		"",
 		...orderedPages().map(
 			(page) => `- [${page.title}](${new URL(page.url, base).href}): ${page.description}`,

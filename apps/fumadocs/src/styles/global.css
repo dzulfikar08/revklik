@@ -16,6 +16,14 @@ html > body[data-scroll-locked] {
    to :root and .dark alike so the docs are theme-independent (mirrors
    apps/web/src/index.css). Fumadocs variable names are preserved so every
    fd-* component keeps working; only the values change.
+
+   Design Read: public product docs for developers and site owners buying
+   analytics, dial ENERGY 1 / RHYTHM 2 / MOTION 1.
+   Palette: same tokens as the app so docs and dashboard read as one product;
+   orange fd-primary reserved for links and key actions (R-25 pairs pass AA).
+   Type: fumadocs-ui preset stack; documentation legibility beats personality.
+   Icons: none beyond the logo; the docs carry no feature iconography.
+   Motion: none; a static reference surface (MOTION 1), no loops anywhere.
    -------------------------------------------------------------------------- */
 :root,
 .dark {

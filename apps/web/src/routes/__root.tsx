@@ -25,7 +25,7 @@ export const Route = createRootRouteWithContext<RouterAppContext>()({
 			},
 			{
 				name: "description",
-				content: "revklik — privacy-friendly web analytics",
+				content: "revklik: privacy-friendly web analytics",
 			},
 		],
 		links: [

@@ -5,6 +5,16 @@
    Deep blue-charcoal surfaces, orange traffic accent, gold money.
    Applied to :root and .dark alike so the palette is theme-independent;
    swap the values here to re-skin the entire app.
+
+   Design Read: pre-login and signed-in surface for Indonesian site owners,
+   calm tool aesthetic, dial ENERGY 1 / RHYTHM 1 / MOTION 1.
+   Palette: blue-charcoal base reads as a night-mode ops room; orange is the
+   brand traffic color, gold marks money; text pairs checked WCAG AA (R-25).
+   Type: @revklik/ui sans stack (Inter Variable token, system fallback);
+   clarity over personality for dense numbers, no display face at dial 1.
+   Icons: lucide-react thin strokes matching the recharts control vocabulary
+   (play, pause, filter, zoom); one set, so charts and chrome agree.
+   Motion: nothing loops; spinners mark real async state only (MOTION 1).
    -------------------------------------------------------------------------- */
 :root,
 .dark {
@@ -22,6 +32,9 @@
 	--muted-foreground: oklch(0.685 0.015 255);
 	--accent: oklch(0.262 0.018 260);
 	--accent-foreground: oklch(0.955 0.006 250);
+	--destructive: oklch(
+		0.704 0.191 22.216
+	); /* @revklik/ui dark value: 6.2:1 on card; the light default is 3.7:1 here (R-25) */
 	--border: oklch(0.28 0.017 260);
 	--input: oklch(0.262 0.018 260);
 	--ring: oklch(0.62 0.02 255);

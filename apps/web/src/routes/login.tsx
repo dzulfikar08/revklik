@@ -70,7 +70,7 @@ function Login() {
 			await navigate({ to: "/analytics" });
 		} catch (err) {
 			setError(
-				err instanceof LegacyApiError ? err.message : "Couldn't sign you in — please try again",
+				err instanceof LegacyApiError ? err.message : "Couldn't sign you in. Please try again",
 			);
 		} finally {
 			setPending(false);
@@ -88,7 +88,7 @@ function Login() {
 					<CardDescription>
 						{mode === "sign-in"
 							? "Sign in to your revklik analytics"
-							: "Start your free 7-day trial — no card required"}
+							: "Start your free 7-day trial. No card required."}
 					</CardDescription>
 				</CardHeader>
 				<CardContent className="grid gap-4">

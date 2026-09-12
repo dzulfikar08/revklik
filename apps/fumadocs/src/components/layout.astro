@@ -15,7 +15,7 @@ const SITE = Astro.site ?? new URL("https://docs.revklik.com");
 
 const {
   title,
-  description = "Documentation for klikapa — privacy-first web and revenue analytics by revklik.",
+  description = "Documentation for klikapa: privacy-first web and revenue analytics by revklik.",
   pathname = "/",
   image = "/og/docs/introduction/image.png",
 } = Astro.props;
@@ -25,7 +25,7 @@ const ogImage = new URL(image, SITE).href;
 const pageTitle = title ? `${title} · klikapa` : "klikapa docs";
 const ogTitle = title ?? "klikapa docs";
 const siteDescription =
-  "Documentation for klikapa — privacy-first web and revenue analytics by revklik.";
+  "Documentation for klikapa: privacy-first web and revenue analytics by revklik.";
 
 const websiteJsonLd = JSON.stringify({
   "@context": "https://schema.org",

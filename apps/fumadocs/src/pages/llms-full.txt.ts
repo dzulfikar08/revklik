@@ -20,7 +20,7 @@ export const GET: APIRoute = () => {
 	const lines = [
 		"# klikapa docs",
 		"",
-		"> Documentation for klikapa — privacy-first web and revenue analytics by revklik.",
+		"> Documentation for klikapa: privacy-first web and revenue analytics by revklik.",
 		"",
 		...sections,
 	];

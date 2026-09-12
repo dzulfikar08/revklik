@@ -91,7 +91,7 @@ function Card({ title, description }: { title: string; description?: string }) {
 			el(
 				"span",
 				{ fontSize: "24px", color: BRAND.mutedForeground },
-				"— privacy-first web & revenue analytics",
+				"Privacy-first web & revenue analytics",
 			),
 		),
 	);
