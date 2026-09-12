@@ -221,28 +221,36 @@ billingRoutes.post("/checkout", async (c) => {
 	}
 
 	try {
-		// Polar API: POST /v1/checkouts/session with products array
+		// Polar API: POST /v1/checkouts/ creates a hosted checkout session
+		// (the old /checkouts/session path 405s). `products` selects which
+		// product(s) the customer can pay for.
 		const polarProductIds: Record<string, string | undefined> = {
 			micro: c.env.POLAR_MICRO_PRODUCT_ID,
 			starter: c.env.POLAR_STARTER_PRODUCT_ID,
 			growth: c.env.POLAR_GROWTH_PRODUCT_ID,
 		};
-		const productId = polarProductIds[plan] || "";
-		const res = await fetch(`${POLAR_API}/checkouts/session`, {
+		const productId = polarProductIds[plan];
+		if (!productId) {
+			return c.json(
+				{ error: `Polar product not configured for plan "${plan}"`, success: false },
+				500,
+			);
+		}
+		const res = await fetch(`${POLAR_API}/checkouts/`, {
 			method: "POST",
 			headers: {
 				"Content-Type": "application/json",
 				Authorization: `Bearer ${polarToken}`,
 			},
 			body: JSON.stringify({
-				products: productId ? [productId] : [],
+				products: [productId],
 				customer_email: user.email,
-				customer_name: user.name,
 				metadata: {
 					user_id: userId,
 					plan,
-					klikapa_visitor_id: visitor_id || null,
-					klikapa_session_id: session_id || null,
+					// Polar metadata is string->string only; omit absent ids
+					...(visitor_id ? { klikapa_visitor_id: visitor_id } : {}),
+					...(session_id ? { klikapa_session_id: session_id } : {}),
 				},
 				success_url: `https://app.revklik.com/?checkout=success`,
 			}),
