@@ -10,7 +10,7 @@ import {
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { MouseEvent, ReactNode, TouchEvent } from "react";
 
-import { fmt, niceMax } from "./data";
+import { fmt, money, niceMax } from "./data";
 import type { Point } from "./data";
 
 interface PlatformRow {
@@ -284,16 +284,39 @@ const useGeometry = (points: Point[], wide: boolean) =>
 		};
 	}, [points, wide]);
 
+const useRevenueGeometry = (amounts: number[] | undefined) =>
+	useMemo(() => {
+		if (!amounts || amounts.length === 0) {
+			return null;
+		}
+		const n = amounts.length;
+		const peak = Math.max(...amounts, 0);
+		// All-zero revenue still gets a usable right axis.
+		const max = niceMax(Math.max(peak * 1.08, 1));
+		const band = n > 1 ? (W - 12) / (n - 1) : W - 12;
+		const barW = Math.min(Math.max(band * 0.55, 1.5), 16);
+		const bars = amounts.map((v, i) => {
+			const cx = n > 1 ? 6 + (i * (W - 12)) / (n - 1) : W / 2;
+			const h = (v / max) * (H - 28);
+			return { h: v > 0 ? Math.max(h, 2) : 0, w: barW, x: cx - barW / 2 };
+		});
+		return { bars, max };
+	}, [amounts]);
+
 export const TrafficChart = ({
 	points,
 	annotations = [],
+	revenue,
 }: {
 	points: Point[];
 	/** Day-marked annotations rendered as gold flags on the timeseries. */
 	annotations?: { date: string; text: string }[];
+	/** Revenue per bucket, aligned 1:1 with `points` — rendered as bars. */
+	revenue?: number[];
 }) => {
 	const wide = useIsWide();
 	const g = useGeometry(points, wide);
+	const rev = useRevenueGeometry(revenue);
 	const [hover, setHover] = useState<number | null>(null);
 	const [hoverMarker, setHoverMarker] = useState<number | null>(null);
 	const markers = useMemo(
@@ -361,6 +384,21 @@ export const TrafficChart = ({
 					/>
 				))}
 				<path d={g.area} fill="url(#traffic-fill)" />
+				{rev
+					? rev.bars.map((b, i) =>
+							b.h > 0 ? (
+								<rect
+									key={i}
+									x={b.x}
+									y={H - 8 - b.h}
+									width={b.w}
+									height={b.h}
+									fill="var(--money)"
+									fillOpacity={hover !== null && hover !== i ? 0.45 : 0.8}
+								/>
+							) : null,
+						)
+					: null}
 				{g.hasPrev ? (
 					<path
 						d={g.linePrev}
@@ -415,6 +453,11 @@ export const TrafficChart = ({
 			<span className="text-muted-foreground/80 pointer-events-none absolute top-1 left-1 font-mono text-[11px] tabular-nums">
 				{fmt(g.max)}
 			</span>
+			{rev ? (
+				<span className="pointer-events-none absolute top-1 right-1 font-mono text-[11px] text-(--money) tabular-nums">
+					{money(rev.max)}
+				</span>
+			) : null}
 
 			{point && hover !== null && (
 				<>
@@ -447,6 +490,13 @@ export const TrafficChart = ({
 							<span className="size-1.5 rounded-full bg-(--chart)" />
 							Visitors <span className="font-semibold">{fmt(point.current)}</span>
 						</p>
+						{rev ? (
+							<p className="mt-0.5 flex items-center gap-2 font-mono tabular-nums">
+								<span className="bg-(--money) size-1.5 rounded-[2px]" />
+								Revenue{" "}
+								<span className="font-semibold">{money(revenue?.[hover] ?? 0)}</span>
+							</p>
+						) : null}
 						{g.hasPrev ? (
 							<p className="text-muted-foreground mt-0.5 flex items-center gap-2 font-mono tabular-nums">
 								<span className="size-1.5 rounded-full border border-dashed border-(--compare)" />

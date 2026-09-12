@@ -1698,6 +1698,18 @@ const AnalyticsPage = ({ siteId: siteIdParam }: { siteId: string }) => {
 		[dash, hourly],
 	);
 
+	// Revenue bars aligned to the visitor buckets by date (24h = hourly buckets).
+	const revenueSeries: number[] | undefined = useMemo(() => {
+		if (!dash || (dash.revenueTimeseries ?? []).length === 0) {
+			return undefined;
+		}
+		const byDate = new Map(
+			dash.revenueTimeseries.map((r) => [r.date.slice(0, 10), r.revenue]),
+		);
+		const aligned = points.map((p) => byDate.get(p.date?.slice(0, 10) ?? "") ?? 0);
+		return aligned.some((v) => v > 0) ? aligned : undefined;
+	}, [dash, points]);
+
 	const pickSite = (id: string) => {
 		setLive({ feed: [], online: null });
 		void navigate({ to: "/analytics/$siteId", params: { siteId: id } });
@@ -1790,6 +1802,12 @@ const AnalyticsPage = ({ siteId: siteIdParam }: { siteId: string }) => {
 									<span className="h-0.5 w-4 rounded-full bg-(--chart)" aria-hidden />
 									Visitors
 								</span>
+								{revenueSeries ? (
+									<span className="flex items-center gap-1.5">
+										<span className="bg-(--money) h-2.5 w-2.5 rounded-[3px]" aria-hidden />
+										Revenue
+									</span>
+								) : null}
 							</div>
 							<span className="flex flex-wrap items-center gap-2">
 								<AnnotationsControl siteId={siteId} onAnnotations={setAnnotations} />
@@ -1804,7 +1822,7 @@ const AnalyticsPage = ({ siteId: siteIdParam }: { siteId: string }) => {
 							hasData={points.length > 0}
 							emptyText="No traffic in this range."
 						>
-							<TrafficChart points={points} annotations={annotations} />
+							<TrafficChart points={points} annotations={annotations} revenue={revenueSeries} />
 						</PanelBody>
 					</section>
 					<div className="mb-2.5">

@@ -253,7 +253,7 @@ export interface SiteDashboard {
 	journeys: VisitorJourney[];
 	revenueBySource: RevenueBySource[];
 	revenueByCountry: RevenueByCountry[];
-	revenueTimeseries: unknown[];
+	revenueTimeseries: { date: string; revenue: number; conversions: number }[];
 	channels: ChannelEntry[];
 	entryPagesRevenue: EntryPageRevenue[];
 	exitPages: ExitPage[];
