@@ -48,6 +48,10 @@ bun run deploy:infra # alchemy deploy of auth server (packages/infra)
 bun run db:generate  # drizzle migrations for auth db
 ```
 
+Note: the alchemy app name derives from the repo directory — deploys of
+`packages/infra` from this repo use app id `revklik` (the old `revklik-new`
+dev stack in state is orphaned and can be ignored).
+
 ## Deploy
 
 - Production deploy: `bun run deploy` (root) — runs gates, then
@@ -61,7 +65,5 @@ bun run db:generate  # drizzle migrations for auth db
 - `run_worker_first: ["/api/*"]` in wrangler.jsonc — tracker scripts
   (`/klikapa-*.js`) are served straight from the assets runtime.
 - Migrations: `apps/app/src/worker/migrations.ts` (idempotent DDL per isolate).
-- Root package name stays `revklik-new`: the alchemy app identity for the
-  auth-server deploy derives from it (server worker URL depends on it).
   Verify before changing.
 - Mobile: `apps/app/.env.mobile` (gitignored) overrides `VITE_API_BASE`.

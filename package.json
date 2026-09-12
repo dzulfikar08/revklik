@@ -1,74 +1,83 @@
 {
-  "name": "revklik-new",
-  "version": "0.6.0",
-  "private": true,
-  "workspaces": {
-    "packages": [
-      "apps/*",
-      "packages/*"
-    ],
-    "catalog": {
-      "dotenv": "^17.4.2",
-      "zod": "^4.4.3",
-      "@types/node": "^26.2.0",
-      "@cloudflare/workers-types": "^5.20260728.1",
-      "hono": "^4.12.32",
-      "@orpc/server": "^1.14.12",
-      "@orpc/openapi": "^1.14.12",
-      "@orpc/zod": "^1.14.12",
-      "better-auth": "1.7.1",
-      "lucide-react": "^1.27.0",
-      "next-themes": "^0.4.6",
-      "sonner": "^2.0.7",
-      "@orpc/tanstack-query": "^1.14.12",
-      "@orpc/client": "^1.14.12",
-      "@tanstack/react-query": "^5.101.4",
-      "@tanstack/react-form": "^1.33.2",
-      "@polar-sh/better-auth": "^1.8.4",
-      "@types/react-dom": "^19.2.3",
-      "tailwindcss": "^4.3.3",
-      "@better-auth/expo": "1.7.1",
-      "drizzle-orm": "1.0.0-rc.5-ab785fc"
-    }
-  },
-  "type": "module",
-  "scripts": {
-    "dev": "bun --filter @revklik/app dev",
-    "build": "bun --filter @revklik/app build",
-    "preview": "bun --filter @revklik/app preview",
-    "deploy": "bun run typecheck && bun run lint && bun run test && ./scripts/deploy-new-ui.sh",
-    "typecheck": "bun --filter @revklik/app typecheck && bun --filter @revklik/shared typecheck && bun --filter @revklik/sdk typecheck && bun --filter @revklik/cli typecheck",
-    "lint": "oxlint .",
-    "test": "bun test",
-    "fmt": "oxfmt .",
-    "fmt:check": "oxfmt --check .",
-    "build:sdk": "bun --filter @revklik/sdk build",
-    "build:cli": "bun --filter @revklik/cli build",
-    "mobile:prepare": "bun --filter @revklik/app mobile:prepare",
-    "mobile:ios": "bun --filter @revklik/app mobile:ios",
-    "mobile:android": "bun --filter @revklik/app mobile:android",
-    "dev:web": "turbo run dev -F web --",
-    "dev:server": "turbo run dev -F server --",
-    "dev:native": "turbo run dev -F native --",
-    "dev:docs": "turbo run dev -F fumadocs --",
-    "typecheck:apps": "turbo run check-types",
-    "deploy:infra": "turbo run deploy -F @revklik/infra --",
-    "db:generate": "turbo run db:generate -F @revklik/db --"
-  },
-  "dependencies": {
-    "@revklik/env": "workspace:*",
-    "dotenv": "catalog:",
-    "zod": "catalog:"
-  },
-  "devDependencies": {
-    "@cloudflare/workers-types": "catalog:",
-    "@types/node": "catalog:",
-    "oxfmt": "latest",
-    "oxlint": "latest",
-    "turbo": "^2.10.12",
-    "typescript": "^6.0.3",
-    "ultracite": "7.10.7",
-    "@revklik/config": "workspace:*"
-  },
-  "packageManager": "bun@1.4.2"
+	"name": "revklik",
+	"version": "0.6.0",
+	"private": true,
+	"workspaces": {
+		"packages": [
+			"apps/*",
+			"packages/*"
+		],
+		"catalog": {
+			"dotenv": "^17.4.2",
+			"zod": "^4.4.3",
+			"@types/node": "^26.2.0",
+			"@cloudflare/workers-types": "^5.20260728.1",
+			"hono": "^4.12.32",
+			"@orpc/server": "^1.14.12",
+			"@orpc/openapi": "^1.14.12",
+			"@orpc/zod": "^1.14.12",
+			"better-auth": "1.7.1",
+			"lucide-react": "^1.27.0",
+			"next-themes": "^0.4.6",
+			"sonner": "^2.0.7",
+			"@orpc/tanstack-query": "^1.14.12",
+			"@orpc/client": "^1.14.12",
+			"@tanstack/react-query": "^5.101.4",
+			"@tanstack/react-form": "^1.33.2",
+			"@polar-sh/better-auth": "^1.8.4",
+			"@types/react-dom": "^19.2.3",
+			"tailwindcss": "^4.3.3",
+			"@better-auth/expo": "1.7.1",
+			"drizzle-orm": "1.0.0-rc.5-ab785fc"
+		}
+	},
+	"type": "module",
+	"scripts": {
+		"dev": "bun --filter @revklik/app dev",
+		"build": "bun --filter @revklik/app build",
+		"preview": "bun --filter @revklik/app preview",
+		"deploy": "bun run typecheck && bun run lint && bun run test && ./scripts/deploy-new-ui.sh",
+		"typecheck": "bun --filter @revklik/app typecheck && bun --filter @revklik/shared typecheck && bun --filter @revklik/sdk typecheck && bun --filter @revklik/cli typecheck",
+		"lint": "oxlint .",
+		"test": "bun test",
+		"fmt": "oxfmt .",
+		"fmt:check": "oxfmt --check .",
+		"build:sdk": "bun --filter @revklik/sdk build",
+		"build:cli": "bun --filter @revklik/cli build",
+		"mobile:prepare": "bun --filter @revklik/app mobile:prepare",
+		"mobile:ios": "bun --filter @revklik/app mobile:ios",
+		"mobile:android": "bun --filter @revklik/app mobile:android",
+		"dev:web": "turbo run dev -F web --",
+		"dev:server": "turbo run dev -F server --",
+		"dev:native": "turbo run dev -F native --",
+		"dev:docs": "turbo run dev -F fumadocs --",
+		"typecheck:apps": "turbo run check-types",
+		"deploy:infra": "turbo run deploy -F @revklik/infra --",
+		"db:generate": "turbo run db:generate -F @revklik/db --"
+	},
+	"dependencies": {
+		"@revklik/env": "workspace:*",
+		"dotenv": "catalog:",
+		"zod": "catalog:"
+	},
+	"devDependencies": {
+		"@cloudflare/workers-types": "catalog:",
+		"@revklik/config": "workspace:*",
+		"@types/node": "catalog:",
+		"oxfmt": "latest",
+		"oxlint": "latest",
+		"turbo": "^2.10.12",
+		"typescript": "^6.0.3",
+		"ultracite": "7.10.7"
+	},
+	"overrides": {
+		"@effect/platform-bun": "4.0.0-rc.112",
+		"@effect/platform-node": "4.0.0-rc.112",
+		"@effect/platform-node-shared": "4.0.0-rc.112",
+		"@effect/sql-d1": "4.0.0-rc.112",
+		"@effect/sql-sqlite-do": "4.0.0-rc.112",
+		"@effect/vitest": "4.0.0-rc.112",
+		"effect": "4.0.0-rc.112"
+	},
+	"packageManager": "bun@1.4.2"
 }
