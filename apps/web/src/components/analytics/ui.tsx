@@ -493,8 +493,7 @@ export const TrafficChart = ({
 						{rev ? (
 							<p className="mt-0.5 flex items-center gap-2 font-mono tabular-nums">
 								<span className="bg-(--money) size-1.5 rounded-[2px]" />
-								Revenue{" "}
-								<span className="font-semibold">{money(revenue?.[hover] ?? 0)}</span>
+								Revenue <span className="font-semibold">{money(revenue?.[hover] ?? 0)}</span>
 							</p>
 						) : null}
 						{g.hasPrev ? (
