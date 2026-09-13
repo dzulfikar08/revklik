@@ -540,7 +540,7 @@ const FunnelSection = ({ siteId, rangeKey }: { siteId: string; rangeKey: RangeKe
 export const DashboardView = () => {
 	const { theme } = useUnistyles();
 	const activeSite = useActiveSite();
-	const [rangeKey, setRangeKey] = useState<RangeKey>("30d");
+	const [rangeKey, setRangeKey] = useState<RangeKey>("7d");
 	const [live, setLive] = useState<{
 		feed: LiveFeedItem[];
 		online: number | null;

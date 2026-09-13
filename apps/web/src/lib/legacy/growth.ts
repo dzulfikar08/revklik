@@ -182,7 +182,7 @@ export interface VisitorProfileResult {
 export const fetchVisitorProfile = async (
 	visitorId: string,
 	siteId: string,
-	range = "30d",
+	range = "7d",
 ): Promise<VisitorProfileResult> =>
 	legacyFetch(
 		`/analytics/visitors/${encodeURIComponent(

@@ -11,7 +11,7 @@ import {
 	SelectValue,
 } from "@revklik/ui/components/select";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useNavigate } from "@tanstack/react-router";
+import { Link, useNavigate } from "@tanstack/react-router";
 import {
 	ArrowDownUp,
 	ArrowRight,
@@ -1295,14 +1295,19 @@ const TopBar = ({
 }) => (
 	<header className="border-border/60 bg-background/85 sticky top-0 z-20 border-b backdrop-blur">
 		<div className="relative mx-auto flex max-w-7xl flex-wrap items-center gap-2 px-3 py-2 md:px-4">
-			<div className="flex items-center gap-2.5">
+			<Link
+				to="/analytics"
+				aria-label="revklik — all sites"
+				title="All sites"
+				className="hover:bg-accent focus-visible:outline-ring -m-1 flex items-center gap-2.5 rounded-lg p-1 outline-offset-2 transition-colors"
+			>
 				<img
 					src="/revklik.webp"
 					alt="Revklik logo"
 					className="ring-foreground/10 size-7 rounded-lg object-cover ring-1"
 				/>
 				<span className="text-[15px] font-semibold tracking-tight">revklik</span>
-			</div>
+			</Link>
 
 			<Select
 				value={siteId}
@@ -1558,7 +1563,7 @@ const StatTiles = ({
 const AnalyticsPage = ({ siteId: siteIdParam }: { siteId: string }) => {
 	const navigate = useNavigate();
 	const [view, setView] = useState<ViewKey>("home");
-	const [rangeKey, setRangeKey] = useState<RangeKey>("30d");
+	const [rangeKey, setRangeKey] = useState<RangeKey>("7d");
 	const [filters, setFilters] = useState<LegacyFilter[]>([]);
 	const [draftDim, setDraftDim] = useState("");
 	const [draftOp, setDraftOp] = useState<FilterOperator>("is");
@@ -1703,9 +1708,7 @@ const AnalyticsPage = ({ siteId: siteIdParam }: { siteId: string }) => {
 		if (!dash || (dash.revenueTimeseries ?? []).length === 0) {
 			return undefined;
 		}
-		const byDate = new Map(
-			dash.revenueTimeseries.map((r) => [r.date.slice(0, 10), r.revenue]),
-		);
+		const byDate = new Map(dash.revenueTimeseries.map((r) => [r.date.slice(0, 10), r.revenue]));
 		const aligned = points.map((p) => byDate.get(p.date?.slice(0, 10) ?? "") ?? 0);
 		return aligned.some((v) => v > 0) ? aligned : undefined;
 	}, [dash, points]);

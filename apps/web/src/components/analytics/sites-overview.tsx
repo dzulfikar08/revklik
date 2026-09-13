@@ -88,7 +88,7 @@ const RangePills = ({
 /* ---------------------------------- page ----------------------------------- */
 
 const SitesOverviewPage = () => {
-	const [rangeKey, setRangeKey] = useState<RangeKey>("30d");
+	const [rangeKey, setRangeKey] = useState<RangeKey>("7d");
 	const [manageOpen, setManageOpen] = useState(false);
 
 	const sitesQ = useQuery({
