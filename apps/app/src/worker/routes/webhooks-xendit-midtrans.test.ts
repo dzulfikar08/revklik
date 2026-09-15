@@ -190,6 +190,30 @@ describe("midtrans webhook (payment_providers config)", () => {
 		expect(ppId).toBe("pp-midtrans");
 	});
 
+	it("rejects a notification without a signature", async () => {
+		const res = await app.request(
+			"/api/webhooks/midtrans",
+			{
+				method: "POST",
+				headers: { "content-type": "application/json" },
+				body: JSON.stringify({
+					order_id: "ORD-M3",
+					status_code: "200",
+					gross_amount: "99000.00",
+					transaction_status: "settlement",
+					custom_field4: SITE,
+				}),
+			},
+			env,
+			execCtx,
+		);
+		expect(res.status).toBe(401);
+		const failed = db
+			.prepare("SELECT COUNT(*) AS n FROM webhook_events WHERE event_type = 'midtrans_missing_sig'")
+			.get() as { n: number };
+		expect(failed.n).toBe(1);
+	});
+
 	it("rejects an invalid signature", async () => {
 		const res = await app.request(
 			"/api/webhooks/midtrans",
