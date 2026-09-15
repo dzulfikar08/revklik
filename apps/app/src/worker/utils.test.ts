@@ -36,6 +36,23 @@ describe("isBotUserAgent", () => {
 		).toBe(false);
 	});
 
+	it("treats the bare WhatsApp link-preview UA as a bot but in-app browser clicks as human", () => {
+		// Link-preview fetcher: bare "WhatsApp/x.y", no Mozilla token.
+		expect(isBotUserAgent("WhatsApp/2.24.12.79")).toBe(true);
+		expect(isBotUserAgent("WhatsApp/2.23.20.0 A")).toBe(true);
+		// Human clicks from the WhatsApp in-app browser (iOS ships the token
+		// inside a real browser UA; Android's token-less WebView was never flagged).
+		expect(
+			isBotUserAgent(
+				"Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148 WhatsApp/2.24.12.79",
+			),
+		).toBe(false);
+		expect(
+			isBotUserAgent(
+				"Mozilla/5.0 (Linux; Android 13; SM-G991B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119 Mobile Safari/537.36",
+			),
+		).toBe(false);
+	});
 	it("treats missing or empty user agents as bots", () => {
 		expect(isBotUserAgent(null)).toBe(true);
 		expect(isBotUserAgent(undefined)).toBe(true);
