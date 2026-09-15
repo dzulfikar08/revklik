@@ -51,6 +51,17 @@ export const API_ORIGIN = LEGACY_API_BASE.replace(/\/api\/?$/, "");
 /** Read-only JSON feed behind a share token. */
 export const shareUrl = (shareToken: string): string => `${LEGACY_API_BASE}/public/${shareToken}`;
 
+/** The public dashboard UI page served by the worker SPA. */
+export const publicPageUrl = (shareToken: string): string => `${API_ORIGIN}/public/${shareToken}`;
+
+/** The same page in compact chrome for iframe embedding. */
+export const publicEmbedUrl = (shareToken: string): string =>
+	`${API_ORIGIN}/public/${shareToken}?embed=1`;
+
+/** Ready-to-paste <iframe> snippet for embedding the public dashboard. */
+export const publicEmbedCode = (shareToken: string): string =>
+	`<iframe src="${publicEmbedUrl(shareToken)}" style="width:100%;height:600px;border:0" loading="lazy"></iframe>`;
+
 /** Embeddable live-stats script served as a static asset at the origin root. */
 export const widgetScriptUrl = `${API_ORIGIN}/klikapa-live.js`;
 

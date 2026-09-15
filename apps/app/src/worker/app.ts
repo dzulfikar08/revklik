@@ -26,6 +26,7 @@ import { predictionsRoutes } from "./routes/predictions";
 import { pushTokenRoutes } from "./routes/push-tokens";
 import { segmentRoutes } from "./routes/segments";
 import { shareRoutes } from "./routes/share";
+import { publicLiveRoutes } from "./routes/public-live";
 import { siteRoutes } from "./routes/sites";
 import { teamRoutes } from "./routes/team";
 import { tokenRoutes } from "./routes/tokens";
@@ -231,6 +232,7 @@ export function createApp(): Hono<Env> {
 	app.route("/marketplace/tokopedia", tokopediaRoutes);
 
 	// Public dashboard (no auth)
+	app.route("/public", publicLiveRoutes);
 	app.get("/public/:token", async (c) => {
 		const d1 = c.env.DB;
 		if (!d1) return c.json({ error: "DB unavailable", success: false }, 503);

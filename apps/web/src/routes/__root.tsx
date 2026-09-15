@@ -94,7 +94,10 @@ captureOAuthToken();
 function RootComponent() {
 	const pathname = useRouterState({ select: (s) => s.location.pathname });
 	const chromeless =
-		pathname.startsWith("/analytics") || pathname === "/login" || pathname === "/success";
+		pathname.startsWith("/analytics") ||
+		pathname.startsWith("/public") ||
+		pathname === "/login" ||
+		pathname === "/success";
 
 	return (
 		<>
