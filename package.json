@@ -28,7 +28,7 @@
 		"build": "bun --filter @revklik/app build",
 		"preview": "bun --filter @revklik/app preview",
 		"deploy": "bun run typecheck && bun run lint && bun run test && ./scripts/deploy-new-ui.sh",
-		"typecheck": "bun --filter @revklik/app typecheck && bun --filter @revklik/shared typecheck && bun --filter @revklik/sdk typecheck && bun --filter @revklik/cli typecheck",
+		"typecheck": "bun --filter @revklik/app typecheck && bun --filter @revklik/shared typecheck && bun --filter @revklik/sdk typecheck && bun --filter @revklik/cli typecheck && bun --filter web typecheck",
 		"lint": "oxlint .",
 		"test": "bun test",
 		"fmt": "oxfmt .",

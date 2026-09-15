@@ -8,6 +8,7 @@
 		"serve": "vite preview",
 		"start": "vite",
 		"check-types": "vite build && tsc --noEmit",
+		"typecheck": "vite build && tsc --noEmit",
 		"test": "vitest run",
 		"generate-pwa-assets": "pwa-assets-generator",
 		"dev:bare": "vite dev"
