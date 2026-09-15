@@ -41,6 +41,7 @@
 		"dev:web": "turbo run dev -F web --",
 		"dev:native": "turbo run dev -F native --",
 		"dev:docs": "turbo run dev -F fumadocs --",
+		"dev:landing": "turbo run dev -F landing --",
 		"typecheck:apps": "turbo run check-types"
 	},
 	"dependencies": {

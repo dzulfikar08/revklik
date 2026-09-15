@@ -1,0 +1,24 @@
+{
+	"name": "landing",
+	"version": "0.1.0",
+	"private": true,
+	"type": "module",
+	"scripts": {
+		"dev": "astro dev --host 127.0.0.1 --port=4100",
+		"start": "astro dev",
+		"build": "astro build",
+		"preview": "astro preview",
+		"astro": "astro",
+		"lint": "oxlint"
+	},
+	"dependencies": {
+		"@astrojs/sitemap": "^3.7.4",
+		"astro": "^7.2.7",
+		"lucide-astro": "^0.556.0"
+	},
+	"devDependencies": {
+		"@tailwindcss/vite": "^4.3.3",
+		"oxlint": "^1.80.0",
+		"tailwindcss": "^4.3.3"
+	}
+}

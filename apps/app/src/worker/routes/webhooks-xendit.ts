@@ -41,12 +41,15 @@ interface XenditInvoice {
 	metadata?: Record<string, string | undefined>;
 }
 
-function findIntegration(db: Kysely<KlikapaDatabase>, siteId: string) {
+// Provider config lives in payment_providers — the table the settings UI
+// writes. (This route previously read the integrations table, which nothing
+// populates for payment types.)
+function findProvider(db: Kysely<KlikapaDatabase>, siteId: string) {
 	return db
-		.selectFrom("integrations")
-		.select(["id", "site_id", "type", "config"])
+		.selectFrom("payment_providers")
+		.select(["id", "config"])
 		.where("site_id", "=", siteId)
-		.where("type", "=", "xendit")
+		.where("provider", "=", "xendit")
 		.where("enabled", "=", 1)
 		.executeTakeFirst();
 }
@@ -98,20 +101,20 @@ xenditWebhookRoutes.post("/", async (c) => {
 	}
 	if (!siteId) return c.json({ error: "Cannot resolve site_id" }, 400);
 
-	const integration = await findIntegration(db, siteId);
-	if (!integration) return c.json({ error: "No Xendit integration" }, 404);
+	const provider = await findProvider(db, siteId);
+	if (!provider) return c.json({ error: "No Xendit integration" }, 404);
 
-	const config = JSON.parse((integration.config as string) || "{}");
+	const config = JSON.parse((provider.config as string) || "{}");
 	const webhookSecret = config.webhook_secret || "";
 	const callbackToken = c.req.header("x-callback-token") || "";
 	if (!webhookSecret || !timingSafeEqual(callbackToken, webhookSecret)) {
-		await logWebhookEvent(db, siteId, integration.id, "xendit_invalid_token", rawBody, "failed");
+		await logWebhookEvent(db, siteId, provider.id, "xendit_invalid_token", rawBody, "failed");
 		return c.json({ error: "Invalid callback token" }, 401);
 	}
 
 	const eventType = body.event || body.event_type || "";
 	if (eventType === "invoice.expired") {
-		await logWebhookEvent(db, siteId, integration.id, "xendit_expired", rawBody, "processed");
+		await logWebhookEvent(db, siteId, provider.id, "xendit_expired", rawBody, "processed");
 		return c.json({ success: true, action: "logged_expired" });
 	}
 
@@ -224,7 +227,7 @@ xenditWebhookRoutes.post("/", async (c) => {
 		await logWebhookEvent(
 			db,
 			siteId,
-			integration.id,
+			provider.id,
 			`xendit_${eventType || "paid"}`,
 			rawBody,
 			"processed",
@@ -241,7 +244,7 @@ xenditWebhookRoutes.post("/", async (c) => {
 	await logWebhookEvent(
 		db,
 		siteId,
-		integration.id,
+		provider.id,
 		`xendit_${eventType || "unknown"}`,
 		rawBody,
 		"processed",

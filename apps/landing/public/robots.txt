@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://revklik.com/sitemap-index.xml
