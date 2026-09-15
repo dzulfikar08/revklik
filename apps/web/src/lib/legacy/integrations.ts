@@ -18,6 +18,8 @@ export type LegacyIntegrationType =
 	| "xendit"
 	| "doku"
 	| "nicepay"
+	| "paywuz"
+	| "mayar"
 	| "stripe"
 	| "lemonsqueezy"
 	| "shopee"
