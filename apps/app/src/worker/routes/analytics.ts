@@ -28,6 +28,7 @@ import {
 	getDeviceBreakdown,
 	getEntryPagesRevenue,
 	getExitPages,
+	getLatestSessionsForVisitors,
 	getOverviewStats,
 	getReferrers,
 	getRevenueByCountry,
@@ -37,6 +38,9 @@ import {
 	getRevenueTimeseries,
 	getTimeseries,
 	getTopPages,
+	IN_CLAUSE_CHUNK,
+	SESSION_COLS,
+	type SessionSummary,
 } from "../queries/analytics";
 import { getDateRange } from "../utils";
 
@@ -98,21 +102,6 @@ const edgeCache =
 			},
 		});
 	};
-
-const SESSION_COLS = [
-	"id",
-	"visitor_id",
-	"started_at",
-	"country",
-	"region",
-	"city",
-	"device_type",
-	"browser",
-	"os",
-	"utm_source",
-	"referrer",
-	"page_count",
-] as const;
 
 analyticsRoutes.get(
 	"/dashboard",
@@ -232,42 +221,15 @@ analyticsRoutes.get(
 		// The users list ignores the range, so a profile whose sessions fall outside
 		// it (or beyond the newest-100 window) would join to zero journeys and render
 		// as "0 events". Backfill each uncovered profile with its latest session that
-		// has at least one non-heartbeat event — index-backed, one query, no N+1.
+		// has at least one non-heartbeat event — index-backed, and chunked under D1's
+		// bound-parameter cap (see getLatestSessionsForVisitors).
 		const journeyVisitors = new Set(recentSessions.map((s) => s.visitor_id));
 		const missingVisitors = profiles
 			.map((p) => p.visitor_id)
 			.filter((id) => !journeyVisitors.has(id));
-		const backfillSessions: typeof recentSessions = [];
-		if (missingVisitors.length > 0) {
-			const rows = await db
-				.selectFrom("sessions")
-				.select([...SESSION_COLS])
-				.where("site_id", "=", siteId)
-				.where("visitor_id", "in", missingVisitors)
-				.where((eb) =>
-					eb.exists(
-						eb
-							.selectFrom("events")
-							.select("id")
-							.where("site_id", "=", siteId)
-							.whereRef("events.session_id", "=", "sessions.id")
-							.where((ev) =>
-								ev.or([ev("event_type", "!=", "custom"), ev("name", "is not", "heartbeat")]),
-							),
-					),
-				)
-				.orderBy("started_at", "desc")
-				.execute();
-			const seen = new Set<string>();
-			for (const sess of rows) {
-				if (seen.has(sess.visitor_id)) continue;
-				seen.add(sess.visitor_id);
-				backfillSessions.push(sess);
-			}
-		}
+		const backfillSessions = await getLatestSessionsForVisitors(db, siteId, missingVisitors);
 
 		const sessionIds = [...recentSessions, ...backfillSessions].map((s) => s.id);
-		const BATCH = 50;
 		const allSessionEvents: {
 			session_id: string;
 			path: string;
@@ -277,8 +239,8 @@ analyticsRoutes.get(
 			revenue: number | null;
 			props: string | null;
 		}[] = [];
-		for (let i = 0; i < sessionIds.length; i += BATCH) {
-			const batch = sessionIds.slice(i, i + BATCH);
+		for (let i = 0; i < sessionIds.length; i += IN_CLAUSE_CHUNK) {
+			const batch = sessionIds.slice(i, i + IN_CLAUSE_CHUNK);
 			const rows = await db
 				.selectFrom("events")
 				.select(["session_id", "path", "event_type", "name", "timestamp", "revenue", "props"])
@@ -294,10 +256,7 @@ analyticsRoutes.get(
 			eventsBySession.get(e.session_id)?.push(e);
 		}
 
-		const toJourney = (
-			sess: (typeof recentSessions)[number],
-			events: typeof allSessionEvents,
-		): VisitorJourney => {
+		const toJourney = (sess: SessionSummary, events: typeof allSessionEvents): VisitorJourney => {
 			const profile = profiles.find((p) => p.visitor_id === sess.visitor_id);
 			return {
 				session_id: sess.id,
