@@ -218,3 +218,46 @@ export function categorizeChannel(
 	if (search.some((s) => ref.includes(s))) return "Organic Search";
 	return "Referral";
 }
+
+/**
+ * DOKU SNAP notification signature (X-SIGNATURE header): HMAC-SHA512 over
+ * `HTTP-METHOD:RELATIVE-URL:ACCESS-TOKEN:HEX(SHA256(requestBody)):TIMESTAMP`
+ * keyed with the merchant's clientSecret. Docs: developers.doku.com,
+ * "HTTP Notification Sample for SNAP" — verification steps 1-3.
+ * The access token is the Authorization header value without a Bearer prefix;
+ * the relative URL is the notification path the merchant registered.
+ */
+export async function verifyDokuSignature(opts: {
+	httpMethod: string;
+	relativeUrl: string;
+	authorizationHeader: string;
+	requestBody: string;
+	timestamp: string;
+	clientSecret: string;
+	signature: string;
+}): Promise<boolean> {
+	const accessToken = opts.authorizationHeader.replace(/^Bearer\s+/i, "");
+	const bodyHash = Array.from(
+		new Uint8Array(
+			await crypto.subtle.digest("SHA-256", new TextEncoder().encode(opts.requestBody)),
+		),
+		(b) => b.toString(16).padStart(2, "0"),
+	).join("");
+	const stringToSign = [
+		opts.httpMethod.toUpperCase(),
+		opts.relativeUrl,
+		accessToken,
+		bodyHash,
+		opts.timestamp,
+	].join(":");
+	const key = await crypto.subtle.importKey(
+		"raw",
+		new TextEncoder().encode(opts.clientSecret),
+		{ name: "HMAC", hash: "SHA-512" },
+		false,
+		["sign"],
+	);
+	const mac = await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(stringToSign));
+	const computed = Array.from(new Uint8Array(mac), (b) => b.toString(16).padStart(2, "0")).join("");
+	return timingSafeEqual(computed, opts.signature.toLowerCase());
+}
