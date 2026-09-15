@@ -346,9 +346,55 @@ const PAYMENT_PROVIDERS: ProviderMeta[] = [
 		description: "Indonesian payment gateway — virtual accounts, QRIS, e-wallets, cards",
 		icon: Wallet,
 		fields: [
-			{ key: "client_id", label: "Client ID", placeholder: "DOKU Client ID (X-PARTNER-ID)" },
+			{ key: "client_id", label: "Client ID", placeholder: "BRN-0239-1736742088036" },
 			{ key: "secret_key", label: "Secret Key", placeholder: "DOKU Secret Key", secret: true },
 		],
+		instructions: (
+			<div className="text-muted-foreground space-y-2 text-sm">
+				<p className="text-foreground/80 font-semibold">Step 1 — copy your credentials</p>
+				<ol className="text-muted-foreground list-decimal space-y-1 pl-4">
+					<li>
+						Log in to the{" "}
+						<a
+							href="https://dashboard.doku.com/bo/login?utm_source=docs"
+							target="_blank"
+							rel="noopener noreferrer"
+							className="text-foreground underline-offset-2 hover:underline"
+						>
+							DOKU Dashboard
+						</a>
+						, then open <strong className="text-foreground">Settings → Account → API Keys</strong>.
+					</li>
+					<li>
+						Copy the <strong className="text-foreground">Client ID</strong> (format{" "}
+						<code>BRN-…</code>) — the field above. For the Secret Key, click{" "}
+						<strong className="text-foreground">Reveal Key</strong> and enter the 6-digit OTP sent
+						to your email; the key is visible for 30 seconds.
+					</li>
+				</ol>
+				<p className="text-foreground/80 font-semibold">
+					Step 2 — register the notification URL (per payment method)
+				</p>
+				<ol className="text-muted-foreground list-decimal space-y-1 pl-4">
+					<li>
+						In the dashboard:{" "}
+						<strong className="text-foreground">Settings → Payment Settings</strong>, then select
+						the payment method (Virtual Account, Cards, e-Wallet, Convenience Store, PayLater,
+						Direct Debit, Digital Banking, QRIS) — each is configured separately.
+					</li>
+					<li>
+						Set the notification URL to{" "}
+						<code className="text-foreground">https://app.revklik.com/api/webhooks/doku</code> and
+						save.
+					</li>
+				</ol>
+				<p className="text-muted-foreground">
+					The URL path is part of DOKU's signature, so it must match exactly. Payments arrive in the
+					Revenue panel; each DOKU virtual account / payment method needs its own notification URL
+					configured.
+				</p>
+			</div>
+		),
 	},
 	{
 		type: "mayar",
