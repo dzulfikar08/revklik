@@ -39,6 +39,8 @@ import { midtransWebhookRoutes } from "./routes/webhooks-midtrans";
 import { polarWebhookRoutes } from "./routes/webhooks-polar";
 import { pakasirWebhookRoutes } from "./routes/pakasir-webhook";
 import { stripeWebhookRoutes } from "./routes/webhooks-stripe";
+import { mayarWebhookRoutes } from "./routes/webhooks-mayar";
+import { paywuzWebhookRoutes } from "./routes/webhooks-paywuz";
 import { xenditWebhookRoutes } from "./routes/webhooks-xendit";
 import { widgetRoutes } from "./routes/widgets";
 import { widgetLiveRoutes } from "./routes/widgets-live";
@@ -152,6 +154,8 @@ export function createApp(): Hono<Env> {
 	app.route("/webhooks/lemonsqueezy", lemonsqueezyWebhookRoutes);
 	app.route("/webhooks/polar", polarWebhookRoutes);
 	app.route("/webhooks/pakasir", pakasirWebhookRoutes);
+	app.route("/webhooks/paywuz", paywuzWebhookRoutes);
+	app.route("/webhooks/mayar", mayarWebhookRoutes);
 
 	app.use("/payment-providers/*", authMiddleware);
 	app.route("/payment-providers", paymentProviderRoutes);

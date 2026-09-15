@@ -325,6 +325,37 @@ const PAYMENT_PROVIDERS: ProviderMeta[] = [
 			},
 		],
 	},
+	{
+		type: "paywuz",
+		name: "Paywuz",
+		description: "Indonesian payment gateway — QRIS, virtual accounts, e-wallets",
+		icon: Wallet,
+		fields: [
+			{ key: "api_key", label: "API Key", placeholder: "api.paywuz.id/v1 key", secret: true },
+			{
+				key: "webhook_secret",
+				label: "Webhook Token (x-webhook-token)",
+				placeholder: "your-webhook-token",
+				secret: true,
+			},
+		],
+	},
+	{
+		type: "mayar",
+		name: "Mayar",
+		description: "Indonesian payment links and invoices — QRIS, e-wallets, bank transfer",
+		icon: Wallet,
+		fields: [
+			{ key: "api_key", label: "API Key", placeholder: "api.mayar.id/hl/v2 key", secret: true },
+			{ key: "api_version", label: "API Version", placeholder: "v2" },
+			{
+				key: "webhook_secret",
+				label: "Webhook Token (x-webhook-token)",
+				placeholder: "your-webhook-token",
+				secret: true,
+			},
+		],
+	},
 ];
 
 const WEBHOOK_PATHS: Record<string, string> = {
@@ -332,6 +363,8 @@ const WEBHOOK_PATHS: Record<string, string> = {
 	xendit: "/api/webhooks/xendit",
 	stripe: "/api/webhooks/stripe",
 	lemonsqueezy: "/api/webhooks/lemonsqueezy",
+	paywuz: "/api/webhooks/paywuz",
+	mayar: "/api/webhooks/mayar",
 };
 
 const MARKETPLACES: {

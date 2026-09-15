@@ -415,6 +415,8 @@ export type IntegrationType =
 	| "xendit"
 	| "doku"
 	| "nicepay"
+	| "paywuz"
+	| "mayar"
 	| "stripe"
 	| "lemonsqueezy"
 	| "shopee"

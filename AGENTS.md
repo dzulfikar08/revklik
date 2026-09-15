@@ -124,3 +124,20 @@ Oxlint + Oxfmt's linter will catch most issues automatically. Focus your attenti
 ---
 
 Most formatting and common issues are automatically fixed by Oxlint + Oxfmt. Run `bun x ultracite fix` before committing to ensure compliance.
+
+<!-- antislop:start -->
+
+## antislop
+
+For UI, copy, people, mobile layout, or code comments work, read `antislop.md` (core) and then the skill for the task:
+
+- UI / visual: `skills/antislop-ui/SKILL.md`
+- Copy & text: `skills/antislop-copywriting/SKILL.md`
+- People: `skills/antislop-human/SKILL.md`
+- Mobile / responsive: `skills/antislop-layoutmobile/SKILL.md`
+- Code comments: `skills/antislop-code/SKILL.md`
+  Design direction (taste, polish values, motion judgment): read `skills/emil-design-eng/SKILL.md` first, then `skills/better-ui/SKILL.md` (+ its referenced docs) for exact values.
+  antislop is the filter on top: where direction and antislop Hard Gates (R-02, R-03, R-17, R-18, R-23 to R-28, R-32 to R-38) collide, the Hard Gates win; name the collision and ask the owner.
+  Usage mode on this project: DURING, while working (owner decision 2026-09-15).
+
+<!-- antislop:end -->
