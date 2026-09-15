@@ -104,18 +104,26 @@ midtransWebhookRoutes.post("/", async (c) => {
 	const grossAmount = notification.gross_amount || "";
 	const signatureKey = (notification.signature_key || "").toLowerCase();
 
-	if (serverKey && signatureKey) {
-		const valid = await verifyMidtransSignature(
-			orderId,
-			statusCode,
-			grossAmount,
-			serverKey,
-			signatureKey,
-		);
-		if (!valid) {
-			await logWebhookEvent(db, siteId, provider.id, "midtrans_invalid_sig", rawBody, "failed");
-			return c.json({ error: "Invalid signature" }, 401);
-		}
+	// Signature is mandatory: without it anyone could POST unverified revenue.
+	// No server_key configured means the provider cannot be verified at all.
+	if (!serverKey) {
+		await logWebhookEvent(db, siteId, provider.id, "midtrans_unconfigured", rawBody, "failed");
+		return c.json({ error: "Provider not configured for verification" }, 401);
+	}
+	if (!signatureKey) {
+		await logWebhookEvent(db, siteId, provider.id, "midtrans_missing_sig", rawBody, "failed");
+		return c.json({ error: "Missing signature" }, 401);
+	}
+	const valid = await verifyMidtransSignature(
+		orderId,
+		statusCode,
+		grossAmount,
+		serverKey,
+		signatureKey,
+	);
+	if (!valid) {
+		await logWebhookEvent(db, siteId, provider.id, "midtrans_invalid_sig", rawBody, "failed");
+		return c.json({ error: "Invalid signature" }, 401);
 	}
 
 	const transactionStatus = notification.transaction_status || "";
