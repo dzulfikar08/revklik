@@ -1357,7 +1357,7 @@ type IntegrationsTabKey = "webhooks" | "payments" | "search" | "imports";
  * appear in the UI. Everything else stays defined above — re-enable by adding
  * its type here.
  */
-const SHOWN_PROVIDERS = new Set([
+const SHOWN_PROVIDERS: ReadonlySet<LegacyIntegrationType> = new Set([
 	"appstoreconnect",
 	"xendit",
 	"doku",
@@ -1444,23 +1444,19 @@ export const IntegrationsView = ({ siteId }: { siteId: string }) => {
 							siteId={siteId}
 						/>
 					))}
-					<Panel
-						title="Pakasir"
-						hint={<StatusPill on label="Built-in" />}
-					>
+					<Panel title="Pakasir" hint={<StatusPill on label="Built-in" />}>
 						<div className="flex items-start gap-2.5">
 							<span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-(--up)/15 text-(--up)">
 								<Wallet className="size-4" aria-hidden />
 							</span>
 							<p className="text-muted-foreground text-xs leading-relaxed">
-								RevKlik's own QRIS checkout for plan payments. Verified and activated
-								automatically — no per-site setup needed.
+								RevKlik's own QRIS checkout for plan payments. Verified and activated automatically
+								— no per-site setup needed.
 							</p>
 						</div>
 					</Panel>
 				</div>
 			) : null}
-
 
 			{tab === "search" ? (
 				<GscPanel integration={integrationByType.google_search_console} siteId={siteId} />
