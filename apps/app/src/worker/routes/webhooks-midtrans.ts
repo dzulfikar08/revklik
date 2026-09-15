@@ -25,12 +25,15 @@ interface MidtransNotification {
 	custom_field4?: string;
 }
 
-function findIntegration(db: Kysely<KlikapaDatabase>, siteId: string, type: string) {
+// Provider config lives in payment_providers — the table the settings UI
+// writes. (This route previously read the integrations table, which nothing
+// populates for payment types.)
+function findProvider(db: Kysely<KlikapaDatabase>, siteId: string) {
 	return db
-		.selectFrom("integrations")
-		.select(["id", "site_id", "type", "config"])
+		.selectFrom("payment_providers")
+		.select(["id", "config"])
 		.where("site_id", "=", siteId)
-		.where("type", "=", type)
+		.where("provider", "=", "midtrans")
 		.where("enabled", "=", 1)
 		.executeTakeFirst();
 }
@@ -91,10 +94,10 @@ midtransWebhookRoutes.post("/", async (c) => {
 	const siteId = notification.custom_field4 || c.req.query("site_id") || "";
 	if (!siteId) return c.json({ error: "site_id required" }, 400);
 
-	const integration = await findIntegration(db, siteId, "midtrans");
-	if (!integration) return c.json({ error: "No Midtrans integration" }, 404);
+	const provider = await findProvider(db, siteId);
+	if (!provider) return c.json({ error: "No Midtrans integration" }, 404);
 
-	const config = JSON.parse((integration.config as string) || "{}");
+	const config = JSON.parse((provider.config as string) || "{}");
 	const serverKey = config.server_key || "";
 	const orderId = notification.order_id || "";
 	const statusCode = notification.status_code || "";
@@ -110,7 +113,7 @@ midtransWebhookRoutes.post("/", async (c) => {
 			signatureKey,
 		);
 		if (!valid) {
-			await logWebhookEvent(db, siteId, integration.id, "midtrans_invalid_sig", rawBody, "failed");
+			await logWebhookEvent(db, siteId, provider.id, "midtrans_invalid_sig", rawBody, "failed");
 			return c.json({ error: "Invalid signature" }, 401);
 		}
 	}
@@ -120,7 +123,7 @@ midtransWebhookRoutes.post("/", async (c) => {
 		await logWebhookEvent(
 			db,
 			siteId,
-			integration.id,
+			provider.id,
 			`midtrans_${transactionStatus}`,
 			rawBody,
 			"processed",
@@ -136,7 +139,7 @@ midtransWebhookRoutes.post("/", async (c) => {
 		await logWebhookEvent(
 			db,
 			siteId,
-			integration.id,
+			provider.id,
 			`midtrans_fraud_${notification.fraud_status}`,
 			rawBody,
 			"processed",
@@ -241,7 +244,7 @@ midtransWebhookRoutes.post("/", async (c) => {
 	await logWebhookEvent(
 		db,
 		siteId,
-		integration.id,
+		provider.id,
 		`midtrans_${transactionStatus}`,
 		rawBody,
 		"processed",

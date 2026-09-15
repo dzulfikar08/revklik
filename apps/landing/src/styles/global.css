@@ -1,0 +1,216 @@
+@import "tailwindcss";
+
+/* ----------------------------------------------------------------------------
+   revklik.com marketing + blog. Third surface speaking the brand already
+   written down in apps/web/src/index.css and apps/fumadocs global.css.
+
+   Design Read: marketing landing + blog for Indonesian site owners and
+   online sellers, in the product's own night-ops language (deep
+   blue-charcoal surfaces, orange traffic accent, gold money), dial
+   ENERGY 2 / RHYTHM 2 / MOTION 1.
+   Palette: the app's own tokens, unmodified. Orange is the deliberate
+   accent at key actions and live moments only; gold marks revenue only;
+   green appears only on real positive values (pairs checked AA, R-25).
+   Type: Inter Variable token with system fallback, same as the dashboard;
+   clarity for dense numbers, no display face, mono only inside real code
+   blocks (R-06).
+   Radius: card 20 / inner 12 / button 10, concentric where nested
+   (outer = inner + padding); pills only where the shape is the component
+   (chips, live badge) (R-11).
+   Shadow: flat by default. The one elevation is the hero snippet card
+   (it is the product) plus hover lift on plan cards (R-12).
+   Motion: color/opacity transitions at 150ms, button press scale(0.97)
+   at 160ms ease-out; nothing loops, nothing floats (MOTION 1, R-19).
+   -------------------------------------------------------------------------- */
+
+:root {
+	--bg: oklch(0.165 0.014 260);
+	--surface: oklch(0.207 0.016 260);
+	--surface-2: oklch(0.222 0.017 260);
+	--raised: oklch(0.262 0.018 260);
+	--line: oklch(0.28 0.017 260);
+	--text: oklch(0.955 0.006 250);
+	--text-muted: oklch(0.685 0.015 255);
+	--accent: oklch(0.78 0.13 55);
+	--accent-ink: oklch(0.165 0.014 260);
+	--accent-soft: oklch(0.78 0.13 55 / 0.12);
+	--money: oklch(0.8 0.13 88);
+	--money-soft: oklch(0.8 0.13 88 / 0.1);
+	--ring: oklch(0.62 0.02 255);
+}
+
+@theme inline {
+	--color-bg: var(--bg);
+	--color-surface: var(--surface);
+	--color-surface-2: var(--surface-2);
+	--color-raised: var(--raised);
+	--color-line: var(--line);
+	--color-text: var(--text);
+	--color-muted: var(--text-muted);
+	--color-accent: var(--accent);
+	--color-accent-ink: var(--accent-ink);
+	--color-accent-soft: var(--accent-soft);
+	--color-money: var(--money);
+	--color-money-soft: var(--money-soft);
+	--color-ring: var(--ring);
+	--font-sans:
+		"Inter Variable", Inter, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial,
+		sans-serif;
+	--font-mono: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+	--radius-card: 20px;
+	--radius-inner: 12px;
+	--radius-btn: 10px;
+}
+
+/* Plain @theme (not inline): emits the vars to :root for var() consumers
+   AND generates the .shadow-card / .shadow-card-hover utilities (R-12). */
+@theme {
+	--shadow-card:
+		0px 0px 0px 1px oklch(1 0 0 / 0.08), 0px 1px 2px -1px oklch(1 0 0 / 0.08),
+		0px 2px 4px 0px oklch(1 0 0 / 0.06);
+	--shadow-card-hover:
+		0px 0px 0px 1px oklch(1 0 0 / 0.13), 0px 1px 2px -1px oklch(1 0 0 / 0.13),
+		0px 2px 4px 0px oklch(1 0 0 / 0.1);
+}
+
+html {
+	color-scheme: dark;
+	scroll-behavior: smooth;
+}
+
+body {
+	background: var(--bg);
+	color: var(--text);
+	font-family: var(--font-sans);
+	-webkit-font-smoothing: antialiased;
+}
+
+/* Visible focus everywhere; the outline is never removed (R-32). */
+:focus-visible {
+	outline: 2px solid var(--ring);
+	outline-offset: 2px;
+}
+
+::selection {
+	background: var(--accent-soft);
+	color: var(--text);
+}
+
+/* Button press feedback (emil-design-eng: exact scale + curve + duration). */
+.btn {
+	transition:
+		transform 160ms ease-out,
+		background-color 150ms ease-out,
+		color 150ms ease-out,
+		box-shadow 150ms ease-out;
+}
+.btn:active {
+	transform: scale(0.97);
+}
+
+a {
+	transition: color 150ms ease-out;
+}
+
+/* Skip link: hidden until focused, first thing in Tab order (R-32). */
+.skip-link {
+	position: absolute;
+	left: -9999px;
+	top: 0;
+	z-index: 100;
+	background: var(--raised);
+	color: var(--text);
+	padding: 0.5rem 1rem;
+	border-radius: 0 0 var(--radius-btn) 0;
+}
+.skip-link:focus-visible {
+	left: 0;
+}
+
+/* Images get the neutral 1px inner outline from surfaces.md. */
+img {
+	outline: 1px solid oklch(1 0 0 / 0.1);
+	outline-offset: -1px;
+}
+
+/* Blog post body: minimal prose on the brand tokens. */
+.prose {
+	color: var(--text);
+	line-height: 1.75;
+}
+.prose h2 {
+	font-size: 1.375rem;
+	font-weight: 600;
+	letter-spacing: -0.01em;
+	margin: 2.25rem 0 0.75rem;
+}
+.prose h3 {
+	font-size: 1.125rem;
+	font-weight: 600;
+	margin: 1.75rem 0 0.5rem;
+}
+.prose p {
+	color: var(--text);
+	opacity: 0.92;
+	margin: 0.9rem 0;
+}
+.prose ul {
+	margin: 0.9rem 0;
+	padding-left: 1.25rem;
+	list-style: disc;
+}
+.prose ol {
+	margin: 0.9rem 0;
+	padding-left: 1.25rem;
+	list-style: decimal;
+}
+.prose li {
+	margin: 0.35rem 0;
+}
+.prose a {
+	color: var(--accent);
+	text-decoration: underline;
+	text-underline-offset: 3px;
+}
+.prose code {
+	font-family: var(--font-mono);
+	font-size: 0.85em;
+	background: var(--surface-2);
+	border-radius: 6px;
+	padding: 0.15em 0.4em;
+}
+.prose pre {
+	background: var(--surface);
+	box-shadow: var(--shadow-card);
+	border-radius: var(--radius-inner);
+	padding: 1rem;
+	overflow-x: auto;
+	margin: 1.25rem 0;
+}
+.prose pre code {
+	background: none;
+	padding: 0;
+	font-size: 0.8rem;
+	line-height: 1.6;
+}
+.prose blockquote {
+	border-left: 2px solid var(--line);
+	padding-left: 1rem;
+	color: var(--text-muted);
+	margin: 1.25rem 0;
+}
+
+/* Reduced motion: drop movement, keep color/opacity comprehension aids. */
+@media (prefers-reduced-motion: reduce) {
+	html {
+		scroll-behavior: auto;
+	}
+	.btn,
+	.btn:active {
+		transition-duration: 0ms;
+		transform: none;
+	}
+	a {
+		transition-duration: 0ms;
+	}
+}
