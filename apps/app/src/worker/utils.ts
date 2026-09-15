@@ -64,7 +64,6 @@ const BOT_UA_MARKERS = [
 	"embedly",
 	"discordapp",
 	"telegrambot",
-	"whatsapp",
 	"slack-imglib",
 	"preview",
 	// SEO tools
@@ -116,6 +115,11 @@ const BOT_UA_RE = new RegExp(BOT_UA_MARKERS.join("|"), "i");
 export function isBotUserAgent(ua: string | null | undefined): boolean {
 	// Real browsers always send User-Agent; an absent one means a scripted client.
 	if (!ua) return true;
+	// WhatsApp's link-preview fetcher sends a bare "WhatsApp/x.y" UA with no
+	// Mozilla token. Human clicks from the WhatsApp in-app browser send a real
+	// browser UA that may also carry the token (iOS) — those are visitors, and
+	// track.ts overrides their browser so source attribution can classify them.
+	if (/^whatsapp\//i.test(ua)) return true;
 	return BOT_UA_RE.test(ua);
 }
 

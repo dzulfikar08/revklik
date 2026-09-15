@@ -170,7 +170,12 @@ trackRoutes.post("/track", async (c) => {
 	}
 
 	const deviceType = first.dv ?? null;
-	const browser = first.br ?? null;
+	// WhatsApp in-app browsers ship a Chrome/Safari UA plus a `WhatsApp/x.y`
+	// token; the client-side parse only sees Chrome/Safari. Server UA wins so
+	// query-time attribution can classify these clicks as whatsapp
+	// (see sourceSql in queries/analytics.ts).
+	let browser = first.br ?? null;
+	if (botUa && /WhatsApp\/\d/.test(botUa)) browser = "WhatsApp";
 	const os = first.os ?? null;
 
 	// Cookieless attribution: compute fingerprint from request headers

@@ -19,7 +19,8 @@ import type { ParsedFilter } from "../lib/analytics-queries";
 import { applyFilters, applySessionFilters } from "../lib/analytics-queries";
 
 const sourceSql = sql<string>`COALESCE(utm_source,
-  CASE WHEN referrer IS NULL OR referrer = '' THEN 'direct'
+  CASE WHEN (referrer IS NULL OR referrer = '') AND LOWER(browser) = 'whatsapp' THEN 'whatsapp'
+  WHEN referrer IS NULL OR referrer = '' THEN 'direct'
   WHEN referrer LIKE '%ig_text_post_permalink%' OR referrer LIKE '%ig_text_feed_timeline%' THEN 'instagram'
   ELSE
     CASE LOWER(REPLACE(

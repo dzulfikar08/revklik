@@ -139,7 +139,8 @@ function tsFragments(range: string) {
 }
 
 const sourceExpr = sql<string>`COALESCE(utm_source,
-    CASE WHEN referrer IS NULL OR referrer = '' THEN 'direct'
+    CASE WHEN (referrer IS NULL OR referrer = '') AND LOWER(browser) = 'whatsapp' THEN 'whatsapp'
+    WHEN referrer IS NULL OR referrer = '' THEN 'direct'
     ELSE LOWER(REPLACE(
       SUBSTR(SUBSTR(referrer, INSTR(referrer, '://') + 3), 1,
         INSTR(SUBSTR(referrer, INSTR(referrer, '://') + 3) || '/', '/') - 1),
