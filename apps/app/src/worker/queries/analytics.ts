@@ -57,6 +57,74 @@ function bucketKeys(startIso: string, endIso: string | undefined, isHourly: bool
 	return keys;
 }
 
+export const SESSION_COLS = [
+	"id",
+	"visitor_id",
+	"started_at",
+	"country",
+	"region",
+	"city",
+	"device_type",
+	"browser",
+	"os",
+	"utm_source",
+	"referrer",
+	"page_count",
+] as const;
+
+export type SessionSummary = Pick<KlikapaDatabase["sessions"], (typeof SESSION_COLS)[number]>;
+
+/**
+ * D1 rejects a statement binding more than 100 parameters ("too many SQL
+ * variables"), so every id list goes out in windows of this size — never as one
+ * unbounded `IN (...)`.
+ */
+export const IN_CLAUSE_CHUNK = 50;
+
+/**
+ * The newest session per visitor for the given ids, skipping sessions whose
+ * only events are custom/heartbeat noise. Ids arrive in chunks because
+ * visitor_profiles scale to 100 and a single `visitor_id IN (...)` of that size
+ * pushes the statement past D1's bound-parameter cap. Each visitor lands in
+ * exactly one window, so first-seen wins per visitor; the result is re-sorted
+ * newest-first to match the single-query ordering this replaces.
+ */
+export async function getLatestSessionsForVisitors(
+	db: Kysely<KlikapaDatabase>,
+	siteId: string,
+	visitorIds: string[],
+): Promise<SessionSummary[]> {
+	const latest: SessionSummary[] = [];
+	const seen = new Set<string>();
+	for (let i = 0; i < visitorIds.length; i += IN_CLAUSE_CHUNK) {
+		const rows = await db
+			.selectFrom("sessions")
+			.select([...SESSION_COLS])
+			.where("site_id", "=", siteId)
+			.where("visitor_id", "in", visitorIds.slice(i, i + IN_CLAUSE_CHUNK))
+			.where((eb) =>
+				eb.exists(
+					eb
+						.selectFrom("events")
+						.select("id")
+						.where("site_id", "=", siteId)
+						.whereRef("events.session_id", "=", "sessions.id")
+						.where((ev) =>
+							ev.or([ev("event_type", "!=", "custom"), ev("name", "is not", "heartbeat")]),
+						),
+				),
+			)
+			.orderBy("started_at", "desc")
+			.execute();
+		for (const row of rows) {
+			if (seen.has(row.visitor_id)) continue;
+			seen.add(row.visitor_id);
+			latest.push(row);
+		}
+	}
+	return latest.sort((a, b) => (a.started_at < b.started_at ? 1 : -1));
+}
+
 export async function getOverviewStats(
 	db: Kysely<KlikapaDatabase>,
 	siteId: string,
