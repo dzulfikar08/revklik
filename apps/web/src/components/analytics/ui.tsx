@@ -26,12 +26,12 @@ export const StatTile = ({
 	label,
 	value,
 	delta,
-	tone,
+	tone = "good",
 }: {
 	label: string;
 	value: string;
-	delta: string;
-	tone: "good" | "bad";
+	delta?: string;
+	tone?: "good" | "bad";
 }) => {
 	const Arrow = tone === "good" ? ArrowUpRight : ArrowDownRight;
 	return (
@@ -41,14 +41,16 @@ export const StatTile = ({
 				<span className="text-[22px] leading-7 font-semibold tracking-tight tabular-nums">
 					{value}
 				</span>
-				<span
-					className={`inline-flex items-center gap-0.5 rounded-full px-1.5 py-0.5 font-mono text-[11px] tabular-nums ${
-						tone === "good" ? "bg-(--up)/10 text-(--up)" : "bg-(--down)/10 text-(--down)"
-					}`}
-				>
-					<Arrow className="size-3" aria-hidden />
-					{delta}
-				</span>
+				{delta != null && (
+					<span
+						className={`inline-flex items-center gap-0.5 rounded-full px-1.5 py-0.5 font-mono text-[11px] tabular-nums ${
+							tone === "good" ? "bg-(--up)/10 text-(--up)" : "bg-(--down)/10 text-(--down)"
+						}`}
+					>
+						<Arrow className="size-3" aria-hidden />
+						{delta}
+					</span>
+				)}
 			</div>
 		</div>
 	);

@@ -22,6 +22,8 @@ import {
 	fetchShareStatus,
 	fetchSubscriptionPlan,
 	fetchWidgetStatus,
+	publicEmbedCode,
+	publicPageUrl,
 	regenerateWidgetToken,
 	revokeApiToken,
 	shareUrl,
@@ -68,7 +70,15 @@ const LiveBadge = ({ label }: { label: string }) => (
 	</span>
 );
 
-const CopyButton = ({ text, className }: { text: string; className?: string }) => {
+const CopyButton = ({
+	text,
+	label = "Copy",
+	className,
+}: {
+	text: string;
+	label?: string;
+	className?: string;
+}) => {
 	const [copied, setCopied] = useState(false);
 	return (
 		<Button
@@ -90,7 +100,7 @@ const CopyButton = ({ text, className }: { text: string; className?: string }) =
 			) : (
 				<Copy className="size-3.5" aria-hidden />
 			)}
-			{copied ? "Copied" : "Copy"}
+			{copied ? "Copied" : label}
 		</Button>
 	);
 };
@@ -123,7 +133,7 @@ const SharePanel = ({ siteId }: { siteId: string }) => {
 	return (
 		<Panel
 			title="Public dashboard"
-			hint="Share a read-only version of your analytics via a public JSON link."
+			hint="Share a read-only live dashboard page, its JSON feed, and an embed snippet."
 		>
 			{!siteId ? (
 				<NoSite />
@@ -153,8 +163,15 @@ const SharePanel = ({ siteId }: { siteId: string }) => {
 							<CopyButton text={url} className="shrink-0" />
 						</div>
 					)}
+					{isPublic && token && (
+						<div className="flex flex-wrap items-center gap-2">
+							<CopyButton text={publicPageUrl(token)} label="Copy public link" />
+							<CopyButton text={publicEmbedCode(token)} label="Copy embed code" />
+						</div>
+					)}
 					<p className="text-muted-foreground text-[11px]">
-						The URL serves the dashboard data as JSON — point any viewer or integration at it.
+						The public link opens a live dashboard page anyone can view; embed code drops it into
+						any site via an iframe. The JSON URL stays available for integrations.
 					</p>
 				</div>
 			)}
