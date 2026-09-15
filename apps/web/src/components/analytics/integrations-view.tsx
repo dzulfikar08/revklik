@@ -1350,12 +1350,24 @@ const GscPanel = ({
 
 /* ----------------------------------- view ----------------------------------- */
 
-type IntegrationsTabKey = "webhooks" | "payments" | "marketplace" | "search" | "imports";
+type IntegrationsTabKey = "webhooks" | "payments" | "search" | "imports";
+
+/**
+ * Visibility gate: only providers that have actually been set up and tested
+ * appear in the UI. Everything else stays defined above — re-enable by adding
+ * its type here.
+ */
+const SHOWN_PROVIDERS = new Set([
+	"appstoreconnect",
+	"xendit",
+	"doku",
+	"paywuz",
+	"mayar",
+] as const);
 
 const SECTION_TABS: readonly { readonly key: IntegrationsTabKey; readonly label: string }[] = [
 	{ key: "webhooks", label: "Webhooks" },
 	{ key: "payments", label: "Payments" },
-	{ key: "marketplace", label: "Marketplace" },
 	{ key: "search", label: "Search" },
 	{ key: "imports", label: "Imports" },
 ];
@@ -1411,7 +1423,7 @@ export const IntegrationsView = ({ siteId }: { siteId: string }) => {
 
 			{tab === "webhooks" ? (
 				<div className="grid items-start gap-2.5 md:grid-cols-2">
-					{WEBHOOK_PROVIDERS.map((meta) => (
+					{WEBHOOK_PROVIDERS.filter((meta) => SHOWN_PROVIDERS.has(meta.type)).map((meta) => (
 						<WebhookProviderCard
 							key={meta.type}
 							meta={meta}
@@ -1424,7 +1436,7 @@ export const IntegrationsView = ({ siteId }: { siteId: string }) => {
 
 			{tab === "payments" ? (
 				<div className="grid items-start gap-2.5 md:grid-cols-2">
-					{PAYMENT_PROVIDERS.map((meta) => (
+					{PAYMENT_PROVIDERS.filter((meta) => SHOWN_PROVIDERS.has(meta.type)).map((meta) => (
 						<PaymentProviderCard
 							key={meta.type}
 							meta={meta}
@@ -1432,24 +1444,23 @@ export const IntegrationsView = ({ siteId }: { siteId: string }) => {
 							siteId={siteId}
 						/>
 					))}
+					<Panel
+						title="Pakasir"
+						hint={<StatusPill on label="Built-in" />}
+					>
+						<div className="flex items-start gap-2.5">
+							<span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-(--up)/15 text-(--up)">
+								<Wallet className="size-4" aria-hidden />
+							</span>
+							<p className="text-muted-foreground text-xs leading-relaxed">
+								RevKlik's own QRIS checkout for plan payments. Verified and activated
+								automatically — no per-site setup needed.
+							</p>
+						</div>
+					</Panel>
 				</div>
 			) : null}
 
-			{tab === "marketplace" ? (
-				<div className="grid items-start gap-2.5 md:grid-cols-2">
-					{MARKETPLACES.map((m) => (
-						<MarketplaceCard
-							key={m.marketplace}
-							marketplace={m.marketplace}
-							name={m.name}
-							description={m.description}
-							icon={m.icon}
-							integration={integrationByType[m.marketplace]}
-							siteId={siteId}
-						/>
-					))}
-				</div>
-			) : null}
 
 			{tab === "search" ? (
 				<GscPanel integration={integrationByType.google_search_console} siteId={siteId} />
