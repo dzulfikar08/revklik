@@ -341,6 +341,16 @@ const PAYMENT_PROVIDERS: ProviderMeta[] = [
 		],
 	},
 	{
+		type: "doku",
+		name: "DOKU",
+		description: "Indonesian payment gateway — virtual accounts, QRIS, e-wallets, cards",
+		icon: Wallet,
+		fields: [
+			{ key: "client_id", label: "Client ID", placeholder: "DOKU Client ID (X-PARTNER-ID)" },
+			{ key: "secret_key", label: "Secret Key", placeholder: "DOKU Secret Key", secret: true },
+		],
+	},
+	{
 		type: "mayar",
 		name: "Mayar",
 		description: "Indonesian payment links and invoices — QRIS, e-wallets, bank transfer",
@@ -365,6 +375,7 @@ const WEBHOOK_PATHS: Record<string, string> = {
 	lemonsqueezy: "/api/webhooks/lemonsqueezy",
 	paywuz: "/api/webhooks/paywuz",
 	mayar: "/api/webhooks/mayar",
+	doku: "/api/webhooks/doku",
 };
 
 const MARKETPLACES: {
