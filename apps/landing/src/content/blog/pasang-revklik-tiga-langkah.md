@@ -33,11 +33,7 @@ Klik **Snippet** di baris situs Anda. Akan muncul modal berisi skrip yang
 dibuat khusus untuk domain tersebut, dengan bentuk seperti ini:
 
 ```html
-<script src="https://app.revklik.com/klikapa.js"></script>
-<script>
-	window.klikapa_site_id = "ID-SITUS-ANDA";
-	window.klikapa_endpoint = "https://app.revklik.com/api/track";
-</script>
+<script defer data-site-id="ID-SITUS-ANDA" src="https://app.revklik.com/klikapa.js"></script>
 ```
 
 Tempel ke bagian `<head>` di semua halaman yang ingin diukur, lewat

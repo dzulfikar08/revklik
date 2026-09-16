@@ -189,13 +189,19 @@ siteRoutes.get("/:siteId/snippet", async (c) => {
 	if (!site) return c.json({ error: "Site not found", success: false }, 404);
 
 	const origin = new URL(c.req.url).origin;
-	const snippet = `<script src="${origin}/klikapa.js"></script>
-<script>
-  window.klikapa_site_id = "${siteId}";
-  window.klikapa_endpoint = "${origin}/api/track";
-</script>`;
+	const snippet = siteSnippet(origin, siteId);
 	return c.json({ data: { siteId, snippet }, success: true });
 });
+
+/**
+ * The tracker (public/klikapa.js) reads ONLY the data-site-id attribute and
+ * derives its endpoint from the script src — window.klikapa_site_id and
+ * window.klikapa_endpoint are ignored, so the legacy globals emitted a dead
+ * snippet. Keep this aligned with docs.txt.
+ */
+export function siteSnippet(origin: string, siteId: string): string {
+	return `<script defer data-site-id="${siteId}" src="${origin}/klikapa.js"></script>`;
+}
 // ---------- Self-traffic exclusion (fingerprint blocklist) ----------
 
 function parseExcluded(raw: string | null | undefined): string[] {

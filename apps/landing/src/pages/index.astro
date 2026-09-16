@@ -5,11 +5,7 @@ import Base from "../layouts/Base.astro";
 const APP_URL = "https://app.revklik.com";
 const DOCS_URL = "https://docs.revklik.com";
 
-const snippet = `<script src="https://app.revklik.com/klikapa.js"></script>
-<script>
-  window.klikapa_site_id = "ID-SITUS-ANDA";
-  window.klikapa_endpoint = "https://app.revklik.com/api/track";
-</script>`;
+const snippet = `<script defer data-site-id="ID-SITUS-ANDA" src="https://app.revklik.com/klikapa.js"></script>`;
 
 const payments = [
 	"Midtrans",
@@ -183,21 +179,36 @@ const faqs = [
 		</div>
 	</section>
 
-	<!-- Live dashboard: RevKlik's own real data, embeds the public /public/:token page. -->
+	<!-- Live dashboard: a real customer's public /public/:token page (PakUstadz.com). -->
 	<section class="border-line/60 border-t">
 		<div class="mx-auto max-w-6xl px-4 py-16 md:px-6 md:py-20">
 			<div class="flex flex-wrap items-end justify-between gap-4">
 				<h2 class="max-w-xl text-2xl font-semibold tracking-tight text-balance md:text-3xl">
-					Data nyata, dari dashboard kami sendiri.
+					Bukan mockup. Dashboard PakUstadz.com.
 				</h2>
 				<p class="text-muted text-sm">
-					Ini dashboard publik revklik.com, diukur dengan RevKlik juga.
+					Dashboard publik PakUstadz.com, salah satu situs yang diukur dengan RevKlik.
 				</p>
 			</div>
 			<div class="bg-surface rounded-card shadow-card mt-8 p-2">
+				<div class="flex flex-wrap items-center justify-between gap-3 px-2 pt-1 pb-2">
+					<span class="text-muted font-mono text-[11px] tracking-wider uppercase">
+						Dashboard
+						<a href="https://pakustadz.com" target="_blank" rel="noopener" class="text-muted hover:text-text">PakUstadz.com</a>
+					</span>
+					<a
+						href="https://pakustadz.com"
+						target="_blank"
+						rel="noopener"
+						class="text-accent hover:text-accent/80 inline-flex items-center gap-1.5 text-xs font-medium"
+					>
+						Kunjungi PakUstadz.com
+						<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M7 17L17 7M7 7h10v10" /></svg>
+					</a>
+				</div>
 				<iframe
 					src="https://app.revklik.com/public/b719ba64-478e-49c4-819f-06dd0376a6ce?embed=1"
-					title="Dashboard live RevKlik dengan data nyata dari situs revklik.com"
+					title="Dashboard live PakUstadz.com, diukur dengan RevKlik"
 					loading="lazy"
 					class="bg-bg h-[600px] w-full rounded-inner border-0"
 				></iframe>
