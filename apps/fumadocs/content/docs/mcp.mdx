@@ -1,0 +1,113 @@
+---
+title: MCP server
+description: "Query RevKlik from Codex, Cursor, or Claude: one MCP endpoint, 12 read-only tools, the same API tokens as the REST API."
+---
+
+RevKlik ships a **Model Context Protocol (MCP) server**, so coding agents such
+as Codex, Cursor, or Claude can read your analytics directly. It serves the
+same data as the REST API (both run on one shared query layer), which turns
+questions like "which referrers brought paying visitors last week?" into a
+prompt instead of a dashboard session.
+
+## Endpoint
+
+```
+https://app.revklik.com/api/mcp
+```
+
+- **Transport**: Streamable HTTP, stateless. Every POST is a complete
+  JSON-RPC 2.0 request carrying its own `Authorization` header; there are no
+  sessions, so the server-to-client stream probe answers `405`.
+- **Protocol versions**: `2025-06-18` (latest), `2025-03-26`, and
+  `2024-11-05`. The server echoes your client's version when it is supported.
+- **Rate limits**: one bucket per token, shared with the REST API.
+
+## Authentication
+
+Use the same API tokens as the REST API. Create them under
+**Share → API tokens** (see [share and access](/integrations#share-and-access)):
+
+| Token   | Starts with | Good for                                                            |
+| ------- | ----------- | ------------------------------------------------------------------- |
+| Account | `rvt_`      | Multi-site work; `list_sites` requires an account token             |
+| Site    | `rv_`       | One site; `site_id` arguments are optional and default to that site |
+
+Scopes decide what a token may call: `analytics:read` covers the analytics
+tools, `analytics:export` covers `export_events`, and `sites:read` covers
+`list_sites`.
+
+## Connect a client
+
+Codex CLI:
+
+```sh
+codex mcp add revklik --transport http https://app.revklik.com/api/mcp \
+  -s user -H "Authorization: Bearer rvt_YOUR_TOKEN"
+```
+
+Claude Code:
+
+```sh
+claude mcp add --transport http revklik https://app.revklik.com/api/mcp \
+  --header "Authorization: Bearer rvt_YOUR_TOKEN"
+```
+
+Cursor (`.cursor/mcp.json`):
+
+```json
+{
+	"mcpServers": {
+		"revklik": {
+			"url": "https://app.revklik.com/api/mcp",
+			"headers": { "Authorization": "Bearer rvt_YOUR_TOKEN" }
+		}
+	}
+}
+```
+
+Any other MCP client works the same way: point it at the URL above and send
+the token as a Bearer `Authorization` header.
+
+## Tools
+
+Twelve read-only tools, mirroring `/api/v1` one to one:
+
+| Tool                   | Returns                                                          | Scope              |
+| ---------------------- | ---------------------------------------------------------------- | ------------------ |
+| `whoami`               | Token identity: user, plan, token type, scopes, bound site       |                    |
+| `list_sites`           | Sites the token can access (owned + team)                        | `sites:read`       |
+| `analytics_overview`   | Pageviews, visitors, sessions, bounce rate, revenue, conversions | `analytics:read`   |
+| `analytics_timeseries` | Pageviews and visitors per day (hourly for ranges up to 48h)     | `analytics:read`   |
+| `top_pages`            | Top pages by pageviews                                           | `analytics:read`   |
+| `top_referrers`        | Traffic sources with visitor share, `direct` included            | `analytics:read`   |
+| `geo_breakdown`        | Visitors by country, region, and city                            | `analytics:read`   |
+| `device_breakdown`     | Visitors by device type, OS, and browser                         | `analytics:read`   |
+| `revenue_breakdown`    | Revenue by source, by country, and over time                     | `analytics:read`   |
+| `campaigns`            | UTM campaigns with conversions, revenue, and conversion rate     | `analytics:read`   |
+| `visitor_journeys`     | Recent sessions with step-by-step journeys and known profiles    | `analytics:read`   |
+| `export_events`        | Raw rows (events, visitors, or sessions) as JSON or CSV          | `analytics:export` |
+
+Shared arguments:
+
+- `range`: `24h`, `7d` (default), `30d`, `90d`, or `"YYYY-MM-DD,YYYY-MM-DD"`.
+- `site_id`: optional with a site token (`rv_`), required with an account
+  token (`rvt_`). Get ids from `list_sites`.
+- `limit` where offered: up to 100 rows. `export_events` accepts `type`
+  (`events`/`visitors`/`sessions`), `event_type`
+  (`pageview`/`custom`/`conversion`/`payment`/`subscription`), `format`
+  (`json`/`csv`), and up to 1,000 rows.
+
+## Prompts to try
+
+- "Compare top referrers this month against last month."
+- "Which UTM campaign produced the most revenue in the last 90 days?"
+- "Export last week's conversion events as CSV."
+
+## Errors
+
+- `401`: missing or invalid token.
+- `400`: unsupported `MCP-Protocol-Version` header.
+- `-32602`: invalid tool arguments.
+- `-32601`: unknown method.
+- Other tool failures (for example a missing scope) come back as results with
+  `isError: true` plus an `error` and a `hint` explaining what to fix.
