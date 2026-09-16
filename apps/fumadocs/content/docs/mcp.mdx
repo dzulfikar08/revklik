@@ -89,7 +89,9 @@ Twelve read-only tools, mirroring `/api/v1` one to one:
 
 Shared arguments:
 
-- `range`: `24h`, `7d` (default), `30d`, `90d`, or `"YYYY-MM-DD,YYYY-MM-DD"`.
+- `range`: `24h`, `7d` (default), `30d`, or `90d`. A custom
+  `"YYYY-MM-DD,YYYY-MM-DD"` range works on the REST API but is not part of the
+  MCP tool schema, so MCP clients cannot send one.
 - `site_id`: optional with a site token (`rv_`), required with an account
   token (`rvt_`). Get ids from `list_sites`.
 - `limit` where offered: up to 100 rows. `export_events` accepts `type`
