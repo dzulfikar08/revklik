@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import { classifyCrawler, isBotUserAgent } from "./utils";
+import { classifyCrawler, classifyDatacenterVisitor, isBotUserAgent } from "./utils";
 
 describe("isBotUserAgent", () => {
 	it("flags search and AI crawlers", () => {
@@ -117,5 +117,31 @@ describe("classifyCrawler", () => {
 		const chrome =
 			"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36";
 		expect(classifyCrawler(chrome)).toBeNull();
+	});
+});
+
+describe("classifyDatacenterVisitor", () => {
+	it("flags hosting and cloud networks that ship browser user agents", () => {
+		expect(classifyDatacenterVisitor("DIGITALOCEAN-ASN")).toBe("DIGITALOCEAN-ASN");
+		expect(classifyDatacenterVisitor("AMAZON-02")).toBe("AMAZON-02");
+		expect(classifyDatacenterVisitor("MICROSOFT-CORP-MSN-AS-BLOCK")).toBe(
+			"MICROSOFT-CORP-MSN-AS-BLOCK",
+		);
+		expect(classifyDatacenterVisitor("GOOGLE-CLOUD-PLATFORM")).toBe("GOOGLE-CLOUD-PLATFORM");
+		expect(classifyDatacenterVisitor("Hetzner Online GmbH")).toBe("Hetzner Online GmbH");
+		expect(classifyDatacenterVisitor("Vultr Holdings, LLC")).toBe("Vultr Holdings, LLC");
+		expect(classifyDatacenterVisitor("M247 Europe SRL")).toBe("M247 Europe SRL");
+	});
+
+	it("keeps consumer ISPs, mobile carriers, and missing geo untouched", () => {
+		expect(classifyDatacenterVisitor("SINGTEL-AS-AP Singapore Telecom")).toBeNull();
+		expect(classifyDatacenterVisitor("TELKOMNET-AS-AP PT Telkom Indonesia")).toBeNull();
+		expect(classifyDatacenterVisitor("COMCAST-7922")).toBeNull();
+		expect(classifyDatacenterVisitor("Deutsche Telekom AG")).toBeNull();
+		expect(classifyDatacenterVisitor("Vodafone GmbH")).toBeNull();
+		expect(classifyDatacenterVisitor("A1 Telekom Austria")).toBeNull();
+		expect(classifyDatacenterVisitor(null)).toBeNull();
+		expect(classifyDatacenterVisitor(undefined)).toBeNull();
+		expect(classifyDatacenterVisitor("")).toBeNull();
 	});
 });

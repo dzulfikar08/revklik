@@ -191,6 +191,83 @@ export function classifyCrawler(ua: string | null | undefined): CrawlerClassific
 	return null;
 }
 
+// Hosting/cloud network organizations. Automation that ships a real browser UA
+// cannot be caught by the marker list above, so the ASN organization is the
+// remaining signal. Matched case-insensitively as substrings of Cloudflare's
+// `asOrganization`. Consumer ISP orgs must never appear here: those are people.
+// This list is the tuning knob; add an org only after seeing it in crawler_hits.
+const DATACENTER_AS_ORGS = [
+	"digitalocean",
+	"amazon",
+	"microsoft",
+	"google cloud",
+	"google-cloud",
+	"google llc",
+	"ovh",
+	"hetzner",
+	"contabo",
+	"linode",
+	"vultr",
+	"the constant company",
+	"oracle",
+	"alibaba",
+	"tencent",
+	"bytedance",
+	"scaleway",
+	"leaseweb",
+	"colocrossing",
+	"hostwinds",
+	"m247",
+	"datacamp",
+	"datapacket",
+	"choopa",
+	"gcore",
+	"upcloud",
+	"kamatera",
+	"ionos",
+	"netcup",
+	"worldstream",
+	"i3d",
+	"servers.com",
+	"zenlayer",
+	"rackspace",
+	"liquidweb",
+	"hostinger",
+	"namecheap",
+	"godaddy",
+	"fastly",
+	"bunny",
+	"cloudflare",
+	"backblaze",
+	"wasabi",
+	"fly.io",
+	"heroku",
+	"vercel",
+	"netlify",
+	"censys",
+	"shodan",
+	"shadowserver",
+	"proofpoint",
+	"mimecast",
+];
+
+/**
+ * True when the request's network is a hosting/cloud provider rather than a
+ * consumer ISP. Returns the matched organization name (for the crawler log) or
+ * null for networks treated as human. `asOrganization` comes from
+ * Cloudflare's `request.cf`; it is undefined in local dev and in tests.
+ */
+export function classifyDatacenterVisitor(
+	asOrganization: string | null | undefined,
+): string | null {
+	if (!asOrganization) return null;
+	const lower = asOrganization.toLowerCase();
+	for (const org of DATACENTER_AS_ORGS) {
+		if (lower.includes(org)) return asOrganization;
+	}
+	return null;
+}
+
 export async function fingerprintFromRequest(req: Request, screenRes?: string): Promise<string> {
 	const ip =
 		req.headers.get("cf-connecting-ip") ??

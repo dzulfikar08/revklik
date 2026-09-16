@@ -6,6 +6,7 @@ import { enforceSiteQuota, incrementCachedCount } from "../lib/subscription-cach
 import {
 	countryFromTimezone,
 	classifyCrawler,
+	classifyDatacenterVisitor,
 	fingerprintFromRequest,
 	generateId,
 	isBotUserAgent,
@@ -90,6 +91,7 @@ trackRoutes.post("/track", async (c) => {
 	let cfCountry: string | null = (cf?.country as string) ?? c.req.header("cf-ipcountry") ?? null;
 	const cfRegion = (cf?.region as string) ?? null;
 	const cfCity = (cf?.city as string) ?? null;
+	const cfAsOrg = (cf?.asOrganization as string | undefined) ?? null;
 
 	// Support batch (array) or single event
 	const payloads: TrackEventPayload[] = Array.isArray(raw) ? raw : [raw];
@@ -126,6 +128,42 @@ trackRoutes.post("/track", async (c) => {
 							user_agent: botUa ?? null,
 							country: cfCountry,
 							timestamp: botTs,
+						})
+						.execute();
+				})().catch(() => {}),
+			);
+		}
+		return c.json({ success: true, excluded: true }, { status: 202 });
+	}
+
+	// Same treatment for browser-shaped automation from hosting networks: the UA
+	// branch above cannot see it, and these requests inflate every human metric
+	// (a datacenter "visitor" scrolls a whole page in under a second and never
+	// converts). Recorded in crawler_hits so the traffic stays auditable.
+	const dcOrg = classifyDatacenterVisitor(cfAsOrg);
+	if (dcOrg) {
+		const dcSiteId = payloads[0]?.s;
+		const dcPath = payloads[0]?.p ?? null;
+		if (dcSiteId) {
+			c.executionCtx.waitUntil(
+				(async () => {
+					const site = await db
+						.selectFrom("sites")
+						.select(["id"])
+						.where("id", "=", dcSiteId)
+						.executeTakeFirst();
+					if (!site) return;
+					await db
+						.insertInto("crawler_hits")
+						.values({
+							id: generateId(),
+							site_id: dcSiteId,
+							bot: `datacenter:${dcOrg}`,
+							category: "other",
+							path: dcPath,
+							user_agent: botUa ?? null,
+							country: cfCountry,
+							timestamp: new Date().toISOString(),
 						})
 						.execute();
 				})().catch(() => {}),
