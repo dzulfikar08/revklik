@@ -151,12 +151,12 @@ https://revklik.com/docs.txt`;
 							</a>{" "}
 							·{" "}
 							<a
-								href="https://revklik.com/docs.html"
+								href="https://docs.revklik.com"
 								target="_blank"
 								rel="noopener noreferrer"
 								className="hover:text-foreground underline-offset-2 hover:underline"
 							>
-								docs.html
+								docs.revklik.com
 							</a>
 						</p>
 						<Button size="sm" variant="outline" onClick={copyAgentPrompt}>
