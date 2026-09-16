@@ -15,22 +15,22 @@ const SITE = Astro.site ?? new URL("https://docs.revklik.com");
 
 const {
   title,
-  description = "Documentation for klikapa: privacy-first web and revenue analytics by revklik.",
+  description = "Documentation for RevKlik: privacy-first web and revenue analytics by revklik.",
   pathname = "/",
   image = "/og/docs/introduction/image.png",
 } = Astro.props;
 
 const canonical = new URL(pathname, SITE).href;
 const ogImage = new URL(image, SITE).href;
-const pageTitle = title ? `${title} · klikapa` : "klikapa docs";
-const ogTitle = title ?? "klikapa docs";
+const pageTitle = title ? `${title} · RevKlik` : "RevKlik docs";
+const ogTitle = title ?? "RevKlik docs";
 const siteDescription =
-  "Documentation for klikapa: privacy-first web and revenue analytics by revklik.";
+  "Documentation for RevKlik: privacy-first web and revenue analytics by revklik.";
 
 const websiteJsonLd = JSON.stringify({
   "@context": "https://schema.org",
   "@type": "WebSite",
-  name: "klikapa docs",
+  name: "RevKlik docs",
   url: SITE.href,
   description: siteDescription,
   publisher: {
@@ -53,7 +53,7 @@ const websiteJsonLd = JSON.stringify({
     <meta name="generator" content={Astro.generator} />
     <meta name="theme-color" content="#0b0e14" />
 
-    <meta property="og:site_name" content="klikapa docs" />
+    <meta property="og:site_name" content="RevKlik docs" />
     <meta property="og:type" content="website" />
     <meta property="og:title" content={ogTitle} />
     <meta property="og:description" content={description} />

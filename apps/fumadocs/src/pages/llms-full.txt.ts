@@ -18,9 +18,9 @@ export const GET: APIRoute = () => {
 		return [`# ${ref.title}`, ref.description, "", markdown, "", "---", ""].join("\n");
 	});
 	const lines = [
-		"# klikapa docs",
+		"# RevKlik docs",
 		"",
-		"> Documentation for klikapa: privacy-first web and revenue analytics by revklik.",
+		"> Documentation for RevKlik: privacy-first web and revenue analytics by revklik.",
 		"",
 		...sections,
 	];

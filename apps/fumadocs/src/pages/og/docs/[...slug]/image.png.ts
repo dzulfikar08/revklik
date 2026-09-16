@@ -12,7 +12,7 @@ export function getStaticPaths() {
 	}));
 }
 
-// klikapa palette (oklch values from apps/web/src/index.css, flattened to hex
+// RevKlik palette (oklch values from apps/web/src/index.css, flattened to hex
 // so the OG renderer never has to parse modern color functions).
 const BRAND = {
 	background: "#0b0e14",
@@ -44,7 +44,7 @@ function Card({ title, description }: { title: string; description?: string }) {
 		el(
 			"div",
 			{ display: "flex", alignItems: "baseline", gap: "8px" },
-			el("span", { fontSize: "44px", fontWeight: 700, letterSpacing: "-1px" }, "klikapa"),
+			el("span", { fontSize: "44px", fontWeight: 700, letterSpacing: "-1px" }, "RevKlik"),
 			el("span", { fontSize: "44px", fontWeight: 700, color: BRAND.accent }, "."),
 			el("span", { fontSize: "30px", fontWeight: 500, color: BRAND.mutedForeground }, "docs"),
 		),
