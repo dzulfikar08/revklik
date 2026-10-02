@@ -485,7 +485,11 @@ const CrawlersPanel = ({ siteId, rangeKey }: { siteId: string; rangeKey: RangeKe
 	);
 };
 
-const PagesPanel = ({ dash, loading }: DashProps) => {
+const PagesPanel = ({
+	dash,
+	loading,
+	onSelectPath,
+}: DashProps & { onSelectPath?: (path: string) => void }) => {
 	const [pageTab, setPageTab] = useState<PageTabKey>("pages");
 	const [pageSort, setPageSort] = useState<"desc" | "asc">("desc");
 	const rows: CountRow[] = useMemo(() => {
@@ -534,13 +538,20 @@ const PagesPanel = ({ dash, loading }: DashProps) => {
 			<PanelBody loading={loading} hasData={rows.length > 0} emptyText="No data yet.">
 				<div className="grid max-h-[420px] gap-1 overflow-y-auto">
 					{rows.map((p) => (
-						<CountBarRow
+						<button
 							key={p.label}
-							glyph={<FileText className="text-muted-foreground size-4 shrink-0" aria-hidden />}
-							label={p.label}
-							value={fmtC(p.value)}
-							share={(p.value / total) * 100}
-						/>
+							type="button"
+							onClick={() => onSelectPath?.(p.label)}
+							title="Show journeys for this page"
+							className="focus-visible:outline-ring block w-full cursor-pointer rounded-lg text-left outline-offset-2 focus-visible:outline-2"
+						>
+							<CountBarRow
+								glyph={<FileText className="text-muted-foreground size-4 shrink-0" aria-hidden />}
+								label={p.label}
+								value={fmtC(p.value)}
+								share={(p.value / total) * 100}
+							/>
+						</button>
 					))}
 				</div>
 			</PanelBody>
@@ -1005,10 +1016,29 @@ const LivePanel = ({
 	</Panel>
 );
 
-const ExplorePanel = ({ siteId, dash, loading }: DashProps & { siteId: string }) => {
+const ExplorePanel = ({
+	siteId,
+	dash,
+	loading,
+	pathFilter,
+	onClearPathFilter,
+}: DashProps & {
+	siteId: string;
+	/** Page drill-down from PagesPanel: only journeys touching this path prefix. */
+	pathFilter?: string | null;
+	onClearPathFilter?: () => void;
+}) => {
 	const [exploreTab, setExploreTab] = useState<"users" | "journeys">("users");
 	const [visitorRowId, setVisitorRowId] = useState<string | null>(null);
 	const queryClient = useQueryClient();
+
+	// A page drill-down click always lands on the journeys list.
+	useEffect(() => {
+		if (pathFilter) setExploreTab("journeys");
+	}, [pathFilter]);
+
+	// Slash-safe prefix: "/voltrus-mes" matches "/voltrus-mes" + "/voltrus-mes/…".
+	const pathPrefix = pathFilter?.trim().replace(/\/+$/, "") || null;
 
 	const visitorsQ = useQuery({
 		enabled: Boolean(siteId),
@@ -1037,13 +1067,33 @@ const ExplorePanel = ({ siteId, dash, loading }: DashProps & { siteId: string })
 		() =>
 			(visitorsQ.data ?? [])
 				.map((p) => profileToVisitor(p, journeys))
+				.filter((v) =>
+					pathPrefix
+						? v.events.some(
+								(e) => e.page === pathPrefix || (e.page?.startsWith(`${pathPrefix}/`) ?? false),
+							)
+						: true,
+				)
 				.toSorted((a, b) => (exploreSort === "events" ? b.events.length - a.events.length : 0)),
-		[visitorsQ.data, journeys, exploreSort],
+		[visitorsQ.data, journeys, exploreSort, pathPrefix],
+	);
+	const filteredJourneys = useMemo(
+		() =>
+			pathPrefix
+				? journeys.filter((j) =>
+						j.steps.some(
+							(s) =>
+								s.event_type === "pageview" &&
+								(s.path === pathPrefix || s.path?.startsWith(`${pathPrefix}/`)),
+						),
+					)
+				: journeys,
+		[journeys, pathPrefix],
 	);
 	const sortedJourneys = useMemo(
 		() =>
 			exploreSort === "events"
-				? journeys
+				? filteredJourneys
 						.map((j) => ({
 							j,
 							count: j.steps.filter((s) => s.event_type !== "custom" || s.name !== "heartbeat")
@@ -1051,8 +1101,8 @@ const ExplorePanel = ({ siteId, dash, loading }: DashProps & { siteId: string })
 						}))
 						.toSorted((a, b) => b.count - a.count)
 						.map(({ j }) => j)
-				: journeys,
-		[journeys, exploreSort],
+				: filteredJourneys,
+		[filteredJourneys, exploreSort],
 	);
 	const activeVisitor = visitorRowId ? (visitors.find((v) => v.id === visitorRowId) ?? null) : null;
 
@@ -1080,7 +1130,9 @@ const ExplorePanel = ({ siteId, dash, loading }: DashProps & { siteId: string })
 					<PanelBody
 						loading={visitorsQ.isLoading}
 						hasData={visitors.length > 0}
-						emptyText="No visitors yet."
+						emptyText={
+							pathPrefix ? `No identified visitors touch ${pathPrefix}.` : "No visitors yet."
+						}
 					>
 						<div>
 							<div className="text-muted-foreground border-border/60 grid grid-cols-[minmax(0,1fr)_auto] gap-3 border-b pb-1.5 text-[11px] sm:grid-cols-[minmax(0,1fr)_130px_64px_170px]">
@@ -1143,9 +1195,33 @@ const ExplorePanel = ({ siteId, dash, loading }: DashProps & { siteId: string })
 				) : (
 					<PanelBody
 						loading={loading}
-						hasData={journeys.length > 0}
-						emptyText="No journeys in this range."
+						hasData={filteredJourneys.length > 0}
+						emptyText={
+							pathPrefix
+								? `No journeys touch ${pathPrefix} in the newest ${journeys.length} sessions.`
+								: "No journeys in this range."
+						}
 					>
+						{pathPrefix ? (
+							<div className="mb-1.5 flex items-center justify-between gap-2">
+								<span className="bg-muted text-muted-foreground inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 font-mono text-[11px]">
+									path: {pathPrefix}/*
+									{onClearPathFilter ? (
+										<button
+											type="button"
+											onClick={onClearPathFilter}
+											aria-label="Clear page filter"
+											className="hover:text-foreground focus-visible:outline-ring rounded outline-offset-2 focus-visible:outline-2"
+										>
+											<X className="size-3" aria-hidden />
+										</button>
+									) : null}
+								</span>
+								<span className="text-muted-foreground text-[11px]">
+									{filteredJourneys.length} of {journeys.length} sessions
+								</span>
+							</div>
+						) : null}
 						<div className="max-h-[420px] overflow-y-auto">
 							{sortedJourneys.slice(0, 20).map((j) => {
 								const realSteps = j.steps.filter(
@@ -1612,6 +1688,9 @@ const AnalyticsPage = ({ siteId: siteIdParam }: { siteId: string }) => {
 
 	const queryClient = useQueryClient();
 	const [visitorSheetId, setVisitorSheetId] = useState<string | null>(null);
+	// Page drill-down: set by clicking a row in PagesPanel, consumed by
+	// ExplorePanel's journey/user lists.
+	const [journeyPath, setJourneyPath] = useState<string | null>(null);
 	const sheetProfilesQ = useQuery({
 		enabled: Boolean(siteId),
 		queryFn: () => fetchVisitors(siteId),
@@ -1837,7 +1916,7 @@ const AnalyticsPage = ({ siteId: siteIdParam }: { siteId: string }) => {
 					</div>
 
 					<div className="mb-2.5 grid gap-2.5 md:grid-cols-2 xl:grid-cols-3">
-						<PagesPanel dash={dash} loading={loadingDash} />
+						<PagesPanel dash={dash} loading={loadingDash} onSelectPath={setJourneyPath} />
 						<SourcesPanel dash={dash} loading={loadingDash} />
 						<CrawlersPanel siteId={siteId} rangeKey={rangeKey} />
 						<LocationPanel siteId={siteId} rangeKey={rangeKey} filterStr={filterStr} />
@@ -1850,7 +1929,13 @@ const AnalyticsPage = ({ siteId: siteIdParam }: { siteId: string }) => {
 							filterStr={filterStr}
 						/>
 						<LivePanel domain={site?.domain} online={live.online} feed={live.feed} />
-						<ExplorePanel siteId={siteId} dash={dash} loading={loadingDash} />
+						<ExplorePanel
+							onClearPathFilter={() => setJourneyPath(null)}
+							dash={dash}
+							loading={loadingDash}
+							pathFilter={journeyPath}
+							siteId={siteId}
+						/>
 						<HeatmapPanel
 							onUpgrade={() => setView("billing")}
 							filterStr={filterStr}

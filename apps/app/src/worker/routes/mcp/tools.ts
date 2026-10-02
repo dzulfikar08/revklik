@@ -133,9 +133,16 @@ export const TOOL_DEFS: ToolDef[] = [
 	{
 		name: "visitor_journeys",
 		description:
-			"Recent visitor sessions with step-by-step event journeys, identified profile (name/email) when known. REST: GET /api/v1/analytics/journeys",
+			"Recent visitor sessions with step-by-step event journeys, identified profile (name/email) when known. Optional path filters to sessions containing a pageview under that path prefix. REST: GET /api/v1/analytics/journeys",
 		scope: "analytics:read",
-		inputSchema: siteArgs({ limit: limitProperty(20) }),
+		inputSchema: siteArgs({
+			limit: limitProperty(20),
+			path: {
+				type: "string",
+				description:
+					'Only sessions whose steps include a pageview with this path prefix, e.g. "/voltrus-mes" matches /voltrus-mes and /voltrus-mes/…',
+			},
+		}),
 	},
 	{
 		name: "export_events",

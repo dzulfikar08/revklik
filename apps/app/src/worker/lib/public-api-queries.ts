@@ -577,39 +577,91 @@ export async function queryRevenue(ctx: PublicApiCtx, siteId: string | undefined
 	};
 }
 
+export interface PublicJourneyStep {
+	path: string;
+	event_type: string;
+	name: string | null;
+	timestamp: string;
+	revenue: number | null;
+	props: string | null;
+}
+
+export interface PublicJourney {
+	session_id: string;
+	visitor_id: string;
+	visitor_name: string | null;
+	visitor_email: string | null;
+	country: string | null;
+	region: string | null;
+	city: string | null;
+	device_type: string | null;
+	browser: string | null;
+	os: string | null;
+	utm_source: string | null;
+	referrer: string | null;
+	started_at: string;
+	steps: PublicJourneyStep[];
+	total_revenue: number;
+	is_identified: boolean;
+}
+
 export async function queryJourneys(
 	ctx: PublicApiCtx,
 	siteId: string | undefined,
 	range: string,
 	limit: number,
-) {
+	path?: string,
+): Promise<PublicJourney[]> {
 	const db = ctx.db;
 	const id = await guardSite(ctx, siteId);
 
 	const { start } = getDateRange(range);
 	const startIso = start.toISOString();
 
+	// Optional path drill-down: only sessions containing a pageview whose path
+	// equals or lives under the prefix ("/voltrus-mes" matches "/voltrus-mes/…"
+	// and "/voltrus-mes", but not "/voltrus-mesother"). LIKE wildcards are
+	// stripped so literal paths can't accidentally widen the match.
+	const pathPrefix = path?.trim().replace(/\/+$/, "");
+	const pathLike = pathPrefix ? pathPrefix.replace(/[%_]/g, "") + "/%" : null;
+
+	const sessionsQuery = db
+		.selectFrom("sessions")
+		.select([
+			"id",
+			"visitor_id",
+			"started_at",
+			"country",
+			"region",
+			"city",
+			"device_type",
+			"browser",
+			"os",
+			"utm_source",
+			"referrer",
+		])
+		.where("site_id", "=", id)
+		.where("started_at", ">=", startIso)
+		.$call((qb) =>
+			pathPrefix && pathLike
+				? qb.where((eb) =>
+						eb.exists(
+							eb
+								.selectFrom("events")
+								.select("events.session_id")
+								.whereRef("events.session_id", "=", "sessions.id")
+								.where("events.site_id", "=", id)
+								.where("events.event_type", "=", "pageview")
+								.where((eb2) =>
+									eb2.or([eb2("path", "=", pathPrefix), eb2("path", "like", pathLike)]),
+								),
+						),
+					)
+				: qb,
+		);
+
 	const [recentSessions, profiles] = await Promise.all([
-		db
-			.selectFrom("sessions")
-			.select([
-				"id",
-				"visitor_id",
-				"started_at",
-				"country",
-				"region",
-				"city",
-				"device_type",
-				"browser",
-				"os",
-				"utm_source",
-				"referrer",
-			])
-			.where("site_id", "=", id)
-			.where("started_at", ">=", startIso)
-			.orderBy("started_at", "desc")
-			.limit(limit)
-			.execute(),
+		sessionsQuery.orderBy("started_at", "desc").limit(limit).execute(),
 		db
 			.selectFrom("visitor_profiles")
 			.select(["visitor_id", "name", "email"])

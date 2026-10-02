@@ -128,7 +128,7 @@ v1AnalyticsRoutes.get("/revenue", requireScope("analytics:read"), async (c) => {
 	}
 });
 
-// GET /journeys?site_id=&range=&limit=
+// GET /journeys?site_id=&range=&limit=&path=
 v1AnalyticsRoutes.get("/journeys", requireScope("analytics:read"), async (c) => {
 	try {
 		const limit = Math.min(Number(c.req.query("limit") || 50), 100);
@@ -137,6 +137,7 @@ v1AnalyticsRoutes.get("/journeys", requireScope("analytics:read"), async (c) => 
 			c.req.query("site_id"),
 			c.req.query("range") || "7d",
 			limit,
+			c.req.query("path") || undefined,
 		);
 		return c.json({ data, success: true });
 	} catch (e) {

@@ -91,6 +91,7 @@ export const TOOL_HANDLERS: Record<ToolName, ToolHandler> = {
 			resolveSiteId(ctx, a.site_id),
 			strArg(a, "range") ?? "7d",
 			intArg(a, "limit", 20, 100),
+			strArg(a, "path"),
 		),
 	export_events: async (ctx, a) => {
 		const siteId = resolveSiteId(ctx, a.site_id);
