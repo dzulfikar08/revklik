@@ -2,6 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { ArrowLeft } from "lucide-react";
 
 import { BillingView } from "@/components/analytics/billing-view";
+import { LocaleToggle } from "@/components/locale-toggle";
 import { useT } from "@/lib/i18n";
 import { parseCheckoutResult, parsePlan } from "@/lib/legacy/billing";
 import type { CheckoutResult, PlanTier } from "@/lib/legacy/billing";
@@ -50,9 +51,11 @@ function BillingPage() {
 						<span className="text-[15px] font-semibold tracking-tight">RevKlik</span>
 						<span className="text-muted-foreground text-xs">· {t("billing.back")}</span>
 					</Link>
+					<LocaleToggle className="ms-auto" />
 				</div>
 			</header>
 			<BillingView
+				localeToggle={false}
 				highlightPlan={plan}
 				checkout={checkout}
 				onCheckoutHandled={() =>

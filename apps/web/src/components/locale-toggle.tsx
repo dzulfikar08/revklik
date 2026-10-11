@@ -24,7 +24,7 @@ export const LocaleToggle = ({ className }: { className?: string }) => {
 					aria-label={o.name}
 					aria-pressed={locale === o.value}
 					onClick={() => setLocale(o.value)}
-					className={`focus-visible:outline-ring min-h-7 rounded-full px-2.5 font-mono text-[11px] font-medium outline-offset-2 focus-visible:outline-2 ${
+					className={`focus-visible:outline-ring pointer-coarse:min-h-10 pointer-coarse:min-w-11 min-h-8 min-w-9 rounded-full px-2.5 text-xs font-medium tracking-wide outline-offset-2 transition-colors duration-150 focus-visible:outline-2 ${
 						locale === o.value
 							? "bg-card text-foreground ring-foreground/10 ring-1"
 							: "text-muted-foreground hover:text-foreground"

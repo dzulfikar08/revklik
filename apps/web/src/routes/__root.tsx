@@ -10,7 +10,7 @@ import {
 } from "@tanstack/react-router";
 import { lazy, Suspense } from "react";
 
-import { LocaleToggle } from "@/components/locale-toggle";
+import { AuthShell, authButtonClass } from "@/components/auth-shell";
 import { ThemeProvider } from "@/components/theme-provider";
 import { useT } from "@/lib/i18n";
 import { clearSignupIntent, takeSignupPlan } from "@/lib/signup-intent";
@@ -104,24 +104,22 @@ captureOAuthToken();
 function NotFound() {
 	const t = useT();
 	return (
-		<main className="bg-background relative grid min-h-full place-items-center px-4 py-16">
-			<LocaleToggle className="absolute top-3 right-3" />
-			<div className="flex max-w-sm flex-col items-center text-center">
-				<img src="/revklik.webp" alt="RevKlik" className="mb-5 size-12 rounded-xl" />
-				<p className="text-muted-foreground font-mono text-xs tabular-nums">404</p>
-				<h1 className="mt-1 text-xl font-semibold tracking-tight">{t("notFound.title")}</h1>
-				<p className="text-muted-foreground mt-2 text-sm">{t("notFound.desc")}</p>
-				<Link to="/analytics" className={buttonVariants({ className: "mt-6 h-10 px-4" })}>
-					{t("notFound.home")}
-				</Link>
-			</div>
-		</main>
+		<AuthShell eyebrow="404" title={t("notFound.title")} description={t("notFound.desc")}>
+			<Link to="/analytics" className={buttonVariants({ className: authButtonClass })}>
+				{t("notFound.home")}
+			</Link>
+		</AuthShell>
 	);
 }
 
 function RootComponent() {
 	const pathname = useRouterState({ select: (s) => s.location.pathname });
+	// Only the root matched: the URL hit no route and NotFound renders in its own shell.
+	const notFound = useRouterState({
+		select: (s) => s.matches.length > 0 && s.matches.every((m) => m.routeId === "__root__"),
+	});
 	const chromeless =
+		notFound ||
 		pathname.startsWith("/analytics") ||
 		pathname.startsWith("/public") ||
 		pathname === "/login" ||
