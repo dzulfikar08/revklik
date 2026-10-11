@@ -13,7 +13,7 @@ import { lazy, Suspense } from "react";
 import { LocaleToggle } from "@/components/locale-toggle";
 import { ThemeProvider } from "@/components/theme-provider";
 import { useT } from "@/lib/i18n";
-import { takeSignupPlan } from "@/lib/signup-intent";
+import { clearSignupIntent, takeSignupPlan } from "@/lib/signup-intent";
 
 import "../index.css";
 
@@ -88,6 +88,8 @@ function captureOAuthToken(): void {
 			localStorage.setItem("kp_user", JSON.stringify(json.data.user));
 			// A plan picked on the pricing page before "Continue with Google".
 			const plan = takeSignupPlan();
+			// The ref went to /auth/google and is attributed server-side now.
+			clearSignupIntent();
 			window.location.replace(plan ? `/analytics/billing?plan=${plan}` : "/analytics");
 		})
 		.catch(() => {

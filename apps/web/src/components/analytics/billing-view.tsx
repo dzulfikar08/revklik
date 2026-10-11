@@ -25,6 +25,7 @@ import type {
 	BillingSubscription,
 	CheckoutResult,
 	PlanTier,
+	SubscriptionStatus,
 } from "@/lib/legacy/billing";
 
 import { money } from "./data";
@@ -44,6 +45,18 @@ export const useSubscription = () =>
 		queryKey: SUBSCRIPTION_KEY,
 		retry: false,
 		staleTime: 60_000,
+	});
+
+/**
+ * Plans plus `qris_available`. That flag (set by visitor country) is the one
+ * rule for showing IDR or USD prices anywhere in the app.
+ */
+export const usePlans = () =>
+	useQuery({
+		queryFn: fetchPlans,
+		queryKey: ["legacy", "plans"],
+		retry: false,
+		staleTime: 300_000,
 	});
 
 /** Mutation error toast; plan errors already get the global upgrade toast. */
@@ -75,6 +88,13 @@ const STATUS_TONE: Record<string, string> = {
 	trialing: "bg-sky-400/10 text-sky-700 ring-sky-400/30 dark:text-sky-300",
 	past_due: "bg-(--down)/10 text-(--down) ring-(--down)/20",
 	canceled: "bg-(--down)/10 text-(--down) ring-(--down)/20",
+};
+
+const STATUS_LABEL: Record<SubscriptionStatus, MessageKey> = {
+	active: "billing.status.active",
+	trialing: "billing.status.trialing",
+	past_due: "billing.status.pastDue",
+	canceled: "billing.status.canceled",
 };
 
 const StatusBadge = ({ status, label }: { status: string; label: string }) => (
@@ -323,12 +343,7 @@ export const BillingView = ({
 	const locale = useLocale();
 	const qc = useQueryClient();
 	const subQ = useSubscription();
-	const plansQ = useQuery({
-		queryFn: fetchPlans,
-		queryKey: ["legacy", "plans"],
-		retry: false,
-		staleTime: 300_000,
-	});
+	const plansQ = usePlans();
 
 	const sub = subQ.data;
 	const [confirmCancel, setConfirmCancel] = useState(false);
@@ -387,6 +402,10 @@ export const BillingView = ({
 	// so a reload does not repeat it. Polar's webhook can trail the
 	// redirect, so the subscription is fetched once more a few seconds later.
 	const handledCheckout = useRef(false);
+	// Separate from the effect below: clearing ?checkout= re-runs that effect,
+	// and its cleanup must not cancel the delayed refetch. Cleared on unmount.
+	const refetchTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+	useEffect(() => () => clearTimeout(refetchTimer.current), []);
 	useEffect(() => {
 		if (!checkout || handledCheckout.current) return;
 		handledCheckout.current = true;
@@ -395,7 +414,7 @@ export const BillingView = ({
 		} else {
 			toast.success(t("billing.checkoutSuccess"));
 			void refreshSubscription();
-			setTimeout(() => void refreshSubscription(), 5000);
+			refetchTimer.current = setTimeout(() => void refreshSubscription(), 5000);
 		}
 		onCheckoutHandled?.();
 		// Runs once per return; the mutation and callbacks are stable enough here.
@@ -514,7 +533,13 @@ export const BillingView = ({
 							{sub.id ? (
 								<StatusBadge
 									status={state.trialEnded ? "canceled" : sub.status}
-									label={state.trialEnded ? t("billing.trialEnded") : sub.status.replace("_", " ")}
+									label={
+										state.trialEnded
+											? t("billing.trialEnded")
+											: sub.status in STATUS_LABEL
+												? t(STATUS_LABEL[sub.status as SubscriptionStatus])
+												: sub.status.replace("_", " ")
+									}
 								/>
 							) : null}
 							{sub.cancel_at_period_end && state.paidActive ? (

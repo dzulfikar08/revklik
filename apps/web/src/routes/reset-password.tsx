@@ -27,7 +27,8 @@ function ResetPassword() {
 	const { token } = Route.useSearch();
 	const [password, setPassword] = useState("");
 	const [confirm, setConfirm] = useState("");
-	const [error, setError] = useState<string | null>(null);
+	// The kind, not translated text, so a language switch keeps the state.
+	const [error, setError] = useState<"mismatch" | "failed" | null>(null);
 	const [pending, setPending] = useState(false);
 	const [done, setDone] = useState(false);
 
@@ -45,7 +46,7 @@ function ResetPassword() {
 		e.preventDefault();
 		if (pending) return;
 		if (password !== confirm) {
-			setError(t("reset.mismatch"));
+			setError("mismatch");
 			return;
 		}
 		setError(null);
@@ -54,7 +55,7 @@ function ResetPassword() {
 			await resetPassword(token, password);
 			setDone(true);
 		} catch {
-			setError(t("reset.failed"));
+			setError("failed");
 		} finally {
 			setPending(false);
 		}
@@ -100,7 +101,7 @@ function ResetPassword() {
 				</div>
 				{error && (
 					<p className="text-destructive text-sm" role="alert">
-						{error}
+						{t(`reset.${error}`)}
 					</p>
 				)}
 				<Button type="submit" className="w-full" disabled={pending}>
@@ -108,7 +109,7 @@ function ResetPassword() {
 					{t("reset.submit")}
 				</Button>
 			</form>
-			{error === t("reset.failed") ? (
+			{error === "failed" ? (
 				<Link to="/login" className={linkClass}>
 					{t("reset.requestNew")}
 				</Link>

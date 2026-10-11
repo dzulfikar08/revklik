@@ -22,34 +22,12 @@ import {
 	legacyRegister,
 	requestPasswordReset,
 } from "@/lib/legacy/api";
-import { parsePlan, planLabel } from "@/lib/legacy/billing";
-import type { PlanTier } from "@/lib/legacy/billing";
-import { clearSignupIntent, rememberRef, rememberSignupPlan, storedRef } from "@/lib/signup-intent";
+import { afterAuthTarget } from "@/lib/auth-search";
+import type { AuthSearch } from "@/lib/auth-search";
+import { planLabel } from "@/lib/legacy/billing";
+import { clearSignupIntent, rememberRef, rememberSignupPlan, signupRef } from "@/lib/signup-intent";
 
 export type AuthMode = "sign-in" | "sign-up";
-
-const UTM_KEYS = ["utm_source", "utm_medium", "utm_campaign"] as const;
-
-export interface AuthSearch {
-	plan?: PlanTier;
-	ref?: string;
-	utm_source?: string;
-	utm_medium?: string;
-	utm_campaign?: string;
-}
-
-/** Keep a known plan, a string ref and UTM tags (for attribution); drop the rest. */
-export const validateAuthSearch = (search: Record<string, unknown>): AuthSearch => {
-	const out: AuthSearch = {};
-	const plan = parsePlan(search.plan);
-	if (plan) out.plan = plan;
-	if (typeof search.ref === "string" && search.ref) out.ref = search.ref;
-	for (const key of UTM_KEYS) {
-		const value = search[key];
-		if (typeof value === "string" && value) out[key] = value;
-	}
-	return out;
-};
 
 function GoogleIcon() {
 	return (
@@ -196,14 +174,17 @@ export const AuthForm = ({ mode, search }: { mode: AuthMode; search: AuthSearch 
 			if (signUp) {
 				await legacyRegister(name.trim(), email.trim(), password, {
 					plan,
-					ref: ref ?? storedRef(),
+					ref: signupRef(ref),
 				});
 				clearSignupIntent();
 			} else {
 				await legacyLogin(email.trim(), password);
 			}
-			if (plan) {
-				await navigate({ search: { plan }, to: "/analytics/billing" });
+			const target = afterAuthTarget(search);
+			if ("href" in target) {
+				await navigate({ href: target.href });
+			} else if (target.to === "/analytics/billing") {
+				await navigate({ search: target.search, to: target.to });
 			} else {
 				await navigate({ to: "/analytics" });
 			}
@@ -218,7 +199,10 @@ export const AuthForm = ({ mode, search }: { mode: AuthMode; search: AuthSearch 
 	const continueWithGoogle = () => {
 		// The Google callback lands on /#token=…; the plan rides along in storage.
 		rememberSignupPlan(plan);
-		window.location.href = `${LEGACY_API_BASE}/auth/google`;
+		// The worker carries ?ref through the OAuth state to the new account.
+		const referral = signupRef(ref);
+		const query = referral ? `?${new URLSearchParams({ ref: referral })}` : "";
+		window.location.href = `${LEGACY_API_BASE}/auth/google${query}`;
 	};
 
 	return (

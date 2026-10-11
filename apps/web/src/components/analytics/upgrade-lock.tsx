@@ -2,11 +2,11 @@ import { Button } from "@revklik/ui/components/button";
 import { Lock } from "lucide-react";
 
 import { LocaleToggle } from "@/components/locale-toggle";
-import { useLocale, useT } from "@/lib/i18n";
+import { useT } from "@/lib/i18n";
 import type { LegacyApiError } from "@/lib/legacy/api";
 import { IDR_PRICE, USD_PRICE, subscriptionState } from "@/lib/legacy/billing";
 
-import { useSubscription } from "./billing-view";
+import { usePlans, useSubscription } from "./billing-view";
 import { money } from "./data";
 
 /**
@@ -22,11 +22,14 @@ export const UpgradeLock = ({
 	onUpgrade: () => void;
 }) => {
 	const t = useT();
-	const locale = useLocale();
 	const { data: sub } = useSubscription();
+	const { data: plans } = usePlans();
 	const state = sub ? subscriptionState(sub) : null;
 	const graceDays = error?.body?.grace_days_remaining ?? state?.graceDaysLeft ?? 0;
-	const startingPrice = locale === "id" ? money(IDR_PRICE.micro, "IDR") : money(USD_PRICE.micro);
+	// Same rule as the billing view: QRIS-eligible visitors see IDR.
+	const startingPrice = plans?.qris_available
+		? money(IDR_PRICE.micro, "IDR")
+		: money(USD_PRICE.micro);
 
 	return (
 		<main className="mx-auto max-w-7xl px-3 pt-3 pb-6 md:px-4">

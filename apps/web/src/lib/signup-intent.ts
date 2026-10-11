@@ -32,13 +32,22 @@ const write = (key: string, value: string | null): void => {
 	}
 };
 
+/** A referral code if `value` looks like one, else undefined. */
+export const parseRef = (value: unknown): string | undefined =>
+	typeof value === "string" && REF_PATTERN.test(value) ? value : undefined;
+
 export const rememberRef = (ref: unknown): void => {
-	if (typeof ref === "string" && REF_PATTERN.test(ref)) {
-		write(REF_KEY, ref);
+	const valid = parseRef(ref);
+	if (valid) {
+		write(REF_KEY, valid);
 	}
 };
 
-export const storedRef = (): string | null => read(REF_KEY);
+/** The saved referral code; re-validated in case storage was edited. */
+export const storedRef = (): string | null => parseRef(read(REF_KEY)) ?? null;
+
+/** `?ref=` from the URL wins over the saved one; both are validated. */
+export const signupRef = (fromUrl: unknown): string | null => parseRef(fromUrl) ?? storedRef();
 
 export const rememberSignupPlan = (plan: PlanTier | undefined): void => {
 	write(PLAN_KEY, plan ?? null);

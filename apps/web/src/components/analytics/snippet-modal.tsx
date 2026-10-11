@@ -1,7 +1,7 @@
 import { Button } from "@revklik/ui/components/button";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Check, CircleCheck, Copy, Loader2, X } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { useT } from "@/lib/i18n";
@@ -19,35 +19,39 @@ export interface SnippetSite {
 }
 
 /**
- * Has this site ever received an event? Uses `has_events` when the API
- * sends it; otherwise any traffic in the loaded range counts.
+ * Has this site ever received an event? Only an explicit `has_events: false`
+ * from the API counts as "not installed"; when the field is absent the site
+ * is treated as installed, so quiet sites are never mislabelled.
  */
-export const siteHasEvents = (site: SiteWithStats): boolean =>
-	site.has_events ?? (site.pageviews > 0 || site.visitors > 0 || site.sparkline.some((v) => v > 0));
+export const siteHasEvents = (site: Pick<SiteWithStats, "has_events">): boolean =>
+	site.has_events !== false;
 
 const POLL_MS = 5000;
 
 /**
  * Flips to true when the site's first event arrives: the live SSE feed
  * reports a visitor, or the 24h overview (polled every 5s as a fallback for
- * blocked streams) shows a pageview.
+ * blocked streams) shows a pageview. On that transition the site list and
+ * dashboards refetch so badges and empty states update.
  */
 const useFirstEvent = (siteId: string, known: boolean): boolean => {
+	const qc = useQueryClient();
 	const [streamed, setStreamed] = useState(false);
-	const received = known || streamed;
 
 	const overviewQ = useQuery({
-		enabled: !received,
+		enabled: !(known || streamed),
 		meta: { silent: true },
 		queryFn: () => fetchDashboard(siteId, "24h", ""),
 		queryKey: ["legacy", "first-event", siteId],
-		refetchInterval: received ? false : POLL_MS,
+		refetchInterval: (query) =>
+			known || streamed || (query.state.data?.stats.pageviews ?? 0) > 0 ? false : POLL_MS,
 		retry: false,
 	});
 	const polled = (overviewQ.data?.stats.pageviews ?? 0) > 0;
+	const done = known || streamed || polled;
 
 	useEffect(() => {
-		if (received) {
+		if (done) {
 			return;
 		}
 		return connectSSE(siteId, ({ type }) => {
@@ -55,9 +59,20 @@ const useFirstEvent = (siteId: string, known: boolean): boolean => {
 				setStreamed(true);
 			}
 		});
-	}, [siteId, received]);
+	}, [siteId, done]);
 
-	return received || polled;
+	// Only a real false→true flip refreshes; a site already known to have
+	// events never triggers it.
+	const wasDone = useRef(done);
+	useEffect(() => {
+		if (done && !wasDone.current) {
+			void qc.invalidateQueries({ queryKey: ["legacy", "sites"] });
+			void qc.invalidateQueries({ queryKey: ["legacy", "dash", siteId] });
+		}
+		wasDone.current = done;
+	}, [done, qc, siteId]);
+
+	return done;
 };
 
 const InstallStatus = ({ site }: { site: SnippetSite }) => {

@@ -1,9 +1,12 @@
 import { createFileRoute } from "@tanstack/react-router";
 
-import { AuthForm, validateAuthSearch } from "@/components/auth-form";
+import { AuthForm } from "@/components/auth-form";
+import { redirectIfSignedIn } from "@/lib/auth-guard";
+import { validateAuthSearch } from "@/lib/auth-search";
 
 export const Route = createFileRoute("/login")({
 	validateSearch: validateAuthSearch,
+	beforeLoad: ({ search }) => redirectIfSignedIn(search),
 	component: Login,
 	head: () => ({ meta: [{ title: "Sign in · RevKlik" }] }),
 });
