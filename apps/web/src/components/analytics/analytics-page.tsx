@@ -54,7 +54,7 @@ import { parsePlan, planLabel } from "@/lib/legacy/billing";
 import type { PlanTier } from "@/lib/legacy/billing";
 
 import { GrowthLocked } from "./growth-locked";
-import { VerifyEmailBanner } from "./verify-email-banner";
+import { AccountNotices } from "./account-notices";
 import type {
 	CampaignPerformance,
 	CrawlerSlot,
@@ -72,7 +72,7 @@ import { fetchAppStoreMetrics } from "@/lib/legacy/appstoreconnect";
 import type { LegacyAnnotation } from "@/lib/legacy/analytics-settings";
 
 import { AnnotationsControl } from "./annotations";
-import { BillingView, SubscriptionBanner } from "./billing-view";
+import { BillingView } from "./billing-view";
 import {
 	FILTER_DIMS,
 	FILTER_OPS,
@@ -1941,8 +1941,7 @@ const AnalyticsPage = ({
 				<UpgradeLock error={inactiveError} onUpgrade={() => setView("billing")} />
 			) : view === "home" ? (
 				<main className="mx-auto max-w-7xl px-3 pt-3 pb-6 md:px-4">
-					<SubscriptionBanner onUpgrade={() => setView("billing")} />
-					<VerifyEmailBanner />
+					<AccountNotices onUpgrade={() => setView("billing")} />
 					{errorMsg ? (
 						<p
 							className="mb-2.5 rounded-xl bg-(--down)/10 px-3 py-2 text-xs text-(--down)"

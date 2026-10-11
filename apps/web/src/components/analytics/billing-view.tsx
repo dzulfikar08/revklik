@@ -1,6 +1,6 @@
 import { Button } from "@revklik/ui/components/button";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { AlertTriangle, Check, Clock, CreditCard, QrCode, X } from "lucide-react";
+import { Check, ChevronDown, CreditCard, QrCode, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
@@ -75,19 +75,40 @@ const PLAN_LIMIT_KEY: Record<PlanTier, MessageKey> = {
 };
 
 /**
- * Feature strings come from the API. The script-size line there predates
- * the current tracker (measured ~3.7 KB gzipped), so it is corrected here
- * until the worker copy changes.
+ * What each tier adds over the one below it. Written here rather than read
+ * from /billing/plans `features`: those strings are English-only, repeat the
+ * whole base list on every tier, and the native app still renders them as-is.
+ * Facts mirror the worker gates (app.ts requirePlanTier, plans.ts limits).
  */
-const FEATURE_FIXES: Record<string, string> = {
-	"<1KB script": "Lightweight script (~4 KB gzipped)",
+const PLAN_FEATURES: Record<PlanTier, MessageKey[]> = {
+	micro: [
+		"billing.feature.cookieless",
+		"billing.feature.profiles",
+		"billing.feature.utm",
+		"billing.feature.csv",
+	],
+	starter: ["billing.feature.funnels", "billing.feature.revenue"],
+	growth: [
+		"billing.feature.ai",
+		"billing.feature.heatmaps",
+		"billing.feature.replays",
+		"billing.feature.integrations",
+		"billing.feature.team",
+		"billing.feature.support",
+	],
+};
+
+const PLAN_INCLUDES: Record<PlanTier, MessageKey> = {
+	micro: "billing.includes.micro",
+	starter: "billing.includes.starter",
+	growth: "billing.includes.growth",
 };
 
 const STATUS_TONE: Record<string, string> = {
-	active: "bg-(--up)/10 text-(--up) ring-(--up)/20",
-	trialing: "bg-sky-400/10 text-sky-700 ring-sky-400/30 dark:text-sky-300",
-	past_due: "bg-(--down)/10 text-(--down) ring-(--down)/20",
-	canceled: "bg-(--down)/10 text-(--down) ring-(--down)/20",
+	active: "bg-(--up)/10 text-(--up) ring-(--up)/25",
+	trialing: "bg-(--chart)/10 text-(--chart) ring-(--chart)/25",
+	past_due: "bg-(--down)/10 text-(--down) ring-(--down)/25",
+	canceled: "bg-(--down)/10 text-(--down) ring-(--down)/25",
 };
 
 const STATUS_LABEL: Record<SubscriptionStatus, MessageKey> = {
@@ -99,7 +120,7 @@ const STATUS_LABEL: Record<SubscriptionStatus, MessageKey> = {
 
 const StatusBadge = ({ status, label }: { status: string; label: string }) => (
 	<span
-		className={`rounded-full px-2.5 py-0.5 font-mono text-[10px] ring-1 ${
+		className={`rounded-md px-1.5 py-0.5 text-[11px] font-medium ring-1 ${
 			STATUS_TONE[status] ?? "bg-muted/60 text-muted-foreground ring-foreground/10"
 		}`}
 	>
@@ -107,24 +128,41 @@ const StatusBadge = ({ status, label }: { status: string; label: string }) => (
 	</span>
 );
 
+/** Smallest visible fill, so any usage above zero shows on the bar. */
+const MIN_FILL_PCT = 2;
+
 const UsageBar = ({ label, used, limit }: { label: string; used: number; limit: number }) => {
-	const pct = limit > 0 ? Math.min(100, Math.round((used / limit) * 100)) : 0;
+	const t = useT();
+	const locale = useLocale();
+	const nf = locale === "id" ? "id-ID" : "en-US";
+	const raw = limit > 0 ? Math.min(100, (used / limit) * 100) : 0;
+	const pct = used > 0 ? Math.max(MIN_FILL_PCT, raw) : 0;
 	return (
-		<div>
-			<div className="text-muted-foreground mb-1 flex items-center justify-between text-xs">
-				<span>{label}</span>
-				<span className="font-mono tabular-nums">
-					{used.toLocaleString()} / {limit.toLocaleString()}
+		<div className="grid gap-1.5">
+			<div className="flex items-baseline justify-between gap-3 text-xs">
+				<span className="text-muted-foreground">{label}</span>
+				<span className="text-foreground tabular-nums">
+					{t("billing.usageOf", {
+						limit: limit.toLocaleString(nf),
+						used: used.toLocaleString(nf),
+					})}
 				</span>
 			</div>
-			<div className="bg-muted h-1.5 overflow-hidden rounded-full">
+			<div
+				className="bg-muted h-1.5 overflow-hidden rounded-full"
+				role="meter"
+				aria-label={label}
+				aria-valuemin={0}
+				aria-valuemax={limit}
+				aria-valuenow={used}
+			>
 				<div className="bg-(--chart) h-full rounded-full" style={{ width: `${pct}%` }} />
 			</div>
 		</div>
 	);
 };
 
-/* ---------------------------- subscription banner -------------------------- */
+/* ---------------------------- subscription notice -------------------------- */
 
 type BannerKind = "trial" | "trialEnded" | "pastDue" | "canceled" | "cancelling";
 
@@ -139,7 +177,18 @@ const bannerKind = (sub: BillingSubscription): BannerKind | null => {
 
 const DISMISS_KEY = "kp_billing_banner_dismissed";
 
-export const SubscriptionBanner = ({ onUpgrade }: { onUpgrade: () => void }) => {
+export interface SubscriptionNotice {
+	/** Trial countdown is informational; every other kind is a warning. */
+	warn: boolean;
+	message: string;
+	dismiss: () => void;
+}
+
+/**
+ * The plan line for the account notice bar (AccountNotices). Null when the
+ * subscription needs no attention or this kind was dismissed this session.
+ */
+export const useSubscriptionNotice = (): SubscriptionNotice | null => {
 	const t = useT();
 	const locale = useLocale();
 	const { data: sub } = useSubscription();
@@ -166,11 +215,6 @@ export const SubscriptionBanner = ({ onUpgrade }: { onUpgrade: () => void }) => 
 	};
 
 	const days = subscriptionState(sub).trialDaysLeft;
-	const warn = kind !== "trial";
-	const tone = warn
-		? "bg-(--down)/10 text-(--down) ring-(--down)/20"
-		: "bg-(--up)/10 text-(--up) ring-(--up)/20";
-	const Icon = warn ? AlertTriangle : Clock;
 	let message: string;
 	if (kind === "trial") {
 		message = days > 0 ? t("banner.trial", { n: days }) : t("banner.trialToday");
@@ -179,27 +223,7 @@ export const SubscriptionBanner = ({ onUpgrade }: { onUpgrade: () => void }) => 
 	} else {
 		message = t(`banner.${kind}`);
 	}
-
-	return (
-		<div
-			className={`mb-2.5 flex flex-wrap items-center gap-2.5 rounded-xl px-3 py-2 text-xs ring-1 ${tone}`}
-			role="status"
-		>
-			<Icon className="size-3.5 shrink-0" aria-hidden />
-			<p className="min-w-0 flex-1">{message}</p>
-			<Button size="xs" onClick={onUpgrade}>
-				{t("lock.cta")}
-			</Button>
-			<button
-				type="button"
-				aria-label={t("billing.dismiss")}
-				onClick={dismiss}
-				className="hover:text-foreground focus-visible:outline-ring -mx-1 rounded-md p-1 opacity-70 transition-opacity outline-offset-2 hover:opacity-100 focus-visible:outline-2"
-			>
-				<X className="size-3.5" aria-hidden />
-			</button>
-		</div>
-	);
+	return { dismiss, message, warn: kind !== "trial" };
 };
 
 /* --------------------------------- view ----------------------------------- */
@@ -215,10 +239,17 @@ const PENDING_DISMISS_KEY = "kp_qris_pending_dismissed";
 
 type PlanBadge = "trial" | "picked" | null;
 
+/**
+ * One plan. `recommended` (the plan picked on the pricing page, else the
+ * trial plan) gets the accent ring, the filled pay button, first place on
+ * phones and an open feature list; the rest stay quiet and fold their
+ * feature lists on phones so the page does not run three cards deep.
+ */
 const PlanCard = ({
 	plan,
 	isCurrent,
 	badge,
+	recommended,
 	highlighted,
 	busy,
 	onCard,
@@ -228,6 +259,7 @@ const PlanCard = ({
 	plan: BillingPlan;
 	isCurrent: boolean;
 	badge: PlanBadge;
+	recommended: boolean;
 	highlighted: boolean;
 	busy: boolean;
 	onCard: (tier: PlanTier) => void;
@@ -236,8 +268,12 @@ const PlanCard = ({
 }) => {
 	const t = useT();
 	const ref = useRef<HTMLDivElement>(null);
+	const [featuresOpen, setFeaturesOpen] = useState(false);
 	const idr = plan.price_idr ?? IDR_PRICE[plan.tier];
 	const usd = money(plan.price);
+	const emphasis = recommended || isCurrent;
+	const listId = `plan-features-${plan.tier}`;
+	const primaryVariant = recommended ? "default" : "outline";
 
 	useEffect(() => {
 		if (highlighted) {
@@ -248,54 +284,89 @@ const PlanCard = ({
 	return (
 		<div
 			ref={ref}
-			className={`relative flex flex-col rounded-xl bg-card p-4 ring-1 ${
-				isCurrent || highlighted ? "bg-(--chart)/5 ring-(--chart)" : "ring-foreground/10"
-			}`}
+			className={`flex flex-col rounded-lg p-4 ring-1 ${
+				emphasis ? "bg-(--chart)/[0.06] ring-(--chart)/70" : "bg-card ring-foreground/10"
+			} ${recommended ? "order-first md:order-none" : ""}`}
 		>
-			{badge && !isCurrent ? (
-				<span className="bg-(--chart) text-background absolute -top-2 right-3 rounded-full px-2 py-0.5 text-[10px] font-semibold">
-					{badge === "trial" ? t("billing.trialBadge") : t("billing.pickedBadge")}
-				</span>
-			) : null}
-			<h3 className="text-muted-foreground font-mono text-[10px] font-semibold tracking-[0.08em] uppercase">
-				{planLabel(plan.tier)}
-			</h3>
-			<div className="mt-1 flex items-baseline gap-1.5">
+			<div className="flex items-center justify-between gap-2">
+				<h3 className="text-sm font-semibold">{planLabel(plan.tier)}</h3>
+				{badge && !isCurrent ? (
+					<span className="bg-(--chart)/15 text-(--chart) rounded-md px-1.5 py-0.5 text-[11px] font-medium">
+						{badge === "trial" ? t("billing.trialBadge") : t("billing.pickedBadge")}
+					</span>
+				) : null}
+			</div>
+			<div className="mt-2 flex items-baseline gap-1">
 				<span className="text-3xl font-semibold tracking-tight tabular-nums">
 					{qrisAvailable ? money(idr, "IDR") : usd}
 				</span>
 				<span className="text-muted-foreground text-xs">{t("billing.perMonth")}</span>
 			</div>
 			{qrisAvailable ? (
-				<div className="text-muted-foreground mt-0.5 text-xs">
+				<p className="text-muted-foreground mt-0.5 text-xs tabular-nums">
 					{t("billing.byCard", { price: usd })}
-				</div>
+				</p>
 			) : null}
-			<div className="text-muted-foreground mt-0.5 text-[11px]">{t(PLAN_LIMIT_KEY[plan.tier])}</div>
-			<ul className="mt-3 mb-4 flex-1 space-y-1">
-				{plan.features.map((f) => (
-					<li key={f} className="text-muted-foreground flex items-center gap-2 text-xs">
-						<Check className="text-(--chart) size-3 shrink-0" aria-hidden />
-						{FEATURE_FIXES[f] ?? f}
-					</li>
-				))}
-			</ul>
+			<p className="text-foreground/85 mt-3 text-xs tabular-nums">{t(PLAN_LIMIT_KEY[plan.tier])}</p>
+
+			<div className="border-border mt-3 flex-1 border-t pt-3">
+				{recommended ? null : (
+					<button
+						type="button"
+						aria-expanded={featuresOpen}
+						aria-controls={listId}
+						onClick={() => setFeaturesOpen((open) => !open)}
+						className="text-muted-foreground hover:text-foreground focus-visible:outline-ring -mx-1 -my-2 flex min-h-11 w-[calc(100%+0.5rem)] items-center justify-between gap-2 rounded-md px-1 text-xs font-medium outline-offset-2 focus-visible:outline-2 md:hidden"
+					>
+						{t(PLAN_INCLUDES[plan.tier])}
+						<span className="inline-flex items-center gap-1 font-normal">
+							{featuresOpen ? t("billing.hideFeatures") : t("billing.showFeatures")}
+							<ChevronDown
+								className={`size-3.5 transition-transform duration-150 ease-out ${featuresOpen ? "rotate-180" : ""}`}
+								aria-hidden
+							/>
+						</span>
+					</button>
+				)}
+				<div id={listId} className={recommended || featuresOpen ? "block" : "hidden md:block"}>
+					<p
+						className={`text-muted-foreground mb-2 text-xs font-medium ${
+							recommended ? "" : "hidden md:block"
+						}`}
+					>
+						{t(PLAN_INCLUDES[plan.tier])}
+					</p>
+					<ul className="grid gap-1.5 pb-1">
+						{PLAN_FEATURES[plan.tier].map((key) => (
+							<li key={key} className="flex items-start gap-2 text-[13px]">
+								<Check className="text-(--chart) mt-0.5 size-3.5 shrink-0" aria-hidden />
+								{t(key)}
+							</li>
+						))}
+					</ul>
+				</div>
+			</div>
+
 			{isCurrent ? (
-				<Button variant="outline" size="sm" disabled className="w-full">
+				<Button variant="outline" disabled className="mt-4 h-10 w-full text-[13px]">
 					{t("billing.currentBtn")}
 				</Button>
 			) : (
-				<div className="flex flex-col gap-2">
+				<div className="mt-4 grid gap-1">
 					{qrisAvailable ? (
-						<Button size="sm" className="h-9" disabled={busy} onClick={() => onQris(plan.tier)}>
-							<QrCode className="size-3.5" aria-hidden />
+						<Button
+							variant={primaryVariant}
+							className="h-10 w-full text-[13px]"
+							disabled={busy}
+							onClick={() => onQris(plan.tier)}
+						>
+							<QrCode className="size-4" aria-hidden />
 							{t("billing.payQris")}
 						</Button>
 					) : null}
 					<Button
-						size="sm"
-						variant={qrisAvailable ? "outline" : "default"}
-						className="h-9 w-full"
+						variant={qrisAvailable ? "ghost" : primaryVariant}
+						className={`w-full ${qrisAvailable ? "text-muted-foreground h-10 text-xs" : "h-10 text-[13px]"}`}
 						disabled={busy}
 						onClick={() => onCard(plan.tier)}
 					>
@@ -333,12 +404,15 @@ export const BillingView = ({
 	highlightPlan,
 	checkout,
 	onCheckoutHandled,
+	localeToggle = true,
 }: {
 	/** Tier to emphasise, e.g. the one picked on the pricing page. */
 	highlightPlan?: PlanTier;
 	/** Set when a payment provider just sent the browser back. */
 	checkout?: CheckoutResult;
 	onCheckoutHandled?: () => void;
+	/** False when the page header already carries the ID/EN toggle. */
+	localeToggle?: boolean;
 }) => {
 	const t = useT();
 	const locale = useLocale();
@@ -481,15 +555,19 @@ export const BillingView = ({
 		if (state?.trialing && !state.trialEnded && sub?.plan === tier) return "trial";
 		return null;
 	};
+	// One plan leads: the one picked on the pricing page, else the plan the
+	// trial runs on ("keep what you have"). Paid accounts see no push.
+	const recommendedTier: PlanTier | undefined =
+		highlightPlan ?? (state?.trialing ? parsePlan(sub?.plan) : undefined);
 
 	return (
-		<main className="mx-auto max-w-7xl px-3 pt-3 pb-6 md:px-4">
-			<div className="mb-2.5 flex flex-wrap items-start justify-between gap-2">
-				<div>
+		<main className="mx-auto max-w-7xl px-3 pt-4 pb-8 md:px-4">
+			<div className="mb-3 flex items-start justify-between gap-3">
+				<div className="min-w-0">
 					<h1 className="text-lg font-semibold tracking-tight">{t("billing.title")}</h1>
 					<p className="text-muted-foreground text-xs">{t("billing.subtitle")}</p>
 				</div>
-				<LocaleToggle />
+				{localeToggle ? <LocaleToggle className="shrink-0" /> : null}
 			</div>
 
 			{pendingQris ? (
@@ -538,9 +616,9 @@ export const BillingView = ({
 						{t("billing.subError")}
 					</p>
 				) : (
-					<div className="grid gap-4">
-						<div className="flex flex-wrap items-center gap-3">
-							<span className="text-[15px] font-medium">
+					<div className="grid gap-4 pt-1">
+						<div className="flex flex-wrap items-center gap-2">
+							<span className="text-base font-semibold tracking-tight">
 								{t("billing.planName", { plan: planLabel(sub.plan) })}
 							</span>
 							{sub.id ? (
@@ -563,16 +641,16 @@ export const BillingView = ({
 						</div>
 
 						<div className="grid gap-1">
-							<p className="text-muted-foreground font-mono text-xs">{periodLine(sub, t, date)}</p>
+							<p className="text-sm font-medium tabular-nums">{periodLine(sub, t, date)}</p>
 							{state.trialing && !state.trialEnded ? (
-								<p className="text-muted-foreground max-w-prose text-xs">
+								<p className="text-muted-foreground max-w-prose text-xs leading-relaxed">
 									{t("billing.trialNote")}
 								</p>
 							) : null}
 						</div>
 
 						{sub.usage ? (
-							<div className="grid gap-3 sm:grid-cols-2">
+							<div className="grid gap-x-8 gap-y-3 sm:grid-cols-2">
 								<UsageBar
 									label={t("billing.usageEvents")}
 									used={sub.usage.events.used}
@@ -632,7 +710,7 @@ export const BillingView = ({
 						</p>
 					) : (
 						<>
-							<div className="grid gap-2.5 md:grid-cols-3">
+							<div className="grid gap-2.5 pt-1 md:grid-cols-3">
 								{plans.map((plan) => (
 									<PlanCard
 										key={plan.tier}
@@ -640,6 +718,7 @@ export const BillingView = ({
 										// A trial is never "current": the trial's own tier stays buyable.
 										isCurrent={Boolean(sub?.id && state?.paidActive && sub.plan === plan.tier)}
 										badge={badgeFor(plan.tier)}
+										recommended={recommendedTier === plan.tier}
 										highlighted={highlightPlan === plan.tier}
 										busy={busy}
 										onCard={(tier) => checkoutMut.mutate(tier)}
