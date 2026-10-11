@@ -17,12 +17,12 @@ import { LocaleToggle } from "@/components/locale-toggle";
 import { useT } from "@/lib/i18n";
 import {
 	LEGACY_API_BASE,
-	LegacyApiError,
 	legacyLogin,
 	legacyRegister,
 	requestPasswordReset,
 } from "@/lib/legacy/api";
-import { afterAuthTarget } from "@/lib/auth-search";
+import { authErrorMessage } from "@/lib/auth-errors";
+import { afterAuthTarget, googleAuthUrl } from "@/lib/auth-search";
 import type { AuthSearch } from "@/lib/auth-search";
 import { planLabel } from "@/lib/legacy/billing";
 import { clearSignupIntent, rememberRef, rememberSignupPlan, signupRef } from "@/lib/signup-intent";
@@ -189,8 +189,7 @@ export const AuthForm = ({ mode, search }: { mode: AuthMode; search: AuthSearch 
 				await navigate({ to: "/analytics" });
 			}
 		} catch (err) {
-			const fallback = signUp ? t("auth.signUpError") : t("auth.error");
-			setError(err instanceof LegacyApiError && err.status !== 500 ? err.message : fallback);
+			setError(authErrorMessage(err, signUp, t));
 		} finally {
 			setPending(false);
 		}
@@ -200,9 +199,7 @@ export const AuthForm = ({ mode, search }: { mode: AuthMode; search: AuthSearch 
 		// The Google callback lands on /#token=…; the plan rides along in storage.
 		rememberSignupPlan(plan);
 		// The worker carries ?ref through the OAuth state to the new account.
-		const referral = signupRef(ref);
-		const query = referral ? `?${new URLSearchParams({ ref: referral })}` : "";
-		window.location.href = `${LEGACY_API_BASE}/auth/google${query}`;
+		window.location.href = googleAuthUrl(LEGACY_API_BASE, signupRef(ref), plan);
 	};
 
 	return (

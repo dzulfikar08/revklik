@@ -126,7 +126,8 @@ function RootComponent() {
 		pathname.startsWith("/public") ||
 		pathname === "/login" ||
 		pathname === "/register" ||
-		pathname === "/reset-password";
+		pathname === "/reset-password" ||
+		pathname === "/verify-email";
 
 	return (
 		<>

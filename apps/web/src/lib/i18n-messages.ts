@@ -30,6 +30,20 @@ const en = {
 	"auth.forgot": "Forgot password?",
 	"auth.error": "Couldn't sign you in. Try again.",
 	"auth.signUpError": "Couldn't create your account. Try again.",
+	"auth.throttled": "Too many attempts. Wait a few minutes, then try again.",
+
+	// email verification
+	"verify.title": "Email verification",
+	"verify.checking": "Checking your link…",
+	"verify.verified": "Your email is verified.",
+	"verify.invalid_token":
+		"This link isn't valid. Open the latest email from us, or send a new one from the dashboard.",
+	"verify.expired": "This link has expired. Send a new one from the dashboard.",
+	"verify.error": "Couldn't verify right now. Try the link again in a minute.",
+	"verify.toDashboard": "Go to the dashboard",
+	"verify.banner": "Verify your email. We sent a link to {email}.",
+	"verify.resend": "Send again",
+	"verify.resent": "Sent. Check your inbox.",
 
 	// password reset
 	"forgot.title": "Reset your password",
@@ -100,9 +114,9 @@ const en = {
 	"lock.trialEnded": "Your 7-day Growth trial has ended.",
 	"lock.lapsed": "Your subscription has ended.",
 	"lock.grace_one":
-		"We're still recording visits for {n} more day. Pick a plan to see everything collected so far.",
+		"We're still recording visits for {n} more day. Pick a plan to open your dashboard again.",
 	"lock.grace":
-		"We're still recording visits for {n} more days. Pick a plan to see everything collected so far.",
+		"We're still recording visits for {n} more days. Pick a plan to open your dashboard again.",
 	"lock.stopped": "Tracking is paused. Pick a plan to turn it back on.",
 	"lock.cta": "Choose a plan",
 	"lock.from": "Plans start at {price}/month.",
@@ -137,6 +151,10 @@ const en = {
 	"billing.cancelNo": "No",
 	"billing.cancelling": "Cancelling…",
 	"billing.cancelBtn": "Cancel subscription",
+	"billing.qrisNoRenew":
+		"QRIS plans don't renew automatically. Pay again before {date} to keep your plan.",
+	"billing.cardUnavailable":
+		"Card payments are unavailable right now. Try again later, or pay with QRIS.",
 	"billing.cancelDone": "Your subscription stops at the end of this period.",
 	"billing.plans": "Plans",
 	"billing.plansHint": "monthly · cancel anytime",
@@ -204,6 +222,19 @@ const id: Record<BaseKey, string> = {
 	"auth.forgot": "Lupa password?",
 	"auth.error": "Gagal masuk. Coba lagi.",
 	"auth.signUpError": "Akun belum berhasil dibuat. Coba lagi.",
+	"auth.throttled": "Terlalu banyak percobaan. Tunggu beberapa menit, lalu coba lagi.",
+
+	"verify.title": "Verifikasi email",
+	"verify.checking": "Mengecek link…",
+	"verify.verified": "Email kamu sudah terverifikasi.",
+	"verify.invalid_token":
+		"Link ini tidak berlaku. Buka email terbaru dari kami, atau kirim ulang dari dashboard.",
+	"verify.expired": "Link ini sudah kedaluwarsa. Kirim link baru dari dashboard.",
+	"verify.error": "Verifikasi belum bisa dilakukan. Coba buka link-nya lagi sebentar lagi.",
+	"verify.toDashboard": "Buka dashboard",
+	"verify.banner": "Verifikasi email kamu. Link-nya sudah kami kirim ke {email}.",
+	"verify.resend": "Kirim ulang",
+	"verify.resent": "Terkirim. Cek kotak masuk kamu.",
 
 	"forgot.title": "Atur ulang password",
 	"forgot.desc": "Masukkan email akun kamu. Kami kirimkan link untuk membuat password baru.",
@@ -269,7 +300,7 @@ const id: Record<BaseKey, string> = {
 	"lock.trialEnded": "Masa coba gratis Growth 7 hari sudah selesai.",
 	"lock.lapsed": "Langganan kamu sudah berakhir.",
 	"lock.grace":
-		"Kunjungan masih kami catat {n} hari lagi. Pilih paket untuk melihat semua data yang sudah terkumpul.",
+		"Kunjungan masih kami catat {n} hari lagi. Pilih paket untuk membuka dashboard lagi.",
 	"lock.stopped": "Pelacakan sedang berhenti. Pilih paket untuk menyalakannya lagi.",
 	"lock.cta": "Pilih paket",
 	"lock.from": "Paket mulai {price}/bulan.",
@@ -302,6 +333,10 @@ const id: Record<BaseKey, string> = {
 	"billing.cancelNo": "Tidak",
 	"billing.cancelling": "Membatalkan…",
 	"billing.cancelBtn": "Batalkan langganan",
+	"billing.qrisNoRenew":
+		"Paket QRIS tidak diperpanjang otomatis. Bayar lagi sebelum {date} supaya paket tetap aktif.",
+	"billing.cardUnavailable":
+		"Pembayaran kartu sedang tidak tersedia. Coba lagi nanti, atau bayar dengan QRIS.",
 	"billing.cancelDone": "Langganan berhenti di akhir periode ini.",
 	"billing.plans": "Paket",
 	"billing.plansHint": "bulanan · bisa berhenti kapan saja",

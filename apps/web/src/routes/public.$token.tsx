@@ -8,6 +8,7 @@ import { CountBarRow, Panel, PanelTabs, StatTile, TrafficChart } from "@/compone
 import { RANGES, fmt, fmtC, money, pointLabel } from "@/components/analytics/data";
 import type { Point, RangeKey } from "@/components/analytics/data";
 import { useT } from "@/lib/i18n";
+import { tzParam } from "@/lib/legacy/api";
 
 /**
  * Chrome-less public dashboard at /public/:token — the viewer-facing page
@@ -49,6 +50,8 @@ interface ChannelRow {
 }
 
 interface PublicDashboard {
+	/** ISO code for every revenue figure; USD when absent. */
+	currency?: string;
 	stats: PublicStats;
 	timeseries: { date: string; pageviews: number; visitors: number }[];
 	topPages: { path: string; pageviews: number; visitors: number }[];
@@ -65,6 +68,7 @@ interface PublicDashboard {
 interface PublicPayload {
 	site: { name: string | null; domain: string | null };
 	dashboard: PublicDashboard;
+	currency?: string;
 }
 
 /** Fetch error carrying the HTTP status so 404 can render the not-found UI. */
@@ -77,12 +81,16 @@ class PublicFetchError extends Error {
 }
 
 const fetchPublicDashboard = async (token: string, range: string): Promise<PublicPayload> => {
-	const res = await fetch(`/api/public/${encodeURIComponent(token)}?range=${range}`);
+	// tz: viewer's offset in east-positive minutes, so day buckets match local days.
+	const qs = new URLSearchParams({ range, tz: tzParam() });
+	const res = await fetch(`/api/public/${encodeURIComponent(token)}?${qs}`);
 	if (!res.ok) {
 		throw new PublicFetchError(res.status, res.status === 404 ? "not found" : `HTTP ${res.status}`);
 	}
 	const json = (await res.json()) as { data: PublicPayload };
-	return json.data;
+	// The currency may sit on the dashboard or next to it; keep one place.
+	const { dashboard, currency } = json.data;
+	return { ...json.data, dashboard: { ...dashboard, currency: dashboard.currency ?? currency } };
 };
 
 /* ------------------------------ live polling ------------------------------ */
@@ -201,10 +209,12 @@ const RowsBody = ({
 	rows,
 	loading,
 	isMoney,
+	currency,
 }: {
 	rows: LabelledRow[];
 	loading: boolean;
 	isMoney?: boolean;
+	currency?: string;
 }) => {
 	const total = rows.reduce((acc, r) => acc + r.value, 0);
 	return (
@@ -215,7 +225,7 @@ const RowsBody = ({
 						key={r.label}
 						glyph={r.glyph ?? (isMoney ? MONEY_GLYPH : undefined)}
 						label={r.label}
-						value={isMoney ? money(r.value) : fmtC(r.value)}
+						value={isMoney ? money(r.value, currency) : fmtC(r.value)}
 						share={total > 0 ? (r.value / total) * 100 : 0}
 						fill={isMoney ? "var(--money)" : undefined}
 					/>
@@ -332,7 +342,7 @@ function RevenuePanel({ dash, loading }: { dash: PublicDashboard | undefined; lo
 				/>
 			}
 		>
-			<RowsBody rows={rows} loading={loading} isMoney />
+			<RowsBody rows={rows} loading={loading} isMoney currency={dash?.currency} />
 		</Panel>
 	);
 }
@@ -413,7 +423,7 @@ function PublicDashboardPage() {
 					<StatTile label="Pageviews" value={stats ? fmt(stats.pageviews) : "…"} />
 					<StatTile label="Sessions" value={stats ? fmt(stats.sessions) : "…"} />
 					<StatTile label="Bounce rate" value={stats ? `${stats.bounceRate.toFixed(1)}%` : "…"} />
-					<StatTile label="Revenue" value={stats ? money(stats.revenue) : "…"} />
+					<StatTile label="Revenue" value={stats ? money(stats.revenue, dash?.currency) : "…"} />
 				</div>
 
 				<section className="bg-card ring-foreground/10 mb-2.5 rounded-2xl p-3 ring-1">

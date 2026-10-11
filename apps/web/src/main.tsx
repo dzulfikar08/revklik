@@ -3,7 +3,9 @@ import { RouterProvider, createRouter } from "@tanstack/react-router";
 import ReactDOM from "react-dom/client";
 
 import Loader from "./components/loader";
+import { parseNext } from "./lib/auth-search";
 import { registerBillingOpener } from "./lib/billing-nav";
+import { registerSessionExpiredHandler } from "./lib/session-nav";
 import { routeTree } from "./routeTree.gen";
 import { queryClient } from "./utils/query-client";
 
@@ -23,6 +25,14 @@ declare module "@tanstack/react-router" {
 		router: typeof router;
 	}
 }
+
+// Mid-session 401: sign in again, then come back to the same page.
+registerSessionExpiredHandler(() => {
+	const { href, pathname } = router.state.location;
+	if (pathname === "/login") return;
+	const next = parseNext(href);
+	void router.navigate({ search: next ? { next } : {}, to: "/login" });
+});
 
 const SITE_DASHBOARD = /^\/analytics\/([^/]+)\/?$/u;
 
