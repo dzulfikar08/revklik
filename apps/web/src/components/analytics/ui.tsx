@@ -27,30 +27,49 @@ export const StatTile = ({
 	value,
 	delta,
 	tone = "good",
+	className = "",
+	note,
 }: {
 	label: string;
-	value: string;
+	/** Undefined while loading: a skeleton holds the value's line height. */
+	value: string | undefined;
+	/** Omitted when there is no previous period to compare against. */
 	delta?: string;
 	tone?: "good" | "bad";
+	className?: string;
+	/** Replaces a value that would be misleading (e.g. no sessions to average). */
+	note?: string;
 }) => {
 	const Arrow = tone === "good" ? ArrowUpRight : ArrowDownRight;
 	return (
-		<div className="bg-card ring-foreground/10 min-w-0 rounded-2xl px-3 py-2.5 ring-1">
+		<div
+			className={`bg-card ring-foreground/10 min-w-0 rounded-2xl px-3 py-2.5 ring-1 ${className}`}
+		>
 			<p className="text-muted-foreground text-[13px]">{label}</p>
-			<div className="mt-0.5 flex flex-wrap items-baseline gap-x-2 gap-y-1">
-				<span className="text-[22px] leading-7 font-semibold tracking-tight tabular-nums">
-					{value}
-				</span>
-				{delta != null && (
+			<div className="mt-0.5 flex min-h-7 flex-wrap items-center gap-x-2 gap-y-1">
+				{note && value !== undefined ? (
+					<span className="text-muted-foreground text-[13px] leading-7">{note}</span>
+				) : value === undefined ? (
+					<>
+						<span className="bg-muted h-5 w-20 animate-pulse rounded-md" aria-hidden />
+						<span className="sr-only">Loading {label}</span>
+					</>
+				) : (
+					<span className="text-[22px] leading-7 font-semibold tracking-tight whitespace-nowrap tabular-nums">
+						{value}
+					</span>
+				)}
+				{value !== undefined && delta != null ? (
 					<span
-						className={`inline-flex items-center gap-0.5 rounded-full px-1.5 py-0.5 font-mono text-[11px] tabular-nums ${
+						className={`inline-flex items-center gap-0.5 rounded-md px-1.5 py-0.5 text-[11px] font-medium whitespace-nowrap tabular-nums ${
 							tone === "good" ? "bg-(--up)/10 text-(--up)" : "bg-(--down)/10 text-(--down)"
 						}`}
 					>
 						<Arrow className="size-3" aria-hidden />
 						{delta}
+						<span className="sr-only"> vs previous period</span>
 					</span>
-				)}
+				) : null}
 			</div>
 		</div>
 	);
@@ -107,6 +126,35 @@ export const Panel = ({
 	</section>
 );
 
+/**
+ * Loading placeholder shaped like the bar rows it stands in for, so a panel
+ * keeps its height when data lands instead of jumping from one text line.
+ */
+export const SkeletonRows = ({
+	rows = 6,
+	label = "Loading",
+}: {
+	rows?: number;
+	label?: string;
+}) => (
+	<div className="grid gap-1" role="status">
+		<span className="sr-only">{label}…</span>
+		{Array.from({ length: rows }, (_, i) => (
+			<div
+				key={i}
+				aria-hidden
+				className="bg-muted/40 flex h-9 items-center justify-between gap-4 rounded-lg px-2.5"
+			>
+				<span
+					className="bg-muted h-3 animate-pulse rounded"
+					style={{ width: `${Math.max(28, 72 - i * 9)}%` }}
+				/>
+				<span className="bg-muted h-3 w-8 animate-pulse rounded" />
+			</div>
+		))}
+	</div>
+);
+
 export const SortHint = ({
 	label,
 	dir,
@@ -129,6 +177,12 @@ export const SortHint = ({
 
 /* -------------------------------- bar rows --------------------------------- */
 
+/**
+ * Ranked row with a proportional fill. The fill is a low-opacity wash clipped
+ * by the row's own radius (no radius of its own, so a short value reads as a
+ * bar rather than a pill under the icon) and ends in a 2px solid edge that
+ * marks the value. Text sits on the wash, so contrast matches a plain row.
+ */
 export const CountBarRow = ({
 	glyph,
 	label,
@@ -141,24 +195,32 @@ export const CountBarRow = ({
 	value: string;
 	share: number;
 	fill?: string;
-}) => (
-	<div className="hover:bg-muted/60 bg-muted/40 relative h-9 overflow-hidden rounded-lg transition-colors">
-		<div
-			className="absolute inset-y-0 left-0 rounded-lg"
-			style={{
-				backgroundColor: `color-mix(in oklab, ${fill} 40%, transparent)`,
-				width: `${share}%`,
-			}}
-		/>
-		<span className="absolute inset-0 flex items-center gap-2 px-2.5 text-[13px]">
-			{glyph}
-			<span className="truncate font-medium">{label}</span>
-		</span>
-		<span className="text-foreground/80 absolute inset-y-0 right-2.5 flex items-center font-mono text-xs tabular-nums">
-			{value}
-		</span>
-	</div>
-);
+}) => {
+	const pct = Number.isFinite(share) ? Math.min(100, Math.max(share, 0)) : 0;
+	return (
+		<div className="hover:bg-muted/60 bg-muted/40 relative h-9 overflow-hidden rounded-lg transition-colors">
+			{pct > 0 ? (
+				<div
+					aria-hidden
+					className="absolute inset-y-0 left-0 border-r-2"
+					style={{
+						backgroundColor: `color-mix(in oklab, ${fill} 22%, transparent)`,
+						borderColor: `color-mix(in oklab, ${fill} 60%, transparent)`,
+						minWidth: 3,
+						width: `${pct}%`,
+					}}
+				/>
+			) : null}
+			<span className="relative flex h-full items-center gap-2 px-2.5 text-[13px]">
+				{glyph}
+				<span className="min-w-0 flex-1 truncate font-medium">{label}</span>
+				<span className="text-foreground/85 shrink-0 text-xs font-medium tabular-nums">
+					{value}
+				</span>
+			</span>
+		</div>
+	);
+};
 
 const deviceIconEl = (device: PlatformRow["device"]) => {
 	if (device === "mobile") {
@@ -247,12 +309,32 @@ const useIsWide = (): boolean => {
 	return wide;
 };
 
-const useGeometry = (points: Point[], wide: boolean) =>
+const MAX_BAR_W = 16;
+
+/** Revenue bar width for `n` buckets, in viewBox units. */
+const barWidth = (n: number): number => {
+	const band = n > 1 ? (W - 12) / (n - 1) : W - 12;
+	return Math.min(Math.max(band * 0.55, 1.5), MAX_BAR_W);
+};
+
+/**
+ * Horizontal inset shared by the line and the bars: the first and last bars
+ * are centred on the end buckets, so the inset must cover half a bar or the
+ * edge bars get clipped by the SVG viewport.
+ */
+const chartInset = (n: number, withBars: boolean): number =>
+	withBars ? Math.max(6, barWidth(n) / 2 + 4) : 6;
+
+const xAt = (i: number, n: number, inset: number): number =>
+	n > 1 ? inset + (i * (W - inset * 2)) / (n - 1) : W / 2;
+
+const useGeometry = (points: Point[], wide: boolean, withBars: boolean) =>
 	useMemo(() => {
 		const n = points.length;
 		const peak = Math.max(...points.map((p) => Math.max(p.current, p.previous ?? 0)));
 		const max = niceMax(peak * 1.08);
-		const x = (i: number) => 6 + (i * (W - 12)) / (n - 1);
+		const inset = chartInset(n, withBars);
+		const x = (i: number) => xAt(i, n, inset);
 		const y = (v: number) => H - 8 - (v / max) * (H - 28);
 		const cur = points.map((p, i) => [x(i), y(p.current)] as const);
 		const prev = points.map((p, i) => [x(i), y(p.previous ?? 0)] as const);
@@ -265,7 +347,7 @@ const useGeometry = (points: Point[], wide: boolean) =>
 		}
 		if (n > 0) {
 			const prevTick = tickIdx.at(-1) ?? 0;
-			if (n - 1 - prevTick < tickEvery / 2) {
+			if (n - 1 - prevTick <= tickEvery / 2) {
 				tickIdx[tickIdx.length - 1] = n - 1;
 			} else {
 				tickIdx.push(n - 1);
@@ -284,7 +366,7 @@ const useGeometry = (points: Point[], wide: boolean) =>
 			x,
 			y,
 		};
-	}, [points, wide]);
+	}, [points, wide, withBars]);
 
 const useRevenueGeometry = (amounts: number[] | undefined) =>
 	useMemo(() => {
@@ -295,10 +377,10 @@ const useRevenueGeometry = (amounts: number[] | undefined) =>
 		const peak = Math.max(...amounts, 0);
 		// All-zero revenue still gets a usable right axis.
 		const max = niceMax(Math.max(peak * 1.08, 1));
-		const band = n > 1 ? (W - 12) / (n - 1) : W - 12;
-		const barW = Math.min(Math.max(band * 0.55, 1.5), 16);
+		const barW = barWidth(n);
+		const inset = chartInset(n, true);
 		const bars = amounts.map((v, i) => {
-			const cx = n > 1 ? 6 + (i * (W - 12)) / (n - 1) : W / 2;
+			const cx = xAt(i, n, inset);
 			const h = (v / max) * (H - 28);
 			return { h: v > 0 ? Math.max(h, 2) : 0, w: barW, x: cx - barW / 2 };
 		});
@@ -309,15 +391,18 @@ export const TrafficChart = ({
 	points,
 	annotations = [],
 	revenue,
+	currency,
 }: {
 	points: Point[];
 	/** Day-marked annotations rendered as gold flags on the timeseries. */
 	annotations?: { date: string; text: string }[];
 	/** Revenue per bucket, aligned 1:1 with `points` — rendered as bars. */
 	revenue?: number[];
+	/** ISO code for the revenue axis and tooltip; USD when absent. */
+	currency?: string;
 }) => {
 	const wide = useIsWide();
-	const g = useGeometry(points, wide);
+	const g = useGeometry(points, wide, Boolean(revenue?.length));
 	const rev = useRevenueGeometry(revenue);
 	const [hover, setHover] = useState<number | null>(null);
 	const [hoverMarker, setHoverMarker] = useState<number | null>(null);
@@ -457,7 +542,7 @@ export const TrafficChart = ({
 			</span>
 			{rev ? (
 				<span className="pointer-events-none absolute top-1 right-1 font-mono text-[11px] text-(--money) tabular-nums">
-					{money(rev.max)}
+					{money(rev.max, currency)}
 				</span>
 			) : null}
 
@@ -495,7 +580,8 @@ export const TrafficChart = ({
 						{rev ? (
 							<p className="mt-0.5 flex items-center gap-2 font-mono tabular-nums">
 								<span className="bg-(--money) size-1.5 rounded-[2px]" />
-								Revenue <span className="font-semibold">{money(revenue?.[hover] ?? 0)}</span>
+								Revenue{" "}
+								<span className="font-semibold">{money(revenue?.[hover] ?? 0, currency)}</span>
 							</p>
 						) : null}
 						{g.hasPrev ? (
@@ -533,8 +619,10 @@ const FHALF_MIN = 16;
 
 const funnelBandColor = (i: number, n: number): string => {
 	const t = n <= 1 ? 0 : i / (n - 1);
-	// Steel-blue ramp: dense at the mouth, paler as the funnel narrows.
-	return `oklch(${(0.56 + 0.2 * t).toFixed(3)} ${(0.115 - 0.05 * t).toFixed(3)} 252)`;
+	// Traffic-orange ramp (hue of --chart): strongest at the mouth, fading
+	// toward the card as the funnel narrows, so it reads as the same series
+	// as the visitors line instead of a second palette.
+	return `oklch(${(0.64 - 0.2 * t).toFixed(3)} ${(0.1 - 0.06 * t).toFixed(3)} 55)`;
 };
 
 export const FunnelChart = ({
@@ -631,7 +719,7 @@ export const FunnelChart = ({
 				))}
 
 			{rate !== undefined ? (
-				<div className="pointer-events-none absolute top-2 right-2 text-right">
+				<div className="pointer-events-none absolute top-2 right-2 hidden text-right sm:block">
 					<p className="text-[13px] font-semibold tracking-tight">{rate}% conversion rate</p>
 				</div>
 			) : null}

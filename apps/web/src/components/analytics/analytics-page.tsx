@@ -57,6 +57,7 @@ import { GrowthLocked } from "./growth-locked";
 import { VerifyEmailBanner } from "./verify-email-banner";
 import type {
 	CampaignPerformance,
+	CompareKey,
 	CrawlerSlot,
 	CrawlersResponse,
 	FilterOperator,
@@ -81,7 +82,7 @@ import {
 	duration,
 	fmt,
 	fmtC,
-	fmtPct,
+	deltaBadge,
 	money,
 	pointLabel,
 	visitorAvatar,
@@ -106,6 +107,7 @@ import {
 	Panel,
 	PanelTabs,
 	PlatformGlyph,
+	SkeletonRows,
 	SortHint,
 	StatTile,
 	TrafficChart,
@@ -371,14 +373,17 @@ const PanelBody = ({
 	hasData,
 	emptyText,
 	children,
+	skeleton,
 }: {
 	loading: boolean;
 	hasData: boolean;
 	emptyText: string;
 	children: ReactNode;
+	/** Loading placeholder; defaults to bar-row skeletons. */
+	skeleton?: ReactNode;
 }) => {
 	if (loading) {
-		return <PanelMsg>Loading…</PanelMsg>;
+		return skeleton ?? <SkeletonRows />;
 	}
 	if (!hasData) {
 		return <PanelMsg>{emptyText}</PanelMsg>;
@@ -465,38 +470,55 @@ const CrawlersPanel = ({ siteId, rangeKey }: { siteId: string; rangeKey: RangeKe
 		return `${CRAWLER_TABS.find((t) => t.key === key)?.label ?? key} ${fmt(n)}`;
 	};
 
+	// Zero hits is the common case: a one-line strip instead of a full panel
+	// of dead space. The full chart only mounts when there is something to plot.
+	if (crawlersQ.isLoading || crawlersQ.error || (data?.totals.all ?? 0) === 0) {
+		let note = "No AI crawler visits in this range.";
+		if (crawlersQ.isLoading) {
+			note = "Checking for AI crawler visits…";
+		} else if (crawlersQ.error) {
+			note = "Couldn't load AI crawler visits. Reload to try again.";
+		}
+		return (
+			<section className="bg-card ring-foreground/10 flex flex-wrap items-baseline gap-x-3 gap-y-0.5 rounded-2xl px-3 py-2.5 ring-1">
+				<h2 className="text-sm font-semibold">AI crawlers</h2>
+				<p className="text-muted-foreground text-xs" aria-live="polite">
+					{note}{" "}
+					<span className="hidden sm:inline">
+						Counts AI agents (ChatGPT, Claude, Gemini and others) that run your tracking script;
+						they are kept out of your visitor numbers.
+					</span>
+				</p>
+			</section>
+		);
+	}
+
 	return (
 		<Panel title="AI crawlers" hint={data ? `${fmt(data.totals.all)} hits` : undefined}>
-			<PanelBody
-				loading={crawlersQ.isLoading}
-				hasData={(data?.totals.all ?? 0) > 0}
-				emptyText="No crawler hits yet."
-			>
-				<div className="mb-1.5 flex flex-wrap items-center gap-2">
-					<PanelTabs
-						value={crawlerTab}
-						onChange={setCrawlerTab}
-						tabs={CRAWLER_TABS.map((t) => ({ ...t, label: tabLabel(t.key) }))}
+			<div className="mb-1.5 flex flex-wrap items-center gap-2">
+				<PanelTabs
+					value={crawlerTab}
+					onChange={setCrawlerTab}
+					tabs={CRAWLER_TABS.map((t) => ({ ...t, label: tabLabel(t.key) }))}
+				/>
+			</div>
+			<TrafficChart points={points} />
+			<div className="grid gap-1">
+				{botRows.map((b) => (
+					<CountBarRow
+						key={`${b.bot}-${b.category}`}
+						glyph={
+							<span
+								className={`size-2 shrink-0 rounded-full ${CRAWLER_DOT[b.category]}`}
+								aria-hidden
+							/>
+						}
+						label={b.bot}
+						value={fmt(b.count)}
+						share={b.share}
 					/>
-				</div>
-				<TrafficChart points={points} />
-				<div className="grid gap-1">
-					{botRows.map((b) => (
-						<CountBarRow
-							key={`${b.bot}-${b.category}`}
-							glyph={
-								<span
-									className={`size-2 shrink-0 rounded-full ${CRAWLER_DOT[b.category]}`}
-									aria-hidden
-								/>
-							}
-							label={b.bot}
-							value={fmt(b.count)}
-							share={b.share}
-						/>
-					))}
-				</div>
-			</PanelBody>
+				))}
+			</div>
 		</Panel>
 	);
 };
@@ -551,7 +573,11 @@ const PagesPanel = ({
 				/>
 			}
 		>
-			<PanelBody loading={loading} hasData={rows.length > 0} emptyText="No data yet.">
+			<PanelBody
+				loading={loading}
+				hasData={rows.length > 0}
+				emptyText="No pageviews in this range."
+			>
 				<div className="grid max-h-[420px] gap-1 overflow-y-auto">
 					{rows.map((p) => (
 						<button
@@ -613,7 +639,7 @@ const SourcesPanel = ({ dash, loading }: DashProps) => {
 				/>
 			}
 		>
-			<PanelBody loading={loading} hasData={rows.length > 0} emptyText="No data yet.">
+			<PanelBody loading={loading} hasData={rows.length > 0} emptyText="No visits in this range.">
 				<div className="grid max-h-[420px] gap-1 overflow-y-auto">
 					{rows.map((s) => (
 						<CountBarRow
@@ -675,7 +701,13 @@ const LocationPanel = ({
 	const renderBody = () => {
 		if (locationTab === "globe") {
 			if (geoQ.isLoading) {
-				return <PanelMsg>Loading…</PanelMsg>;
+				return (
+					<div
+						className="bg-muted/40 h-72 animate-pulse rounded-lg"
+						aria-label="Loading globe"
+						role="status"
+					/>
+				);
 			}
 			if (!globeMarkers.length) {
 				return <PanelMsg>No geolocated cities in this range.</PanelMsg>;
@@ -683,7 +715,11 @@ const LocationPanel = ({
 			return <GlobePanel markers={globeMarkers} />;
 		}
 		return (
-			<PanelBody loading={geoQ.isLoading} hasData={rows.length > 0} emptyText="No data yet.">
+			<PanelBody
+				loading={geoQ.isLoading}
+				hasData={rows.length > 0}
+				emptyText="No located visitors in this range."
+			>
 				<div className="grid max-h-[420px] gap-1 overflow-y-auto">
 					{rows.map((c) => (
 						<CountBarRow
@@ -730,6 +766,13 @@ const LocationPanel = ({
 			{renderBody()}
 		</Panel>
 	);
+};
+
+/** Platform rows come from the sessions table, not raw events. */
+const PLATFORM_EMPTY: Record<PlatformTabKey, string> = {
+	browser: "No sessions with browser data in this range.",
+	device: "No sessions with device data in this range.",
+	os: "No sessions with OS data in this range.",
 };
 
 const PlatformPanel = ({ dash, loading }: DashProps) => {
@@ -779,7 +822,11 @@ const PlatformPanel = ({ dash, loading }: DashProps) => {
 				/>
 			}
 		>
-			<PanelBody loading={loading} hasData={sorted.length > 0} emptyText="No data yet.">
+			<PanelBody
+				loading={loading}
+				hasData={sorted.length > 0}
+				emptyText={PLATFORM_EMPTY[platformTab]}
+			>
 				<div className="grid max-h-[420px] gap-1 overflow-y-auto">
 					{sorted.map((d) => (
 						<CountBarRow
@@ -856,7 +903,7 @@ const RevenuePanel = ({
 	const campaigns = campaignsQ.data ?? [];
 	const campaignBody = () => {
 		if (campaignsQ.isLoading) {
-			return <PanelMsg>Loading…</PanelMsg>;
+			return <SkeletonRows rows={4} label="Loading campaigns" />;
 		}
 		if (!campaigns.length) {
 			return <PanelMsg>No campaigns recorded.</PanelMsg>;
@@ -893,13 +940,14 @@ const RevenuePanel = ({
 				{rows.map((r) => (
 					<CountBarRow
 						key={r.label}
+						// A hard-coded "$" glyph contradicted IDR sites; only the
+						// country tab has a glyph worth showing (the flag).
 						glyph={
-							<span
-								className="grid size-4 shrink-0 place-items-center rounded-[5px] bg-(--money)/15 font-mono text-[9px] font-bold text-(--money)"
-								aria-hidden
-							>
-								$
-							</span>
+							r.flag ? (
+								<span className="text-[15px] leading-none" aria-hidden>
+									{r.flag}
+								</span>
+							) : undefined
 						}
 						label={r.label}
 						value={money(r.value, dash?.currency)}
@@ -981,14 +1029,20 @@ const RevenuePanel = ({
 	);
 };
 
-const LIVE_FEED_MAX = 8;
+/** Rows kept in memory; about ten are visible, the rest scroll. */
+const LIVE_FEED_MAX = 30;
+/** Above this many rows the list scrolls and fades at the bottom edge. */
+const LIVE_FEED_VISIBLE = 10;
 
 interface LiveFeedItem {
+	/** Event id from the stream; unique per event, so it is the React key. */
 	key: string;
 	flag: string;
 	path: string;
-	source: string;
-	at: number;
+	/** City when the event carries one; the stream has no referrer. */
+	place: string | null;
+	/** ISO timestamp of the event itself, not when the browser received it. */
+	at: string;
 }
 
 const LivePanel = ({
@@ -999,38 +1053,58 @@ const LivePanel = ({
 	domain: string | undefined;
 	online: number | null;
 	feed: LiveFeedItem[];
-}) => (
-	<Panel title="Live" hint="right now">
-		<p className="mb-1.5 flex items-center gap-2 text-[13px]">
-			<span className="relative flex size-2">
-				<span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-(--up) opacity-50 motion-reduce:animate-none" />
-				<span className="relative inline-flex size-2 rounded-full bg-(--up)" />
-			</span>
-			{online ?? "…"} visitors on {domain ?? "…"}
-		</p>
-		<div>
-			<PanelBody loading={false} hasData={feed.length > 0} emptyText="Waiting for live events…">
-				<div>
-					{feed.map((v) => (
-						<div
-							key={v.key}
-							className="border-border/60 flex items-center gap-3 border-t py-1.5 text-[13px] first:border-t-0"
-						>
-							<span aria-hidden>{v.flag || "🌐"}</span>
-							<span className="min-w-0 flex-1 truncate font-mono text-xs">{v.path}</span>
-							<span className="text-muted-foreground hidden truncate text-xs sm:block">
-								{v.source}
-							</span>
-							<span className="text-muted-foreground w-10 text-end font-mono text-xs tabular-nums">
-								{agoLabel(new Date(v.at).toISOString())}
-							</span>
-						</div>
-					))}
-				</div>
-			</PanelBody>
-		</div>
-	</Panel>
-);
+}) => {
+	const scrolls = feed.length > LIVE_FEED_VISIBLE;
+	return (
+		<Panel title="Live" hint="latest pageviews">
+			<p className="mb-1.5 flex items-center gap-2 text-[13px]">
+				<span className="size-2 shrink-0 rounded-full bg-(--up)" aria-hidden />
+				<span className="tabular-nums">
+					{online === null ? "Connecting…" : `${fmt(online)} online on ${domain ?? "this site"}`}
+				</span>
+			</p>
+			{feed.length === 0 ? (
+				<PanelMsg>No pageviews yet this session. New visits appear here as they happen.</PanelMsg>
+			) : (
+				<section
+					aria-label="Latest pageviews"
+					// Focusable so keyboard users can scroll the capped list.
+					tabIndex={scrolls ? 0 : undefined}
+					className={
+						scrolls
+							? "focus-visible:outline-ring max-h-[340px] overflow-y-auto overscroll-contain rounded-md pb-6 outline-offset-2 [mask-image:linear-gradient(to_bottom,black_calc(100%-2.5rem),transparent)] focus-visible:outline-2"
+							: undefined
+					}
+				>
+					<ul>
+						{feed.map((v) => (
+							<li
+								key={v.key}
+								className="border-border/60 flex h-[34px] items-center gap-2.5 border-t text-[13px] first:border-t-0"
+							>
+								<span className="w-5 shrink-0 text-center" aria-hidden>
+									{v.flag || "🌐"}
+								</span>
+								<span className="min-w-0 flex-1 truncate">{v.path}</span>
+								{v.place ? (
+									<span className="text-muted-foreground hidden max-w-28 truncate text-xs sm:block">
+										{v.place}
+									</span>
+								) : null}
+								<time
+									dateTime={v.at}
+									className="text-muted-foreground shrink-0 text-end text-xs whitespace-nowrap tabular-nums"
+								>
+									{agoLabel(v.at)}
+								</time>
+							</li>
+						))}
+					</ul>
+				</section>
+			)}
+		</Panel>
+	);
+};
 
 const ExplorePanel = ({
 	siteId,
@@ -1147,7 +1221,9 @@ const ExplorePanel = ({
 						loading={visitorsQ.isLoading}
 						hasData={visitors.length > 0}
 						emptyText={
-							pathPrefix ? `No identified visitors touch ${pathPrefix}.` : "No visitors yet."
+							pathPrefix
+								? `No identified visitors touch ${pathPrefix}.`
+								: "No visitor profiles yet. A profile is created when the tracker records a visitor's first session."
 						}
 					>
 						<div>
@@ -1361,7 +1437,15 @@ const FunnelSection = ({
 				) : (
 					<h2 className="text-sm font-semibold">Scroll funnel</h2>
 				)}
-				<span className="text-muted-foreground shrink-0 text-xs">data-section scroll funnel</span>
+				<span className="text-muted-foreground shrink-0 text-xs tabular-nums">
+					{/* Phones: the chart overlay would sit on the bands, so the rate moves here. */}
+					{funnelSteps.length > 0 && !funnelQ.error ? (
+						<span className="text-foreground font-semibold sm:hidden">
+							{funnelRate}% convert ·{" "}
+						</span>
+					) : null}
+					data-section scroll funnel
+				</span>
 			</div>
 			<PanelBody
 				loading={funnelQ.isLoading}
@@ -1387,6 +1471,19 @@ const FunnelSection = ({
 		</section>
 	);
 };
+
+/**
+ * Live visitor count. The dot marks a real live state, so it stays, but
+ * static: the theme's MOTION 1 dial allows no endless pulse.
+ */
+const OnlinePill = ({ online, className }: { online: number | null; className: string }) => (
+	<span
+		className={`bg-card ring-foreground/10 items-center gap-2 rounded-full px-2.5 py-1 text-[13px] whitespace-nowrap tabular-nums ring-1 ${className}`}
+	>
+		<span className="size-2 rounded-full bg-(--up)" aria-hidden />
+		{online === null ? "…" : fmt(online)} online
+	</span>
+);
 
 const TopBar = ({
 	view,
@@ -1415,7 +1512,9 @@ const TopBar = ({
 	onExport: () => void;
 	exporting: boolean;
 }) => (
-	<header className="border-border/60 bg-background/85 sticky top-0 z-20 border-b backdrop-blur">
+	// Sticky from sm only: on phones the three header rows would hold ~150px
+	// of an 844px screen for the whole scroll.
+	<header className="border-border/60 bg-background/85 z-20 border-b backdrop-blur sm:sticky sm:top-0">
 		<div className="relative mx-auto flex max-w-7xl flex-wrap items-center gap-2 px-3 py-2 md:px-4">
 			<Link
 				to="/analytics"
@@ -1428,7 +1527,8 @@ const TopBar = ({
 					alt=""
 					className="ring-foreground/10 size-7 rounded-lg object-cover ring-1"
 				/>
-				<span className="text-[15px] font-semibold tracking-tight">RevKlik</span>
+				{/* Phones keep the mark only: the site picker needs the width. */}
+				<span className="hidden text-[15px] font-semibold tracking-tight sm:inline">RevKlik</span>
 			</Link>
 
 			<Select
@@ -1467,15 +1567,21 @@ const TopBar = ({
 			</Select>
 
 			{view === "home" ? (
-				<div className="ms-auto flex items-center gap-2">
-					<div className="bg-muted/70 flex rounded-full p-1">
+				// Phones: the online count stays on the brand row and the ranges
+				// get a full-width row; from sm everything shares one row.
+				<OnlinePill online={online} className="ms-auto flex sm:hidden" />
+			) : null}
+
+			{view === "home" ? (
+				<div className="flex w-full items-center gap-2 sm:ms-auto sm:w-auto">
+					<div className="bg-muted/70 flex flex-1 rounded-full p-1 sm:flex-none">
 						{RANGES.map((r) => (
 							<button
 								key={r.key}
 								type="button"
 								aria-pressed={rangeKey === r.key}
 								onClick={() => onRange(r.key)}
-								className={`focus-visible:outline-ring rounded-full px-2.5 py-1 text-[13px] font-medium outline-offset-2 focus-visible:outline-2 ${
+								className={`focus-visible:outline-ring flex-1 rounded-full px-2.5 py-1.5 text-[13px] font-medium tabular-nums outline-offset-2 focus-visible:outline-2 sm:flex-none sm:py-1 ${
 									rangeKey === r.key
 										? "bg-card text-foreground ring-foreground/10 ring-1"
 										: "text-muted-foreground hover:text-foreground"
@@ -1492,17 +1598,11 @@ const TopBar = ({
 						title="Export CSV (events)"
 						disabled={exporting || !siteId}
 						onClick={onExport}
-						className="ring-foreground/10 bg-card hover:bg-accent size-7 rounded-full ring-1"
+						className="ring-foreground/10 bg-card hover:bg-accent size-9 shrink-0 rounded-full ring-1 sm:size-7"
 					>
 						<Download className={`size-3.5 ${exporting ? "animate-pulse" : ""}`} aria-hidden />
 					</Button>
-					<span className="bg-card ring-foreground/10 hidden items-center gap-2 rounded-full px-2.5 py-1 text-[13px] ring-1 sm:flex">
-						<span className="relative flex size-2">
-							<span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-(--up) opacity-50 motion-reduce:animate-none" />
-							<span className="relative inline-flex size-2 rounded-full bg-(--up)" />
-						</span>
-						{online ?? "…"} online
-					</span>
+					<OnlinePill online={online} className="hidden sm:flex" />
 				</div>
 			) : null}
 
@@ -1511,7 +1611,7 @@ const TopBar = ({
 				onView={onView}
 				// Absolute centring only from lg: between 768 and 1024px the
 				// tabs would overlap the site picker and the range pills.
-				className="order-last w-full min-w-0 justify-start sm:justify-center lg:absolute lg:top-1/2 lg:left-1/2 lg:order-none lg:w-auto lg:min-w-fit lg:-translate-x-1/2 lg:-translate-y-1/2"
+				className="order-last w-full min-w-0 justify-start max-sm:pe-8 max-sm:[mask-image:linear-gradient(to_right,black_calc(100%-2rem),transparent)] sm:justify-center lg:absolute lg:top-1/2 lg:left-1/2 lg:order-none lg:w-auto lg:min-w-fit lg:-translate-x-1/2 lg:-translate-y-1/2"
 			/>
 		</div>
 	</header>
@@ -1643,46 +1743,55 @@ const FiltersBar = ({
 
 const StatTiles = ({
 	stats,
+	compare,
 	currency,
-	deltaPct,
 }: {
 	stats: SiteDashboard["stats"] | undefined;
+	compare: SiteDashboard["compare"];
 	currency?: string;
-	deltaPct: (k: keyof NonNullable<SiteDashboard["compare"]>) => number;
-}) => (
-	<div className="mb-2.5 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
-		<StatTile
-			label="Visitors"
-			value={stats ? fmt(stats.visitors) : "…"}
-			delta={fmtPct(deltaPct("visitors"))}
-			tone={deltaPct("visitors") >= 0 ? "good" : "bad"}
-		/>
-		<StatTile
-			label="Pageviews"
-			value={stats ? fmt(stats.pageviews) : "…"}
-			delta={fmtPct(deltaPct("pageviews"))}
-			tone={deltaPct("pageviews") >= 0 ? "good" : "bad"}
-		/>
-		<StatTile
-			label="Bounce rate"
-			value={stats ? `${stats.bounceRate.toFixed(1)}%` : "…"}
-			delta={fmtPct(deltaPct("bounceRate"))}
-			tone={deltaPct("bounceRate") <= 0 ? "good" : "bad"}
-		/>
-		<StatTile
-			label="Visit duration"
-			value={stats ? duration(stats.avgDuration) : "…"}
-			delta={fmtPct(deltaPct("avgDuration"))}
-			tone={deltaPct("avgDuration") >= 0 ? "good" : "bad"}
-		/>
-		<StatTile
-			label="Revenue"
-			value={stats ? money(stats.revenue, currency) : "…"}
-			delta={fmtPct(deltaPct("revenue"))}
-			tone={deltaPct("revenue") >= 0 ? "good" : "bad"}
-		/>
-	</div>
-);
+}) => {
+	const badge = (k: CompareKey, lowerIsBetter = false) => {
+		const d = deltaBadge(compare?.[k], lowerIsBetter);
+		return d ? { delta: d.label, tone: d.tone } : {};
+	};
+	// Bounce and duration are session aggregates: with no sessions in range
+	// they would read as a real "0.0%" / "0m 00s", so say there is no data.
+	const noSessions = stats !== undefined && stats.sessions === 0;
+	return (
+		// Five tiles: Revenue spans the row on phones (2 cols) and two columns at
+		// sm (3 cols), so no row ends with a lone half-width tile.
+		<div className="mb-2.5 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
+			<StatTile
+				label="Visitors"
+				value={stats ? fmt(stats.visitors) : undefined}
+				{...badge("visitors")}
+			/>
+			<StatTile
+				label="Pageviews"
+				value={stats ? fmt(stats.pageviews) : undefined}
+				{...badge("pageviews")}
+			/>
+			<StatTile
+				label="Bounce rate"
+				value={stats ? `${stats.bounceRate.toFixed(1)}%` : undefined}
+				note={noSessions ? "No sessions yet" : undefined}
+				{...(noSessions ? {} : badge("bounceRate", true))}
+			/>
+			<StatTile
+				label="Visit duration"
+				value={stats ? duration(stats.avgDuration) : undefined}
+				note={noSessions ? "No sessions yet" : undefined}
+				{...(noSessions ? {} : badge("avgDuration"))}
+			/>
+			<StatTile
+				label="Revenue"
+				value={stats ? money(stats.revenue, currency) : undefined}
+				className="col-span-2 lg:col-span-1"
+				{...badge("revenue")}
+			/>
+		</div>
+	);
+};
 
 /** Replaces the empty traffic chart until the site's first event arrives. */
 const InstallPrompt = ({ domain, onInstall }: { domain: string; onInstall: () => void }) => {
@@ -1819,31 +1928,48 @@ const AnalyticsPage = ({
 		if (!siteId) {
 			return;
 		}
+		let liveSeq = 0;
 		return connectSSE(siteId, ({ type, data }) => {
 			if (type === "stats") {
 				const d = data as { live_visitors?: number };
 				setLive((s) => ({ ...s, online: d.live_visitors ?? s.online }));
 			} else if (type === "visitor") {
 				const d = data as {
+					id?: string;
+					visitor_id?: string;
+					event_type?: string;
 					path?: string;
-					country?: string;
-					referrer?: string;
-					utm_source?: string;
-					ts?: number;
+					country?: string | null;
+					city?: string | null;
+					timestamp?: string;
 				};
-				setLive((s) => ({
-					...s,
-					feed: [
-						{
-							at: Date.now(),
-							flag: countryFlag(d.country),
-							key: `${d.ts ?? Date.now()}-${d.path ?? ""}`,
-							path: d.path ?? "/",
-							source: d.utm_source || hostOf(d.referrer) || "direct",
-						},
-						...s.feed,
-					].slice(0, LIVE_FEED_MAX),
-				}));
+				// The stream carries every event type; heartbeats and scrolls
+				// would flood a feed that is meant to show visits.
+				if (d.event_type && d.event_type !== "pageview" && d.event_type !== "conversion") {
+					return;
+				}
+				const at = d.timestamp ?? new Date().toISOString();
+				liveSeq += 1;
+				// Event ids are unique; the fallback adds a per-tab sequence because
+				// one poll can deliver several events with the same timestamp.
+				const key = d.id ?? `${d.visitor_id ?? "anon"}-${at}-${liveSeq}`;
+				setLive((s) =>
+					s.feed.some((f) => f.key === key)
+						? s
+						: {
+								...s,
+								feed: [
+									{
+										at,
+										flag: countryFlag(d.country),
+										key,
+										path: d.path ?? "/",
+										place: d.city ?? null,
+									},
+									...s.feed,
+								].slice(0, LIVE_FEED_MAX),
+							},
+				);
 			}
 		});
 	}, [siteId]);
@@ -1910,8 +2036,6 @@ const AnalyticsPage = ({
 
 	const stats = dash?.stats;
 	const cmp = dash?.compare;
-	const deltaPct = (k: keyof NonNullable<SiteDashboard["compare"]>): number =>
-		cmp?.[k]?.changePct ?? 0;
 
 	const firstError = [sitesQ.error, dashQ.error].find(Boolean);
 	// Lapsed trial/subscription: the home view becomes an upgrade lock;
@@ -1965,7 +2089,7 @@ const AnalyticsPage = ({
 						addFilter={addFilter}
 					/>
 
-					<StatTiles stats={stats} currency={dash?.currency} deltaPct={deltaPct} />
+					<StatTiles stats={stats} compare={cmp} currency={dash?.currency} />
 					<section className="bg-card ring-foreground/10 mb-2.5 rounded-2xl p-3 ring-1">
 						<div className="mb-2 flex flex-wrap items-center justify-between gap-2">
 							<div className="text-muted-foreground flex items-center gap-4 text-xs">
@@ -1982,7 +2106,7 @@ const AnalyticsPage = ({
 							</div>
 							<span className="flex flex-wrap items-center gap-2">
 								<AnnotationsControl siteId={siteId} onAnnotations={setAnnotations} />
-								<span className="text-muted-foreground font-mono text-xs tabular-nums">
+								<span className="text-muted-foreground text-xs whitespace-nowrap tabular-nums">
 									{points[0]?.full}
 									{points.length > 1 ? ` – ${points.at(-1)?.full}` : ""}
 								</span>
@@ -1995,8 +2119,20 @@ const AnalyticsPage = ({
 								loading={loadingDash}
 								hasData={points.length > 0}
 								emptyText="No traffic in this range."
+								skeleton={
+									// Same box as the chart (h-52/h-60 + tick row) so nothing jumps.
+									<div className="mb-5 h-52 md:h-60" role="status">
+										<span className="sr-only">Loading traffic chart…</span>
+										<div className="bg-muted/40 h-full animate-pulse rounded-lg" aria-hidden />
+									</div>
+								}
 							>
-								<TrafficChart points={points} annotations={annotations} revenue={revenueSeries} />
+								<TrafficChart
+									points={points}
+									annotations={annotations}
+									revenue={revenueSeries}
+									currency={dash?.currency}
+								/>
 							</PanelBody>
 						)}
 					</section>
@@ -2011,7 +2147,6 @@ const AnalyticsPage = ({
 					<div className="mb-2.5 grid gap-2.5 md:grid-cols-2 xl:grid-cols-3">
 						<PagesPanel dash={dash} loading={loadingDash} onSelectPath={setJourneyPath} />
 						<SourcesPanel dash={dash} loading={loadingDash} />
-						<CrawlersPanel siteId={siteId} rangeKey={rangeKey} />
 						<LocationPanel siteId={siteId} rangeKey={rangeKey} filterStr={filterStr} />
 						<PlatformPanel dash={dash} loading={loadingDash} />
 						<RevenuePanel
@@ -2042,11 +2177,17 @@ const AnalyticsPage = ({
 							rangeKey={rangeKey}
 							siteId={siteId}
 						/>
-						<PredictionsPanel
-							onOpenVisitor={openVisitorSheet}
-							onUpgrade={() => setView("billing")}
-							siteId={siteId}
-						/>
+						{/* Fifth cell of the 2-col grid: span the row instead of leaving a gap. */}
+						<div className="grid md:col-span-2 xl:col-span-1">
+							<PredictionsPanel
+								onOpenVisitor={openVisitorSheet}
+								onUpgrade={() => setView("billing")}
+								siteId={siteId}
+							/>
+						</div>
+					</div>
+					<div className="mb-2.5">
+						<CrawlersPanel siteId={siteId} rangeKey={rangeKey} />
 					</div>
 					<FunnelSection
 						siteId={siteId}

@@ -123,6 +123,23 @@ export const money = (v: number, currency?: string | null): string => {
 export const pctDelta = (now: number, before: number): number =>
 	before === 0 ? 0 : ((now - before) / before) * 100;
 export const fmtPct = (v: number): string => `${v >= 0 ? "+" : ""}${v.toFixed(1)}%`;
+
+/**
+ * KPI delta badge, or null when there is nothing honest to compare against:
+ * no compare block, a null changePct, or a previous value of 0 (the API then
+ * sends changePct 0, which would read as a flat "+0.0%").
+ */
+export const deltaBadge = (
+	change: { previous: number; changePct: number | null } | undefined,
+	lowerIsBetter = false,
+): { label: string; tone: "good" | "bad" } | null => {
+	if (!change?.previous || change.changePct === null || !Number.isFinite(change.changePct)) {
+		return null;
+	}
+	const pct = change.changePct;
+	const better = lowerIsBetter ? pct <= 0 : pct >= 0;
+	return { label: fmtPct(pct), tone: better ? "good" : "bad" };
+};
 export const duration = (s: number): string =>
 	`${Math.floor(s / 60)}m ${String(Math.round(s % 60)).padStart(2, "0")}s`;
 
