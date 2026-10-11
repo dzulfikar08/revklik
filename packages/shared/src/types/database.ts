@@ -236,6 +236,15 @@ export interface KlikapaDatabase {
 	referrals: ReferralTable;
 	pakasir_orders: PakasirOrderTable;
 	webhook_dedupe: WebhookDedupeTable;
+	account_usage: AccountUsageTable;
+}
+
+/** Monthly ingested-event counter per account (all sites of the owner). */
+export interface AccountUsageTable {
+	user_id: string;
+	/** UTC calendar month, "YYYY-MM". */
+	month: string;
+	events: number;
 }
 
 export interface PakasirOrderTable {

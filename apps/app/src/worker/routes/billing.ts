@@ -1,6 +1,7 @@
 import { Hono } from "hono";
 import type { PlanTier } from "../lib/plans";
 import { getFeatures, getPlanLimits, PLANS } from "../lib/plans";
+import { getAccountEventsUsed } from "../lib/account-usage";
 import { isTrialExpired } from "../lib/entitlement";
 import {
 	activatePakasirPayment,
@@ -52,19 +53,8 @@ billingRoutes.get("/subscription", async (c) => {
 	const plan = (sub?.plan ?? "micro") as PlanTier;
 	const limits = getPlanLimits(plan);
 
-	// Count current month's usage
-	const monthStart = new Date();
-	monthStart.setUTCDate(1);
-	monthStart.setUTCHours(0, 0, 0, 0);
-	const monthStartIso = monthStart.toISOString();
-
-	const [eventCount, siteCount] = await Promise.all([
-		db
-			.selectFrom("events")
-			.select(({ fn }) => fn.count<number>("id").as("cnt"))
-			.where("site_id", "in", db.selectFrom("sites").select("id").where("user_id", "=", userId))
-			.where("timestamp", ">=", monthStartIso)
-			.executeTakeFirst(),
+	const [eventsUsed, siteCount] = await Promise.all([
+		getAccountEventsUsed(db, userId),
 		db
 			.selectFrom("sites")
 			.select(({ fn }) => fn.count<number>("id").as("cnt"))
@@ -74,7 +64,7 @@ billingRoutes.get("/subscription", async (c) => {
 
 	const usage = {
 		events: {
-			used: Number(eventCount?.cnt ?? 0),
+			used: eventsUsed,
 			limit: limits.events_per_month,
 		},
 		sites: { used: Number(siteCount?.cnt ?? 0), limit: limits.sites },

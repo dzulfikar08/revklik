@@ -1,9 +1,11 @@
 import { Hono } from "hono";
-import type { Kysely } from "kysely";
+import type { Compilable, Kysely } from "kysely";
 import type { IdentifyPayload, KlikapaDatabase, TrackEventPayload } from "@revklik/shared";
 import { sql } from "../db";
 import { eventCurrency, resolveEventTimestamp, sanitizeRevenue } from "../lib/ingest";
-import { enforceSiteQuota, incrementCachedCount } from "../lib/subscription-cache";
+import { accountUsageIncrement } from "../lib/account-usage";
+import { executeBatch } from "../lib/d1-batch";
+import { enforceSiteQuota, incrementCachedUsage } from "../lib/subscription-cache";
 import {
 	countryFromTimezone,
 	classifyCrawler,
@@ -15,7 +17,10 @@ import {
 
 type Variables = { db: Kysely<KlikapaDatabase> };
 
-export const trackRoutes = new Hono<{ Variables: Variables }>();
+export const trackRoutes = new Hono<{ Variables: Variables; Bindings: { DB: D1Database } }>();
+
+/** Events accepted per /track request; larger batches are rejected with 413. */
+export const MAX_TRACK_BATCH = 50;
 
 // In-memory rate limiter (per-isolate, resets on Worker recycle)
 const rlMap = new Map<string, { count: number; resetAt: number }>();
@@ -97,6 +102,12 @@ trackRoutes.post("/track", async (c) => {
 	// Support batch (array) or single event
 	const payloads: TrackEventPayload[] = Array.isArray(raw) ? raw : [raw];
 	if (payloads.length === 0) return c.json({ error: "empty payload", success: false }, 400);
+	if (payloads.length > MAX_TRACK_BATCH) {
+		return c.json(
+			{ error: `batch too large (max ${MAX_TRACK_BATCH} events)`, success: false },
+			413,
+		);
+	}
 
 	// Known crawler/bot user-agents never enter human analytics. AI crawlers
 	// (and every other bot, bucketed as "other") are recorded fire-and-forget
@@ -241,9 +252,12 @@ trackRoutes.post("/track", async (c) => {
 		return c.json({ success: true, excluded: true }, { status: 202 });
 	}
 
+	const writes: Compilable[] = [];
 	const seenSids = new Set<string>();
+	let ingested = 0;
 	for (const payload of payloads) {
 		if (payload.s !== siteId) continue;
+		ingested++;
 		const isNewSession = !seenSids.has(payload.sid);
 		seenSids.add(payload.sid);
 		const sessionInc = isNewSession ? 1 : 0;
@@ -253,9 +267,8 @@ trackRoutes.post("/track", async (c) => {
 		const eventType = payload.t === "p" ? "pageview" : payload.t === "c" ? "conversion" : "custom";
 		const vid = fingerprint ? resolvedVid : payload.vid;
 
-		await db
-			.insertInto("events")
-			.values({
+		writes.push(
+			db.insertInto("events").values({
 				id: generateId(),
 				site_id: payload.s,
 				session_id: payload.sid,
@@ -282,83 +295,89 @@ trackRoutes.post("/track", async (c) => {
 				browser,
 				os,
 				fingerprint,
-			})
-			.execute();
+			}),
+		);
 
 		const pvInc = eventType === "pageview" ? 1 : 0;
 		const rvInc = revenue ?? 0;
 
-		await db
-			.insertInto("sessions")
-			.values({
-				id: payload.sid,
-				site_id: payload.s,
-				visitor_id: vid,
-				started_at: ts,
-				entry_path: payload.p,
-				exit_path: payload.p,
-				referrer: payload.r ?? null,
-				utm_source: payload.us ?? null,
-				utm_medium: payload.um ?? null,
-				utm_campaign: payload.uc ?? null,
-				country: cfCountry,
-				region: cfRegion,
-				city: cfCity,
-				device_type: deviceType,
-				browser,
-				os,
-				page_count: 1,
-				is_bounce: 1,
-				fingerprint,
-			})
-			.onConflict((oc) =>
-				oc.column("id").doUpdateSet({
+		writes.push(
+			db
+				.insertInto("sessions")
+				.values({
+					id: payload.sid,
+					site_id: payload.s,
+					visitor_id: vid,
+					started_at: ts,
+					entry_path: payload.p,
 					exit_path: payload.p,
-					ended_at: ts,
-					page_count: sql`page_count + 1`,
-					is_bounce: 0,
-				}),
-			)
-			.execute();
+					referrer: payload.r ?? null,
+					utm_source: payload.us ?? null,
+					utm_medium: payload.um ?? null,
+					utm_campaign: payload.uc ?? null,
+					country: cfCountry,
+					region: cfRegion,
+					city: cfCity,
+					device_type: deviceType,
+					browser,
+					os,
+					page_count: 1,
+					is_bounce: 1,
+					fingerprint,
+				})
+				.onConflict((oc) =>
+					oc.column("id").doUpdateSet({
+						exit_path: payload.p,
+						ended_at: ts,
+						page_count: sql`page_count + 1`,
+						is_bounce: 0,
+					}),
+				),
+		);
 
-		await db
-			.insertInto("visitor_profiles")
-			.values({
-				id: generateId(),
-				site_id: payload.s,
-				visitor_id: vid,
-				first_seen: ts,
-				last_seen: ts,
-				country: cfCountry,
-				region: cfRegion,
-				city: cfCity,
-				device_type: deviceType,
-				browser,
-				os,
-				total_sessions: 1,
-				total_pageviews: pvInc,
-				total_revenue: rvInc,
-				fingerprint,
-			})
-			.onConflict((oc) =>
-				oc.columns(["site_id", "visitor_id"]).doUpdateSet({
+		writes.push(
+			db
+				.insertInto("visitor_profiles")
+				.values({
+					id: generateId(),
+					site_id: payload.s,
+					visitor_id: vid,
+					first_seen: ts,
 					last_seen: ts,
-					fingerprint: fingerprint ?? undefined,
-					country: cfCountry ?? undefined,
-					region: cfRegion ?? undefined,
-					city: cfCity ?? undefined,
-					device_type: deviceType ?? undefined,
-					browser: browser ?? undefined,
-					os: os ?? undefined,
-					total_pageviews: sql`total_pageviews + ${pvInc}`,
-					total_sessions: sessionInc > 0 ? sql`total_sessions + ${sessionInc}` : undefined,
-					total_revenue: rvInc > 0 ? sql`total_revenue + ${rvInc}` : undefined,
-				}),
-			)
-			.execute();
+					country: cfCountry,
+					region: cfRegion,
+					city: cfCity,
+					device_type: deviceType,
+					browser,
+					os,
+					total_sessions: 1,
+					total_pageviews: pvInc,
+					total_revenue: rvInc,
+					fingerprint,
+				})
+				.onConflict((oc) =>
+					oc.columns(["site_id", "visitor_id"]).doUpdateSet({
+						last_seen: ts,
+						fingerprint: fingerprint ?? undefined,
+						country: cfCountry ?? undefined,
+						region: cfRegion ?? undefined,
+						city: cfCity ?? undefined,
+						device_type: deviceType ?? undefined,
+						browser: browser ?? undefined,
+						os: os ?? undefined,
+						total_pageviews: sql`total_pageviews + ${pvInc}`,
+						total_sessions: sessionInc > 0 ? sql`total_sessions + ${sessionInc}` : undefined,
+						total_revenue: rvInc > 0 ? sql`total_revenue + ${rvInc}` : undefined,
+					}),
+				),
+		);
 	}
 
-	incrementCachedCount(siteId, payloads.length);
+	if (enforcement.ownerId && ingested > 0) {
+		writes.push(accountUsageIncrement(db, enforcement.ownerId, ingested));
+		incrementCachedUsage(enforcement.ownerId, ingested);
+	}
+	await executeBatch(c.env.DB, writes);
 
 	return c.json(
 		{ success: true, vid: resolvedVid !== first.vid ? resolvedVid : undefined },
@@ -708,6 +727,11 @@ trackRoutes.post("/track/payment", async (c) => {
 			}),
 		)
 		.execute();
+
+	if (enforcement.ownerId) {
+		await accountUsageIncrement(db, enforcement.ownerId, 1).execute();
+		incrementCachedUsage(enforcement.ownerId, 1);
+	}
 
 	return c.json({ success: true, event_id: eventId, visitor_id: visitorId });
 });

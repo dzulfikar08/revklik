@@ -2,7 +2,7 @@
  * Version the live schema must reach. Bump it whenever a step is appended to
  * VERSIONED_STEPS; a DB already at this version costs one SELECT per isolate.
  */
-export const SCHEMA_VERSION = 4;
+export const SCHEMA_VERSION = 5;
 
 const migrated = new WeakSet<D1Database>();
 
@@ -18,6 +18,18 @@ async function runDdl(d1: D1Database, statement: string): Promise<void> {
 	} catch (err) {
 		if (err instanceof Error && ALREADY_APPLIED_RE.test(err.message)) return;
 		throw err;
+	}
+}
+
+/** Data repair is best effort: a failed backfill is logged and never blocks the schema. */
+async function runBackfill(d1: D1Database, statement: string, ...params: unknown[]): Promise<void> {
+	try {
+		await d1
+			.prepare(statement)
+			.bind(...params)
+			.run();
+	} catch (err) {
+		console.error("migration backfill skipped:", err);
 	}
 }
 
@@ -37,6 +49,14 @@ const VERSIONED_STEPS: MigrationStep[] = [
 		version: 4,
 		run: (d1) =>
 			runDdl(d1, "ALTER TABLE sites ADD COLUMN revenue_currency TEXT NOT NULL DEFAULT 'USD'"),
+	},
+	{
+		version: 5,
+		run: (d1) =>
+			runDdl(
+				d1,
+				"CREATE TABLE IF NOT EXISTS account_usage (user_id TEXT NOT NULL, month TEXT NOT NULL, events INTEGER NOT NULL DEFAULT 0, PRIMARY KEY (user_id, month))",
+			),
 	},
 ];
 
@@ -65,9 +85,9 @@ async function billingIntegritySchema(d1: D1Database): Promise<void> {
 	);
 	// Carry orders recorded on the subscription row over: an active row's order
 	// was already applied, so it lands as completed and can never be replayed.
-	await d1
-		.prepare(
-			`INSERT INTO pakasir_orders (order_id, user_id, plan, amount, checkout_url, status, created_at, processed_at)
+	await runBackfill(
+		d1,
+		`INSERT INTO pakasir_orders (order_id, user_id, plan, amount, checkout_url, status, created_at, processed_at)
        SELECT pakasir_order_id, user_id, plan,
          CASE plan WHEN 'micro' THEN 16000 WHEN 'starter' THEN 64000 ELSE 192000 END,
          'https://app.pakasir.com/pay/revklik/' || CASE plan WHEN 'micro' THEN 16000 WHEN 'starter' THEN 64000 ELSE 192000 END || '?order_id=' || pakasir_order_id || '&qris_only=1',
@@ -77,16 +97,14 @@ async function billingIntegritySchema(d1: D1Database): Promise<void> {
        FROM subscriptions
        WHERE pakasir_order_id IS NOT NULL AND plan IN ('micro', 'starter', 'growth')
        ON CONFLICT(order_id) DO NOTHING`,
-		)
-		.run();
+	);
 	// subscription.canceled used to end access immediately; rows still inside a
 	// paid period get their access back (they stay flagged cancel_at_period_end).
-	await d1
-		.prepare(
-			"UPDATE subscriptions SET status = 'active' WHERE status = 'canceled' AND cancel_at_period_end = 1 AND polar_subscription_id IS NOT NULL AND current_period_end > ?",
-		)
-		.bind(new Date().toISOString())
-		.run();
+	await runBackfill(
+		d1,
+		"UPDATE subscriptions SET status = 'active' WHERE status = 'canceled' AND cancel_at_period_end = 1 AND polar_subscription_id IS NOT NULL AND current_period_end > ?",
+		new Date().toISOString(),
+	);
 }
 
 async function readSchemaVersion(d1: D1Database): Promise<number> {
