@@ -5,7 +5,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { LoaderCircle } from "lucide-react";
 import { useState } from "react";
 
-import { AuthShell } from "@/components/auth-form";
+import { AuthShell, authButtonClass, authInputClass, authLinkClass } from "@/components/auth-shell";
 import { useT } from "@/lib/i18n";
 import { resetPassword } from "@/lib/legacy/api";
 
@@ -19,8 +19,7 @@ export const Route = createFileRoute("/reset-password")({
 
 const MIN_PASSWORD = 8;
 
-const linkClass =
-	"justify-self-center text-sm text-foreground font-medium underline underline-offset-4 rounded-sm outline-offset-2 focus-visible:outline-2 focus-visible:outline-ring";
+const linkClass = `justify-self-center text-[13px] ${authLinkClass}`;
 
 function ResetPassword() {
 	const t = useT();
@@ -64,7 +63,7 @@ function ResetPassword() {
 	if (done) {
 		return (
 			<AuthShell title={t("reset.title")} description={t("reset.done")}>
-				<Link to="/login" className={buttonVariants({ className: "w-full" })}>
+				<Link to="/login" className={buttonVariants({ className: authButtonClass })}>
 					{t("auth.signInBtn")}
 				</Link>
 			</AuthShell>
@@ -78,6 +77,7 @@ function ResetPassword() {
 					<Label htmlFor="new-password">{t("reset.new")}</Label>
 					<Input
 						id="new-password"
+						className={authInputClass}
 						type="password"
 						autoComplete="new-password"
 						value={password}
@@ -91,6 +91,7 @@ function ResetPassword() {
 					<Label htmlFor="confirm-password">{t("reset.confirm")}</Label>
 					<Input
 						id="confirm-password"
+						className={authInputClass}
 						type="password"
 						autoComplete="new-password"
 						value={confirm}
@@ -104,8 +105,8 @@ function ResetPassword() {
 						{t(`reset.${error}`)}
 					</p>
 				)}
-				<Button type="submit" className="w-full" disabled={pending}>
-					{pending && <LoaderCircle className="mr-1 h-4 w-4 animate-spin" />}
+				<Button type="submit" className={`mt-1 ${authButtonClass}`} disabled={pending}>
+					{pending && <LoaderCircle className="mr-1 h-4 w-4 animate-spin" aria-hidden />}
 					{t("reset.submit")}
 				</Button>
 			</form>

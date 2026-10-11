@@ -1,19 +1,11 @@
 import { Button } from "@revklik/ui/components/button";
-import {
-	Card,
-	CardContent,
-	CardDescription,
-	CardHeader,
-	CardTitle,
-} from "@revklik/ui/components/card";
 import { Input } from "@revklik/ui/components/input";
 import { Label } from "@revklik/ui/components/label";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { LoaderCircle } from "lucide-react";
 import { useEffect, useState } from "react";
-import type { ReactNode } from "react";
 
-import { LocaleToggle } from "@/components/locale-toggle";
+import { AuthShell, authButtonClass, authInputClass, authLinkClass } from "@/components/auth-shell";
 import { useT } from "@/lib/i18n";
 import {
 	LEGACY_API_BASE,
@@ -52,31 +44,7 @@ function GoogleIcon() {
 	);
 }
 
-/** Centered card shell shared by sign-in, sign-up, forgot and reset. */
-export const AuthShell = ({
-	title,
-	description,
-	children,
-}: {
-	title: string;
-	description: ReactNode;
-	children: ReactNode;
-}) => (
-	<main className="bg-background relative grid min-h-svh place-items-center px-4 py-12">
-		<LocaleToggle className="absolute top-3 right-3" />
-		<Card className="border-border/60 w-full max-w-sm shadow-lg">
-			<CardHeader className="items-center text-center">
-				<img src="/revklik.webp" alt="RevKlik" className="mx-auto mb-1 h-12 w-12 rounded-xl" />
-				<CardTitle className="text-xl">{title}</CardTitle>
-				<CardDescription>{description}</CardDescription>
-			</CardHeader>
-			<CardContent className="grid gap-4">{children}</CardContent>
-		</Card>
-	</main>
-);
-
-const linkClass =
-	"text-foreground font-medium underline underline-offset-4 outline-offset-2 focus-visible:outline-2 focus-visible:outline-ring rounded-sm";
+const linkClass = authLinkClass;
 
 const ForgotPasswordForm = ({ onBack }: { onBack: () => void }) => {
 	const t = useT();
@@ -112,6 +80,7 @@ const ForgotPasswordForm = ({ onBack }: { onBack: () => void }) => {
 						<Label htmlFor="forgot-email">{t("auth.email")}</Label>
 						<Input
 							id="forgot-email"
+							className={authInputClass}
 							type="email"
 							autoComplete="email"
 							placeholder="you@example.com"
@@ -126,8 +95,8 @@ const ForgotPasswordForm = ({ onBack }: { onBack: () => void }) => {
 							{error}
 						</p>
 					)}
-					<Button type="submit" className="w-full" disabled={pending}>
-						{pending && <LoaderCircle className="mr-1 h-4 w-4 animate-spin" />}
+					<Button type="submit" className={authButtonClass} disabled={pending}>
+						{pending && <LoaderCircle className="mr-1 h-4 w-4 animate-spin" aria-hidden />}
 						{t("forgot.submit")}
 					</Button>
 				</form>
@@ -195,6 +164,16 @@ export const AuthForm = ({ mode, search }: { mode: AuthMode; search: AuthSearch 
 		}
 	};
 
+	// Every signup starts on a Growth trial, so a picked Micro or Starter gets
+	// one line saying so; plain sign-up and ?plan=growth share the trial line.
+	let description = t("auth.signIn.desc");
+	if (signUp) {
+		description =
+			plan && plan !== "growth"
+				? t("auth.signUp.descPlan", { plan: planLabel(plan) })
+				: t("auth.signUp.desc");
+	}
+
 	const continueWithGoogle = () => {
 		// The Google callback lands on /#token=…; the plan rides along in storage.
 		rememberSignupPlan(plan);
@@ -205,16 +184,7 @@ export const AuthForm = ({ mode, search }: { mode: AuthMode; search: AuthSearch 
 	return (
 		<AuthShell
 			title={signUp ? t("auth.signUp.title") : t("auth.signIn.title")}
-			description={
-				<>
-					{signUp ? t("auth.signUp.desc") : t("auth.signIn.desc")}
-					{plan ? (
-						<span className="mt-1 block">
-							{t("auth.signUp.planNote", { plan: planLabel(plan) })}
-						</span>
-					) : null}
-				</>
-			}
+			description={description}
 		>
 			<form onSubmit={submit} className="grid gap-3">
 				{signUp && (
@@ -222,6 +192,7 @@ export const AuthForm = ({ mode, search }: { mode: AuthMode; search: AuthSearch 
 						<Label htmlFor="name">{t("auth.name")}</Label>
 						<Input
 							id="name"
+							className={authInputClass}
 							autoComplete="name"
 							placeholder={t("auth.namePlaceholder")}
 							value={name}
@@ -234,6 +205,7 @@ export const AuthForm = ({ mode, search }: { mode: AuthMode; search: AuthSearch 
 					<Label htmlFor="email">{t("auth.email")}</Label>
 					<Input
 						id="email"
+						className={authInputClass}
 						type="email"
 						autoComplete="email"
 						placeholder="you@example.com"
@@ -248,7 +220,7 @@ export const AuthForm = ({ mode, search }: { mode: AuthMode; search: AuthSearch 
 						{signUp ? null : (
 							<button
 								type="button"
-								className={`text-muted-foreground hover:text-foreground text-xs ${linkClass} font-normal`}
+								className="text-muted-foreground hover:text-foreground focus-visible:outline-ring pointer-coarse:min-h-10 rounded-sm text-xs outline-offset-2 transition-colors duration-150 focus-visible:outline-2"
 								onClick={() => {
 									setError(null);
 									setForgot(true);
@@ -260,6 +232,7 @@ export const AuthForm = ({ mode, search }: { mode: AuthMode; search: AuthSearch 
 					</div>
 					<Input
 						id="password"
+						className={authInputClass}
 						type="password"
 						autoComplete={signUp ? "new-password" : "current-password"}
 						placeholder="••••••••"
@@ -274,24 +247,31 @@ export const AuthForm = ({ mode, search }: { mode: AuthMode; search: AuthSearch 
 						{error}
 					</p>
 				)}
-				<Button type="submit" className="w-full" disabled={pending}>
-					{pending && <LoaderCircle className="mr-1 h-4 w-4 animate-spin" />}
+				<Button type="submit" className={`mt-1 ${authButtonClass}`} disabled={pending}>
+					{pending && <LoaderCircle className="mr-1 h-4 w-4 animate-spin" aria-hidden />}
 					{signUp ? t("auth.signUpBtn") : t("auth.signInBtn")}
 				</Button>
 			</form>
 
-			<div className="flex items-center gap-3">
-				<span className="bg-border h-px flex-1" />
-				<span className="text-muted-foreground text-xs">{t("auth.or")}</span>
-				<span className="bg-border h-px flex-1" />
+			<div className="flex items-center gap-3" role="separator" aria-label={t("auth.or")}>
+				<span className="bg-border h-px flex-1" aria-hidden />
+				<span className="text-muted-foreground text-xs" aria-hidden>
+					{t("auth.or")}
+				</span>
+				<span className="bg-border h-px flex-1" aria-hidden />
 			</div>
 
-			<Button type="button" variant="outline" className="w-full" onClick={continueWithGoogle}>
+			<Button
+				type="button"
+				variant="outline"
+				className={`${authButtonClass} gap-2`}
+				onClick={continueWithGoogle}
+			>
 				<GoogleIcon />
 				{t("auth.google")}
 			</Button>
 
-			<p className="text-muted-foreground text-center text-sm">
+			<p className="text-muted-foreground mt-1 text-center text-[13px]">
 				{signUp ? t("auth.haveAccount") : t("auth.noAccount")}{" "}
 				<Link to={signUp ? "/login" : "/register"} search={search} className={linkClass}>
 					{signUp ? t("auth.signInLink") : t("auth.createOne")}

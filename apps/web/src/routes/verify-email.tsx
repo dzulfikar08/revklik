@@ -3,7 +3,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { LoaderCircle } from "lucide-react";
 import { useEffect, useState } from "react";
 
-import { AuthShell } from "@/components/auth-form";
+import { AuthShell, authButtonClass } from "@/components/auth-shell";
 import { useT } from "@/lib/i18n";
 import { verifyEmail } from "@/lib/legacy/api";
 import type { VerifyEmailResult } from "@/lib/legacy/api";
@@ -44,7 +44,7 @@ function VerifyEmail() {
 			{result === null ? (
 				<LoaderCircle className="text-muted-foreground mx-auto size-5 animate-spin" aria-hidden />
 			) : (
-				<Link to="/analytics" className={buttonVariants({ className: "h-10 w-full" })}>
+				<Link to="/analytics" className={buttonVariants({ className: authButtonClass })}>
 					{t("verify.toDashboard")}
 				</Link>
 			)}
