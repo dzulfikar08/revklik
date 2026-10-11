@@ -41,7 +41,8 @@ export async function inferSiteCurrency(
 	return next;
 }
 
-const settledThisIsolate = new Set<string>();
+// Settled or in-flight inferences: parallel readers of one site share a promise.
+const inflight = new Map<string, Promise<string>>();
 
 /**
  * Read-path variant: infers inline the first time a site is read, at most once
@@ -54,14 +55,15 @@ export async function ensureSiteCurrency(
 	source: string | null | undefined,
 ): Promise<string> {
 	if (source !== null && source !== undefined) return current;
-	if (settledThisIsolate.has(siteId)) return current;
-	settledThisIsolate.add(siteId);
-	try {
-		return await inferSiteCurrency(db, siteId, current);
-	} catch (err) {
-		console.error(`[currency] site ${siteId}: lazy inference failed, keeping ${current}:`, err);
-		return current;
+	let pending = inflight.get(siteId);
+	if (!pending) {
+		pending = inferSiteCurrency(db, siteId, current).catch((err) => {
+			console.error(`[currency] site ${siteId}: lazy inference failed, keeping ${current}:`, err);
+			return current;
+		});
+		inflight.set(siteId, pending);
 	}
+	return pending;
 }
 
 /** Nightly sweep over sites the read path has not touched yet. */

@@ -349,7 +349,7 @@ describe("migrations and ingest safety (review #8)", () => {
 			.prepare("INSERT INTO migration_lock (id, token, locked_at) VALUES (1, 'other', ?)")
 			.run(new Date().toISOString());
 		const d1 = makeD1(t.db) as unknown as D1Database;
-		await migrateDatabase(d1);
+		await migrateDatabase(d1, { lockWaitMs: 300 });
 		expect(
 			(t.db.query("SELECT version FROM schema_version").get() as { version: number }).version,
 		).toBe(1);
