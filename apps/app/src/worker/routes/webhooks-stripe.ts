@@ -88,12 +88,14 @@ stripeWebhookRoutes.post("/", async (c) => {
 	const config = JSON.parse((integration.config as string) || "{}");
 	const webhookSecret = config.webhook_secret || "";
 
-	if (webhookSecret) {
-		const valid = await verifyStripeSignature(rawBody, signatureHeader, webhookSecret);
-		if (!valid) {
-			await logWebhookEvent(db, siteId, integration.id, "stripe_invalid_sig", rawBody, "failed");
-			return c.json({ error: "Invalid signature" }, 401);
-		}
+	if (!webhookSecret) {
+		await logWebhookEvent(db, siteId, integration.id, "stripe_no_secret", rawBody, "failed");
+		return c.json({ error: "Webhook secret not configured for this integration" }, 401);
+	}
+	const valid = await verifyStripeSignature(rawBody, signatureHeader, webhookSecret);
+	if (!valid) {
+		await logWebhookEvent(db, siteId, integration.id, "stripe_invalid_sig", rawBody, "failed");
+		return c.json({ error: "Invalid signature" }, 401);
 	}
 
 	const eventType = event.type || "";

@@ -167,6 +167,12 @@ siteRoutes.post("/", async (c) => {
 		}
 	}
 
+	// Indonesia-first: a site created from ID starts in IDR so its revenue is not
+	// shown converted to USD.
+	const country =
+		(c.req.raw.cf as { country?: string } | undefined)?.country ||
+		c.req.header("CF-IPCountry") ||
+		"";
 	const siteId = generateId();
 	await db
 		.insertInto("sites")
@@ -175,6 +181,7 @@ siteRoutes.post("/", async (c) => {
 			user_id: userId,
 			name,
 			domain,
+			revenue_currency: country.toUpperCase() === "ID" ? "IDR" : "USD",
 			created_at: new Date().toISOString(),
 			share_token: null,
 			public_dashboard: 0,

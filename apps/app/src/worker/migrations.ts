@@ -2,7 +2,7 @@
  * Version the live schema must reach. Bump it whenever a step is appended to
  * VERSIONED_STEPS; a DB already at this version costs one SELECT per isolate.
  */
-export const SCHEMA_VERSION = 8;
+export const SCHEMA_VERSION = 9;
 
 const migrated = new WeakSet<D1Database>();
 
@@ -64,6 +64,22 @@ const VERSIONED_STEPS: MigrationStep[] = [
 	// groups after a site_id + revenue range, served by idx_events_site_revenue_time),
 	// so this 4-column index only costs writes and storage.
 	{ version: 8, run: (d1) => runDdl(d1, "DROP INDEX IF EXISTS idx_events_site_payment") },
+	{
+		version: 9,
+		// Display each existing site in the currency most of its revenue arrived in,
+		// so IDR merchants keep seeing IDR. Sites without revenue stay USD.
+		run: (d1) =>
+			runBackfill(
+				d1,
+				`UPDATE sites SET revenue_currency = COALESCE((
+           SELECT UPPER(COALESCE(NULLIF(e.currency, ''), 'USD')) AS cur
+           FROM events e
+           WHERE e.site_id = sites.id AND e.revenue > 0
+           GROUP BY cur ORDER BY COUNT(*) DESC LIMIT 1
+         ), 'USD')
+         WHERE revenue_currency = 'USD'`,
+			),
+	},
 ];
 
 /** DEV-34: password resets, D1 login throttle, session expiry, referral commissions. */
