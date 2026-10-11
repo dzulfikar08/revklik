@@ -94,3 +94,6 @@ rw-crews/
 # Database backup exports (kept local + R2; too bulky/PII for git)
 klikapa-db-*-backup-*.sql
 /klikapa-db-*.sql
+
+# Agent worktrees (local only)
+/.claude/worktrees/
