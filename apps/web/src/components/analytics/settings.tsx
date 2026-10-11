@@ -28,7 +28,7 @@ export const SettingsView = ({
 			<div className="mb-2.5">
 				<h1 className="text-lg font-semibold tracking-tight">Settings</h1>
 				<p className="text-muted-foreground text-xs">
-					Connected to your revklik account — live data from klikapa-db
+					Your RevKlik account, sign-in and preferences
 				</p>
 			</div>
 			<div className="grid gap-2.5 md:grid-cols-2">

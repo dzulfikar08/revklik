@@ -1,27 +1,38 @@
 import { Button } from "@revklik/ui/components/button";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { AlertTriangle, Check, Clock, CreditCard, Info, QrCode, X } from "lucide-react";
-import { useState } from "react";
+import { AlertTriangle, Check, Clock, CreditCard, QrCode, X } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
+import { LocaleToggle } from "@/components/locale-toggle";
+import { formatDate, useLocale, useT } from "@/lib/i18n";
+import type { MessageKey } from "@/lib/i18n";
+import { isPlanRequired } from "@/lib/legacy/api";
 import {
+	IDR_PRICE,
 	cancelSubscription,
 	createCheckout,
 	createPakasirCheckout,
 	fetchPlans,
 	fetchSubscription,
+	parsePlan,
+	planLabel,
+	subscriptionState,
 	verifyPakasirPayment,
 } from "@/lib/legacy/billing";
 import type {
 	BillingPlan,
 	BillingSubscription,
+	CheckoutResult,
 	PlanTier,
-	SubscriptionStatus,
 } from "@/lib/legacy/billing";
 
+import { money } from "./data";
 import { Panel } from "./ui";
 
 /* ------------------------------- data hook -------------------------------- */
+
+export const SUBSCRIPTION_KEY = ["legacy", "subscription"] as const;
 
 /**
  * Shared subscription query for the legacy klikapa billing API.
@@ -30,55 +41,49 @@ import { Panel } from "./ui";
 export const useSubscription = () =>
 	useQuery({
 		queryFn: fetchSubscription,
-		queryKey: ["legacy", "subscription"],
+		queryKey: SUBSCRIPTION_KEY,
 		retry: false,
 		staleTime: 60_000,
 	});
 
+/** Mutation error toast; plan errors already get the global upgrade toast. */
+const toastError = (err: Error): void => {
+	if (!isPlanRequired(err)) {
+		toast.error(err.message);
+	}
+};
+
 /* ------------------------------- formatting ------------------------------- */
 
-const PLAN_LABEL: Record<PlanTier, string> = {
-	micro: "Micro",
-	starter: "Starter",
-	growth: "Growth",
+const PLAN_LIMIT_KEY: Record<PlanTier, MessageKey> = {
+	micro: "billing.limits.micro",
+	starter: "billing.limits.starter",
+	growth: "billing.limits.growth",
 };
 
-/** Pakasir QRIS prices (IDR); card prices come from /billing/plans. */
-const IDR_PRICE: Record<PlanTier, string> = {
-	micro: "Rp 16.000",
-	starter: "Rp 64.000",
-	growth: "Rp 192.000",
+/**
+ * Feature strings come from the API. The script-size line there predates
+ * the current tracker (measured ~3.7 KB gzipped), so it is corrected here
+ * until the worker copy changes.
+ */
+const FEATURE_FIXES: Record<string, string> = {
+	"<1KB script": "Lightweight script (~4 KB gzipped)",
 };
 
-const PLAN_LIMITS: Record<PlanTier, string> = {
-	micro: "1 site · 10K events/mo",
-	starter: "3 sites · 100K events/mo",
-	growth: "10 sites · 500K events/mo",
-};
-
-const POPULAR_TIER: PlanTier = "starter";
-
-const fmtDate = (iso: string): string =>
-	new Date(iso).toLocaleDateString("en-GB", {
-		day: "numeric",
-		month: "short",
-		year: "numeric",
-	});
-
-const STATUS_TONE: Record<SubscriptionStatus, string> = {
+const STATUS_TONE: Record<string, string> = {
 	active: "bg-(--up)/10 text-(--up) ring-(--up)/20",
-	trialing: "bg-sky-400/10 text-sky-300 ring-sky-400/20",
+	trialing: "bg-sky-400/10 text-sky-700 ring-sky-400/30 dark:text-sky-300",
 	past_due: "bg-(--down)/10 text-(--down) ring-(--down)/20",
 	canceled: "bg-(--down)/10 text-(--down) ring-(--down)/20",
 };
 
-const StatusBadge = ({ status }: { status: SubscriptionStatus }) => (
+const StatusBadge = ({ status, label }: { status: string; label: string }) => (
 	<span
-		className={`rounded-full px-2.5 py-0.5 font-mono text-[10px] ring-1 capitalize ${
+		className={`rounded-full px-2.5 py-0.5 font-mono text-[10px] ring-1 ${
 			STATUS_TONE[status] ?? "bg-muted/60 text-muted-foreground ring-foreground/10"
 		}`}
 	>
-		{status.replace("_", " ")}
+		{label}
 	</span>
 );
 
@@ -101,19 +106,22 @@ const UsageBar = ({ label, used, limit }: { label: string; used: number; limit: 
 
 /* ---------------------------- subscription banner -------------------------- */
 
-type BannerKind = "trial" | "lapsed" | "cancelling" | "free";
+type BannerKind = "trial" | "trialEnded" | "pastDue" | "canceled" | "cancelling";
 
 const bannerKind = (sub: BillingSubscription): BannerKind | null => {
-	if (sub.status === "trialing") return "trial";
-	if (sub.status === "past_due" || sub.status === "canceled") return "lapsed";
+	const state = subscriptionState(sub);
+	if (state.trialing) return state.trialEnded ? "trialEnded" : "trial";
+	if (sub.status === "past_due") return "pastDue";
+	if (!state.paidActive) return "canceled";
 	if (sub.cancel_at_period_end) return "cancelling";
-	if (sub.plan === "micro" && sub.status === "active") return "free";
 	return null;
 };
 
 const DISMISS_KEY = "kp_billing_banner_dismissed";
 
 export const SubscriptionBanner = ({ onUpgrade }: { onUpgrade: () => void }) => {
+	const t = useT();
+	const locale = useLocale();
 	const { data: sub } = useSubscription();
 	const [dismissed, setDismissed] = useState<string | null>(() => {
 		try {
@@ -123,7 +131,8 @@ export const SubscriptionBanner = ({ onUpgrade }: { onUpgrade: () => void }) => 
 		}
 	});
 
-	if (!sub) return null;
+	// No subscription row at all (id "") is a legacy account, not a lapse.
+	if (!sub || !sub.id) return null;
 	const kind = bannerKind(sub);
 	if (!kind || dismissed === kind) return null;
 
@@ -136,15 +145,20 @@ export const SubscriptionBanner = ({ onUpgrade }: { onUpgrade: () => void }) => 
 		}
 	};
 
-	const days = sub.trial_days_remaining;
-	const tone =
-		kind === "lapsed" || kind === "cancelling"
-			? "bg-(--down)/10 text-(--down) ring-(--down)/20"
-			: kind === "trial"
-				? "bg-(--up)/10 text-(--up) ring-(--up)/20"
-				: "bg-muted/60 text-muted-foreground ring-foreground/10";
-	const Icon =
-		kind === "lapsed" || kind === "cancelling" ? AlertTriangle : kind === "trial" ? Clock : Info;
+	const days = subscriptionState(sub).trialDaysLeft;
+	const warn = kind !== "trial";
+	const tone = warn
+		? "bg-(--down)/10 text-(--down) ring-(--down)/20"
+		: "bg-(--up)/10 text-(--up) ring-(--up)/20";
+	const Icon = warn ? AlertTriangle : Clock;
+	let message: string;
+	if (kind === "trial") {
+		message = days > 0 ? t("banner.trial", { n: days }) : t("banner.trialToday");
+	} else if (kind === "cancelling") {
+		message = t("banner.cancelling", { date: formatDate(sub.current_period_end, locale) });
+	} else {
+		message = t(`banner.${kind}`);
+	}
 
 	return (
 		<div
@@ -152,43 +166,15 @@ export const SubscriptionBanner = ({ onUpgrade }: { onUpgrade: () => void }) => 
 			role="status"
 		>
 			<Icon className="size-3.5 shrink-0" aria-hidden />
-			<p className="min-w-0 flex-1">
-				{kind === "trial" ? (
-					days !== null && days !== undefined && days > 0 ? (
-						<>
-							<strong className="font-semibold">
-								{days} day{days === 1 ? "" : "s"} left
-							</strong>{" "}
-							on your free trial — upgrade to keep access after it ends.
-						</>
-					) : (
-						<>Your free trial has ended — choose a plan to continue.</>
-					)
-				) : null}
-				{kind === "lapsed" ? (
-					<>
-						Your subscription is {sub.status.replace("_", " ")} — choose a plan to restore full
-						access.
-					</>
-				) : null}
-				{kind === "cancelling" ? (
-					<>Subscription ends {fmtDate(sub.current_period_end)} — choose a plan to keep access.</>
-				) : null}
-				{kind === "free" ? (
-					<>
-						You&rsquo;re on the free Micro plan ({PLAN_LIMITS.micro}) — upgrade for more sites and
-						events.
-					</>
-				) : null}
-			</p>
+			<p className="min-w-0 flex-1">{message}</p>
 			<Button size="xs" onClick={onUpgrade}>
-				Upgrade
+				{t("lock.cta")}
 			</Button>
 			<button
 				type="button"
-				aria-label="Dismiss"
+				aria-label={t("billing.dismiss")}
 				onClick={dismiss}
-				className="hover:text-foreground -mx-1 rounded-md p-1 opacity-70 transition-opacity hover:opacity-100"
+				className="hover:text-foreground focus-visible:outline-ring -mx-1 rounded-md p-1 opacity-70 transition-opacity outline-offset-2 hover:opacity-100 focus-visible:outline-2"
 			>
 				<X className="size-3.5" aria-hidden />
 			</button>
@@ -202,11 +188,18 @@ interface PendingQris {
 	orderId: string;
 	plan: string;
 	url: string;
+	amount?: number;
 }
+
+const PENDING_DISMISS_KEY = "kp_qris_pending_dismissed";
+
+type PlanBadge = "trial" | "picked" | null;
 
 const PlanCard = ({
 	plan,
 	isCurrent,
+	badge,
+	highlighted,
 	busy,
 	onCard,
 	onQris,
@@ -214,71 +207,120 @@ const PlanCard = ({
 }: {
 	plan: BillingPlan;
 	isCurrent: boolean;
+	badge: PlanBadge;
+	highlighted: boolean;
 	busy: boolean;
 	onCard: (tier: PlanTier) => void;
 	onQris: (tier: PlanTier) => void;
 	qrisAvailable: boolean;
 }) => {
-	const popular = plan.tier === POPULAR_TIER;
+	const t = useT();
+	const ref = useRef<HTMLDivElement>(null);
+	const idr = plan.price_idr ?? IDR_PRICE[plan.tier];
+	const usd = money(plan.price);
+
+	useEffect(() => {
+		if (highlighted) {
+			ref.current?.scrollIntoView({ block: "center", behavior: "smooth" });
+		}
+	}, [highlighted]);
+
 	return (
 		<div
+			ref={ref}
 			className={`relative flex flex-col rounded-xl bg-card p-4 ring-1 ${
-				isCurrent
-					? "bg-(--chart)/5 ring-(--chart)"
-					: popular
-						? "ring-(--chart)/40"
-						: "ring-foreground/10"
+				isCurrent || highlighted ? "bg-(--chart)/5 ring-(--chart)" : "ring-foreground/10"
 			}`}
 		>
-			{popular && !isCurrent ? (
-				<span className="bg-(--chart) text-background absolute -top-2 right-3 rounded-full px-2 py-0.5 font-mono text-[9px] font-semibold tracking-[0.08em] uppercase">
-					Popular
+			{badge && !isCurrent ? (
+				<span className="bg-(--chart) text-background absolute -top-2 right-3 rounded-full px-2 py-0.5 text-[10px] font-semibold">
+					{badge === "trial" ? t("billing.trialBadge") : t("billing.pickedBadge")}
 				</span>
 			) : null}
-			<div className="text-muted-foreground font-mono text-[10px] font-semibold tracking-[0.08em] uppercase">
-				{PLAN_LABEL[plan.tier]}
-			</div>
+			<h3 className="text-muted-foreground font-mono text-[10px] font-semibold tracking-[0.08em] uppercase">
+				{planLabel(plan.tier)}
+			</h3>
 			<div className="mt-1 flex items-baseline gap-1.5">
-				<span className="text-3xl font-semibold tracking-tight">${plan.price}</span>
-				<span className="text-muted-foreground text-xs">/mo</span>
+				<span className="text-3xl font-semibold tracking-tight tabular-nums">
+					{qrisAvailable ? money(idr, "IDR") : usd}
+				</span>
+				<span className="text-muted-foreground text-xs">{t("billing.perMonth")}</span>
 			</div>
-			<div className="text-(--money) mt-0.5 text-xs">{IDR_PRICE[plan.tier]} via QRIS</div>
-			<div className="text-muted-foreground mt-0.5 text-[11px]">{PLAN_LIMITS[plan.tier]}</div>
+			{qrisAvailable ? (
+				<div className="text-muted-foreground mt-0.5 text-xs">
+					{t("billing.byCard", { price: usd })}
+				</div>
+			) : null}
+			<div className="text-muted-foreground mt-0.5 text-[11px]">{t(PLAN_LIMIT_KEY[plan.tier])}</div>
 			<ul className="mt-3 mb-4 flex-1 space-y-1">
 				{plan.features.map((f) => (
 					<li key={f} className="text-muted-foreground flex items-center gap-2 text-xs">
 						<Check className="text-(--chart) size-3 shrink-0" aria-hidden />
-						{f}
+						{FEATURE_FIXES[f] ?? f}
 					</li>
 				))}
 			</ul>
 			{isCurrent ? (
 				<Button variant="outline" size="sm" disabled className="w-full">
-					Current plan
+					{t("billing.currentBtn")}
 				</Button>
 			) : (
 				<div className="flex flex-col gap-2">
-					<Button size="sm" className="w-full" disabled={busy} onClick={() => onCard(plan.tier)}>
-						<CreditCard className="size-3.5" aria-hidden />
-						Pay with card
-					</Button>
 					{qrisAvailable ? (
-						<Button variant="outline" size="sm" disabled={busy} onClick={() => onQris(plan.tier)}>
+						<Button size="sm" className="h-9" disabled={busy} onClick={() => onQris(plan.tier)}>
 							<QrCode className="size-3.5" aria-hidden />
-							Pay with QRIS
+							{t("billing.payQris")}
 						</Button>
-					) : (
-						<p className="text-muted-foreground px-1 text-[10px]">
-							QRIS is available for Indonesian payment apps only.
-						</p>
-					)}
+					) : null}
+					<Button
+						size="sm"
+						variant={qrisAvailable ? "outline" : "default"}
+						className="h-9 w-full"
+						disabled={busy}
+						onClick={() => onCard(plan.tier)}
+					>
+						<CreditCard className="size-3.5" aria-hidden />
+						{t("billing.payCard")}
+					</Button>
 				</div>
 			)}
 		</div>
 	);
 };
 
-export const BillingView = () => {
+/** Text under the plan name: when the trial or period ends or renews. */
+const periodLine = (
+	sub: BillingSubscription,
+	t: ReturnType<typeof useT>,
+	date: (iso: string) => string,
+): string => {
+	if (!sub.id) return t("billing.noPlan");
+	const state = subscriptionState(sub);
+	if (state.trialing) {
+		if (state.trialEnded) return t("billing.trialEnded");
+		return state.trialDaysLeft > 0
+			? t("billing.trialEndsIn", { n: state.trialDaysLeft })
+			: t("billing.trialEndsToday");
+	}
+	if (!state.paidActive) return t("billing.endedOn", { date: date(sub.current_period_end) });
+	return sub.cancel_at_period_end
+		? t("billing.accessUntil", { date: date(sub.current_period_end) })
+		: t("billing.renews", { date: date(sub.current_period_end) });
+};
+
+export const BillingView = ({
+	highlightPlan,
+	checkout,
+	onCheckoutHandled,
+}: {
+	/** Tier to emphasise, e.g. the one picked on the pricing page. */
+	highlightPlan?: PlanTier;
+	/** Set when a payment provider just sent the browser back. */
+	checkout?: CheckoutResult;
+	onCheckoutHandled?: () => void;
+}) => {
+	const t = useT();
+	const locale = useLocale();
 	const qc = useQueryClient();
 	const subQ = useSubscription();
 	const plansQ = useQuery({
@@ -290,11 +332,20 @@ export const BillingView = () => {
 
 	const sub = subQ.data;
 	const [confirmCancel, setConfirmCancel] = useState(false);
-	const [pendingQris, setPendingQris] = useState<PendingQris | null>(null);
+	const [localPending, setLocalPending] = useState<PendingQris | null>(null);
+	const [dismissedOrder, setDismissedOrder] = useState<string | null>(() => {
+		try {
+			return sessionStorage.getItem(PENDING_DISMISS_KEY);
+		} catch {
+			return null;
+		}
+	});
+
+	const refreshSubscription = () => qc.invalidateQueries({ queryKey: SUBSCRIPTION_KEY });
 
 	const checkoutMut = useMutation({
 		mutationFn: createCheckout,
-		onError: (err) => toast.error(err.message),
+		onError: toastError,
 		onSuccess: (data) => {
 			window.location.href = data.url;
 		},
@@ -302,57 +353,111 @@ export const BillingView = () => {
 
 	const pakasirMut = useMutation({
 		mutationFn: createPakasirCheckout,
-		onError: (err) => toast.error(err.message),
+		onError: toastError,
 		onSuccess: (data) => {
-			setPendingQris({
+			setLocalPending({
+				amount: data.amount,
 				orderId: data.order_id,
 				plan: data.plan,
 				url: data.url,
 			});
 			window.open(data.url, "_blank", "noopener");
-			toast.info("QRIS payment page opened in a new tab — complete the payment, then verify here.");
+			toast.info(t("billing.qrisOpened"));
 		},
 	});
 
 	const verifyMut = useMutation({
 		mutationFn: verifyPakasirPayment,
-		onError: (err) => toast.error(err.message),
+		onError: toastError,
 		onSuccess: (res) => {
 			if (res.status === "active") {
-				setPendingQris(null);
-				toast.success("Pembayaran berhasil — paket Anda aktif.");
-			} else {
-				toast.info("Pembayaran masih diproses. Coba lagi beberapa saat.");
+				setLocalPending(null);
+				const plan = parsePlan(res.plan);
+				toast.success(
+					plan ? t("billing.paid", { plan: planLabel(plan) }) : t("billing.paidGeneric"),
+				);
+			} else if (res.status === "pending") {
+				toast.info(t("billing.stillPending"));
 			}
-			qc.invalidateQueries({ queryKey: ["legacy", "subscription"] });
+			void refreshSubscription();
 		},
 	});
+
+	// Back from a payment provider: confirm, refetch, and drop ?checkout=
+	// so a reload does not repeat it. Polar's webhook can trail the
+	// redirect, so the subscription is fetched once more a few seconds later.
+	const handledCheckout = useRef(false);
+	useEffect(() => {
+		if (!checkout || handledCheckout.current) return;
+		handledCheckout.current = true;
+		if (checkout === "pakasir_success") {
+			verifyMut.mutate();
+		} else {
+			toast.success(t("billing.checkoutSuccess"));
+			void refreshSubscription();
+			setTimeout(() => void refreshSubscription(), 5000);
+		}
+		onCheckoutHandled?.();
+		// Runs once per return; the mutation and callbacks are stable enough here.
+		// oxlint-disable-next-line react-hooks/exhaustive-deps
+	}, [checkout]);
 
 	const cancelMut = useMutation({
 		mutationFn: cancelSubscription,
-		onError: (err) => toast.error(err.message),
+		onError: toastError,
 		onSuccess: () => {
-			qc.invalidateQueries({ queryKey: ["legacy", "subscription"] });
-			toast.success("Subscription will cancel at period end.");
+			void refreshSubscription();
+			toast.success(t("billing.cancelDone"));
 		},
 	});
 
+	const serverPending = sub?.pending_order;
+	const pendingQris: PendingQris | null =
+		localPending ??
+		(serverPending && serverPending.order_id !== dismissedOrder
+			? {
+					amount: serverPending.amount,
+					orderId: serverPending.order_id,
+					plan: serverPending.plan,
+					url: serverPending.checkout_url,
+				}
+			: null);
+
+	const dismissPending = () => {
+		if (!pendingQris) return;
+		setLocalPending(null);
+		setDismissedOrder(pendingQris.orderId);
+		try {
+			sessionStorage.setItem(PENDING_DISMISS_KEY, pendingQris.orderId);
+		} catch {
+			/* ignore */
+		}
+	};
+
 	const plans = plansQ.data?.plans ?? [];
 	// QRIS needs an Indonesian bank/e-wallet app; the server decides by the
-	// visitor's country and the worker hard-rejects non-ID checkouts anyway.
+	// visitor's country, so the same flag picks IDR as the headline price.
 	const qrisAvailable = plansQ.data?.qris_available ?? false;
 	const busy = checkoutMut.isPending || pakasirMut.isPending;
-	const isPaid = sub ? sub.plan !== "micro" : false;
-	const isActive = sub ? sub.status === "active" || sub.status === "trialing" : false;
-	const canCancel = Boolean(sub && isPaid && isActive && !sub.cancel_at_period_end);
+	const state = sub ? subscriptionState(sub) : null;
+	const canCancel = Boolean(sub?.id && state?.paidActive && !sub.cancel_at_period_end);
+	const date = (iso: string) => formatDate(iso, locale);
+	const pendingPlan = pendingQris ? parsePlan(pendingQris.plan) : undefined;
+
+	const badgeFor = (tier: PlanTier): PlanBadge => {
+		if (highlightPlan === tier) return "picked";
+		if (state?.trialing && !state.trialEnded && sub?.plan === tier) return "trial";
+		return null;
+	};
 
 	return (
 		<main className="mx-auto max-w-7xl px-3 pt-3 pb-6 md:px-4">
-			<div className="mb-2.5">
-				<h1 className="text-lg font-semibold tracking-tight">Billing</h1>
-				<p className="text-muted-foreground text-xs">
-					Plans, payment and subscription for your revklik account
-				</p>
+			<div className="mb-2.5 flex flex-wrap items-start justify-between gap-2">
+				<div>
+					<h1 className="text-lg font-semibold tracking-tight">{t("billing.title")}</h1>
+					<p className="text-muted-foreground text-xs">{t("billing.subtitle")}</p>
+				</div>
+				<LocaleToggle />
 			</div>
 
 			{pendingQris ? (
@@ -362,13 +467,12 @@ export const BillingView = () => {
 					</div>
 					<div className="min-w-0 flex-1">
 						<p className="text-[13px] font-medium">
-							Complete your QRIS payment
-							{pendingQris.plan in PLAN_LABEL
-								? ` — ${PLAN_LABEL[pendingQris.plan as PlanTier]}`
-								: ""}
+							{t("billing.qrisTitle")}
+							{pendingPlan ? ` · ${planLabel(pendingPlan)}` : ""}
+							{pendingQris.amount ? ` · ${money(pendingQris.amount, "IDR")}` : ""}
 						</p>
 						<p className="text-muted-foreground truncate font-mono text-[11px]">
-							order {pendingQris.orderId} · opened in a new tab
+							{t("billing.qrisOrder", { id: pendingQris.orderId })}
 						</p>
 					</div>
 					<Button
@@ -376,77 +480,79 @@ export const BillingView = () => {
 						size="sm"
 						onClick={() => window.open(pendingQris.url, "_blank", "noopener")}
 					>
-						Reopen tab
+						{t("billing.qrisReopen")}
 					</Button>
 					<Button size="sm" disabled={verifyMut.isPending} onClick={() => verifyMut.mutate()}>
-						{verifyMut.isPending ? "Verifying…" : "I've paid — verify"}
+						{verifyMut.isPending ? t("billing.qrisVerifying") : t("billing.qrisVerify")}
 					</Button>
 					<Button
 						variant="ghost"
 						size="icon-sm"
-						aria-label="Dismiss"
-						onClick={() => setPendingQris(null)}
+						aria-label={t("billing.dismiss")}
+						onClick={dismissPending}
 					>
 						<X className="size-3.5" aria-hidden />
 					</Button>
 				</section>
 			) : null}
 
-			<Panel title="Current plan">
+			<Panel title={t("billing.current")}>
 				{subQ.isLoading ? (
-					<p className="text-muted-foreground py-4 text-center text-xs">Loading subscription…</p>
-				) : subQ.error || !sub ? (
-					<p className="text-(--down) py-4 text-center text-xs">
-						{subQ.error instanceof Error ? subQ.error.message : "Unable to load subscription"}
+					<p className="text-muted-foreground py-4 text-center text-xs">
+						{t("billing.loadingSub")}
+					</p>
+				) : subQ.error || !sub || !state ? (
+					<p className="text-(--down) py-4 text-center text-xs" role="alert">
+						{t("billing.subError")}
 					</p>
 				) : (
 					<div className="grid gap-4">
 						<div className="flex flex-wrap items-center gap-3">
-							<span className="text-[15px] font-medium">{PLAN_LABEL[sub.plan]} Plan</span>
-							<StatusBadge status={sub.status} />
-							{sub.cancel_at_period_end ? (
-								<span className="text-(--down) text-[11px]">
-									Cancels {fmtDate(sub.current_period_end)}
-								</span>
+							<span className="text-[15px] font-medium">
+								{t("billing.planName", { plan: planLabel(sub.plan) })}
+							</span>
+							{sub.id ? (
+								<StatusBadge
+									status={state.trialEnded ? "canceled" : sub.status}
+									label={state.trialEnded ? t("billing.trialEnded") : sub.status.replace("_", " ")}
+								/>
 							) : null}
-							{sub.status === "trialing" &&
-							sub.trial_days_remaining !== null &&
-							sub.trial_days_remaining !== undefined ? (
-								<span className="text-sky-300 text-[11px]">
-									{sub.trial_days_remaining} day
-									{sub.trial_days_remaining === 1 ? "" : "s"} of trial remaining
+							{sub.cancel_at_period_end && state.paidActive ? (
+								<span className="text-(--down) text-[11px]">
+									{t("billing.cancels", { date: date(sub.current_period_end) })}
 								</span>
 							) : null}
 						</div>
 
-						<p className="text-muted-foreground font-mono text-xs">
-							{isPaid ? (
-								sub.cancel_at_period_end ? (
-									<>Access until {fmtDate(sub.current_period_end)}</>
-								) : (
-									<>Renews on {fmtDate(sub.current_period_end)}</>
-								)
-							) : (
-								<>Free plan · {PLAN_LIMITS[sub.plan]}</>
-							)}
-						</p>
+						<div className="grid gap-1">
+							<p className="text-muted-foreground font-mono text-xs">{periodLine(sub, t, date)}</p>
+							{state.trialing && !state.trialEnded ? (
+								<p className="text-muted-foreground max-w-prose text-xs">
+									{t("billing.trialNote")}
+								</p>
+							) : null}
+						</div>
 
 						{sub.usage ? (
 							<div className="grid gap-3 sm:grid-cols-2">
 								<UsageBar
-									label="Events this month"
+									label={t("billing.usageEvents")}
 									used={sub.usage.events.used}
 									limit={sub.usage.events.limit}
 								/>
-								<UsageBar label="Sites" used={sub.usage.sites.used} limit={sub.usage.sites.limit} />
+								<UsageBar
+									label={t("billing.usageSites")}
+									used={sub.usage.sites.used}
+									limit={sub.usage.sites.limit}
+								/>
 							</div>
 						) : null}
 
 						{canCancel ? (
 							confirmCancel ? (
-								<div className="flex items-center gap-2.5">
+								<div className="flex flex-wrap items-center gap-2.5">
 									<span className="text-muted-foreground text-xs">
-										Cancel subscription? It stays active until {fmtDate(sub.current_period_end)}.
+										{t("billing.cancelConfirm", { date: date(sub.current_period_end) })}
 									</span>
 									<Button
 										variant="destructive"
@@ -454,16 +560,16 @@ export const BillingView = () => {
 										disabled={cancelMut.isPending}
 										onClick={() => cancelMut.mutate()}
 									>
-										{cancelMut.isPending ? "Cancelling…" : "Yes, cancel"}
+										{cancelMut.isPending ? t("billing.cancelling") : t("billing.cancelYes")}
 									</Button>
 									<Button variant="ghost" size="xs" onClick={() => setConfirmCancel(false)}>
-										No
+										{t("billing.cancelNo")}
 									</Button>
 								</div>
 							) : (
 								<div>
 									<Button variant="outline" size="xs" onClick={() => setConfirmCancel(true)}>
-										Cancel subscription
+										{t("billing.cancelBtn")}
 									</Button>
 								</div>
 							)
@@ -473,27 +579,39 @@ export const BillingView = () => {
 			</Panel>
 
 			<div className="mt-2.5">
-				<Panel title="Plans" hint="monthly · cancel anytime">
+				<Panel title={t("billing.plans")} hint={t("billing.plansHint")}>
 					{plansQ.isLoading ? (
-						<p className="text-muted-foreground py-4 text-center text-xs">Loading plans…</p>
-					) : plansQ.error ? (
-						<p className="text-(--down) py-4 text-center text-xs">
-							{plansQ.error instanceof Error ? plansQ.error.message : "Unable to load plans"}
+						<p className="text-muted-foreground py-4 text-center text-xs">
+							{t("billing.loadingPlans")}
+						</p>
+					) : plansQ.error || plans.length === 0 ? (
+						<p className="text-(--down) py-4 text-center text-xs" role="alert">
+							{t("billing.plansError")}
 						</p>
 					) : (
-						<div className="grid gap-2.5 md:grid-cols-3">
-							{plans.map((plan) => (
-								<PlanCard
-									key={plan.tier}
-									plan={plan}
-									isCurrent={sub?.plan === plan.tier && isActive}
-									busy={busy}
-									onCard={(tier) => checkoutMut.mutate(tier)}
-									onQris={qrisAvailable ? (tier) => pakasirMut.mutate(tier) : () => {}}
-									qrisAvailable={qrisAvailable}
-								/>
-							))}
-						</div>
+						<>
+							<div className="grid gap-2.5 md:grid-cols-3">
+								{plans.map((plan) => (
+									<PlanCard
+										key={plan.tier}
+										plan={plan}
+										// A trial is never "current": the trial's own tier stays buyable.
+										isCurrent={Boolean(sub?.id && state?.paidActive && sub.plan === plan.tier)}
+										badge={badgeFor(plan.tier)}
+										highlighted={highlightPlan === plan.tier}
+										busy={busy}
+										onCard={(tier) => checkoutMut.mutate(tier)}
+										onQris={(tier) => pakasirMut.mutate(tier)}
+										qrisAvailable={qrisAvailable}
+									/>
+								))}
+							</div>
+							{qrisAvailable ? null : (
+								<p className="text-muted-foreground mt-2 px-1 text-[11px]">
+									{t("billing.qrisIdOnly")}
+								</p>
+							)}
+						</>
 					)}
 				</Panel>
 			</div>

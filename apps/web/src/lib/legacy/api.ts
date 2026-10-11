@@ -239,9 +239,15 @@ export interface SiteWithStats {
 	sparkline: number[];
 	revenue: number;
 	revenue_sparkline: number[];
+	/** ISO currency of `revenue`; USD when absent. */
+	currency?: string;
+	/** True once the site has ever received an event (any range). */
+	has_events?: boolean;
 }
 
 export interface SiteDashboard {
+	/** ISO currency of every revenue figure below; USD when absent. */
+	currency?: string;
 	stats: LegacyStats;
 	compare?: Partial<Record<CompareKey, StatsChange>>;
 	timeseries: TimeSeriesPoint[];
@@ -295,22 +301,54 @@ export const legacyLogout = (): void => {
 	localStorage.removeItem("kp_active_site");
 };
 
+/** Optional machine-readable fields some error envelopes carry. */
+export interface LegacyErrorBody {
+	error?: string;
+	required_plan?: string;
+	grace_days_remaining?: number;
+	quota?: { limit: number; used: number; plan: string };
+}
+
 export class LegacyApiError extends Error {
 	status: number;
-	constructor(message: string, status: number) {
+	/** The envelope's `error` string, e.g. "subscription_inactive". */
+	code: string | undefined;
+	body: LegacyErrorBody | undefined;
+	constructor(message: string, status: number, body?: LegacyErrorBody) {
 		super(message);
 		this.name = "LegacyApiError";
 		this.status = status;
+		this.body = body;
+		this.code = body?.error;
 	}
 }
+
+/** 402 from a gated read: the trial or subscription has lapsed. */
+export const isSubscriptionInactive = (err: unknown): err is LegacyApiError =>
+	err instanceof LegacyApiError &&
+	(err.code === "subscription_inactive" || (err.status === 402 && !err.code));
+
+/**
+ * 403 for a feature or quota above the current plan. Covers the explicit
+ * `plan_required` envelope and the older site-limit response (403 + quota).
+ */
+export const isPlanRequired = (err: unknown): err is LegacyApiError =>
+	err instanceof LegacyApiError &&
+	err.status === 403 &&
+	(err.code === "plan_required" || err.body?.quota !== undefined);
 
 /**
  * Shared email/password auth: POST to a klikapa auth endpoint, persist the
  * returned session token + user, and surface the API's error message
  * ("Invalid credentials", "Email taken", …) to the form.
  */
-const authRequest = async (path: string, body: Record<string, string>): Promise<LegacyUser> => {
-	const res = await fetch(`${API_BASE}${path}`, {
+const authRequest = async (
+	path: string,
+	body: Record<string, string>,
+	query?: URLSearchParams,
+): Promise<LegacyUser> => {
+	const qs = query && query.size > 0 ? `?${query}` : "";
+	const res = await fetch(`${API_BASE}${path}${qs}`, {
 		method: "POST",
 		headers: { "Content-Type": "application/json" },
 		body: JSON.stringify(body),
@@ -321,7 +359,7 @@ const authRequest = async (path: string, body: Record<string, string>): Promise<
 		error?: string;
 	} | null;
 	if (!res.ok || !json?.success || !json.data) {
-		throw new LegacyApiError(json?.error || "Couldn't sign you in — please try again", res.status);
+		throw new LegacyApiError(json?.error || "Couldn't sign you in. Please try again", res.status);
 	}
 	cachedToken = json.data.token;
 	localStorage.setItem(TOKEN_KEY, json.data.token);
@@ -332,11 +370,68 @@ const authRequest = async (path: string, body: Record<string, string>): Promise<
 export const legacyLogin = (email: string, password: string): Promise<LegacyUser> =>
 	authRequest("/auth/login", { email, password });
 
+export interface RegisterExtras {
+	/** Affiliate referral code (persisted from ?ref=). */
+	ref?: string | null;
+	/** Plan the visitor picked on the pricing page (?plan=). */
+	plan?: string | null;
+}
+
+/**
+ * Register. `ref` goes in both the body and the query string: the deployed
+ * worker reads `?ref=`, the newer one also accepts it in the body.
+ */
 export const legacyRegister = (
 	name: string,
 	email: string,
 	password: string,
-): Promise<LegacyUser> => authRequest("/auth/register", { name, email, password });
+	extras: RegisterExtras = {},
+): Promise<LegacyUser> => {
+	const body: Record<string, string> = { name, email, password };
+	const query = new URLSearchParams();
+	if (extras.ref) {
+		body.ref = extras.ref;
+		query.set("ref", extras.ref);
+	}
+	if (extras.plan) {
+		body.plan = extras.plan;
+	}
+	return authRequest("/auth/register", body, query);
+};
+
+/**
+ * Password reset, step 1. The API answers success for any address so it
+ * never reveals which emails have accounts.
+ */
+export const requestPasswordReset = async (email: string): Promise<void> => {
+	const res = await fetch(`${API_BASE}/auth/forgot-password`, {
+		method: "POST",
+		headers: { "Content-Type": "application/json" },
+		body: JSON.stringify({ email }),
+	});
+	if (!res.ok) {
+		throw new LegacyApiError(`Request failed (${res.status})`, res.status);
+	}
+};
+
+/** Password reset, step 2: trade the emailed token for a new password. */
+export const resetPassword = async (token: string, password: string): Promise<void> => {
+	const res = await fetch(`${API_BASE}/auth/reset-password`, {
+		method: "POST",
+		headers: { "Content-Type": "application/json" },
+		body: JSON.stringify({ token, password }),
+	});
+	const json = (await res.json().catch(() => null)) as
+		| (LegacyErrorBody & { success?: boolean })
+		| null;
+	if (!res.ok || !json?.success) {
+		throw new LegacyApiError(
+			json?.error || `Request failed (${res.status})`,
+			res.status,
+			json ?? undefined,
+		);
+	}
+};
 
 /**
  * Sign out: delete the presented session server-side, then drop all local
@@ -356,7 +451,14 @@ export const legacySignOut = async (): Promise<void> => {
 	}
 	legacyLogout();
 };
-export const legacyFetch = async <T>(path: string, opts?: RequestInit): Promise<T> => {
+
+/** snake_case error codes are meant for code paths, not for display. */
+const ERROR_CODE = /^[a-z]+(?:_[a-z]+)+$/u;
+
+export const legacyFetchEnvelope = async <T>(
+	path: string,
+	opts?: RequestInit,
+): Promise<LegacyEnvelope<T>> => {
 	const token = await getToken();
 	const res = await fetch(`${API_BASE}${path}`, {
 		...opts,
@@ -369,19 +471,35 @@ export const legacyFetch = async <T>(path: string, opts?: RequestInit): Promise<
 	if (res.status === 401) {
 		// Drop the (possibly revoked/expired) token; the guard sends the user to /login.
 		legacyLogout();
-		throw new LegacyApiError("Session expired — sign in again", 401);
+		throw new LegacyApiError("Session expired. Sign in again", 401);
 	}
 	if (!res.ok) {
-		throw new LegacyApiError(`Request failed (${res.status})`, res.status);
+		// Error envelopes carry machine-readable codes (402 subscription_inactive,
+		// 403 plan_required); keep them so the UI can offer an upgrade path.
+		const body = (await res.json?.().catch(() => null)) as LegacyErrorBody | null | undefined;
+		const readable = body?.error && !ERROR_CODE.test(body.error) ? body.error : null;
+		throw new LegacyApiError(
+			readable ?? `Request failed (${res.status})`,
+			res.status,
+			body ?? undefined,
+		);
 	}
-	const json = (await res.json()) as {
-		success: boolean;
-		data?: T;
-		error?: string;
-	};
+	const json = (await res.json()) as LegacyEnvelope<T>;
 	if (!json.success) {
 		throw new LegacyApiError(json.error || "Request failed", res.status);
 	}
+	return json;
+};
+
+/** Raw `{ success, data, error, …siblings }` envelope, for routes that put fields next to `data`. */
+export type LegacyEnvelope<T> = Record<string, unknown> & {
+	success: boolean;
+	data?: T;
+	error?: string;
+};
+
+export const legacyFetch = async <T>(path: string, opts?: RequestInit): Promise<T> => {
+	const json = await legacyFetchEnvelope<T>(path, opts);
 	return json.data as T;
 };
 

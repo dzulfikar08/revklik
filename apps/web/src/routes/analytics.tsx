@@ -20,5 +20,5 @@ export const Route = createFileRoute("/analytics")({
 	// Layout route: /analytics renders the sites overview, /analytics/$siteId
 	// the per-site dashboard. Both pass through this session guard.
 	component: () => <Outlet />,
-	head: () => ({ meta: [{ title: "Analytics · revklik" }] }),
+	head: () => ({ meta: [{ title: "Analytics · RevKlik" }] }),
 });

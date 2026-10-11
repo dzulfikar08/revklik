@@ -16,6 +16,7 @@ import {
 	ArrowDownUp,
 	ArrowRight,
 	Check,
+	Code2,
 	ShieldCheck,
 	CreditCard,
 	Download,
@@ -44,8 +45,11 @@ import {
 	fetchGeo,
 	fetchSites,
 	fetchVisitors,
+	isSubscriptionInactive,
 	updateVisitor,
 } from "@/lib/legacy/api";
+import { useT } from "@/lib/i18n";
+import type { PlanTier } from "@/lib/legacy/billing";
 import type {
 	CampaignPerformance,
 	CrawlerSlot,
@@ -83,6 +87,7 @@ import { IntegrationsView } from "./integrations-view";
 import { SettingsView } from "./settings";
 import { fetchVisitorProfile, type VisitorProfileResult } from "@/lib/legacy/growth";
 import { SitesView } from "./sites-view";
+import { siteHasEvents, SnippetModal } from "./snippet-modal";
 import { AiInsightsPanel } from "./ai-insights";
 import { HeatmapPanel } from "./heatmap";
 import { PredictionsPanel } from "./predictions";
@@ -100,9 +105,10 @@ import {
 	StatTile,
 	TrafficChart,
 } from "./ui";
+import { UpgradeLock } from "./upgrade-lock";
+import type { ViewKey } from "./views";
 import { VisitorSheet } from "./visitors";
 
-type ViewKey = "home" | "settings" | "share" | "billing" | "integrations" | "admin";
 type LocationTabKey = "country" | "region" | "city" | "globe";
 type PageTabKey = "pages" | "entry" | "exit";
 type SourceTabKey = "referrer" | "channel";
@@ -136,7 +142,7 @@ const NavTabs = ({
 		<nav
 			role="tablist"
 			aria-label="Sections"
-			className={`bg-muted/70 flex max-w-full overflow-x-auto rounded-full p-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden md:overflow-visible ${
+			className={`bg-muted/70 flex max-w-full overflow-x-auto rounded-full p-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden lg:overflow-visible ${
 				className ?? ""
 			}`}
 		>
@@ -863,7 +869,7 @@ const RevenuePanel = ({
 						</span>
 						<span className="text-end font-mono text-xs tabular-nums">{fmt(c.visitors)}</span>
 						<span className="text-end font-mono text-xs text-(--money) tabular-nums">
-							{money(c.revenue)}
+							{money(c.revenue, dash?.currency)}
 						</span>
 					</div>
 				))}
@@ -886,7 +892,7 @@ const RevenuePanel = ({
 							</span>
 						}
 						label={r.label}
-						value={money(r.value)}
+						value={money(r.value, dash?.currency)}
 						share={(r.value / total) * 100}
 						fill="var(--money)"
 					/>
@@ -1373,16 +1379,16 @@ const TopBar = ({
 		<div className="relative mx-auto flex max-w-7xl flex-wrap items-center gap-2 px-3 py-2 md:px-4">
 			<Link
 				to="/analytics"
-				aria-label="revklik — all sites"
+				aria-label="RevKlik: all sites"
 				title="All sites"
 				className="hover:bg-accent focus-visible:outline-ring -m-1 flex items-center gap-2.5 rounded-lg p-1 outline-offset-2 transition-colors"
 			>
 				<img
 					src="/revklik.webp"
-					alt="Revklik logo"
+					alt=""
 					className="ring-foreground/10 size-7 rounded-lg object-cover ring-1"
 				/>
-				<span className="text-[15px] font-semibold tracking-tight">revklik</span>
+				<span className="text-[15px] font-semibold tracking-tight">RevKlik</span>
 			</Link>
 
 			<Select
@@ -1463,7 +1469,9 @@ const TopBar = ({
 			<NavTabs
 				view={view}
 				onView={onView}
-				className="order-last w-full min-w-0 justify-start sm:justify-center md:absolute md:top-1/2 md:left-1/2 md:order-none md:w-auto md:min-w-fit md:-translate-x-1/2 md:-translate-y-1/2"
+				// Absolute centring only from lg: between 768 and 1024px the
+				// tabs would overlap the site picker and the range pills.
+				className="order-last w-full min-w-0 justify-start sm:justify-center lg:absolute lg:top-1/2 lg:left-1/2 lg:order-none lg:w-auto lg:min-w-fit lg:-translate-x-1/2 lg:-translate-y-1/2"
 			/>
 		</div>
 	</header>
@@ -1595,9 +1603,11 @@ const FiltersBar = ({
 
 const StatTiles = ({
 	stats,
+	currency,
 	deltaPct,
 }: {
 	stats: SiteDashboard["stats"] | undefined;
+	currency?: string;
 	deltaPct: (k: keyof NonNullable<SiteDashboard["compare"]>) => number;
 }) => (
 	<div className="mb-2.5 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
@@ -1627,18 +1637,45 @@ const StatTiles = ({
 		/>
 		<StatTile
 			label="Revenue"
-			value={stats ? money(stats.revenue) : "…"}
+			value={stats ? money(stats.revenue, currency) : "…"}
 			delta={fmtPct(deltaPct("revenue"))}
 			tone={deltaPct("revenue") >= 0 ? "good" : "bad"}
 		/>
 	</div>
 );
 
+/** Replaces the empty traffic chart until the site's first event arrives. */
+const InstallPrompt = ({ domain, onInstall }: { domain: string; onInstall: () => void }) => {
+	const t = useT();
+	return (
+		<div className="flex min-h-52 flex-col items-center justify-center gap-2 px-4 py-8 text-center">
+			<p className="text-sm font-semibold">{t("install.emptyTitle")}</p>
+			<p className="text-muted-foreground max-w-sm text-xs">{t("install.emptyDesc", { domain })}</p>
+			<Button className="mt-2 h-9" onClick={onInstall}>
+				<Code2 className="size-3.5" aria-hidden />
+				{t("install.cta")}
+			</Button>
+		</div>
+	);
+};
+
 /* --------------------------------- page ------------------------------------ */
 
-const AnalyticsPage = ({ siteId: siteIdParam }: { siteId: string }) => {
+const AnalyticsPage = ({
+	siteId: siteIdParam,
+	view,
+	onView,
+	highlightPlan,
+}: {
+	siteId: string;
+	/** Active section, owned by the route's ?view= search param. */
+	view: ViewKey;
+	onView: (view: ViewKey) => void;
+	highlightPlan?: PlanTier;
+}) => {
 	const navigate = useNavigate();
-	const [view, setView] = useState<ViewKey>("home");
+	const setView = onView;
+	const [snippetOpen, setSnippetOpen] = useState(false);
 	const [rangeKey, setRangeKey] = useState<RangeKey>("7d");
 	const [filters, setFilters] = useState<LegacyFilter[]>([]);
 	const [draftDim, setDraftDim] = useState("");
@@ -1794,7 +1831,12 @@ const AnalyticsPage = ({ siteId: siteIdParam }: { siteId: string }) => {
 
 	const pickSite = (id: string) => {
 		setLive({ feed: [], online: null });
-		void navigate({ to: "/analytics/$siteId", params: { siteId: id } });
+		// Keep the open section (?view=) when switching sites.
+		void navigate({
+			params: { siteId: id },
+			search: (prev) => ({ view: prev.view }),
+			to: "/analytics/$siteId",
+		});
 	};
 
 	const addFilter = () => {
@@ -1832,7 +1874,11 @@ const AnalyticsPage = ({ siteId: siteIdParam }: { siteId: string }) => {
 		cmp?.[k]?.changePct ?? 0;
 
 	const firstError = [sitesQ.error, dashQ.error].find(Boolean);
-	const errorMsg = firstError instanceof Error ? firstError.message : "";
+	// Lapsed trial/subscription: the home view becomes an upgrade lock;
+	// billing and settings stay reachable through the tabs.
+	const inactiveError = isSubscriptionInactive(firstError) ? firstError : null;
+	const errorMsg = firstError instanceof Error && !inactiveError ? firstError.message : "";
+	const noTrafficYet = Boolean(site && !siteHasEvents(site) && dash && dash.stats.pageviews === 0);
 
 	return (
 		<div className="bg-background text-foreground min-h-svh">
@@ -1851,7 +1897,9 @@ const AnalyticsPage = ({ siteId: siteIdParam }: { siteId: string }) => {
 				exporting={exporting}
 			/>
 
-			{view === "home" ? (
+			{view === "home" && inactiveError ? (
+				<UpgradeLock error={inactiveError} onUpgrade={() => setView("billing")} />
+			) : view === "home" ? (
 				<main className="mx-auto max-w-7xl px-3 pt-3 pb-6 md:px-4">
 					<SubscriptionBanner onUpgrade={() => setView("billing")} />
 					{errorMsg ? (
@@ -1876,7 +1924,7 @@ const AnalyticsPage = ({ siteId: siteIdParam }: { siteId: string }) => {
 						addFilter={addFilter}
 					/>
 
-					<StatTiles stats={stats} deltaPct={deltaPct} />
+					<StatTiles stats={stats} currency={dash?.currency} deltaPct={deltaPct} />
 					<section className="bg-card ring-foreground/10 mb-2.5 rounded-2xl p-3 ring-1">
 						<div className="mb-2 flex flex-wrap items-center justify-between gap-2">
 							<div className="text-muted-foreground flex items-center gap-4 text-xs">
@@ -1899,13 +1947,17 @@ const AnalyticsPage = ({ siteId: siteIdParam }: { siteId: string }) => {
 								</span>
 							</span>
 						</div>
-						<PanelBody
-							loading={loadingDash}
-							hasData={points.length > 0}
-							emptyText="No traffic in this range."
-						>
-							<TrafficChart points={points} annotations={annotations} revenue={revenueSeries} />
-						</PanelBody>
+						{noTrafficYet && site ? (
+							<InstallPrompt domain={site.domain} onInstall={() => setSnippetOpen(true)} />
+						) : (
+							<PanelBody
+								loading={loadingDash}
+								hasData={points.length > 0}
+								emptyText="No traffic in this range."
+							>
+								<TrafficChart points={points} annotations={annotations} revenue={revenueSeries} />
+							</PanelBody>
+						)}
 					</section>
 					<div className="mb-2.5">
 						<AiInsightsPanel
@@ -1960,7 +2012,7 @@ const AnalyticsPage = ({ siteId: siteIdParam }: { siteId: string }) => {
 			) : view === "share" ? (
 				<ShareWidgetTokensView />
 			) : view === "billing" ? (
-				<BillingView />
+				<BillingView highlightPlan={highlightPlan} />
 			) : view === "admin" ? (
 				<AdminView />
 			) : view === "integrations" ? (
@@ -1973,6 +2025,12 @@ const AnalyticsPage = ({ siteId: siteIdParam }: { siteId: string }) => {
 				/>
 			)}
 			<SitesView open={sitesOpen} onClose={() => setSitesOpen(false)} />
+			{snippetOpen && site ? (
+				<SnippetModal
+					site={{ domain: site.domain, hasEvents: false, id: site.id }}
+					onClose={() => setSnippetOpen(false)}
+				/>
+			) : null}
 			{sheetVisitor ? (
 				<VisitorSheet
 					key={sheetVisitor.id}
