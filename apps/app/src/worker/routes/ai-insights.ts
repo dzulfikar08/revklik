@@ -9,12 +9,13 @@ import type {
 } from "@revklik/shared";
 import { type AiBinding, aggregateData, callWorkersAI } from "../lib/ai-prompts";
 import { planRequiredBody } from "../lib/plan-gate";
+import { resolveQueryScope } from "../lib/site-scope";
 import { requirePlanForSite } from "../lib/plans";
 import { generateId, getDateRange } from "../utils";
 
 type Variables = { db: Kysely<KlikapaDatabase>; userId: string };
 type Env = {
-	Bindings: { DB: D1Database; AI?: AiBinding };
+	Bindings: { DB: D1Database; AI?: AiBinding; FX_USD_IDR?: string };
 	Variables: Variables;
 };
 
@@ -166,7 +167,9 @@ async function generateInsights(
 	const startIso = start.toISOString();
 
 	try {
-		const data = await aggregateData(db, siteId, startIso);
+		// Site display currency (with FX), so insight amounts match the dashboard.
+		const scope = await resolveQueryScope(db, siteId, c.env, undefined);
+		const data = await aggregateData(db, siteId, startIso, scope.money);
 		const rawInsights = await callWorkersAI(c.env?.AI, data, range);
 
 		const now = new Date();
@@ -212,6 +215,7 @@ async function generateInsights(
 				total_events: data.totalEvents,
 				total_revenue: data.totalRevenue,
 				date_range: range,
+				currency: data.currency,
 			},
 		};
 	} catch (err) {
@@ -258,14 +262,21 @@ function buildResponse(rows: AiInsightTable[], range: string): InsightsResponse 
 	});
 
 	const dataRefs = rows[0]?.data_refs;
-	let dataSummary = { total_events: 0, total_revenue: 0, date_range: range };
+	let dataSummary: InsightsResponse["data_summary"] = {
+		total_events: 0,
+		total_revenue: 0,
+		date_range: range,
+	};
 	if (dataRefs) {
 		try {
-			const d: { totalEvents?: number; totalRevenue?: number } = JSON.parse(dataRefs);
+			const d: { totalEvents?: number; totalRevenue?: number; currency?: string } =
+				JSON.parse(dataRefs);
 			dataSummary = {
 				total_events: d.totalEvents ?? 0,
 				total_revenue: d.totalRevenue ?? 0,
 				date_range: range,
+				// Rows cached before currency conversion carry raw (USD) sums.
+				currency: d.currency ?? "USD",
 			};
 		} catch {
 			/* keep default */

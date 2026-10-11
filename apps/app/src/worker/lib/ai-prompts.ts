@@ -8,6 +8,7 @@
 import type { Kysely } from "kysely";
 import type { InsightType, KlikapaDatabase } from "@revklik/shared";
 import { sql } from "../db";
+import { type MoneyContext, USD_MONEY, revenueSql } from "./fx";
 
 // ---------------------------------------------------------------------------
 // Aggregated data types
@@ -44,6 +45,38 @@ export interface AggregatedData {
 	sessionDistribution: Array<{ bucket: string; count: number }>;
 	totalEvents: number;
 	totalRevenue: number;
+	/** ISO 4217 code every revenue figure above is converted into. */
+	currency: string;
+}
+
+const moneyFormats = new Map<string, Intl.NumberFormat>();
+const NBSP = "\u00a0";
+
+const usdFormat = (): Intl.NumberFormat =>
+	new Intl.NumberFormat("en-US", { currency: "USD", maximumFractionDigits: 0, style: "currency" });
+
+/**
+ * Whole-unit money in `currency`, matching the dashboard's `money()`:
+ * IDR uses id-ID grouping ("Rp 5.504.000"), everything else en-US ("$232").
+ * Non-breaking spaces become plain ones so prompts and stored text stay simple.
+ */
+export function formatMoney(amount: number, currency: string): string {
+	const code = currency.toUpperCase();
+	let f = moneyFormats.get(code);
+	if (!f) {
+		try {
+			f = new Intl.NumberFormat(code === "IDR" ? "id-ID" : "en-US", {
+				currency: code,
+				maximumFractionDigits: 0,
+				minimumFractionDigits: 0,
+				style: "currency",
+			});
+		} catch {
+			f = usdFormat();
+		}
+		moneyFormats.set(code, f);
+	}
+	return f.format(Math.round(amount)).replaceAll(NBSP, " ");
 }
 
 // ---------------------------------------------------------------------------
@@ -54,7 +87,11 @@ export async function aggregateData(
 	db: Kysely<KlikapaDatabase>,
 	siteId: string,
 	startIso: string,
+	money: MoneyContext = USD_MONEY,
 ): Promise<AggregatedData> {
+	// Revenue sums are converted into the site's display currency the same
+	// way the dashboard does, so insight amounts match the KPI tiles.
+	const revenue = revenueSql(money);
 	const [
 		revenueBySource,
 		revenueByCountry,
@@ -70,7 +107,7 @@ export async function aggregateData(
 			.selectFrom("events")
 			.select([
 				({ fn }) => fn.coalesce("utm_source", sql.lit("direct")).as("utm_source"),
-				({ fn }) => fn.sum<number>("revenue").as("revenue"),
+				sql<number>`SUM(${revenue})`.as("revenue"),
 				({ fn }) => fn.count<number>("visitor_id").distinct().as("visitors"),
 			])
 			.where("site_id", "=", siteId)
@@ -86,7 +123,7 @@ export async function aggregateData(
 			.selectFrom("events")
 			.select([
 				({ fn }) => fn.coalesce("country", sql.lit("unknown")).as("country"),
-				({ fn }) => fn.sum<number>("revenue").as("revenue"),
+				sql<number>`SUM(${revenue})`.as("revenue"),
 				({ fn }) => fn.count<number>("visitor_id").distinct().as("visitors"),
 			])
 			.where("site_id", "=", siteId)
@@ -159,8 +196,9 @@ export async function aggregateData(
 			.selectFrom("events")
 			.select([
 				({ fn }) => fn.count<number>("id").as("total_events"),
-				({ fn }) =>
-					fn.coalesce(({ fn }) => fn.sum<number>("revenue"), sql.lit("0")).as("total_revenue"),
+				sql<number>`COALESCE(SUM(CASE WHEN revenue > 0 THEN ${revenue} END), 0)`.as(
+					"total_revenue",
+				),
 			])
 			.where("site_id", "=", siteId)
 			.where("timestamp", ">=", startIso)
@@ -290,6 +328,7 @@ export async function aggregateData(
 		sessionDistribution: sessionDistFinal,
 		totalEvents: Number(totalsRow?.total_events ?? 0),
 		totalRevenue: Number(totalsRow?.total_revenue ?? 0),
+		currency: money.currency,
 	};
 }
 
@@ -332,7 +371,9 @@ DATA:
 - Top Pages by Conversion Rate: ${JSON.stringify(data.topPagesByConversion)}
 - Scroll Depth vs Conversion: ${JSON.stringify(data.scrollVsConversion)}
 - Session Distribution: ${JSON.stringify(data.sessionDistribution)}
-- Total Events: ${data.totalEvents}, Total Revenue: ${data.totalRevenue}
+- Total Events: ${data.totalEvents}, Total Revenue: ${formatMoney(data.totalRevenue, data.currency)}
+
+All revenue figures are in ${data.currency}. Write every amount in ${data.currency} formatted like "${formatMoney(1_234_567, data.currency)}" (whole units, no other currency symbol).
 
 Return a JSON array of 3-5 insight objects. Each insight must have:
 - type: one of "revenue_drivers", "geo_opportunities", "funnel_optimization", "traffic_roi"
@@ -374,8 +415,8 @@ export function generateFallbackInsights(data: AggregatedData): RawInsight[] {
 		insights.push({
 			type: "revenue_drivers",
 			title: `Top revenue source: ${top.utm_source}`,
-			summary: `${top.utm_source} generates the most revenue at $${top.revenue.toFixed(2)} from ${top.visitors} unique visitors.`,
-			detail: `Out of all traffic sources, ${top.utm_source} drives $${top.revenue.toFixed(2)} in revenue with ${top.visitors} visitors. This represents the highest revenue concentration and deserves increased investment.`,
+			summary: `${top.utm_source} generates the most revenue at ${formatMoney(top.revenue, data.currency)} from ${top.visitors} unique visitors.`,
+			detail: `Out of all traffic sources, ${top.utm_source} drives ${formatMoney(top.revenue, data.currency)} in revenue with ${top.visitors} visitors. This represents the highest revenue concentration and deserves increased investment.`,
 			confidence: 0.85,
 			action: `Increase budget allocation to ${top.utm_source} campaigns to scale this proven revenue channel.`,
 		});
@@ -387,8 +428,8 @@ export function generateFallbackInsights(data: AggregatedData): RawInsight[] {
 		insights.push({
 			type: "geo_opportunities",
 			title: `Revenue concentrated in ${top.country}`,
-			summary: `${top.country} accounts for $${top.revenue.toFixed(2)} in revenue across ${top.visitors} visitors.`,
-			detail: `The majority of revenue ($${top.revenue.toFixed(2)}) comes from ${top.country}. Other countries represent untapped opportunities for localization and targeted campaigns.`,
+			summary: `${top.country} accounts for ${formatMoney(top.revenue, data.currency)} in revenue across ${top.visitors} visitors.`,
+			detail: `The majority of revenue (${formatMoney(top.revenue, data.currency)}) comes from ${top.country}. Other countries represent untapped opportunities for localization and targeted campaigns.`,
 			confidence: 0.75,
 			action: `Consider localizing content for top revenue countries and running geo-targeted campaigns in underperforming regions.`,
 		});

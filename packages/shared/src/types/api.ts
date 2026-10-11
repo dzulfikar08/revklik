@@ -526,6 +526,8 @@ export interface InsightsResponse {
 		total_events: number;
 		total_revenue: number;
 		date_range: string;
+		/** ISO 4217 code of total_revenue (the site's display currency); USD when absent. */
+		currency?: string;
 	};
 }
 
