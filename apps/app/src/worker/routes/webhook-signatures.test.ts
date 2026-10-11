@@ -1,7 +1,8 @@
 import { describe, expect, it } from "bun:test";
 import { signStandardWebhook } from "../lib/standard-webhooks";
-import { createMigratedTestApp, makeD1, type MigratedTestApp } from "../lib/test-harness";
-import { migrateDatabase } from "../migrations";
+import { createDb } from "../db";
+import { inferSiteCurrencies } from "../lib/currency-backfill";
+import { createMigratedTestApp, type MigratedTestApp } from "../lib/test-harness";
 
 const orderBody = (site: string, id = "ord_1") =>
 	JSON.stringify({
@@ -93,7 +94,7 @@ describe("Stripe webhook (DEV-29)", () => {
 });
 
 describe("revenue currency defaults (DEV-33)", () => {
-	it("migration sets each site to its dominant revenue currency", async () => {
+	it("the cron backfill sets existing sites to their dominant revenue currency", async () => {
 		const t = await createMigratedTestApp();
 		await t.seedUser({ id: "u-cur", withSite: "s-idr" });
 		t.db
@@ -108,8 +109,9 @@ describe("revenue currency defaults (DEV-33)", () => {
 		add("IDR");
 		add("idr");
 		add("USD");
-		t.db.exec("UPDATE schema_version SET version = 8");
-		await migrateDatabase(makeD1(t.db) as unknown as D1Database);
+		t.db.exec("UPDATE sites SET revenue_currency_source = NULL");
+		expect(await inferSiteCurrencies(createDb(t.d1))).toBe(2);
+		expect(await inferSiteCurrencies(createDb(t.d1))).toBe(0);
 		const cur = (id: string) =>
 			(t.db.query("SELECT revenue_currency AS c FROM sites WHERE id = ?").get(id) as { c: string })
 				.c;

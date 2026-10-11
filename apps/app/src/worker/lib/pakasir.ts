@@ -41,10 +41,43 @@ export async function createPakasirOrder(
 		.execute();
 }
 
-export function findPakasirOrder(
+/**
+ * Order by id. Orders created before pakasir_orders existed only live on
+ * subscriptions.pakasir_order_id (status 'pending'); those are adopted into
+ * the table on first sight so the normal claim flow applies.
+ */
+export async function findPakasirOrder(
 	db: Kysely<KlikapaDatabase>,
 	orderId: string,
 ): Promise<PakasirOrderRow | undefined> {
+	const row = await db
+		.selectFrom("pakasir_orders")
+		.selectAll()
+		.where("order_id", "=", orderId)
+		.executeTakeFirst();
+	if (row) return row;
+	const legacy = await db
+		.selectFrom("subscriptions")
+		.select(["user_id", "plan", "updated_at"])
+		.where("pakasir_order_id", "=", orderId)
+		.where("status", "=", "pending")
+		.executeTakeFirst();
+	const amount = legacy ? PAKASIR_PRICES[legacy.plan as PlanTier] : undefined;
+	if (!legacy || !amount) return undefined;
+	await db
+		.insertInto("pakasir_orders")
+		.values({
+			order_id: orderId,
+			user_id: legacy.user_id,
+			plan: legacy.plan,
+			amount,
+			checkout_url: `https://app.pakasir.com/pay/${PAKASIR_PROJECT}/${amount}?order_id=${orderId}&qris_only=1`,
+			status: "pending",
+			created_at: legacy.updated_at,
+			processed_at: null,
+		})
+		.onConflict((oc) => oc.column("order_id").doNothing())
+		.execute();
 	return db
 		.selectFrom("pakasir_orders")
 		.selectAll()
@@ -103,16 +136,18 @@ export async function activatePakasirPayment(
 		.execute();
 	if (claimed.length === 0) return { activated: false, alreadyProcessed: true };
 
-	// Renewing an active paid period stacks onto its end instead of losing days.
+	// Renewing the same plan stacks onto the paid end; a plan change starts a
+	// fresh 30-day period on the new plan from now.
 	const existing = await db
 		.selectFrom("subscriptions")
-		.select(["status", "current_period_end"])
+		.select(["status", "plan", "current_period_end"])
 		.where("user_id", "=", userId)
 		.executeTakeFirst();
 	const existingEnd = existing?.current_period_end
 		? new Date(existing.current_period_end).getTime()
 		: 0;
-	const baseMs = existing?.status === "active" && existingEnd > nowMs ? existingEnd : nowMs;
+	const stacks = existing?.status === "active" && existing.plan === plan && existingEnd > nowMs;
+	const baseMs = stacks ? existingEnd : nowMs;
 	const periodStart = new Date(baseMs).toISOString();
 	const periodEnd = new Date(baseMs + PERIOD_MS).toISOString();
 
@@ -129,6 +164,7 @@ export async function activatePakasirPayment(
 			polar_subscription_id: null,
 			polar_customer_id: null,
 			pakasir_order_id: orderId,
+			pakasir_paid_until: periodEnd,
 			created_at: now,
 			updated_at: now,
 		})
@@ -140,6 +176,7 @@ export async function activatePakasirPayment(
 				current_period_end: periodEnd,
 				cancel_at_period_end: 0,
 				pakasir_order_id: orderId,
+				pakasir_paid_until: periodEnd,
 				updated_at: now,
 			}),
 		)

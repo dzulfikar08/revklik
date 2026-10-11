@@ -120,6 +120,26 @@ export async function enforceSiteQuota(
 	siteId: string,
 	requirePremium?: boolean,
 ): Promise<SiteEnforcementResult> {
+	try {
+		return await enforceSiteQuotaOrThrow(db, siteId, requirePremium);
+	} catch (err) {
+		// Fail open: a DB hiccup must not silently drop a customer's traffic.
+		console.error(`[quota] site ${siteId}: enforcement failed, ingesting anyway:`, err);
+		return {
+			allowed: true,
+			plan: "unknown",
+			eventsUsed: 0,
+			eventsLimit: UNLIMITED,
+			periodEnd: "",
+		};
+	}
+}
+
+async function enforceSiteQuotaOrThrow(
+	db: Kysely<KlikapaDatabase>,
+	siteId: string,
+	requirePremium?: boolean,
+): Promise<SiteEnforcementResult> {
 	const now = Date.now();
 	const cached = siteOwnerCache.get(siteId);
 	const ttl =

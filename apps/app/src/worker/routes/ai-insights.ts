@@ -9,7 +9,7 @@ import type {
 } from "@revklik/shared";
 import { type AiBinding, aggregateData, callWorkersAI } from "../lib/ai-prompts";
 import { planRequiredBody } from "../lib/plan-gate";
-import { requirePlan } from "../lib/plans";
+import { requirePlanForSite } from "../lib/plans";
 import { generateId, getDateRange } from "../utils";
 
 type Variables = { db: Kysely<KlikapaDatabase>; userId: string };
@@ -58,7 +58,7 @@ aiInsightsRoutes.get("/", async (c) => {
 	const site = await validateSite(db, userId, siteId);
 	if (!site) return c.json({ error: "Site not found", success: false }, 404);
 
-	const planCheck = await requirePlan(db, userId, 2);
+	const planCheck = await requirePlanForSite(db, userId, siteId, 2);
 	if (!planCheck.allowed) return c.json(planRequiredBody("growth", planCheck.plan), 403);
 
 	const now = new Date().toISOString();
@@ -136,7 +136,7 @@ aiInsightsRoutes.post("/refresh", async (c) => {
 	const site = await validateSite(db, userId, siteId);
 	if (!site) return c.json({ error: "Site not found", success: false }, 404);
 
-	const planCheck = await requirePlan(db, userId, 2);
+	const planCheck = await requirePlanForSite(db, userId, siteId, 2);
 	if (!planCheck.allowed) return c.json(planRequiredBody("growth", planCheck.plan), 403);
 
 	// Delete cached insights for this site + range

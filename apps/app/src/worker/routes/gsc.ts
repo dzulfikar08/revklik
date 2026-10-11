@@ -1,4 +1,5 @@
 import { Hono } from "hono";
+import { createMiddleware } from "hono/factory";
 import type { Kysely } from "kysely";
 import type { KlikapaDatabase } from "@revklik/shared";
 import type { Env } from "../types";
@@ -8,42 +9,30 @@ export const gscRoutes = new Hono<Env>();
 
 const GSC_SCOPE = "https://www.googleapis.com/auth/webmasters.readonly";
 
-// Auth middleware for protected GSC routes (queries, sync)
-gscRoutes.use("/queries/*", async (c, next) => {
+// Protected GSC routes (queries, sync): unexpired kp_ sessions, plus rvt_
+// account tokens because the CLI calls them. Site-scoped rv_ tokens are refused.
+const gscAuth = createMiddleware<Env>(async (c, next) => {
 	const authHeader = c.req.header("Authorization");
 	if (!authHeader?.startsWith("Bearer "))
 		return c.json({ error: "Unauthorized", success: false }, 401);
-	const token = authHeader.slice(7);
 	const db = c.get("db");
 	if (!db) return c.json({ error: "Database unavailable", success: false }, 503);
-	const keyHash = await hashToken(token);
 	const apiKey = await db
 		.selectFrom("api_keys")
-		.select(["user_id"])
-		.where("key_hash", "=", keyHash)
+		.select(["user_id", "token_type", "expires_at"])
+		.where("key_hash", "=", await hashToken(authHeader.slice(7)))
 		.executeTakeFirst();
 	if (!apiKey) return c.json({ error: "Invalid token", success: false }, 401);
+	if (apiKey.token_type !== "session" && apiKey.token_type !== "account")
+		return c.json({ error: "Session or account token required", success: false }, 401);
+	if (apiKey.expires_at && new Date(apiKey.expires_at) <= new Date())
+		return c.json({ error: "Token expired", success: false }, 401);
 	c.set("userId", apiKey.user_id);
 	await next();
 });
 
-gscRoutes.use("/sync/*", async (c, next) => {
-	const authHeader = c.req.header("Authorization");
-	if (!authHeader?.startsWith("Bearer "))
-		return c.json({ error: "Unauthorized", success: false }, 401);
-	const token = authHeader.slice(7);
-	const db = c.get("db");
-	if (!db) return c.json({ error: "Database unavailable", success: false }, 503);
-	const keyHash = await hashToken(token);
-	const apiKey = await db
-		.selectFrom("api_keys")
-		.select(["user_id"])
-		.where("key_hash", "=", keyHash)
-		.executeTakeFirst();
-	if (!apiKey) return c.json({ error: "Invalid token", success: false }, 401);
-	c.set("userId", apiKey.user_id);
-	await next();
-});
+gscRoutes.use("/queries/*", gscAuth);
+gscRoutes.use("/sync/*", gscAuth);
 
 // Helper: validate user owns the site
 async function validateSite(db: Kysely<KlikapaDatabase>, userId: string, siteId: string) {

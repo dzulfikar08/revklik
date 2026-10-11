@@ -105,17 +105,19 @@ polarWebhookRoutes.post("/", async (c) => {
 			400,
 		);
 
-	// The site's own Polar endpoint secret wins; the env secret covers sites that
-	// point their Polar org at the shared one. Either way a signature is required.
+	// Only the site's own Polar endpoint secret counts: RevKlik's billing secret
+	// must never authenticate revenue into a customer's site.
 	const integration = await findPolarIntegration(db, siteId);
-	let siteSecret = "";
+	let secret = "";
 	try {
-		siteSecret = JSON.parse(integration?.config || "{}").webhook_secret || "";
+		secret = JSON.parse(integration?.config || "{}").webhook_secret || "";
 	} catch {
-		/* malformed config: fall back to the env secret */
+		/* malformed config: treated as missing */
 	}
-	const secret = siteSecret || c.env.POLAR_WEBHOOK_SECRET || "";
-	if (!secret) return c.json({ error: "Polar webhook secret not configured" }, 401);
+	if (!secret) {
+		console.warn(`[webhooks-polar] site ${siteId}: no Polar integration webhook_secret, rejected`);
+		return c.json({ error: "Polar webhook secret not configured for this site" }, 401);
+	}
 	const verdict = await verifyStandardWebhook(
 		rawBody,
 		{
@@ -142,7 +144,7 @@ polarWebhookRoutes.post("/", async (c) => {
 
 	const type = body.type || body.event_type || ""; // e.g. "order.created"
 	const orderId = data.id || attributes.id || "";
-	const isSubscription = type === "subscription.created" || type === "subscription.updated";
+	const isSubscription = type === "subscription.created";
 
 	// One-time products fire "order.created"; ignore the rest (refunds/cancellations handled separately if needed).
 	if (type !== "order.created" && type !== "subscription.created") {

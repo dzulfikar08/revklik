@@ -109,3 +109,27 @@ export async function requirePlan(
 	const tier = PLANS[sub.plan as PlanTier]?.tier ?? 0;
 	return { allowed: isSubscriptionActive(sub) && tier >= requiredTier, plan: sub.plan };
 }
+
+/**
+ * Tier check for a site-scoped feature: the site OWNER's plan decides (team
+ * members ride on it). A super-admin caller always passes; an unknown site
+ * falls back to the caller's own plan.
+ */
+export async function requirePlanForSite(
+	db: Kysely<KlikapaDatabase>,
+	userId: string,
+	siteId: string | null | undefined,
+	requiredTier: number,
+): Promise<{ allowed: boolean; plan: string }> {
+	const owner = siteId
+		? await db.selectFrom("sites").select(["user_id"]).where("id", "=", siteId).executeTakeFirst()
+		: undefined;
+	if (!owner || owner.user_id === userId) return requirePlan(db, userId, requiredTier);
+	const caller = await db
+		.selectFrom("users")
+		.select(["role"])
+		.where("id", "=", userId)
+		.executeTakeFirst();
+	if (caller?.role === "super_admin") return { allowed: true, plan: "growth" };
+	return requirePlan(db, owner.user_id, requiredTier);
+}

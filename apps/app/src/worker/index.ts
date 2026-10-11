@@ -2,6 +2,7 @@ import { createApp } from "./app";
 import { createDb } from "./db";
 import { backupDatabase } from "./backup";
 import { syncAllAppStoreConnect } from "./lib/appstoreconnect";
+import { inferSiteCurrencies } from "./lib/currency-backfill";
 import { purgeExpiredRows } from "./lib/purge";
 import type { Bindings } from "./types";
 
@@ -18,6 +19,9 @@ export default {
 			await backupDatabase(env);
 			// Runs after the dump; a no-op unless RETENTION_HARD_DELETE_DAYS is set.
 			if (env.DB) {
+				await inferSiteCurrencies(createDb(env.DB)).catch((err) =>
+					console.error("Currency backfill failed:", err),
+				);
 				const purged = await purgeExpiredRows(env.DB, env.RETENTION_HARD_DELETE_DAYS);
 				if (purged > 0) console.log(`Retention purge: ${purged} rows deleted`);
 			}

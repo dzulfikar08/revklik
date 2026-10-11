@@ -4,7 +4,7 @@ import type { Kysely } from "kysely";
 import type { KlikapaDatabase } from "@revklik/shared";
 import type { Env } from "../types";
 import { INGEST_GRACE_MS, isSubscriptionActive } from "./entitlement";
-import { PLANS, type PlanTier, requirePlan } from "./plans";
+import { PLANS, type PlanTier, requirePlanForSite } from "./plans";
 
 type GateEnv = Env;
 
@@ -20,12 +20,27 @@ export function planRequiredBody(required: GatedPlan, current: string) {
 	};
 }
 
-/** Returns a 403 response when the caller's plan is below `required`, else null. */
+/** site_id from the query string, else from a JSON body (Hono caches the parse). */
+async function requestSiteId(c: Context<GateEnv>): Promise<string | undefined> {
+	const fromQuery = c.req.query("site_id");
+	if (fromQuery) return fromQuery;
+	if (!c.req.header("content-type")?.includes("application/json")) return undefined;
+	const body = await c.req.json().catch(() => null);
+	const siteId = (body as { site_id?: unknown } | null)?.site_id;
+	return typeof siteId === "string" ? siteId : undefined;
+}
+
+/** 403 response when the site owner's (else caller's) plan is below `required`, else null. */
 export async function checkPlan(
 	c: Context<GateEnv>,
 	required: GatedPlan,
 ): Promise<Response | null> {
-	const check = await requirePlan(c.get("db"), c.get("userId"), PLANS[required].tier);
+	const check = await requirePlanForSite(
+		c.get("db"),
+		c.get("userId"),
+		await requestSiteId(c),
+		PLANS[required].tier,
+	);
 	return check.allowed ? null : c.json(planRequiredBody(required, check.plan), 403);
 }
 

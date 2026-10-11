@@ -2,7 +2,7 @@
  * Version the live schema must reach. Bump it whenever a step is appended to
  * VERSIONED_STEPS; a DB already at this version costs one SELECT per isolate.
  */
-export const SCHEMA_VERSION = 9;
+export const SCHEMA_VERSION = 10;
 
 const migrated = new WeakSet<D1Database>();
 
@@ -21,7 +21,11 @@ async function runDdl(d1: D1Database, statement: string): Promise<void> {
 	}
 }
 
-/** Data repair is best effort: a failed backfill is logged and never blocks the schema. */
+/**
+ * Data repair whose absence is merely cosmetic: a failure is logged and the
+ * version still advances. Repairs that correctness depends on use runDdl-style
+ * statements that throw, so the version is not stamped and the next isolate retries.
+ */
 async function runBackfill(d1: D1Database, statement: string, ...params: unknown[]): Promise<void> {
 	try {
 		await d1
@@ -66,21 +70,33 @@ const VERSIONED_STEPS: MigrationStep[] = [
 	{ version: 8, run: (d1) => runDdl(d1, "DROP INDEX IF EXISTS idx_events_site_payment") },
 	{
 		version: 9,
-		// Display each existing site in the currency most of its revenue arrived in,
-		// so IDR merchants keep seeing IDR. Sites without revenue stay USD.
-		run: (d1) =>
-			runBackfill(
-				d1,
-				`UPDATE sites SET revenue_currency = COALESCE((
-           SELECT UPPER(COALESCE(NULLIF(e.currency, ''), 'USD')) AS cur
-           FROM events e
-           WHERE e.site_id = sites.id AND e.revenue > 0
-           GROUP BY cur ORDER BY COUNT(*) DESC LIMIT 1
-         ), 'USD')
-         WHERE revenue_currency = 'USD'`,
-			),
+		// NULL = existing site whose currency the 03:00 cron has not inferred yet
+		// (lib/currency-backfill.ts); 'auto', 'user' or 'default' once settled.
+		run: (d1) => runDdl(d1, "ALTER TABLE sites ADD COLUMN revenue_currency_source TEXT"),
 	},
+	{ version: 10, run: accountProofSchema },
 ];
+
+/** Review fixes: QRIS-paid horizon, email verification. */
+async function accountProofSchema(d1: D1Database): Promise<void> {
+	await runDdl(d1, "ALTER TABLE subscriptions ADD COLUMN pakasir_paid_until TEXT");
+	await runDdl(d1, "ALTER TABLE users ADD COLUMN email_verified_at TEXT");
+	await runDdl(
+		d1,
+		"CREATE TABLE IF NOT EXISTS email_verifications (id TEXT PRIMARY KEY, user_id TEXT NOT NULL, token_hash TEXT NOT NULL UNIQUE, expires_at TEXT NOT NULL, used_at TEXT, created_at TEXT NOT NULL DEFAULT (datetime('now')))",
+	);
+	await runDdl(d1, "CREATE INDEX IF NOT EXISTS idx_ev_user ON email_verifications(user_id)");
+	// Google accounts proved their address at sign-in.
+	await runBackfill(
+		d1,
+		"UPDATE users SET email_verified_at = created_at WHERE google_id IS NOT NULL AND email_verified_at IS NULL",
+	);
+	// Rows already active on a QRIS order keep that period as their floor.
+	await runBackfill(
+		d1,
+		"UPDATE subscriptions SET pakasir_paid_until = current_period_end WHERE pakasir_order_id IS NOT NULL AND status = 'active' AND pakasir_paid_until IS NULL",
+	);
+}
 
 /** DEV-34: password resets, D1 login throttle, session expiry, referral commissions. */
 async function authHardeningSchema(d1: D1Database): Promise<void> {
@@ -129,7 +145,8 @@ async function billingIntegritySchema(d1: D1Database): Promise<void> {
 	);
 	// Carry orders recorded on the subscription row over: an active row's order
 	// was already applied, so it lands as completed and can never be replayed.
-	await runBackfill(
+	// Required: without it a completed order could be replayed, so failure throws.
+	await runDdl(
 		d1,
 		`INSERT INTO pakasir_orders (order_id, user_id, plan, amount, checkout_url, status, created_at, processed_at)
        SELECT pakasir_order_id, user_id, plan,
@@ -162,21 +179,59 @@ async function readSchemaVersion(d1: D1Database): Promise<number> {
 	}
 }
 
+const LOCK_TTL_MS = 120_000;
+
+/**
+ * One isolate migrates at a time: the lock row is taken when absent or stale
+ * (a crashed holder frees it after LOCK_TTL_MS). Losers skip this round; the
+ * app middleware retries a minute later.
+ */
+async function acquireMigrationLock(d1: D1Database, token: string): Promise<boolean> {
+	await runDdl(
+		d1,
+		"CREATE TABLE IF NOT EXISTS migration_lock (id INTEGER PRIMARY KEY CHECK (id = 1), token TEXT NOT NULL, locked_at TEXT NOT NULL)",
+	);
+	const now = Date.now();
+	const rows = await d1
+		.prepare(
+			"INSERT INTO migration_lock (id, token, locked_at) VALUES (1, ?, ?) ON CONFLICT(id) DO UPDATE SET token = excluded.token, locked_at = excluded.locked_at WHERE migration_lock.locked_at < ? RETURNING token",
+		)
+		.bind(token, new Date(now).toISOString(), new Date(now - LOCK_TTL_MS).toISOString())
+		.all<{ token: string }>();
+	return rows.results?.[0]?.token === token;
+}
+
+async function releaseMigrationLock(d1: D1Database, token: string): Promise<void> {
+	try {
+		await d1.prepare("DELETE FROM migration_lock WHERE id = 1 AND token = ?").bind(token).run();
+	} catch {
+		/* expires on its own */
+	}
+}
+
 export async function migrateDatabase(d1: D1Database): Promise<void> {
 	if (migrated.has(d1)) return;
 
 	const current = await readSchemaVersion(d1);
 	if (current < SCHEMA_VERSION) {
-		for (const step of VERSIONED_STEPS) {
-			if (step.version > current) await step.run(d1);
+		const token = crypto.randomUUID();
+		if (!(await acquireMigrationLock(d1, token))) return;
+		try {
+			// Re-read under the lock: another isolate may have finished meanwhile.
+			const locked = await readSchemaVersion(d1);
+			for (const step of VERSIONED_STEPS) {
+				if (step.version > locked) await step.run(d1);
+			}
+			await runDdl(d1, SCHEMA_VERSION_TABLE);
+			await d1
+				.prepare(
+					"INSERT INTO schema_version (id, version, updated_at) VALUES (1, ?, ?) ON CONFLICT(id) DO UPDATE SET version = MAX(version, excluded.version), updated_at = excluded.updated_at",
+				)
+				.bind(SCHEMA_VERSION, new Date().toISOString())
+				.run();
+		} finally {
+			await releaseMigrationLock(d1, token);
 		}
-		await runDdl(d1, SCHEMA_VERSION_TABLE);
-		await d1
-			.prepare(
-				"INSERT INTO schema_version (id, version, updated_at) VALUES (1, ?, ?) ON CONFLICT(id) DO UPDATE SET version = MAX(version, excluded.version), updated_at = excluded.updated_at",
-			)
-			.bind(SCHEMA_VERSION, new Date().toISOString())
-			.run();
 	}
 	migrated.add(d1);
 }
