@@ -2,7 +2,7 @@ import { Hono } from "hono";
 import type { Kysely } from "kysely";
 import type { KlikapaDatabase } from "@revklik/shared";
 import { sql } from "../db";
-import { verifyPolarSignature } from "../lib/webhook-utils";
+import { verifyStandardWebhook } from "../lib/standard-webhooks";
 import type { Env } from "../types";
 import { generateId } from "../utils";
 
@@ -46,7 +46,7 @@ interface PolarWebhookAttributes {
 async function findPolarIntegration(db: Kysely<KlikapaDatabase>, siteId: string) {
 	return db
 		.selectFrom("integrations")
-		.select(["id"])
+		.select(["id", "config"])
 		.where("site_id", "=", siteId)
 		.where("type", "=", "polar")
 		.where("enabled", "=", 1)
@@ -92,7 +92,7 @@ polarWebhookRoutes.post("/", async (c) => {
 	const data: PolarWebhookData = body.data ?? {};
 	const attributes: PolarWebhookAttributes = data.attributes ?? {};
 	const metadata: Record<string, string | undefined> = {
-		...(data.metadata ?? attributes.metadata ?? {}),
+		...(data.metadata ?? attributes.metadata),
 	};
 
 	// Resolve site_id: Polar checkout/product metadata -> query param.
@@ -105,24 +105,39 @@ polarWebhookRoutes.post("/", async (c) => {
 			400,
 		);
 
-	const secret = c.env.POLAR_WEBHOOK_SECRET || "";
-	const signatureHeader =
-		c.req.header("webhook-signature") || c.req.header("Webhook-Signature") || "";
-	if (!secret) return c.json({ error: "POLAR_WEBHOOK_SECRET not configured" }, 503);
-	if (signatureHeader) {
-		const valid = await verifyPolarSignature(rawBody, signatureHeader, secret);
-		if (!valid) {
-			const integration = await findPolarIntegration(db, siteId);
-			await logWebhookEvent(
-				db,
-				siteId,
-				integration?.id ?? null,
-				"polar_invalid_sig",
-				rawBody,
-				"failed",
-			);
-			return c.json({ error: "Invalid signature" }, 401);
-		}
+	// The site's own Polar endpoint secret wins; the env secret covers sites that
+	// point their Polar org at the shared one. Either way a signature is required.
+	const integration = await findPolarIntegration(db, siteId);
+	let siteSecret = "";
+	try {
+		siteSecret = JSON.parse(integration?.config || "{}").webhook_secret || "";
+	} catch {
+		/* malformed config: fall back to the env secret */
+	}
+	const secret = siteSecret || c.env.POLAR_WEBHOOK_SECRET || "";
+	if (!secret) return c.json({ error: "Polar webhook secret not configured" }, 401);
+	const verdict = await verifyStandardWebhook(
+		rawBody,
+		{
+			id: c.req.header("webhook-id") || "",
+			timestamp: c.req.header("webhook-timestamp") || "",
+			signature: c.req.header("webhook-signature") || "",
+		},
+		secret,
+	);
+	if (verdict !== "ok") {
+		await logWebhookEvent(
+			db,
+			siteId,
+			integration?.id ?? null,
+			"polar_invalid_sig",
+			rawBody,
+			"failed",
+		);
+		return c.json(
+			{ error: verdict === "stale" ? "Stale webhook timestamp" : "Invalid signature" },
+			401,
+		);
 	}
 
 	const type = body.type || body.event_type || ""; // e.g. "order.created"
@@ -131,7 +146,6 @@ polarWebhookRoutes.post("/", async (c) => {
 
 	// One-time products fire "order.created"; ignore the rest (refunds/cancellations handled separately if needed).
 	if (type !== "order.created" && type !== "subscription.created") {
-		const integration = await findPolarIntegration(db, siteId);
 		await logWebhookEvent(
 			db,
 			siteId,
@@ -161,7 +175,7 @@ polarWebhookRoutes.post("/", async (c) => {
 		.select(["id"])
 		.where("site_id", "=", siteId)
 		.where("event_type", "=", "conversion")
-		.where("props", "like", `%"${dedupeKey}":"${orderId}"%`)
+		.where(sql<string>`json_extract(props, ${`$.${dedupeKey}`})`, "=", String(orderId))
 		.executeTakeFirst();
 	if (existing) return c.json({ success: true, duplicate: true });
 
@@ -252,7 +266,6 @@ polarWebhookRoutes.post("/", async (c) => {
 		)
 		.execute();
 
-	const integration = await findPolarIntegration(db, siteId);
 	await logWebhookEvent(db, siteId, integration?.id ?? null, `polar_${type}`, rawBody, "processed");
 	return c.json({
 		success: true,

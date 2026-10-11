@@ -1,14 +1,20 @@
 import { Hono } from "hono";
 import type { PlanTier } from "../lib/plans";
 import { getFeatures, getPlanLimits, PLANS } from "../lib/plans";
+import { getAccountEventsUsed } from "../lib/account-usage";
+import { isTrialExpired } from "../lib/entitlement";
 import {
 	activatePakasirPayment,
+	createPakasirOrder,
+	findPakasirOrder,
+	latestPendingPakasirOrder,
+	newPakasirOrderId,
 	PAKASIR_PRICES,
-	PAKASIR_PROJECT,
+	pakasirCheckoutUrl,
 	verifyWithPakasir,
 } from "../lib/pakasir";
+import { usdRates } from "../lib/fx";
 import type { Env } from "../types";
-import { generateId } from "../utils";
 
 export const billingRoutes = new Hono<Env>();
 
@@ -20,6 +26,9 @@ let polarProductsCache: {
 	cachedAt: number;
 } | null = null;
 const POLAR_PRODUCTS_TTL = 5 * 60_000;
+
+// A QRIS payment page is only worth resuming for a day.
+const PENDING_ORDER_WINDOW_MS = 86_400_000;
 
 // Get current subscription with usage info
 billingRoutes.get("/subscription", async (c) => {
@@ -45,19 +54,8 @@ billingRoutes.get("/subscription", async (c) => {
 	const plan = (sub?.plan ?? "micro") as PlanTier;
 	const limits = getPlanLimits(plan);
 
-	// Count current month's usage
-	const monthStart = new Date();
-	monthStart.setUTCDate(1);
-	monthStart.setUTCHours(0, 0, 0, 0);
-	const monthStartIso = monthStart.toISOString();
-
-	const [eventCount, siteCount] = await Promise.all([
-		db
-			.selectFrom("events")
-			.select(({ fn }) => fn.count<number>("id").as("cnt"))
-			.where("site_id", "in", db.selectFrom("sites").select("id").where("user_id", "=", userId))
-			.where("timestamp", ">=", monthStartIso)
-			.executeTakeFirst(),
+	const [eventsUsed, siteCount] = await Promise.all([
+		getAccountEventsUsed(db, userId),
 		db
 			.selectFrom("sites")
 			.select(({ fn }) => fn.count<number>("id").as("cnt"))
@@ -67,11 +65,26 @@ billingRoutes.get("/subscription", async (c) => {
 
 	const usage = {
 		events: {
-			used: Number(eventCount?.cnt ?? 0),
+			used: eventsUsed,
 			limit: limits.events_per_month,
 		},
 		sites: { used: Number(siteCount?.cnt ?? 0), limit: limits.sites },
 	};
+
+	const pending = await latestPendingPakasirOrder(
+		db,
+		userId,
+		new Date(Date.now() - PENDING_ORDER_WINDOW_MS).toISOString(),
+	);
+	const pendingOrder = pending
+		? {
+				order_id: pending.order_id,
+				plan: pending.plan,
+				amount: pending.amount,
+				checkout_url: pending.checkout_url,
+				created_at: pending.created_at,
+			}
+		: null;
 
 	if (!sub) {
 		return c.json({
@@ -87,6 +100,8 @@ billingRoutes.get("/subscription", async (c) => {
 				polar_customer_id: null,
 				usage,
 				trial_days_remaining: null,
+				trial_expired: false,
+				pending_order: pendingOrder,
 			},
 			success: true,
 		});
@@ -109,6 +124,8 @@ billingRoutes.get("/subscription", async (c) => {
 			cancel_at_period_end: !!sub.cancel_at_period_end,
 			usage,
 			trial_days_remaining: trialDaysRemaining,
+			trial_expired: isTrialExpired(sub),
+			pending_order: pendingOrder,
 		},
 		success: true,
 	});
@@ -212,12 +229,11 @@ billingRoutes.post("/checkout", async (c) => {
 		.executeTakeFirst();
 	if (!user) return c.json({ error: "User not found", success: false }, 404);
 
-	// If Polar token not configured, return direct link placeholder
 	if (!polarToken) {
-		return c.json({
-			data: { url: `https://polar.sh/revklik/checkout?plan=${plan}` },
-			success: true,
-		});
+		return c.json(
+			{ error: "Card checkout is not configured", code: "checkout_unavailable", success: false },
+			503,
+		);
 	}
 
 	try {
@@ -321,40 +337,20 @@ billingRoutes.post("/checkout/pakasir", async (c) => {
 		.executeTakeFirst();
 	if (!user) return c.json({ error: "User not found", success: false }, 404);
 
-	// Generate unique order ID
-	const orderId = `RVK-${userId.slice(0, 8)}-${Date.now().toString(36).toUpperCase()}`;
+	const orderId = newPakasirOrderId(userId);
 	const successUrl = `https://app.revklik.com/?checkout=pakasir_success&plan=${plan}`;
+	const checkoutUrl = pakasirCheckoutUrl(amount, orderId, successUrl);
 
-	// Use URL redirect method — simplest integration
-	const checkoutUrl = `https://app.pakasir.com/pay/${PAKASIR_PROJECT}/${amount}?order_id=${orderId}&redirect=${encodeURIComponent(successUrl)}&qris_only=1`;
-
-	// Store pending order in DB for webhook/verify reconciliation
-	const now = new Date().toISOString();
-	await db
-		.insertInto("subscriptions")
-		.values({
-			id: generateId(),
-			user_id: userId,
-			plan: plan,
-			status: "pending",
-			current_period_start: now,
-			current_period_end: new Date(Date.now() + 30 * 86400000).toISOString(),
-			cancel_at_period_end: 0,
-			polar_subscription_id: null,
-			polar_customer_id: null,
-			pakasir_order_id: orderId,
-			created_at: now,
-			updated_at: now,
-		})
-		.onConflict((oc) =>
-			oc.column("user_id").doUpdateSet({
-				plan: plan,
-				status: "pending",
-				pakasir_order_id: orderId,
-				updated_at: now,
-			}),
-		)
-		.execute();
+	// The pending order lives in its own table: an active or trialing
+	// subscription keeps its status until the webhook confirms payment.
+	await createPakasirOrder(db, {
+		order_id: orderId,
+		user_id: userId,
+		plan,
+		amount,
+		checkout_url: checkoutUrl,
+		created_at: new Date().toISOString(),
+	});
 
 	return c.json({
 		data: { url: checkoutUrl, order_id: orderId, amount, plan },
@@ -371,33 +367,32 @@ billingRoutes.post("/pakasir/verify", async (c) => {
 	const apiKey = c.env.PAKASIR_API_KEY || "";
 	if (!apiKey) return c.json({ error: "Pakasir not configured", success: false }, 500);
 
-	const sub = await db
-		.selectFrom("subscriptions")
-		.select(["plan", "status", "pakasir_order_id"])
-		.where("user_id", "=", userId)
-		.executeTakeFirst();
-	if (!sub?.pakasir_order_id) {
+	const body = await c.req.json<{ order_id?: string }>().catch(() => ({}) as { order_id?: string });
+	const order = body.order_id
+		? await findPakasirOrder(db, body.order_id)
+		: await latestPendingPakasirOrder(db, userId);
+	if (!order || order.user_id !== userId) {
 		return c.json({ data: { status: "no_pending_order" }, success: true });
 	}
-	if (sub.status === "active") {
-		return c.json({ data: { status: "active", plan: sub.plan }, success: true });
+	if (order.status !== "pending") {
+		return c.json({ data: { status: "active", plan: order.plan }, success: true });
 	}
 
-	const amount = PAKASIR_PRICES[sub.plan as PlanTier];
-	const tx = await verifyWithPakasir(apiKey, sub.pakasir_order_id, amount).catch(() => null);
-	if (!tx || tx.status !== "completed" || tx.amount !== amount) {
+	const tx = await verifyWithPakasir(apiKey, order.order_id, order.amount).catch(() => null);
+	if (!tx || tx.status !== "completed" || tx.amount !== order.amount) {
 		return c.json({ data: { status: "pending" }, success: true });
 	}
 
 	await activatePakasirPayment(db, {
 		userId,
-		plan: sub.plan as PlanTier,
-		orderId: sub.pakasir_order_id,
-		amount,
+		plan: order.plan as PlanTier,
+		orderId: order.order_id,
+		amount: order.amount,
 		paymentMethod: tx.payment_method,
 		completedAt: tx.completed_at,
+		fxRates: usdRates(c.env),
 	});
-	return c.json({ data: { status: "active", plan: sub.plan }, success: true });
+	return c.json({ data: { status: "active", plan: order.plan }, success: true });
 });
 
 // Cancel subscription
@@ -415,15 +410,24 @@ billingRoutes.post("/cancel", async (c) => {
 		return c.json({ error: "No active paid subscription", success: false }, 404);
 	}
 
-	if (polarToken) {
-		try {
-			await fetch(`${POLAR_API}/subscriptions/${sub.polar_subscription_id}/cancel`, {
-				method: "POST",
-				headers: { Authorization: `Bearer ${polarToken}` },
-			});
-		} catch {
-			/* Polar API error */
-		}
+	if (!polarToken) {
+		return c.json({ error: "Billing provider not configured", success: false }, 503);
+	}
+	// Polar cancels at period end via PATCH { cancel_at_period_end: true }.
+	let polarError: string | null = null;
+	try {
+		const res = await fetch(`${POLAR_API}/subscriptions/${sub.polar_subscription_id}`, {
+			method: "PATCH",
+			headers: { Authorization: `Bearer ${polarToken}`, "Content-Type": "application/json" },
+			body: JSON.stringify({ cancel_at_period_end: true }),
+		});
+		if (!res.ok) polarError = `Polar returned HTTP ${res.status}`;
+	} catch (err) {
+		polarError = err instanceof Error ? err.message : String(err);
+	}
+	if (polarError) {
+		console.error("[billing] /cancel:", polarError);
+		return c.json({ error: "Cancellation failed at the billing provider", success: false }, 502);
 	}
 
 	await db

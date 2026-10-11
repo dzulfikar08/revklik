@@ -82,19 +82,23 @@ lemonsqueezyWebhookRoutes.post("/", async (c) => {
 	const webhookSecret = config.webhook_secret || "";
 	const signatureHeader = c.req.header("x-signature") || "";
 
-	if (webhookSecret && signatureHeader) {
-		const valid = await verifyLemonSqueezySignature(rawBody, signatureHeader, webhookSecret);
-		if (!valid) {
-			await logWebhookEvent(
-				db,
-				siteId,
-				integration.id,
-				"lemonsqueezy_invalid_sig",
-				rawBody,
-				"failed",
-			);
-			return c.json({ error: "Invalid signature" }, 401);
-		}
+	if (!webhookSecret) {
+		await logWebhookEvent(db, siteId, integration.id, "lemonsqueezy_no_secret", rawBody, "failed");
+		return c.json({ error: "Webhook secret not configured for this integration" }, 401);
+	}
+	const signatureValid =
+		!!signatureHeader &&
+		(await verifyLemonSqueezySignature(rawBody, signatureHeader, webhookSecret));
+	if (!signatureValid) {
+		await logWebhookEvent(
+			db,
+			siteId,
+			integration.id,
+			"lemonsqueezy_invalid_sig",
+			rawBody,
+			"failed",
+		);
+		return c.json({ error: "Invalid signature" }, 401);
 	}
 
 	const eventName = body.meta?.event_name || "";
@@ -119,15 +123,26 @@ lemonsqueezyWebhookRoutes.post("/", async (c) => {
 	const isSubscription = eventName === "subscription_created";
 	const evtType = isSubscription ? "subscription" : "payment";
 
-	// Deduplicate using lemonsqueezy_order_id in props JSON
-	const existing = await db
+	if (!orderId) return c.json({ error: "Missing order id" }, 400);
+
+	// Exact-key dedupe: rows written before webhook_dedupe existed are matched on
+	// the stored order id; new deliveries claim a key atomically.
+	const legacy = await db
 		.selectFrom("events")
 		.select(["id"])
 		.where("site_id", "=", siteId)
 		.where("event_type", "=", evtType)
-		.where("props", "like", `%"lemonsqueezy_order_id":"${orderId}"%`)
+		.where(sql<string>`json_extract(props, '$.lemonsqueezy_order_id')`, "=", orderId)
 		.executeTakeFirst();
-	if (existing) return c.json({ success: true, duplicate: true });
+	if (legacy) return c.json({ success: true, duplicate: true });
+	const dedupeKey = `lemonsqueezy:${siteId}:${evtType}:${orderId}`;
+	const claimed = await db
+		.insertInto("webhook_dedupe")
+		.values({ key: dedupeKey, created_at: new Date().toISOString() })
+		.onConflict((oc) => oc.column("key").doNothing())
+		.returning("key")
+		.execute();
+	if (claimed.length === 0) return c.json({ success: true, duplicate: true });
 
 	const sessionId = customData.revklik_session_id || generateId();
 	let visitorId = customData.revklik_visitor_id || null;

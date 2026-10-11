@@ -45,6 +45,8 @@ import { paywuzWebhookRoutes } from "./routes/webhooks-paywuz";
 import { xenditWebhookRoutes } from "./routes/webhooks-xendit";
 import { widgetRoutes } from "./routes/widgets";
 import { widgetLiveRoutes } from "./routes/widgets-live";
+import { requireActiveSubscription, requirePlanTier } from "./lib/plan-gate";
+import { refreshSessionExpiry } from "./lib/session";
 import type { Env } from "./types";
 import { hashToken } from "./utils";
 
@@ -64,13 +66,13 @@ const authMiddleware = createMiddleware<Env>(async (c, next) => {
 		.where("key_hash", "=", keyHash)
 		.executeTakeFirst();
 	if (!apiKey) return c.json({ error: "Invalid token", success: false }, 401);
-	// Dashboard API accepts user-scoped tokens only: session (kp_) and account
-	// (rvt_) — site-scoped rv_ tokens must go through publicAuthMiddleware —
-	// and expired tokens are dead.
-	if (apiKey.token_type !== "session" && apiKey.token_type !== "account")
+	// Dashboard API accepts session (kp_) tokens only: account rvt_ and site rv_
+	// tokens are API credentials and authenticate on /v1 and /mcp instead.
+	if (apiKey.token_type !== "session")
 		return c.json({ error: "Session token required", success: false }, 401);
 	if (apiKey.expires_at && new Date(apiKey.expires_at) <= new Date())
 		return c.json({ error: "Token expired", success: false }, 401);
+	await refreshSessionExpiry(db, keyHash, apiKey.expires_at);
 
 	c.set("userId", apiKey.user_id);
 	await next();
@@ -106,7 +108,7 @@ export function createApp(): Hono<Env> {
 			// Bind first: the API must serve even when migrations fail.
 			c.set("db", createDb(d1));
 			// Throttle failed-migration retries to one attempt per minute per isolate.
-			if (!hasMigrated() && Date.now() - lastMigrationAttempt > MIGRATION_RETRY_MS) {
+			if (!hasMigrated(d1) && Date.now() - lastMigrationAttempt > MIGRATION_RETRY_MS) {
 				lastMigrationAttempt = Date.now();
 				try {
 					await migrateDatabase(d1);
@@ -134,15 +136,21 @@ export function createApp(): Hono<Env> {
 	app.route("/sites", siteRoutes);
 
 	app.use("/analytics/*", authMiddleware);
+	app.use("/analytics/*", requireActiveSubscription);
+	app.use("/analytics/funnel", requirePlanTier("starter"));
 	app.route("/analytics", analyticsRoutes);
 
 	app.use("/ai-insights/*", authMiddleware);
+	app.use("/ai-insights/*", requireActiveSubscription);
 	app.route("/ai-insights", aiInsightsRoutes);
 
+	// Removing an integration stays possible after a downgrade.
 	app.use("/integrations/*", authMiddleware);
+	app.use("/integrations/*", requirePlanTier("growth", ["POST", "PATCH", "PUT"]));
 	app.route("/integrations", integrationRoutes);
 
 	app.use("/appstoreconnect/*", authMiddleware);
+	app.use("/appstoreconnect/*", requireActiveSubscription);
 	app.route("/appstoreconnect", ascRoutes);
 
 	app.use("/tokens/*", authMiddleware);
@@ -160,6 +168,7 @@ export function createApp(): Hono<Env> {
 	app.route("/webhooks/doku", dokuWebhookRoutes);
 
 	app.use("/payment-providers/*", authMiddleware);
+	app.use("/payment-providers/*", requirePlanTier("starter", ["POST", "PATCH", "PUT"]));
 	app.route("/payment-providers", paymentProviderRoutes);
 
 	// Serve tracking script based on site plan tier
@@ -207,12 +216,14 @@ export function createApp(): Hono<Env> {
 	app.route("/billing", billingRoutes);
 
 	app.use("/team/*", authMiddleware);
+	app.use("/team/invite", requirePlanTier("growth"));
 	app.route("/team", teamRoutes);
 
 	app.use("/push-tokens/*", authMiddleware);
 	app.route("/push-tokens", pushTokenRoutes);
 
 	app.use("/segments/*", authMiddleware);
+	app.use("/segments/*", requirePlanTier("starter", ["POST"]));
 	app.route("/segments", segmentRoutes);
 
 	app.use("/annotations/*", authMiddleware);
@@ -228,6 +239,8 @@ export function createApp(): Hono<Env> {
 	app.route("/gsc", gscRoutes);
 
 	app.use("/predictions/*", authMiddleware);
+	app.use("/predictions/*", requireActiveSubscription);
+	app.use("/predictions/*", requirePlanTier("growth"));
 	app.route("/predictions", predictionsRoutes);
 
 	app.use("/affiliates/*", authMiddleware);
@@ -240,15 +253,9 @@ export function createApp(): Hono<Env> {
 	// Public dashboard (no auth)
 	app.route("/public", publicLiveRoutes);
 	app.get("/public/:token", async (c) => {
-		const d1 = c.env.DB;
-		if (!d1) return c.json({ error: "DB unavailable", success: false }, 503);
-		try {
-			await migrateDatabase(d1);
-		} catch {}
-		c.set("db", createDb(d1));
-
+		const db = c.get("db") as Kysely<KlikapaDatabase> | undefined;
+		if (!db) return c.json({ error: "DB unavailable", success: false }, 503);
 		const token = c.req.param("token");
-		const db = c.get("db") as Kysely<KlikapaDatabase>;
 		const site = await db
 			.selectFrom("sites")
 			.select(["id", "name", "domain", "public_dashboard"])
@@ -258,9 +265,11 @@ export function createApp(): Hono<Env> {
 		if (!site) return c.json({ error: "Dashboard not found", success: false }, 404);
 
 		const { getDateRange } = await import("./utils");
+		const { resolveQueryScope } = await import("./lib/site-scope");
 		const range = c.req.query("range") || "7d";
 		const { start } = getDateRange(range);
 		const startIso = start.toISOString();
+		const scope = await resolveQueryScope(db, site.id, c.env, c.req.query("tz"));
 
 		const {
 			getOverviewStats,
@@ -284,15 +293,15 @@ export function createApp(): Hono<Env> {
 			revenueTimeseries,
 			channels,
 		] = await Promise.all([
-			getOverviewStats(db, site.id, startIso),
-			getTimeseries(db, site.id, startIso, false),
+			getOverviewStats(db, site.id, startIso, undefined, undefined, scope),
+			getTimeseries(db, site.id, startIso, false, undefined, undefined, scope),
 			getTopPages(db, site.id, startIso, 10),
 			getReferrers(db, site.id, startIso, 10),
 			getDeviceBreakdown(db, site.id, startIso),
-			getRevenueBySource(db, site.id, startIso),
-			getRevenueByCountry(db, site.id, startIso),
-			getRevenueTimeseries(db, site.id, startIso, false),
-			getChannelBreakdown(db, site.id, startIso),
+			getRevenueBySource(db, site.id, startIso, undefined, undefined, scope),
+			getRevenueByCountry(db, site.id, startIso, undefined, undefined, scope),
+			getRevenueTimeseries(db, site.id, startIso, false, undefined, undefined, scope),
+			getChannelBreakdown(db, site.id, startIso, undefined, undefined, scope),
 		]);
 
 		return c.json({
@@ -310,8 +319,10 @@ export function createApp(): Hono<Env> {
 					revenueByCountry,
 					revenueTimeseries,
 					channels,
+					currency: scope.money.currency,
 				},
 			},
+			currency: scope.money.currency,
 			success: true,
 		});
 	});

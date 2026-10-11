@@ -99,6 +99,7 @@ export async function processPolarOrder(
 			browser: null,
 			os: null,
 			revenue: amount,
+			currency: (order.currency ?? "usd").toUpperCase(),
 			props: JSON.stringify({
 				polar_order_id: polarOrderId,
 				currency: order.currency ?? "usd",
@@ -142,52 +143,4 @@ export async function processPolarOrder(
 		.execute();
 
 	return "imported";
-}
-
-/**
- * Re-price an existing conversion event from Polar's current order total_amount.
- * Used by the daily refresh cron to correct frozen revenue (e.g. after a price
- * drop in Polar) so analytics reflect the order's current stored amount.
- *
- * Returns "updated" when the stored revenue was corrected, "skipped" when there
- * is no existing event for the order or the amount is already consistent.
- */
-export async function refreshPolarOrder(
-	db: Kysely<KlikapaDatabase>,
-	order: PolarOrder,
-	siteId: string,
-): Promise<"updated" | "skipped"> {
-	const polarOrderId = order.id;
-	const visitorId = `polar_${polarOrderId.replace(/[^a-zA-Z0-9]/g, "_")}`;
-
-	const existing = await db
-		.selectFrom("events")
-		.select(["id", "revenue"])
-		.where("site_id", "=", siteId)
-		.where("visitor_id", "=", visitorId)
-		.executeTakeFirst();
-	if (!existing) return "skipped";
-
-	const isRefund = order.status === "refunded";
-	const newAmount = isRefund ? 0 : (order.total_amount ?? 0) / 100;
-	const storedAmount = existing.revenue ?? 0;
-
-	if (newAmount === storedAmount) return "skipped";
-
-	await db
-		.updateTable("events")
-		.set({ revenue: newAmount })
-		.where("id", "=", existing.id)
-		.execute();
-
-	// Keep the visitor profile total consistent by applying only the delta,
-	// so we never double-count the original purchase.
-	await db
-		.updateTable("visitor_profiles")
-		.set({ total_revenue: sql`total_revenue + ${newAmount - storedAmount}` })
-		.where("site_id", "=", siteId)
-		.where("visitor_id", "=", visitorId)
-		.execute();
-
-	return "updated";
 }

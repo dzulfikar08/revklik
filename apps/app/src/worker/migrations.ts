@@ -1,11 +1,188 @@
-let migrationRan = false;
+/**
+ * Version the live schema must reach. Bump it whenever a step is appended to
+ * VERSIONED_STEPS; a DB already at this version costs one SELECT per isolate.
+ */
+export const SCHEMA_VERSION = 9;
 
-/** True once migrateDatabase has completed successfully on this isolate. */
-export const hasMigrated = (): boolean => migrationRan;
+const migrated = new WeakSet<D1Database>();
+
+/** True once migrateDatabase has completed for this D1 binding on this isolate. */
+export const hasMigrated = (d1: D1Database): boolean => migrated.has(d1);
+
+const ALREADY_APPLIED_RE = /duplicate column|already exists|no such index/i;
+
+/** Run one idempotent DDL statement; only "already applied" errors are swallowed. */
+async function runDdl(d1: D1Database, statement: string): Promise<void> {
+	try {
+		await d1.prepare(statement).run();
+	} catch (err) {
+		if (err instanceof Error && ALREADY_APPLIED_RE.test(err.message)) return;
+		throw err;
+	}
+}
+
+/** Data repair is best effort: a failed backfill is logged and never blocks the schema. */
+async function runBackfill(d1: D1Database, statement: string, ...params: unknown[]): Promise<void> {
+	try {
+		await d1
+			.prepare(statement)
+			.bind(...params)
+			.run();
+	} catch (err) {
+		console.error("migration backfill skipped:", err);
+	}
+}
+
+const SCHEMA_VERSION_TABLE =
+	"CREATE TABLE IF NOT EXISTS schema_version (id INTEGER PRIMARY KEY CHECK (id = 1), version INTEGER NOT NULL, updated_at TEXT NOT NULL)";
+
+interface MigrationStep {
+	version: number;
+	run: (d1: D1Database) => Promise<void>;
+}
+
+const VERSIONED_STEPS: MigrationStep[] = [
+	{ version: 1, run: baselineSchema },
+	{ version: 2, run: (d1) => runDdl(d1, SCHEMA_VERSION_TABLE) },
+	{ version: 3, run: billingIntegritySchema },
+	{
+		version: 4,
+		run: (d1) =>
+			runDdl(d1, "ALTER TABLE sites ADD COLUMN revenue_currency TEXT NOT NULL DEFAULT 'USD'"),
+	},
+	{
+		version: 5,
+		run: (d1) =>
+			runDdl(
+				d1,
+				"CREATE TABLE IF NOT EXISTS account_usage (user_id TEXT NOT NULL, month TEXT NOT NULL, events INTEGER NOT NULL DEFAULT 0, PRIMARY KEY (user_id, month))",
+			),
+	},
+	{ version: 6, run: (d1) => runDdl(d1, "ALTER TABLE users ADD COLUMN intended_plan TEXT") },
+	{ version: 7, run: authHardeningSchema },
+	// No query filters events on payment_provider/payment_method (revenue-by-method
+	// groups after a site_id + revenue range, served by idx_events_site_revenue_time),
+	// so this 4-column index only costs writes and storage.
+	{ version: 8, run: (d1) => runDdl(d1, "DROP INDEX IF EXISTS idx_events_site_payment") },
+	{
+		version: 9,
+		// Display each existing site in the currency most of its revenue arrived in,
+		// so IDR merchants keep seeing IDR. Sites without revenue stay USD.
+		run: (d1) =>
+			runBackfill(
+				d1,
+				`UPDATE sites SET revenue_currency = COALESCE((
+           SELECT UPPER(COALESCE(NULLIF(e.currency, ''), 'USD')) AS cur
+           FROM events e
+           WHERE e.site_id = sites.id AND e.revenue > 0
+           GROUP BY cur ORDER BY COUNT(*) DESC LIMIT 1
+         ), 'USD')
+         WHERE revenue_currency = 'USD'`,
+			),
+	},
+];
+
+/** DEV-34: password resets, D1 login throttle, session expiry, referral commissions. */
+async function authHardeningSchema(d1: D1Database): Promise<void> {
+	await runDdl(
+		d1,
+		"CREATE TABLE IF NOT EXISTS password_resets (id TEXT PRIMARY KEY, user_id TEXT NOT NULL, token_hash TEXT NOT NULL UNIQUE, expires_at TEXT NOT NULL, used_at TEXT, created_at TEXT NOT NULL DEFAULT (datetime('now')))",
+	);
+	await runDdl(d1, "CREATE INDEX IF NOT EXISTS idx_pr_user ON password_resets(user_id)");
+	await runDdl(
+		d1,
+		"CREATE TABLE IF NOT EXISTS login_attempts (key TEXT PRIMARY KEY, count INTEGER NOT NULL DEFAULT 0, window_start TEXT NOT NULL)",
+	);
+	await runDdl(d1, "CREATE INDEX IF NOT EXISTS idx_users_email_lower ON users(lower(email))");
+	await runDdl(d1, "ALTER TABLE referrals ADD COLUMN source_ref TEXT");
+	await runDdl(d1, "CREATE UNIQUE INDEX IF NOT EXISTS idx_ref_source ON referrals(source_ref)");
+	// Sessions minted before expiry existed get the same 30-day horizon as new ones.
+	await runBackfill(
+		d1,
+		"UPDATE api_keys SET expires_at = ? WHERE token_type = 'session' AND expires_at IS NULL",
+		new Date(Date.now() + 30 * 86_400_000).toISOString(),
+	);
+}
+
+/** DEV-29: QRIS orders live outside subscriptions; webhook idempotency keys. */
+async function billingIntegritySchema(d1: D1Database): Promise<void> {
+	await runDdl(
+		d1,
+		`CREATE TABLE IF NOT EXISTS pakasir_orders (
+      order_id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      plan TEXT NOT NULL,
+      amount INTEGER NOT NULL,
+      checkout_url TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'pending',
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      processed_at TEXT
+    )`,
+	);
+	await runDdl(
+		d1,
+		"CREATE INDEX IF NOT EXISTS idx_po_user ON pakasir_orders(user_id, status, created_at)",
+	);
+	await runDdl(
+		d1,
+		"CREATE TABLE IF NOT EXISTS webhook_dedupe (key TEXT PRIMARY KEY, created_at TEXT NOT NULL DEFAULT (datetime('now')))",
+	);
+	// Carry orders recorded on the subscription row over: an active row's order
+	// was already applied, so it lands as completed and can never be replayed.
+	await runBackfill(
+		d1,
+		`INSERT INTO pakasir_orders (order_id, user_id, plan, amount, checkout_url, status, created_at, processed_at)
+       SELECT pakasir_order_id, user_id, plan,
+         CASE plan WHEN 'micro' THEN 16000 WHEN 'starter' THEN 64000 ELSE 192000 END,
+         'https://app.pakasir.com/pay/revklik/' || CASE plan WHEN 'micro' THEN 16000 WHEN 'starter' THEN 64000 ELSE 192000 END || '?order_id=' || pakasir_order_id || '&qris_only=1',
+         CASE WHEN status = 'pending' THEN 'pending' ELSE 'completed' END,
+         updated_at,
+         CASE WHEN status = 'pending' THEN NULL ELSE updated_at END
+       FROM subscriptions
+       WHERE pakasir_order_id IS NOT NULL AND plan IN ('micro', 'starter', 'growth')
+       ON CONFLICT(order_id) DO NOTHING`,
+	);
+	// subscription.canceled used to end access immediately; rows still inside a
+	// paid period get their access back (they stay flagged cancel_at_period_end).
+	await runBackfill(
+		d1,
+		"UPDATE subscriptions SET status = 'active' WHERE status = 'canceled' AND cancel_at_period_end = 1 AND polar_subscription_id IS NOT NULL AND current_period_end > ?",
+		new Date().toISOString(),
+	);
+}
+
+async function readSchemaVersion(d1: D1Database): Promise<number> {
+	try {
+		const row = await d1
+			.prepare("SELECT version FROM schema_version WHERE id = 1")
+			.first<{ version: number }>();
+		return Number(row?.version ?? 0);
+	} catch {
+		return 0;
+	}
+}
 
 export async function migrateDatabase(d1: D1Database): Promise<void> {
-	if (migrationRan) return;
+	if (migrated.has(d1)) return;
 
+	const current = await readSchemaVersion(d1);
+	if (current < SCHEMA_VERSION) {
+		for (const step of VERSIONED_STEPS) {
+			if (step.version > current) await step.run(d1);
+		}
+		await runDdl(d1, SCHEMA_VERSION_TABLE);
+		await d1
+			.prepare(
+				"INSERT INTO schema_version (id, version, updated_at) VALUES (1, ?, ?) ON CONFLICT(id) DO UPDATE SET version = MAX(version, excluded.version), updated_at = excluded.updated_at",
+			)
+			.bind(SCHEMA_VERSION, new Date().toISOString())
+			.run();
+	}
+	migrated.add(d1);
+}
+
+/** Pre-versioning schema: every statement is idempotent and tolerates partial prior runs. */
+async function baselineSchema(d1: D1Database): Promise<void> {
 	try {
 		await d1.batch([
 			d1.prepare(
@@ -774,6 +951,4 @@ export async function migrateDatabase(d1: D1Database): Promise<void> {
 	} catch {
 		/* table may already exist */
 	}
-
-	migrationRan = true;
 }

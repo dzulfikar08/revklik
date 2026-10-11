@@ -64,6 +64,8 @@ export interface SiteTable {
 	widget_enabled?: number;
 	widget_token?: string | null;
 	widget_tz_offset?: number;
+	/** ISO code revenue is displayed in; rows in other currencies are converted. */
+	revenue_currency?: string;
 }
 
 export interface UserTable {
@@ -75,6 +77,8 @@ export interface UserTable {
 	avatar_url: string | null;
 	role: "user" | "admin" | "super_admin";
 	created_at: string;
+	/** Plan picked on the pricing page before signup; informational only. */
+	intended_plan?: string | null;
 }
 
 export interface ApiKeyTable {
@@ -232,6 +236,53 @@ export interface KlikapaDatabase {
 	marketplace_orders: MarketplaceOrderTable;
 	affiliates: AffiliateTable;
 	referrals: ReferralTable;
+	pakasir_orders: PakasirOrderTable;
+	webhook_dedupe: WebhookDedupeTable;
+	account_usage: AccountUsageTable;
+	password_resets: PasswordResetTable;
+	login_attempts: LoginAttemptTable;
+}
+
+export interface PasswordResetTable {
+	id: string;
+	user_id: string;
+	/** SHA-256 of the emailed token; the plaintext is never stored. */
+	token_hash: string;
+	expires_at: string;
+	used_at: string | null;
+	created_at: string;
+}
+
+/** Fixed-window attempt counters (login, password-reset requests). */
+export interface LoginAttemptTable {
+	key: string;
+	count: number;
+	window_start: string;
+}
+
+/** Monthly ingested-event counter per account (all sites of the owner). */
+export interface AccountUsageTable {
+	user_id: string;
+	/** UTC calendar month, "YYYY-MM". */
+	month: string;
+	events: number;
+}
+
+export interface PakasirOrderTable {
+	order_id: string;
+	user_id: string;
+	plan: string;
+	amount: number;
+	checkout_url: string;
+	status: "pending" | "completed";
+	created_at: string;
+	processed_at: string | null;
+}
+
+/** Idempotency keys for webhook deliveries and payment records. */
+export interface WebhookDedupeTable {
+	key: string;
+	created_at: string;
 }
 
 export interface HeatmapClickTable {
@@ -333,7 +384,7 @@ export interface SubscriptionTable {
 	cancel_at_period_end: number;
 	polar_subscription_id: string | null;
 	polar_customer_id: string | null;
-	// Pakasir (QRIS) pending order — set at checkout, verified by webhook/verify endpoint.
+	// Legacy: last QRIS order id. New orders live in pakasir_orders.
 	pakasir_order_id: string | null;
 	created_at: string;
 	updated_at: string;
@@ -402,5 +453,7 @@ export interface ReferralTable {
 	event: string;
 	commission_amount: number;
 	status: string;
+	/** Payment id a commission was earned on (idempotency key); null for signups. */
+	source_ref?: string | null;
 	created_at: string;
 }

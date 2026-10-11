@@ -1,10 +1,11 @@
 import { Hono } from "hono";
 import { createDb } from "../db";
+import { usdRates } from "../lib/fx";
 import type { Env } from "../types";
+import type { PlanTier } from "../lib/plans";
 import {
 	activatePakasirPayment,
-	planForAmount,
-	userPrefixFromOrderId,
+	findPakasirOrder,
 	verifyWithPakasir,
 	PAKASIR_PROJECT,
 } from "../lib/pakasir";
@@ -22,11 +23,13 @@ interface PakasirWebhookBody {
 export const pakasirWebhookRoutes = new Hono<Env>();
 
 // POST / — Pakasir webhook (no auth — Pakasir calls this).
-// The payload has no signature, so when PAKASIR_API_KEY is configured the
-// payment is re-verified against the transaction detail API before activation.
+// The payload carries no signature, so every completed payment is re-verified
+// against the transaction detail API; without PAKASIR_API_KEY nothing activates.
 pakasirWebhookRoutes.post("/", async (c) => {
 	const d1 = c.env.DB;
 	if (!d1) return c.json({ error: "DB unavailable" }, 503);
+	const apiKey = c.env.PAKASIR_API_KEY || "";
+	if (!apiKey) return c.json({ error: "Pakasir not configured" }, 503);
 	const db = createDb(d1);
 
 	let body: PakasirWebhookBody;
@@ -47,36 +50,26 @@ pakasirWebhookRoutes.post("/", async (c) => {
 		return c.json({ success: true, note: "Payment not completed" });
 	}
 
-	const userPrefix = userPrefixFromOrderId(order_id);
-	if (!userPrefix) return c.json({ error: "Invalid order_id format" }, 400);
+	const order = await findPakasirOrder(db, order_id);
+	if (!order) return c.json({ error: "Unknown order" }, 404);
+	if (order.status !== "pending") {
+		return c.json({ success: true, activated: false, alreadyProcessed: true });
+	}
+	if (order.amount !== amount) return c.json({ error: "Amount mismatch" }, 400);
 
-	// Fixed-amount payment pages: the amount must match a plan price exactly.
-	const plan = planForAmount(amount);
-	if (!plan) return c.json({ error: `Unknown amount: ${amount}` }, 400);
-
-	const user = await db
-		.selectFrom("users")
-		.select(["id"])
-		.where("id", "like", `${userPrefix}%`)
-		.executeTakeFirst();
-	if (!user) return c.json({ error: "User not found for order" }, 404);
-
-	// Verify against Pakasir when an API key is configured (skipped in dev).
-	const apiKey = c.env.PAKASIR_API_KEY || "";
-	if (apiKey) {
-		const tx = await verifyWithPakasir(apiKey, order_id, amount).catch(() => null);
-		if (!tx || tx.status !== "completed" || tx.amount !== amount) {
-			return c.json({ error: "Verification failed" }, 401);
-		}
+	const tx = await verifyWithPakasir(apiKey, order_id, amount).catch(() => null);
+	if (!tx || tx.status !== "completed" || tx.amount !== amount) {
+		return c.json({ error: "Verification failed" }, 401);
 	}
 
 	const result = await activatePakasirPayment(db, {
-		userId: user.id,
-		plan,
+		userId: order.user_id,
+		plan: order.plan as PlanTier,
 		orderId: order_id,
 		amount,
 		paymentMethod: payment_method,
 		completedAt: completed_at,
+		fxRates: usdRates(c.env),
 	});
 
 	return c.json({ success: true, ...result });

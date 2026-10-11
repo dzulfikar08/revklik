@@ -4,6 +4,7 @@ export const PLANS = {
 		price: 1,
 		events_per_month: 10_000,
 		sites: 1,
+		retention_days: 7,
 		tier: 0,
 	},
 	starter: {
@@ -11,6 +12,7 @@ export const PLANS = {
 		price: 4,
 		events_per_month: 100_000,
 		sites: 3,
+		retention_days: 30,
 		tier: 1,
 	},
 	growth: {
@@ -18,6 +20,7 @@ export const PLANS = {
 		price: 12,
 		events_per_month: 500_000,
 		sites: 10,
+		retention_days: 90,
 		tier: 2,
 	},
 } as const;
@@ -50,13 +53,13 @@ export function getFeatures(tier: PlanTier): string[] {
 		"CSV export",
 	];
 	if (tier === "micro")
-		return [...base, "1 site", "10K events/month", "<1KB script", "7-day retention"];
+		return [...base, "1 site", "10K events/month", "<4KB gzipped script", "7-day retention"];
 	if (tier === "starter")
 		return [
 			...base,
 			"3 sites",
 			"100K events/month",
-			"<1KB script",
+			"<4KB gzipped script",
 			"30-day retention",
 			"Funnel conversion",
 			"Revenue attribution",
@@ -79,13 +82,17 @@ export function getFeatures(tier: PlanTier): string[] {
 
 import type { Kysely } from "kysely";
 import type { KlikapaDatabase } from "@revklik/shared";
+import { isSubscriptionActive } from "./entitlement";
 
+/**
+ * Tier check against the caller's own subscription. Super admins always pass;
+ * accounts without a subscription row (pre-trial signups) count as active micro.
+ */
 export async function requirePlan(
 	db: Kysely<KlikapaDatabase>,
 	userId: string,
 	requiredTier: number,
 ): Promise<{ allowed: boolean; plan: string }> {
-	// Check super_admin bypass
 	const user = await db
 		.selectFrom("users")
 		.select(["role"])
@@ -98,10 +105,7 @@ export async function requirePlan(
 		.select(["plan", "status", "current_period_end"])
 		.where("user_id", "=", userId)
 		.executeTakeFirst();
-	const plan = sub?.plan ?? "micro";
-	const isActive =
-		(sub?.status === "active" || sub?.status === "trialing") &&
-		(!sub?.current_period_end || new Date(sub.current_period_end) >= new Date());
-	const tier = PLANS[plan as PlanTier]?.tier ?? 0;
-	return { allowed: isActive && tier >= requiredTier, plan };
+	if (!sub) return { allowed: requiredTier <= PLANS.micro.tier, plan: "micro" };
+	const tier = PLANS[sub.plan as PlanTier]?.tier ?? 0;
+	return { allowed: isSubscriptionActive(sub) && tier >= requiredTier, plan: sub.plan };
 }

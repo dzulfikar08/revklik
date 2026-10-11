@@ -1,13 +1,71 @@
-export async function hashPassword(password: string): Promise<string> {
-	const encoder = new TextEncoder();
-	const data = encoder.encode(password);
-	const hashBuffer = await crypto.subtle.digest("SHA-256", data);
-	return btoa(String.fromCharCode(...new Uint8Array(hashBuffer)));
+/** Workers caps PBKDF2 at 100k iterations. */
+export const PBKDF2_ITERATIONS = 100_000;
+
+const toB64 = (bytes: Uint8Array) => btoa(String.fromCharCode(...bytes));
+const fromB64 = (b64: string) => Uint8Array.from(atob(b64), (ch) => ch.charCodeAt(0));
+
+async function pbkdf2(password: string, salt: Uint8Array, iterations: number): Promise<Uint8Array> {
+	const key = await crypto.subtle.importKey(
+		"raw",
+		new TextEncoder().encode(password),
+		"PBKDF2",
+		false,
+		["deriveBits"],
+	);
+	const bits = await crypto.subtle.deriveBits(
+		{ name: "PBKDF2", hash: "SHA-256", salt, iterations },
+		key,
+		256,
+	);
+	return new Uint8Array(bits);
 }
 
-export async function verifyPassword(password: string, hash: string): Promise<boolean> {
-	const passwordHash = await hashPassword(password);
-	return passwordHash === hash;
+function constantTimeEqual(a: string, b: string): boolean {
+	if (a.length !== b.length) return false;
+	let diff = 0;
+	for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
+	return diff === 0;
+}
+
+/** Salted PBKDF2-SHA256, stored as `pbkdf2$<iterations>$<salt b64>$<hash b64>`. */
+export async function hashPassword(password: string): Promise<string> {
+	const salt = crypto.getRandomValues(new Uint8Array(16));
+	const hash = await pbkdf2(password, salt, PBKDF2_ITERATIONS);
+	return `pbkdf2$${PBKDF2_ITERATIONS}$${toB64(salt)}$${toB64(hash)}`;
+}
+
+/** Pre-PBKDF2 format: unsalted SHA-256, base64. Only ever verified, never written. */
+async function legacySha256(password: string): Promise<string> {
+	const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(password));
+	return toB64(new Uint8Array(digest));
+}
+
+/**
+ * Verify against either stored format. `needsRehash` is true for legacy
+ * hashes and weaker iteration counts so login can upgrade them in place.
+ */
+export async function verifyPassword(
+	password: string,
+	stored: string | null | undefined,
+): Promise<{ ok: boolean; needsRehash: boolean }> {
+	if (!stored || typeof password !== "string") return { ok: false, needsRehash: false };
+	if (stored.startsWith("pbkdf2$")) {
+		const [, iter, salt, hash] = stored.split("$");
+		const iterations = Number(iter);
+		if (!salt || !hash || !Number.isInteger(iterations) || iterations <= 0) {
+			return { ok: false, needsRehash: false };
+		}
+		const derived = toB64(await pbkdf2(password, fromB64(salt), iterations));
+		const ok = constantTimeEqual(derived, hash);
+		return { ok, needsRehash: ok && iterations < PBKDF2_ITERATIONS };
+	}
+	const ok = constantTimeEqual(await legacySha256(password), stored);
+	return { ok, needsRehash: ok };
+}
+
+/** Canonical form for account emails: trimmed, lowercased. */
+export function normalizeEmail(raw: unknown): string {
+	return typeof raw === "string" ? raw.trim().toLowerCase() : "";
 }
 
 export function generateApiKey(type: "session" | "account" | "site" = "session"): {

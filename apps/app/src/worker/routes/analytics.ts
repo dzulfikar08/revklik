@@ -22,6 +22,7 @@ import {
 	toCsv,
 	validateSite,
 } from "../lib/analytics-queries";
+import { planRequiredBody } from "../lib/plan-gate";
 import { requirePlan } from "../lib/plans";
 import {
 	getChannelBreakdown,
@@ -42,12 +43,28 @@ import {
 	SESSION_COLS,
 	type SessionSummary,
 } from "../queries/analytics";
+import { revenueSql } from "../lib/fx";
+import { resolveQueryScope } from "../lib/site-scope";
 import { getDateRange } from "../utils";
 
-type Variables = { db: Kysely<KlikapaDatabase>; userId: string };
-type AnalyticsEnv = { Variables: Variables; Bindings: { DB: D1Database } };
+type Variables = { db: Kysely<KlikapaDatabase>; userId: string; retentionFloor?: string };
+type AnalyticsEnv = { Variables: Variables; Bindings: { DB: D1Database; FX_USD_IDR?: string } };
 
 export const analyticsRoutes = new Hono<AnalyticsEnv>();
+
+/** getDateRange with the start clamped to the plan's retention window. */
+function rangeFor(c: Context<AnalyticsEnv>, range: string): { start: Date; end: Date } {
+	const r = getDateRange(range);
+	const floor = c.get("retentionFloor");
+	if (floor && r.start.getTime() < Date.parse(floor)) r.start = new Date(floor);
+	return r;
+}
+
+/** The comparison window may not reach behind the retention window either. */
+function clampToFloor(c: Context<AnalyticsEnv>, iso: string): string {
+	const floor = c.get("retentionFloor");
+	return floor && iso < floor ? floor : iso;
+}
 
 type AnalyticsHandler = (c: Context<AnalyticsEnv>) => Promise<Response>;
 
@@ -116,14 +133,16 @@ analyticsRoutes.get(
 		const site = await validateSite(db, userId, siteId);
 		if (!site) return c.json({ error: "Site not found", success: false }, 404);
 
-		const { start, end } = getDateRange(range);
+		const scope = await resolveQueryScope(db, siteId, c.env, c.req.query("tz"));
+		const { start, end } = rangeFor(c, range);
 		const startIso = start.toISOString();
 		const endIso = end.toISOString();
 		const spanHours = (end.getTime() - start.getTime()) / (1000 * 60 * 60);
 		const isHourly = spanHours <= 48;
-		const prevStartIso = new Date(
-			start.getTime() - (end.getTime() - start.getTime()),
-		).toISOString();
+		const prevStartIso = clampToFloor(
+			c,
+			new Date(start.getTime() - (end.getTime() - start.getTime())).toISOString(),
+		);
 
 		let recentSessionsQ = db
 			.selectFrom("sessions")
@@ -151,8 +170,8 @@ analyticsRoutes.get(
 			prevStats,
 			prevTimeseries,
 		] = await Promise.all([
-			getOverviewStats(db, siteId, startIso, filters, endIso),
-			getTimeseries(db, siteId, startIso, isHourly, filters, endIso),
+			getOverviewStats(db, siteId, startIso, filters, endIso, scope),
+			getTimeseries(db, siteId, startIso, isHourly, filters, endIso, scope),
 			getTopPages(db, siteId, startIso, 10, filters, endIso),
 			getReferrers(db, siteId, startIso, 10, filters, endIso),
 			getDeviceBreakdown(db, siteId, startIso, filters, endIso),
@@ -186,16 +205,16 @@ analyticsRoutes.get(
 				// Same cap as GET /visitors so journey coverage matches the Users tab.
 				.limit(100)
 				.execute(),
-			getRevenueBySource(db, siteId, startIso, filters, endIso),
-			getRevenueByCountry(db, siteId, startIso, filters, endIso),
-			getRevenueTimeseries(db, siteId, startIso, isHourly, filters, endIso),
-			getEntryPagesRevenue(db, siteId, startIso, filters, endIso),
+			getRevenueBySource(db, siteId, startIso, filters, endIso, scope),
+			getRevenueByCountry(db, siteId, startIso, filters, endIso, scope),
+			getRevenueTimeseries(db, siteId, startIso, isHourly, filters, endIso, scope),
+			getEntryPagesRevenue(db, siteId, startIso, filters, endIso, scope),
 			getExitPages(db, siteId, startIso, filters, endIso),
-			getRevenueByPaymentMethod(db, siteId, startIso, filters, endIso),
-			getRevenueByPaymentProvider(db, siteId, startIso, filters, endIso),
-			getChannelBreakdown(db, siteId, startIso, filters, endIso),
-			getOverviewStats(db, siteId, prevStartIso, filters, startIso),
-			getTimeseries(db, siteId, prevStartIso, isHourly, filters, startIso),
+			getRevenueByPaymentMethod(db, siteId, startIso, filters, endIso, scope),
+			getRevenueByPaymentProvider(db, siteId, startIso, filters, endIso, scope),
+			getChannelBreakdown(db, siteId, startIso, filters, endIso, scope),
+			getOverviewStats(db, siteId, prevStartIso, filters, startIso, scope),
+			getTimeseries(db, siteId, prevStartIso, isHourly, filters, startIso, scope),
 		]);
 
 		// Period-over-period comparison (current range vs the equal window before it)
@@ -313,8 +332,9 @@ analyticsRoutes.get(
 			revenueByMethod,
 			revenueByProvider,
 			channels,
+			currency: scope.money.currency,
 		};
-		return c.json({ data: dashboard, success: true });
+		return c.json({ data: dashboard, currency: scope.money.currency, success: true });
 	}),
 );
 
@@ -361,7 +381,7 @@ analyticsRoutes.get(
 		const site = await validateSite(db, userId, siteId);
 		if (!site) return c.json({ error: "Site not found", success: false }, 404);
 
-		const { start } = getDateRange(range);
+		const { start } = rangeFor(c, range);
 		const startIso = start.toISOString();
 
 		// Total unique visitors (funnel entry = all pageview visitors)
@@ -514,7 +534,7 @@ analyticsRoutes.get("/visitors/:visitorId", async (c) => {
 		.executeTakeFirst();
 	if (!profile) return c.json({ error: "Not found", success: false }, 404);
 
-	const { start } = getDateRange(c.req.query("range") ?? "7d");
+	const { start } = rangeFor(c, c.req.query("range") ?? "7d");
 	const startIso = start.toISOString();
 	const sessions = await db
 		.selectFrom("sessions")
@@ -628,7 +648,7 @@ analyticsRoutes.get(
 		if (!siteId) return c.json({ error: "site_id required", success: false }, 400);
 		const site = await validateSite(db, userId, siteId);
 		if (!site) return c.json({ error: "Site not found", success: false }, 404);
-		const { start } = getDateRange(range);
+		const { start } = rangeFor(c, range);
 		const startIso = start.toISOString();
 		const rows = await applyFilters(
 			db
@@ -666,9 +686,10 @@ analyticsRoutes.get(
 		if (!siteId) return c.json({ error: "site_id required", success: false }, 400);
 		const site = await validateSite(db, userId, siteId);
 		if (!site) return c.json({ error: "Site not found", success: false }, 404);
-		const { start, end } = getDateRange(range);
+		const { start, end } = rangeFor(c, range);
 		const startIso = start.toISOString();
 		const endIso = end.toISOString();
+		const scope = await resolveQueryScope(db, siteId, c.env, c.req.query("tz"));
 
 		const rows = await applyFilters(
 			db
@@ -680,7 +701,7 @@ analyticsRoutes.get(
 					({ fn }) => fn.count<number>("visitor_id").distinct().as("visitors"),
 					sql<string>`sum(case when event_type = 'pageview' then 1 else 0 end)`.as("pageviews"),
 					sql<string>`sum(case when event_type = 'conversion' then 1 else 0 end)`.as("conversions"),
-					sql<string>`coalesce(sum(revenue), 0)`.as("revenue"),
+					sql<string>`coalesce(sum(${revenueSql(scope.money)}), 0)`.as("revenue"),
 				])
 				.where("site_id", "=", siteId)
 				.where("timestamp", ">=", startIso)
@@ -706,6 +727,7 @@ analyticsRoutes.get(
 						? Math.round((Number(r.conversions) / Number(r.visitors)) * 10000) / 100
 						: 0,
 			})),
+			currency: scope.money.currency,
 			success: true,
 		});
 	}),
@@ -725,18 +747,9 @@ analyticsRoutes.get(
 		if (!site) return c.json({ error: "Site not found", success: false }, 404);
 
 		const planCheck = await requirePlan(db, userId, 2);
-		if (!planCheck.allowed)
-			return c.json(
-				{
-					error: "Heatmaps require the Growth plan",
-					success: false,
-					required_plan: "growth",
-					current_plan: planCheck.plan,
-				},
-				403,
-			);
+		if (!planCheck.allowed) return c.json(planRequiredBody("growth", planCheck.plan), 403);
 
-		const { start } = getDateRange(range);
+		const { start } = rangeFor(c, range);
 		const startIso = start.toISOString();
 
 		const [clickRows, scrollRows, sessionCount] = await Promise.all([
@@ -782,18 +795,9 @@ analyticsRoutes.get("/recordings", async (c) => {
 	if (!site) return c.json({ error: "Site not found", success: false }, 404);
 
 	const planCheck = await requirePlan(db, userId, 2);
-	if (!planCheck.allowed)
-		return c.json(
-			{
-				error: "Session recordings require the Growth plan",
-				success: false,
-				required_plan: "growth",
-				current_plan: planCheck.plan,
-			},
-			403,
-		);
+	if (!planCheck.allowed) return c.json(planRequiredBody("growth", planCheck.plan), 403);
 
-	const { start } = getDateRange(range);
+	const { start } = rangeFor(c, range);
 	const startIso = start.toISOString();
 
 	const rows = await db
@@ -835,16 +839,7 @@ analyticsRoutes.get("/recordings/:id", async (c) => {
 	const recordingId = c.req.param("id");
 
 	const planCheck = await requirePlan(db, userId, 2);
-	if (!planCheck.allowed)
-		return c.json(
-			{
-				error: "Session recordings require the Growth plan",
-				success: false,
-				required_plan: "growth",
-				current_plan: planCheck.plan,
-			},
-			403,
-		);
+	if (!planCheck.allowed) return c.json(planRequiredBody("growth", planCheck.plan), 403);
 
 	const row = await db
 		.selectFrom("session_recordings")
@@ -1026,7 +1021,7 @@ analyticsRoutes.get("/export", async (c) => {
 	const site = await validateSite(db, userId, siteId);
 	if (!site) return c.json({ error: "Site not found", success: false }, 404);
 
-	const { start } = getDateRange(range);
+	const { start } = rangeFor(c, range);
 	const startIso = start.toISOString();
 
 	if (type === "visitors") {
@@ -1216,7 +1211,7 @@ analyticsRoutes.get(
 		const site = await validateSite(db, userId, siteId);
 		if (!site) return c.json({ error: "Site not found", success: false }, 404);
 
-		const { start, end } = getDateRange(range);
+		const { start, end } = rangeFor(c, range);
 		const startIso = start.toISOString();
 		const endIso = end.toISOString();
 		const isHourly = (end.getTime() - start.getTime()) / 3_600_000 <= 48;

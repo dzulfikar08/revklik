@@ -23,6 +23,7 @@ interface StripeCheckoutSession {
 	amount_subtotal?: number | null;
 	currency?: string | null;
 	payment_method_types?: string[] | null;
+	payment_settings?: { payment_method_types?: string[] | null } | null;
 	subscription?: string | null;
 	mode?: string | null;
 }
@@ -87,12 +88,14 @@ stripeWebhookRoutes.post("/", async (c) => {
 	const config = JSON.parse((integration.config as string) || "{}");
 	const webhookSecret = config.webhook_secret || "";
 
-	if (webhookSecret) {
-		const valid = await verifyStripeSignature(rawBody, signatureHeader, webhookSecret);
-		if (!valid) {
-			await logWebhookEvent(db, siteId, integration.id, "stripe_invalid_sig", rawBody, "failed");
-			return c.json({ error: "Invalid signature" }, 401);
-		}
+	if (!webhookSecret) {
+		await logWebhookEvent(db, siteId, integration.id, "stripe_no_secret", rawBody, "failed");
+		return c.json({ error: "Webhook secret not configured for this integration" }, 401);
+	}
+	const valid = await verifyStripeSignature(rawBody, signatureHeader, webhookSecret);
+	if (!valid) {
+		await logWebhookEvent(db, siteId, integration.id, "stripe_invalid_sig", rawBody, "failed");
+		return c.json({ error: "Invalid signature" }, 401);
 	}
 
 	const eventType = event.type || "";
@@ -120,8 +123,12 @@ stripeWebhookRoutes.post("/", async (c) => {
 
 	const amount = (session.amount_total ?? session.amount_subtotal ?? 0) / 100;
 	const currency = (session.currency || "usd").toUpperCase();
+	// Checkout sessions list payment_method_types; invoice.paid objects carry them
+	// under payment_settings.
 	const paymentMethodType =
-		session.payment_method_types?.[0] || session.payment_method_types?.[0] || "card";
+		session.payment_method_types?.[0] ||
+		session.payment_settings?.payment_method_types?.[0] ||
+		"card";
 	const mappedMethod = mapStripePaymentMethod(paymentMethodType);
 	const stripeSessionId = session.id || "";
 

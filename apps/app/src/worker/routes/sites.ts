@@ -2,14 +2,41 @@ import { Hono } from "hono";
 import type { Kysely } from "kysely";
 import type { CreateSitePayload, KlikapaDatabase, Site, SiteWithStats } from "@revklik/shared";
 import { sql } from "../db";
+import { isSubscriptionActive } from "../lib/entitlement";
+import { normalizeCurrency, revenueSql, usdRates } from "../lib/fx";
 import { getPlanLimits } from "../lib/plans";
+import { purgeSiteRows } from "../lib/purge";
+import { displayCurrency } from "../lib/site-scope";
 import { clampTzOffset } from "../lib/widget-live";
 import { fingerprintFromRequest, generateId } from "../utils";
 import { invalidateExcludedCache } from "./track";
 
 type Variables = { db: Kysely<KlikapaDatabase>; userId: string };
 
-export const siteRoutes = new Hono<{ Variables: Variables }>();
+export const siteRoutes = new Hono<{
+	Variables: Variables;
+	Bindings: { FX_USD_IDR?: string; DB: D1Database };
+}>();
+
+/**
+ * Bare host for a site: scheme, credentials, path, query, port, trailing dot
+ * and a leading "www." are dropped, lowercase. Ingest is keyed by site id,
+ * not host, and the GSC matcher already ignores www, so nothing depends on
+ * the prefix. Returns null when no plausible hostname remains.
+ */
+export function normalizeDomain(raw: string): string | null {
+	let host = raw.trim().toLowerCase();
+	host = host.replace(/^[a-z][a-z0-9+.-]*:\/\//, "");
+	host = host.replace(/^[^@/]*@/, "");
+	host = host.split(/[/?#]/)[0] ?? "";
+	host = host
+		.replace(/:\d+$/, "")
+		.replace(/\.+$/, "")
+		.replace(/^www\./, "");
+	return /^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)*$/.test(host)
+		? host
+		: null;
+}
 
 siteRoutes.get("/", async (c) => {
 	const db = c.get("db");
@@ -17,10 +44,11 @@ siteRoutes.get("/", async (c) => {
 
 	const sites = await db
 		.selectFrom("sites")
-		.select(["id", "name", "domain", "created_at"])
+		.select(["id", "name", "domain", "created_at", "revenue_currency"])
 		.where("user_id", "=", userId)
 		.orderBy("created_at", "desc")
 		.execute();
+	const rates = usdRates(c.env);
 
 	const rangeParam = c.req.query("range") || "7d";
 	let startIso: string;
@@ -37,8 +65,9 @@ siteRoutes.get("/", async (c) => {
 	}
 
 	const sitesWithStats: SiteWithStats[] = await Promise.all(
-		sites.map(async (site) => {
-			const [stats, sparkRows, revenueRows] = await Promise.all([
+		sites.map(async ({ revenue_currency, ...site }) => {
+			const money = { currency: displayCurrency(revenue_currency, rates), rates };
+			const [stats, sparkRows, revenueRows, anyEvent] = await Promise.all([
 				db
 					.selectFrom("events")
 					.select([
@@ -61,13 +90,20 @@ siteRoutes.get("/", async (c) => {
 				// Daily revenue across all event types (revenue can ride on conversions too).
 				db
 					.selectFrom("events")
-					.select([({ fn }) => fn.sum<number>("revenue").as("revenue")])
+					.select([sql<number>`SUM(${revenueSql(money)})`.as("revenue")])
 					.where("site_id", "=", site.id)
 					.where("revenue", ">", 0)
 					.where("timestamp", ">=", startIso)
 					.groupBy(sql`date(${sql.ref("timestamp")})`)
 					.orderBy("timestamp", "asc")
 					.execute(),
+				// Ever received anything: drives the "Not installed" badge.
+				db
+					.selectFrom("events")
+					.select("id")
+					.where("site_id", "=", site.id)
+					.limit(1)
+					.executeTakeFirst(),
 			]);
 
 			return {
@@ -77,6 +113,8 @@ siteRoutes.get("/", async (c) => {
 				revenue: revenueRows.reduce((sum, r) => sum + Number(r.revenue ?? 0), 0),
 				sparkline: sparkRows.map((r) => Number(r.count)),
 				revenue_sparkline: revenueRows.map((r) => Number(r.revenue ?? 0)),
+				currency: money.currency,
+				has_events: !!anyEvent,
 			};
 		}),
 	);
@@ -87,8 +125,11 @@ siteRoutes.get("/", async (c) => {
 siteRoutes.post("/", async (c) => {
 	const db = c.get("db");
 	const userId = c.get("userId");
-	const { name, domain } = await c.req.json<CreateSitePayload>();
-	if (!name || !domain) return c.json({ error: "Name and domain required", success: false }, 400);
+	const { name, domain: rawDomain } = await c.req.json<CreateSitePayload>();
+	if (!name || !rawDomain)
+		return c.json({ error: "Name and domain required", success: false }, 400);
+	const domain = normalizeDomain(rawDomain);
+	if (!domain) return c.json({ error: "Invalid domain", success: false }, 400);
 
 	// Site limit enforcement (super_admins bypass limits)
 	const user = await db
@@ -102,11 +143,8 @@ siteRoutes.post("/", async (c) => {
 			.select(["plan", "status", "current_period_end"])
 			.where("user_id", "=", userId)
 			.executeTakeFirst();
-		const plan =
-			sub?.status === "active" &&
-			(!sub.current_period_end || new Date(sub.current_period_end) >= new Date())
-				? sub.plan
-				: "micro";
+		// Trials get their trial plan's limit; lapsed accounts fall back to micro.
+		const plan = sub && isSubscriptionActive(sub) ? sub.plan : "micro";
 		const limits = getPlanLimits(plan);
 		const siteCount = await db
 			.selectFrom("sites")
@@ -129,6 +167,12 @@ siteRoutes.post("/", async (c) => {
 		}
 	}
 
+	// Indonesia-first: a site created from ID starts in IDR so its revenue is not
+	// shown converted to USD.
+	const country =
+		(c.req.raw.cf as { country?: string } | undefined)?.country ||
+		c.req.header("CF-IPCountry") ||
+		"";
 	const siteId = generateId();
 	await db
 		.insertInto("sites")
@@ -137,6 +181,7 @@ siteRoutes.post("/", async (c) => {
 			user_id: userId,
 			name,
 			domain,
+			revenue_currency: country.toUpperCase() === "ID" ? "IDR" : "USD",
 			created_at: new Date().toISOString(),
 			share_token: null,
 			public_dashboard: 0,
@@ -169,11 +214,44 @@ siteRoutes.delete("/:siteId", async (c) => {
 		.executeTakeFirst();
 	if (!site) return c.json({ error: "Site not found", success: false }, 404);
 
-	await db.deleteFrom("events").where("site_id", "=", siteId).execute();
-	await db.deleteFrom("sessions").where("site_id", "=", siteId).execute();
-	await db.deleteFrom("visitor_profiles").where("site_id", "=", siteId).execute();
+	// Dependents first, in bounded chunks; the site row goes last so a failed
+	// run can simply be retried.
+	await purgeSiteRows(c.env.DB, siteId);
 	await db.deleteFrom("sites").where("id", "=", siteId).execute();
 	return c.json({ success: true });
+});
+
+// Revenue display currency; rows in other currencies are converted at query time.
+siteRoutes.patch("/:siteId", async (c) => {
+	const db = c.get("db");
+	const userId = c.get("userId");
+	const siteId = c.req.param("siteId");
+	const body = await c.req.json<{ revenue_currency?: unknown }>().catch(() => ({}) as never);
+	const site = await db
+		.selectFrom("sites")
+		.select(["id"])
+		.where("id", "=", siteId)
+		.where("user_id", "=", userId)
+		.executeTakeFirst();
+	if (!site) return c.json({ error: "Site not found", success: false }, 404);
+
+	const rates = usdRates(c.env);
+	const currency = normalizeCurrency(body?.revenue_currency);
+	if (!currency || !(currency in rates)) {
+		return c.json(
+			{
+				error: `revenue_currency must be one of: ${Object.keys(rates).join(", ")}`,
+				success: false,
+			},
+			400,
+		);
+	}
+	await db
+		.updateTable("sites")
+		.set({ revenue_currency: currency })
+		.where("id", "=", siteId)
+		.execute();
+	return c.json({ data: { id: siteId, revenue_currency: currency }, success: true });
 });
 
 siteRoutes.get("/:siteId/snippet", async (c) => {

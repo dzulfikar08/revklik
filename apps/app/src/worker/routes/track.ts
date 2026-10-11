@@ -1,8 +1,11 @@
 import { Hono } from "hono";
-import type { Kysely } from "kysely";
+import type { Compilable, Kysely } from "kysely";
 import type { IdentifyPayload, KlikapaDatabase, TrackEventPayload } from "@revklik/shared";
 import { sql } from "../db";
-import { enforceSiteQuota, incrementCachedCount } from "../lib/subscription-cache";
+import { eventCurrency, resolveEventTimestamp, sanitizeRevenue } from "../lib/ingest";
+import { accountUsageIncrement } from "../lib/account-usage";
+import { executeBatch } from "../lib/d1-batch";
+import { enforceSiteQuota, incrementCachedUsage } from "../lib/subscription-cache";
 import {
 	countryFromTimezone,
 	classifyCrawler,
@@ -14,7 +17,10 @@ import {
 
 type Variables = { db: Kysely<KlikapaDatabase> };
 
-export const trackRoutes = new Hono<{ Variables: Variables }>();
+export const trackRoutes = new Hono<{ Variables: Variables; Bindings: { DB: D1Database } }>();
+
+/** Events accepted per /track request; larger batches are rejected with 413. */
+export const MAX_TRACK_BATCH = 50;
 
 // In-memory rate limiter (per-isolate, resets on Worker recycle)
 const rlMap = new Map<string, { count: number; resetAt: number }>();
@@ -96,6 +102,12 @@ trackRoutes.post("/track", async (c) => {
 	// Support batch (array) or single event
 	const payloads: TrackEventPayload[] = Array.isArray(raw) ? raw : [raw];
 	if (payloads.length === 0) return c.json({ error: "empty payload", success: false }, 400);
+	if (payloads.length > MAX_TRACK_BATCH) {
+		return c.json(
+			{ error: `batch too large (max ${MAX_TRACK_BATCH} events)`, success: false },
+			413,
+		);
+	}
 
 	// Known crawler/bot user-agents never enter human analytics. AI crawlers
 	// (and every other bot, bucketed as "other") are recorded fire-and-forget
@@ -179,7 +191,7 @@ trackRoutes.post("/track", async (c) => {
 
 	const site = await db
 		.selectFrom("sites")
-		.select(["id"])
+		.select(["id", "revenue_currency"])
 		.where("id", "=", siteId)
 		.executeTakeFirst();
 	if (!site) return c.json({ error: "Invalid site_id", success: false }, 400);
@@ -240,20 +252,23 @@ trackRoutes.post("/track", async (c) => {
 		return c.json({ success: true, excluded: true }, { status: 202 });
 	}
 
+	const writes: Compilable[] = [];
 	const seenSids = new Set<string>();
+	let ingested = 0;
 	for (const payload of payloads) {
 		if (payload.s !== siteId) continue;
+		ingested++;
 		const isNewSession = !seenSids.has(payload.sid);
 		seenSids.add(payload.sid);
 		const sessionInc = isNewSession ? 1 : 0;
 
-		const ts = payload.ts ? new Date(payload.ts).toISOString() : new Date().toISOString();
+		const ts = resolveEventTimestamp(payload.ts);
+		const revenue = sanitizeRevenue(payload.rv);
 		const eventType = payload.t === "p" ? "pageview" : payload.t === "c" ? "conversion" : "custom";
 		const vid = fingerprint ? resolvedVid : payload.vid;
 
-		await db
-			.insertInto("events")
-			.values({
+		writes.push(
+			db.insertInto("events").values({
 				id: generateId(),
 				site_id: payload.s,
 				session_id: payload.sid,
@@ -269,7 +284,9 @@ trackRoutes.post("/track", async (c) => {
 				utm_campaign: payload.uc ?? null,
 				utm_term: payload.ut ?? null,
 				utm_content: payload.uco ?? null,
-				revenue: payload.rv ?? null,
+				revenue,
+				currency:
+					revenue === null ? null : eventCurrency(payload.cur, payload.pr, site.revenue_currency),
 				props: payload.pr ? JSON.stringify(payload.pr) : null,
 				country: cfCountry,
 				region: cfRegion,
@@ -278,83 +295,89 @@ trackRoutes.post("/track", async (c) => {
 				browser,
 				os,
 				fingerprint,
-			})
-			.execute();
+			}),
+		);
 
 		const pvInc = eventType === "pageview" ? 1 : 0;
-		const rvInc = payload.rv ?? 0;
+		const rvInc = revenue ?? 0;
 
-		await db
-			.insertInto("sessions")
-			.values({
-				id: payload.sid,
-				site_id: payload.s,
-				visitor_id: vid,
-				started_at: ts,
-				entry_path: payload.p,
-				exit_path: payload.p,
-				referrer: payload.r ?? null,
-				utm_source: payload.us ?? null,
-				utm_medium: payload.um ?? null,
-				utm_campaign: payload.uc ?? null,
-				country: cfCountry,
-				region: cfRegion,
-				city: cfCity,
-				device_type: deviceType,
-				browser,
-				os,
-				page_count: 1,
-				is_bounce: 1,
-				fingerprint,
-			})
-			.onConflict((oc) =>
-				oc.column("id").doUpdateSet({
+		writes.push(
+			db
+				.insertInto("sessions")
+				.values({
+					id: payload.sid,
+					site_id: payload.s,
+					visitor_id: vid,
+					started_at: ts,
+					entry_path: payload.p,
 					exit_path: payload.p,
-					ended_at: ts,
-					page_count: sql`page_count + 1`,
-					is_bounce: 0,
-				}),
-			)
-			.execute();
+					referrer: payload.r ?? null,
+					utm_source: payload.us ?? null,
+					utm_medium: payload.um ?? null,
+					utm_campaign: payload.uc ?? null,
+					country: cfCountry,
+					region: cfRegion,
+					city: cfCity,
+					device_type: deviceType,
+					browser,
+					os,
+					page_count: 1,
+					is_bounce: 1,
+					fingerprint,
+				})
+				.onConflict((oc) =>
+					oc.column("id").doUpdateSet({
+						exit_path: payload.p,
+						ended_at: ts,
+						page_count: sql`page_count + 1`,
+						is_bounce: 0,
+					}),
+				),
+		);
 
-		await db
-			.insertInto("visitor_profiles")
-			.values({
-				id: generateId(),
-				site_id: payload.s,
-				visitor_id: vid,
-				first_seen: ts,
-				last_seen: ts,
-				country: cfCountry,
-				region: cfRegion,
-				city: cfCity,
-				device_type: deviceType,
-				browser,
-				os,
-				total_sessions: 1,
-				total_pageviews: pvInc,
-				total_revenue: rvInc,
-				fingerprint,
-			})
-			.onConflict((oc) =>
-				oc.columns(["site_id", "visitor_id"]).doUpdateSet({
+		writes.push(
+			db
+				.insertInto("visitor_profiles")
+				.values({
+					id: generateId(),
+					site_id: payload.s,
+					visitor_id: vid,
+					first_seen: ts,
 					last_seen: ts,
-					fingerprint: fingerprint ?? undefined,
-					country: cfCountry ?? undefined,
-					region: cfRegion ?? undefined,
-					city: cfCity ?? undefined,
-					device_type: deviceType ?? undefined,
-					browser: browser ?? undefined,
-					os: os ?? undefined,
-					total_pageviews: sql`total_pageviews + ${pvInc}`,
-					total_sessions: sessionInc > 0 ? sql`total_sessions + ${sessionInc}` : undefined,
-					total_revenue: rvInc > 0 ? sql`total_revenue + ${rvInc}` : undefined,
-				}),
-			)
-			.execute();
+					country: cfCountry,
+					region: cfRegion,
+					city: cfCity,
+					device_type: deviceType,
+					browser,
+					os,
+					total_sessions: 1,
+					total_pageviews: pvInc,
+					total_revenue: rvInc,
+					fingerprint,
+				})
+				.onConflict((oc) =>
+					oc.columns(["site_id", "visitor_id"]).doUpdateSet({
+						last_seen: ts,
+						fingerprint: fingerprint ?? undefined,
+						country: cfCountry ?? undefined,
+						region: cfRegion ?? undefined,
+						city: cfCity ?? undefined,
+						device_type: deviceType ?? undefined,
+						browser: browser ?? undefined,
+						os: os ?? undefined,
+						total_pageviews: sql`total_pageviews + ${pvInc}`,
+						total_sessions: sessionInc > 0 ? sql`total_sessions + ${sessionInc}` : undefined,
+						total_revenue: rvInc > 0 ? sql`total_revenue + ${rvInc}` : undefined,
+					}),
+				),
+		);
 	}
 
-	incrementCachedCount(siteId, payloads.length);
+	if (enforcement.ownerId && ingested > 0) {
+		writes.push(accountUsageIncrement(db, enforcement.ownerId, ingested));
+		incrementCachedUsage(enforcement.ownerId, ingested);
+	}
+	await executeBatch(c.env.DB, writes);
 
 	return c.json(
 		{ success: true, vid: resolvedVid !== first.vid ? resolvedVid : undefined },
@@ -573,9 +596,14 @@ trackRoutes.post("/track/payment", async (c) => {
 		);
 	}
 
+	const revenue = sanitizeRevenue(amount);
+	if (revenue === null) {
+		return c.json({ error: "amount must be a number between 0 and 1e9", success: false }, 400);
+	}
+
 	const site = await db
 		.selectFrom("sites")
-		.select(["id"])
+		.select(["id", "revenue_currency"])
 		.where("id", "=", siteId)
 		.executeTakeFirst();
 	if (!site) return c.json({ error: "Invalid site_id", success: false }, 400);
@@ -602,7 +630,7 @@ trackRoutes.post("/track/payment", async (c) => {
 		.select(["id"])
 		.where("site_id", "=", siteId)
 		.where("event_type", "=", "conversion")
-		.where("props", "like", `%"transaction_id":"${transaction_id}"%`)
+		.where(sql<string>`json_extract(props, '$.transaction_id')`, "=", String(transaction_id))
 		.executeTakeFirst();
 	if (existing) return c.json({ success: true, event_id: existing.id, duplicate: true });
 
@@ -638,7 +666,8 @@ trackRoutes.post("/track/payment", async (c) => {
 	}
 
 	const sessionId = body.sid || generateId();
-	const ts = body.timestamp ? new Date(body.timestamp).toISOString() : new Date().toISOString();
+	// Server-to-server payments may be backfilled, so only future/invalid times are clamped.
+	const ts = resolveEventTimestamp(body.timestamp, Date.now(), Number.POSITIVE_INFINITY);
 	const eventId = generateId();
 
 	await db
@@ -659,7 +688,8 @@ trackRoutes.post("/track/payment", async (c) => {
 			utm_campaign: utmCampaign,
 			utm_term: null,
 			utm_content: null,
-			revenue: Number(amount),
+			revenue,
+			currency: eventCurrency(body.currency, body.props, site.revenue_currency),
 			props: JSON.stringify({ transaction_id, ...(body.props || {}) }),
 			country: cfCountry,
 			region: cfRegion,
@@ -687,16 +717,21 @@ trackRoutes.post("/track/payment", async (c) => {
 			os: null,
 			total_sessions: 0,
 			total_pageviews: 0,
-			total_revenue: Number(amount),
+			total_revenue: revenue,
 			fingerprint: null,
 		})
 		.onConflict((oc) =>
 			oc.columns(["site_id", "visitor_id"]).doUpdateSet({
 				last_seen: ts,
-				total_revenue: sql`total_revenue + ${Number(amount)}`,
+				total_revenue: sql`total_revenue + ${revenue}`,
 			}),
 		)
 		.execute();
+
+	if (enforcement.ownerId) {
+		await accountUsageIncrement(db, enforcement.ownerId, 1).execute();
+		incrementCachedUsage(enforcement.ownerId, 1);
+	}
 
 	return c.json({ success: true, event_id: eventId, visitor_id: visitorId });
 });
