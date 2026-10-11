@@ -1,0 +1,46 @@
+import { afterEach, describe, expect, it, vi } from "vitest";
+
+import { detectLocale, translate } from "./i18n";
+import { MESSAGES } from "./i18n-messages";
+
+afterEach(() => {
+	localStorage.clear();
+	vi.unstubAllGlobals();
+});
+
+describe("detectLocale", () => {
+	it("prefers the stored toggle choice", () => {
+		localStorage.setItem("kp_locale", "id");
+		expect(detectLocale()).toBe("id");
+	});
+
+	it("falls back to an Indonesian browser language", () => {
+		vi.stubGlobal("navigator", { language: "id-ID" });
+		expect(detectLocale()).toBe("id");
+	});
+
+	it("defaults to English", () => {
+		vi.stubGlobal("navigator", { language: "en-US" });
+		expect(detectLocale()).toBe("en");
+	});
+});
+
+describe("translate", () => {
+	it("fills placeholders", () => {
+		expect(translate("id", "billing.planName", { plan: "Growth" })).toBe("Paket Growth");
+	});
+
+	it("uses the English singular only when n is 1", () => {
+		expect(translate("en", "billing.trialEndsIn", { n: 1 })).toBe("Trial ends in 1 day");
+		expect(translate("en", "billing.trialEndsIn", { n: 3 })).toBe("Trial ends in 3 days");
+		expect(translate("id", "billing.trialEndsIn", { n: 1 })).toBe("Trial berakhir 1 hari lagi");
+	});
+
+	it("ships no em dashes in either language (antislop R-02)", () => {
+		for (const dict of Object.values(MESSAGES)) {
+			for (const text of Object.values(dict)) {
+				expect(text).not.toContain("—");
+			}
+		}
+	});
+});
