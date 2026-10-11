@@ -4,7 +4,7 @@ import type { Kysely } from "kysely";
 import type { KlikapaDatabase } from "@revklik/shared";
 import type { Env } from "../types";
 import { INGEST_GRACE_MS, isSubscriptionActive } from "./entitlement";
-import { PLANS, requirePlan } from "./plans";
+import { PLANS, type PlanTier, requirePlan } from "./plans";
 
 type GateEnv = Env;
 
@@ -39,7 +39,14 @@ export const requirePlanTier = (required: GatedPlan, methods?: readonly string[]
 	});
 
 const ACCESS_TTL_MS = 30_000;
-const accessCache = new Map<string, { ok: boolean; periodEnd: string | null; at: number }>();
+interface AccountAccess {
+	ok: boolean;
+	periodEnd: string | null;
+	/** Days of history the plan may read; null = unlimited (super admin). */
+	retentionDays: number | null;
+}
+
+const accessCache = new Map<string, AccountAccess & { at: number }>();
 
 /** Drop cached access verdicts (tests). */
 export function clearAccessCache(): void {
@@ -49,7 +56,7 @@ export function clearAccessCache(): void {
 async function accountAccess(
 	db: Kysely<KlikapaDatabase>,
 	accountId: string,
-): Promise<{ ok: boolean; periodEnd: string | null }> {
+): Promise<AccountAccess> {
 	const cached = accessCache.get(accountId);
 	if (cached && Date.now() - cached.at < ACCESS_TTL_MS) return cached;
 	const row = await db
@@ -72,7 +79,12 @@ async function accountAccess(
 			status: row.status,
 			current_period_end: row.current_period_end ?? null,
 		});
-	const verdict = { ok, periodEnd: row?.current_period_end ?? null };
+	const plan = PLANS[(row?.plan ?? "micro") as PlanTier] ?? PLANS.micro;
+	const verdict: AccountAccess = {
+		ok,
+		periodEnd: row?.current_period_end ?? null,
+		retentionDays: row?.role === "super_admin" ? null : plan.retention_days,
+	};
 	if (accessCache.size > 10_000) accessCache.clear();
 	accessCache.set(accountId, { ...verdict, at: Date.now() });
 	return verdict;
@@ -100,7 +112,16 @@ export const requireActiveSubscription = createMiddleware<GateEnv>(async (c, nex
 		? await db.selectFrom("sites").select(["user_id"]).where("id", "=", siteId).executeTakeFirst()
 		: undefined;
 	const access = await accountAccess(db, site?.user_id ?? userId);
-	if (access.ok) return next();
+	if (access.ok) {
+		// Plan retention is a read window: older rows exist but are not served.
+		if (access.retentionDays !== null) {
+			c.set(
+				"retentionFloor",
+				new Date(Date.now() - access.retentionDays * 86_400_000).toISOString(),
+			);
+		}
+		return next();
+	}
 
 	const caller = await db
 		.selectFrom("users")

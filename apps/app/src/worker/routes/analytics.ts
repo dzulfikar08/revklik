@@ -47,10 +47,24 @@ import { revenueSql } from "../lib/fx";
 import { resolveQueryScope } from "../lib/site-scope";
 import { getDateRange } from "../utils";
 
-type Variables = { db: Kysely<KlikapaDatabase>; userId: string };
+type Variables = { db: Kysely<KlikapaDatabase>; userId: string; retentionFloor?: string };
 type AnalyticsEnv = { Variables: Variables; Bindings: { DB: D1Database; FX_USD_IDR?: string } };
 
 export const analyticsRoutes = new Hono<AnalyticsEnv>();
+
+/** getDateRange with the start clamped to the plan's retention window. */
+function rangeFor(c: Context<AnalyticsEnv>, range: string): { start: Date; end: Date } {
+	const r = getDateRange(range);
+	const floor = c.get("retentionFloor");
+	if (floor && r.start.getTime() < Date.parse(floor)) r.start = new Date(floor);
+	return r;
+}
+
+/** The comparison window may not reach behind the retention window either. */
+function clampToFloor(c: Context<AnalyticsEnv>, iso: string): string {
+	const floor = c.get("retentionFloor");
+	return floor && iso < floor ? floor : iso;
+}
 
 type AnalyticsHandler = (c: Context<AnalyticsEnv>) => Promise<Response>;
 
@@ -120,14 +134,15 @@ analyticsRoutes.get(
 		if (!site) return c.json({ error: "Site not found", success: false }, 404);
 
 		const scope = await resolveQueryScope(db, siteId, c.env, c.req.query("tz"));
-		const { start, end } = getDateRange(range);
+		const { start, end } = rangeFor(c, range);
 		const startIso = start.toISOString();
 		const endIso = end.toISOString();
 		const spanHours = (end.getTime() - start.getTime()) / (1000 * 60 * 60);
 		const isHourly = spanHours <= 48;
-		const prevStartIso = new Date(
-			start.getTime() - (end.getTime() - start.getTime()),
-		).toISOString();
+		const prevStartIso = clampToFloor(
+			c,
+			new Date(start.getTime() - (end.getTime() - start.getTime())).toISOString(),
+		);
 
 		let recentSessionsQ = db
 			.selectFrom("sessions")
@@ -366,7 +381,7 @@ analyticsRoutes.get(
 		const site = await validateSite(db, userId, siteId);
 		if (!site) return c.json({ error: "Site not found", success: false }, 404);
 
-		const { start } = getDateRange(range);
+		const { start } = rangeFor(c, range);
 		const startIso = start.toISOString();
 
 		// Total unique visitors (funnel entry = all pageview visitors)
@@ -519,7 +534,7 @@ analyticsRoutes.get("/visitors/:visitorId", async (c) => {
 		.executeTakeFirst();
 	if (!profile) return c.json({ error: "Not found", success: false }, 404);
 
-	const { start } = getDateRange(c.req.query("range") ?? "7d");
+	const { start } = rangeFor(c, c.req.query("range") ?? "7d");
 	const startIso = start.toISOString();
 	const sessions = await db
 		.selectFrom("sessions")
@@ -633,7 +648,7 @@ analyticsRoutes.get(
 		if (!siteId) return c.json({ error: "site_id required", success: false }, 400);
 		const site = await validateSite(db, userId, siteId);
 		if (!site) return c.json({ error: "Site not found", success: false }, 404);
-		const { start } = getDateRange(range);
+		const { start } = rangeFor(c, range);
 		const startIso = start.toISOString();
 		const rows = await applyFilters(
 			db
@@ -671,7 +686,7 @@ analyticsRoutes.get(
 		if (!siteId) return c.json({ error: "site_id required", success: false }, 400);
 		const site = await validateSite(db, userId, siteId);
 		if (!site) return c.json({ error: "Site not found", success: false }, 404);
-		const { start, end } = getDateRange(range);
+		const { start, end } = rangeFor(c, range);
 		const startIso = start.toISOString();
 		const endIso = end.toISOString();
 		const scope = await resolveQueryScope(db, siteId, c.env, c.req.query("tz"));
@@ -734,7 +749,7 @@ analyticsRoutes.get(
 		const planCheck = await requirePlan(db, userId, 2);
 		if (!planCheck.allowed) return c.json(planRequiredBody("growth", planCheck.plan), 403);
 
-		const { start } = getDateRange(range);
+		const { start } = rangeFor(c, range);
 		const startIso = start.toISOString();
 
 		const [clickRows, scrollRows, sessionCount] = await Promise.all([
@@ -782,7 +797,7 @@ analyticsRoutes.get("/recordings", async (c) => {
 	const planCheck = await requirePlan(db, userId, 2);
 	if (!planCheck.allowed) return c.json(planRequiredBody("growth", planCheck.plan), 403);
 
-	const { start } = getDateRange(range);
+	const { start } = rangeFor(c, range);
 	const startIso = start.toISOString();
 
 	const rows = await db
@@ -1006,7 +1021,7 @@ analyticsRoutes.get("/export", async (c) => {
 	const site = await validateSite(db, userId, siteId);
 	if (!site) return c.json({ error: "Site not found", success: false }, 404);
 
-	const { start } = getDateRange(range);
+	const { start } = rangeFor(c, range);
 	const startIso = start.toISOString();
 
 	if (type === "visitors") {
@@ -1196,7 +1211,7 @@ analyticsRoutes.get(
 		const site = await validateSite(db, userId, siteId);
 		if (!site) return c.json({ error: "Site not found", success: false }, 404);
 
-		const { start, end } = getDateRange(range);
+		const { start, end } = rangeFor(c, range);
 		const startIso = start.toISOString();
 		const endIso = end.toISOString();
 		const isHourly = (end.getTime() - start.getTime()) / 3_600_000 <= 48;

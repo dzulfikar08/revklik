@@ -2,7 +2,7 @@
  * Version the live schema must reach. Bump it whenever a step is appended to
  * VERSIONED_STEPS; a DB already at this version costs one SELECT per isolate.
  */
-export const SCHEMA_VERSION = 7;
+export const SCHEMA_VERSION = 8;
 
 const migrated = new WeakSet<D1Database>();
 
@@ -60,6 +60,10 @@ const VERSIONED_STEPS: MigrationStep[] = [
 	},
 	{ version: 6, run: (d1) => runDdl(d1, "ALTER TABLE users ADD COLUMN intended_plan TEXT") },
 	{ version: 7, run: authHardeningSchema },
+	// No query filters events on payment_provider/payment_method (revenue-by-method
+	// groups after a site_id + revenue range, served by idx_events_site_revenue_time),
+	// so this 4-column index only costs writes and storage.
+	{ version: 8, run: (d1) => runDdl(d1, "DROP INDEX IF EXISTS idx_events_site_payment") },
 ];
 
 /** DEV-34: password resets, D1 login throttle, session expiry, referral commissions. */

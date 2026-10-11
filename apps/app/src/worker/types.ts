@@ -2,7 +2,12 @@ import type { Kysely } from "kysely";
 import type { KlikapaDatabase } from "@revklik/shared";
 import type { EmailBinding } from "./lib/email";
 
-export type Variables = { db: Kysely<KlikapaDatabase>; userId: string };
+export type Variables = {
+	db: Kysely<KlikapaDatabase>;
+	userId: string;
+	/** Earliest ISO timestamp the caller's plan may read (retention window). */
+	retentionFloor?: string;
+};
 
 export type Bindings = {
 	// wrangler.jsonc bindings
@@ -35,6 +40,8 @@ export type Bindings = {
 	SUPER_ADMIN_EMAIL?: string;
 	// Public app origin for emailed links (default https://app.revklik.com)
 	APP_URL?: string;
+	// Hard-delete raw analytics older than N days (unset = never; default off)
+	RETENTION_HARD_DELETE_DAYS?: string;
 	// IDR per 1 USD for revenue conversion (default 16000)
 	FX_USD_IDR?: string;
 };

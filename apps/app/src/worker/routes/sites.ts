@@ -5,6 +5,7 @@ import { sql } from "../db";
 import { isSubscriptionActive } from "../lib/entitlement";
 import { normalizeCurrency, revenueSql, usdRates } from "../lib/fx";
 import { getPlanLimits } from "../lib/plans";
+import { purgeSiteRows } from "../lib/purge";
 import { displayCurrency } from "../lib/site-scope";
 import { clampTzOffset } from "../lib/widget-live";
 import { fingerprintFromRequest, generateId } from "../utils";
@@ -12,7 +13,30 @@ import { invalidateExcludedCache } from "./track";
 
 type Variables = { db: Kysely<KlikapaDatabase>; userId: string };
 
-export const siteRoutes = new Hono<{ Variables: Variables; Bindings: { FX_USD_IDR?: string } }>();
+export const siteRoutes = new Hono<{
+	Variables: Variables;
+	Bindings: { FX_USD_IDR?: string; DB: D1Database };
+}>();
+
+/**
+ * Bare host for a site: scheme, credentials, path, query, port, trailing dot
+ * and a leading "www." are dropped, lowercase. Ingest is keyed by site id,
+ * not host, and the GSC matcher already ignores www, so nothing depends on
+ * the prefix. Returns null when no plausible hostname remains.
+ */
+export function normalizeDomain(raw: string): string | null {
+	let host = raw.trim().toLowerCase();
+	host = host.replace(/^[a-z][a-z0-9+.-]*:\/\//, "");
+	host = host.replace(/^[^@/]*@/, "");
+	host = host.split(/[/?#]/)[0] ?? "";
+	host = host
+		.replace(/:\d+$/, "")
+		.replace(/\.+$/, "")
+		.replace(/^www\./, "");
+	return /^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)*$/.test(host)
+		? host
+		: null;
+}
 
 siteRoutes.get("/", async (c) => {
 	const db = c.get("db");
@@ -101,8 +125,11 @@ siteRoutes.get("/", async (c) => {
 siteRoutes.post("/", async (c) => {
 	const db = c.get("db");
 	const userId = c.get("userId");
-	const { name, domain } = await c.req.json<CreateSitePayload>();
-	if (!name || !domain) return c.json({ error: "Name and domain required", success: false }, 400);
+	const { name, domain: rawDomain } = await c.req.json<CreateSitePayload>();
+	if (!name || !rawDomain)
+		return c.json({ error: "Name and domain required", success: false }, 400);
+	const domain = normalizeDomain(rawDomain);
+	if (!domain) return c.json({ error: "Invalid domain", success: false }, 400);
 
 	// Site limit enforcement (super_admins bypass limits)
 	const user = await db
@@ -180,9 +207,9 @@ siteRoutes.delete("/:siteId", async (c) => {
 		.executeTakeFirst();
 	if (!site) return c.json({ error: "Site not found", success: false }, 404);
 
-	await db.deleteFrom("events").where("site_id", "=", siteId).execute();
-	await db.deleteFrom("sessions").where("site_id", "=", siteId).execute();
-	await db.deleteFrom("visitor_profiles").where("site_id", "=", siteId).execute();
+	// Dependents first, in bounded chunks; the site row goes last so a failed
+	// run can simply be retried.
+	await purgeSiteRows(c.env.DB, siteId);
 	await db.deleteFrom("sites").where("id", "=", siteId).execute();
 	return c.json({ success: true });
 });

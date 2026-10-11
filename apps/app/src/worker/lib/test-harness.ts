@@ -42,9 +42,19 @@ export function makeD1(db: Database): D1Like {
 				first: async () => get().get() ?? null,
 			};
 		},
+		// One result per statement, like D1; `all` also surfaces RETURNING rows.
 		async batch(stmts: Array<{ run: () => Promise<unknown> }>) {
-			for (const s of stmts) await s.run();
-			return [];
+			const results: Array<{ results: unknown[] }> = [];
+			for (const s of stmts) {
+				const withAll = s as { all?: () => Promise<{ results: unknown[] }> };
+				if (withAll.all) {
+					results.push(await withAll.all());
+				} else {
+					await s.run();
+					results.push({ results: [] });
+				}
+			}
+			return results;
 		},
 	};
 }
