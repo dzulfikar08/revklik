@@ -2,7 +2,7 @@
  * Version the live schema must reach. Bump it whenever a step is appended to
  * VERSIONED_STEPS; a DB already at this version costs one SELECT per isolate.
  */
-export const SCHEMA_VERSION = 5;
+export const SCHEMA_VERSION = 6;
 
 const migrated = new WeakSet<D1Database>();
 
@@ -58,6 +58,7 @@ const VERSIONED_STEPS: MigrationStep[] = [
 				"CREATE TABLE IF NOT EXISTS account_usage (user_id TEXT NOT NULL, month TEXT NOT NULL, events INTEGER NOT NULL DEFAULT 0, PRIMARY KEY (user_id, month))",
 			),
 	},
+	{ version: 6, run: (d1) => runDdl(d1, "ALTER TABLE users ADD COLUMN intended_plan TEXT") },
 ];
 
 /** DEV-29: QRIS orders live outside subscriptions; webhook idempotency keys. */

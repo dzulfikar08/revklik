@@ -4,6 +4,8 @@ import type { KlikapaDatabase } from "@revklik/shared";
 import type { Env } from "../types";
 import { generateApiKey, generateId, hashPassword, hashToken } from "../utils";
 import { sendNewSignupAlert } from "../lib/email";
+import { PLANS } from "../lib/plans";
+import { startTrial } from "../lib/trial";
 
 export const authRoutes = new Hono<Env>();
 
@@ -34,7 +36,8 @@ async function resolveTokenUserId(
 authRoutes.post("/register", async (c) => {
 	const db = c.get("db");
 	if (!db) return c.json({ error: "DB unavailable", success: false }, 503);
-	const { name, email, password } = await c.req.json();
+	const { name, email, password, plan } = await c.req.json();
+	const intendedPlan = typeof plan === "string" && plan in PLANS ? plan : null;
 	if (!name || !email || !password)
 		return c.json({ error: "All fields required", success: false }, 400);
 
@@ -55,6 +58,7 @@ authRoutes.post("/register", async (c) => {
 			password_hash: await hashPassword(password),
 			name,
 			role: email === superAdminEmail ? "super_admin" : "user",
+			intended_plan: intendedPlan,
 			created_at: new Date().toISOString(),
 		})
 		.execute();
@@ -110,25 +114,7 @@ authRoutes.post("/register", async (c) => {
 		}
 	}
 
-	// Create 7-day free trial subscription (Starter plan)
-	const now = new Date();
-	const trialEnd = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
-	await db
-		.insertInto("subscriptions")
-		.values({
-			id: generateId(),
-			user_id: userId,
-			plan: "starter",
-			status: "trialing",
-			current_period_start: now.toISOString(),
-			current_period_end: trialEnd.toISOString(),
-			cancel_at_period_end: 0,
-			polar_subscription_id: null,
-			polar_customer_id: null,
-			created_at: now.toISOString(),
-			updated_at: now.toISOString(),
-		})
-		.execute();
+	await startTrial(db, userId);
 
 	return c.json(
 		{
@@ -140,6 +126,7 @@ authRoutes.post("/register", async (c) => {
 					role: email === superAdminEmail ? "super_admin" : "user",
 				},
 				token: key,
+				intended_plan: intendedPlan,
 			},
 			success: true,
 		},
@@ -328,25 +315,7 @@ authRoutes.get("/google/callback", async (c) => {
 			})
 			.execute();
 
-		// Create 7-day free trial subscription (Starter plan)
-		const now = new Date();
-		const trialEnd = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
-		await db
-			.insertInto("subscriptions")
-			.values({
-				id: generateId(),
-				user_id: userId,
-				plan: "starter",
-				status: "trialing",
-				current_period_start: now.toISOString(),
-				current_period_end: trialEnd.toISOString(),
-				cancel_at_period_end: 0,
-				polar_subscription_id: null,
-				polar_customer_id: null,
-				created_at: now.toISOString(),
-				updated_at: now.toISOString(),
-			})
-			.execute();
+		await startTrial(db, userId);
 		// Fire-and-forget admin notification (skip self-registration of the admin).
 		if (c.env.SUPER_ADMIN_EMAIL && googleEmail !== c.env.SUPER_ADMIN_EMAIL) {
 			c.executionCtx.waitUntil(

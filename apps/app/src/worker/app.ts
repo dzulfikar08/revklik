@@ -45,6 +45,7 @@ import { paywuzWebhookRoutes } from "./routes/webhooks-paywuz";
 import { xenditWebhookRoutes } from "./routes/webhooks-xendit";
 import { widgetRoutes } from "./routes/widgets";
 import { widgetLiveRoutes } from "./routes/widgets-live";
+import { requireActiveSubscription, requirePlanTier } from "./lib/plan-gate";
 import type { Env } from "./types";
 import { hashToken } from "./utils";
 
@@ -134,15 +135,21 @@ export function createApp(): Hono<Env> {
 	app.route("/sites", siteRoutes);
 
 	app.use("/analytics/*", authMiddleware);
+	app.use("/analytics/*", requireActiveSubscription);
+	app.use("/analytics/funnel", requirePlanTier("starter"));
 	app.route("/analytics", analyticsRoutes);
 
 	app.use("/ai-insights/*", authMiddleware);
+	app.use("/ai-insights/*", requireActiveSubscription);
 	app.route("/ai-insights", aiInsightsRoutes);
 
+	// Removing an integration stays possible after a downgrade.
 	app.use("/integrations/*", authMiddleware);
+	app.use("/integrations/*", requirePlanTier("growth", ["POST", "PATCH", "PUT"]));
 	app.route("/integrations", integrationRoutes);
 
 	app.use("/appstoreconnect/*", authMiddleware);
+	app.use("/appstoreconnect/*", requireActiveSubscription);
 	app.route("/appstoreconnect", ascRoutes);
 
 	app.use("/tokens/*", authMiddleware);
@@ -160,6 +167,7 @@ export function createApp(): Hono<Env> {
 	app.route("/webhooks/doku", dokuWebhookRoutes);
 
 	app.use("/payment-providers/*", authMiddleware);
+	app.use("/payment-providers/*", requirePlanTier("starter", ["POST", "PATCH", "PUT"]));
 	app.route("/payment-providers", paymentProviderRoutes);
 
 	// Serve tracking script based on site plan tier
@@ -207,12 +215,14 @@ export function createApp(): Hono<Env> {
 	app.route("/billing", billingRoutes);
 
 	app.use("/team/*", authMiddleware);
+	app.use("/team/invite", requirePlanTier("growth"));
 	app.route("/team", teamRoutes);
 
 	app.use("/push-tokens/*", authMiddleware);
 	app.route("/push-tokens", pushTokenRoutes);
 
 	app.use("/segments/*", authMiddleware);
+	app.use("/segments/*", requirePlanTier("starter", ["POST"]));
 	app.route("/segments", segmentRoutes);
 
 	app.use("/annotations/*", authMiddleware);
@@ -228,6 +238,8 @@ export function createApp(): Hono<Env> {
 	app.route("/gsc", gscRoutes);
 
 	app.use("/predictions/*", authMiddleware);
+	app.use("/predictions/*", requireActiveSubscription);
+	app.use("/predictions/*", requirePlanTier("growth"));
 	app.route("/predictions", predictionsRoutes);
 
 	app.use("/affiliates/*", authMiddleware);

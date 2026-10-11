@@ -30,8 +30,11 @@ function validateSite(db: Kysely<KlikapaDatabase>, userId: string, siteId: strin
 
 segmentRoutes.get("/", async (c) => {
 	const db = c.get("db");
+	const userId = c.get("userId");
 	const siteId = c.req.query("site_id");
 	if (!siteId) return c.json({ error: "site_id required", success: false }, 400);
+	const site = await validateSite(db, userId, siteId);
+	if (!site) return c.json({ error: "Site not found", success: false }, 404);
 
 	const segments = await db
 		.selectFrom("segments")

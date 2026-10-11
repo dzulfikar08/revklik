@@ -2,6 +2,7 @@ import { Hono } from "hono";
 import type { Kysely } from "kysely";
 import type { CreateSitePayload, KlikapaDatabase, Site, SiteWithStats } from "@revklik/shared";
 import { sql } from "../db";
+import { isSubscriptionActive } from "../lib/entitlement";
 import { normalizeCurrency, revenueSql, usdRates } from "../lib/fx";
 import { getPlanLimits } from "../lib/plans";
 import { displayCurrency } from "../lib/site-scope";
@@ -107,11 +108,8 @@ siteRoutes.post("/", async (c) => {
 			.select(["plan", "status", "current_period_end"])
 			.where("user_id", "=", userId)
 			.executeTakeFirst();
-		const plan =
-			sub?.status === "active" &&
-			(!sub.current_period_end || new Date(sub.current_period_end) >= new Date())
-				? sub.plan
-				: "micro";
+		// Trials get their trial plan's limit; lapsed accounts fall back to micro.
+		const plan = sub && isSubscriptionActive(sub) ? sub.plan : "micro";
 		const limits = getPlanLimits(plan);
 		const siteCount = await db
 			.selectFrom("sites")

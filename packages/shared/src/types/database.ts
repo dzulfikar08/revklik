@@ -77,6 +77,8 @@ export interface UserTable {
 	avatar_url: string | null;
 	role: "user" | "admin" | "super_admin";
 	created_at: string;
+	/** Plan picked on the pricing page before signup; informational only. */
+	intended_plan?: string | null;
 }
 
 export interface ApiKeyTable {

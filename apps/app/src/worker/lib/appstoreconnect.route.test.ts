@@ -55,6 +55,11 @@ describe("appstoreconnect routes", () => {
 		);
 		expect(syncRes.status).toBe(404);
 
+		// Integrations are a Growth feature.
+		db.prepare(
+			"INSERT INTO subscriptions (id, user_id, plan, status, current_period_end) VALUES ('sub-u1', 'u1', 'growth', 'active', ?)",
+		).run(new Date(Date.now() + 86_400_000).toISOString());
+
 		// Creating the integration works, private_key is masked on read, and a
 		// partial PATCH merges instead of wiping the other fields.
 		const created = await app.request(

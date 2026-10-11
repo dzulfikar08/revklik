@@ -22,6 +22,7 @@ import {
 	toCsv,
 	validateSite,
 } from "../lib/analytics-queries";
+import { planRequiredBody } from "../lib/plan-gate";
 import { requirePlan } from "../lib/plans";
 import {
 	getChannelBreakdown,
@@ -731,16 +732,7 @@ analyticsRoutes.get(
 		if (!site) return c.json({ error: "Site not found", success: false }, 404);
 
 		const planCheck = await requirePlan(db, userId, 2);
-		if (!planCheck.allowed)
-			return c.json(
-				{
-					error: "Heatmaps require the Growth plan",
-					success: false,
-					required_plan: "growth",
-					current_plan: planCheck.plan,
-				},
-				403,
-			);
+		if (!planCheck.allowed) return c.json(planRequiredBody("growth", planCheck.plan), 403);
 
 		const { start } = getDateRange(range);
 		const startIso = start.toISOString();
@@ -788,16 +780,7 @@ analyticsRoutes.get("/recordings", async (c) => {
 	if (!site) return c.json({ error: "Site not found", success: false }, 404);
 
 	const planCheck = await requirePlan(db, userId, 2);
-	if (!planCheck.allowed)
-		return c.json(
-			{
-				error: "Session recordings require the Growth plan",
-				success: false,
-				required_plan: "growth",
-				current_plan: planCheck.plan,
-			},
-			403,
-		);
+	if (!planCheck.allowed) return c.json(planRequiredBody("growth", planCheck.plan), 403);
 
 	const { start } = getDateRange(range);
 	const startIso = start.toISOString();
@@ -841,16 +824,7 @@ analyticsRoutes.get("/recordings/:id", async (c) => {
 	const recordingId = c.req.param("id");
 
 	const planCheck = await requirePlan(db, userId, 2);
-	if (!planCheck.allowed)
-		return c.json(
-			{
-				error: "Session recordings require the Growth plan",
-				success: false,
-				required_plan: "growth",
-				current_plan: planCheck.plan,
-			},
-			403,
-		);
+	if (!planCheck.allowed) return c.json(planRequiredBody("growth", planCheck.plan), 403);
 
 	const row = await db
 		.selectFrom("session_recordings")

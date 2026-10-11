@@ -1,9 +1,12 @@
 import { Hono } from "hono";
+import { sql } from "../db";
 import { sendEmail } from "../lib/email";
 import type { Env } from "../types";
 import { generateId } from "../utils";
 
 export const teamRoutes = new Hono<Env>();
+
+const escapeHtml = (s: string) => s.replace(/[&<>"']/g, (ch) => `&#${ch.charCodeAt(0)};`);
 
 // List team members for a site
 teamRoutes.get("/", async (c) => {
@@ -80,11 +83,10 @@ teamRoutes.post("/invite", async (c) => {
 	if (site.user_id !== userId)
 		return c.json({ error: "Only owner can invite", success: false }, 403);
 
-	// Find user by email
 	const invitee = await db
 		.selectFrom("users")
 		.select(["id", "name", "email"])
-		.where("email", "=", email)
+		.where(sql<string>`lower(email)`, "=", email.trim().toLowerCase())
 		.executeTakeFirst();
 	if (!invitee)
 		return c.json(
@@ -117,7 +119,8 @@ teamRoutes.post("/invite", async (c) => {
 			role: validRole,
 			invited_by: userId,
 			invited_at: new Date().toISOString(),
-			accepted_at: new Date().toISOString(),
+			// Pending until the invitee accepts it from their own account.
+			accepted_at: null,
 		})
 		.execute();
 
@@ -130,18 +133,73 @@ teamRoutes.post("/invite", async (c) => {
 	const emailBinding = c.env.EMAIL;
 	await sendEmail(
 		{
-			to: email,
-			subject: `KlikApa — You've been invited to ${site.name}`,
+			to: invitee.email,
+			subject: `RevKlik — You've been invited to ${site.name}`,
 			html: `<div style="font-family: sans-serif; max-width: 480px; margin: 0 auto; padding: 24px; background: #0a0a0a; color: #e8e4de; border-radius: 12px;">
       <h2 style="color: #d4882a; margin: 0 0 12px;">Team Invitation</h2>
-      <p style="line-height: 1.6;">${inviter?.name ?? "Someone"} invited you to collaborate on <strong>${site.name}</strong> as <strong>${validRole}</strong>.</p>
-      <a href="https://app.revklik.com/site" style="display: inline-block; margin-top: 12px; padding: 10px 20px; background: #d4882a; color: #0a0a0a; text-decoration: none; border-radius: 6px; font-weight: 600;">Open Dashboard</a>
+      <p style="line-height: 1.6;">${escapeHtml(inviter?.name ?? "Someone")} invited you to collaborate on <strong>${escapeHtml(site.name)}</strong> as <strong>${validRole}</strong>. Sign in to accept or decline.</p>
+      <a href="https://app.revklik.com/" style="display: inline-block; margin-top: 12px; padding: 10px 20px; background: #d4882a; color: #0a0a0a; text-decoration: none; border-radius: 6px; font-weight: 600;">Review invitation</a>
     </div>`,
 		},
 		emailBinding,
 	).catch(() => {});
 
-	return c.json({ data: { id, role: validRole, email }, success: true }, 201);
+	return c.json(
+		{ data: { id, role: validRole, email: invitee.email, status: "pending" }, success: true },
+		201,
+	);
+});
+
+// Pending invitations addressed to the caller
+teamRoutes.get("/invitations", async (c) => {
+	const db = c.get("db");
+	const userId = c.get("userId");
+	const rows = await db
+		.selectFrom("team_members")
+		.innerJoin("sites", "sites.id", "team_members.site_id")
+		.leftJoin("users", "users.id", "team_members.invited_by")
+		.select([
+			"team_members.id",
+			"team_members.site_id",
+			"team_members.role",
+			"team_members.invited_at",
+			"sites.name as site_name",
+			"users.name as invited_by_name",
+		])
+		.where("team_members.user_id", "=", userId)
+		.where("team_members.accepted_at", "is", null)
+		.orderBy("team_members.invited_at", "desc")
+		.execute();
+	return c.json({ data: rows, success: true });
+});
+
+teamRoutes.post("/invitations/:id/accept", async (c) => {
+	const db = c.get("db");
+	const userId = c.get("userId");
+	const accepted = await db
+		.updateTable("team_members")
+		.set({ accepted_at: new Date().toISOString() })
+		.where("id", "=", c.req.param("id"))
+		.where("user_id", "=", userId)
+		.where("accepted_at", "is", null)
+		.returning(["id", "site_id", "role"])
+		.execute();
+	if (accepted.length === 0) return c.json({ error: "Invitation not found", success: false }, 404);
+	return c.json({ data: accepted[0], success: true });
+});
+
+teamRoutes.post("/invitations/:id/decline", async (c) => {
+	const db = c.get("db");
+	const userId = c.get("userId");
+	const declined = await db
+		.deleteFrom("team_members")
+		.where("id", "=", c.req.param("id"))
+		.where("user_id", "=", userId)
+		.where("accepted_at", "is", null)
+		.returning("id")
+		.execute();
+	if (declined.length === 0) return c.json({ error: "Invitation not found", success: false }, 404);
+	return c.json({ success: true });
 });
 
 // Update member role
