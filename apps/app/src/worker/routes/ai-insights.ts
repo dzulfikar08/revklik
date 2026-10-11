@@ -1,5 +1,5 @@
 import { type Context, Hono } from "hono";
-import type { Kysely } from "kysely";
+import type { Compilable, Kysely } from "kysely";
 import type {
 	AiInsight,
 	AiInsightTable,
@@ -15,6 +15,7 @@ import {
 	callWorkersAI,
 	generateFallbackInsights,
 } from "../lib/ai-prompts";
+import { executeBatch } from "../lib/d1-batch";
 import { planRequiredBody } from "../lib/plan-gate";
 import { resolveQueryScope } from "../lib/site-scope";
 import { requirePlanForSite } from "../lib/plans";
@@ -122,13 +123,23 @@ aiInsightsRoutes.get("/", async (c) => {
 			if (expired.length > 0) {
 				return c.json({ data: buildResponse(expired, range), success: true });
 			}
-			const { start } = getDateRange(range);
-			const data = await aggregateData(db, siteId, start.toISOString(), scope.money);
-			return c.json({
-				data: freshResponse(generateFallbackInsights(data), data, range, new Date().toISOString()),
-				success: true,
-				message: "Insights generation rate-limited. Showing rule-based insights.",
-			});
+			try {
+				const { start } = getDateRange(range);
+				const data = await aggregateData(db, siteId, start.toISOString(), scope.money);
+				return c.json({
+					data: freshResponse(
+						generateFallbackInsights(data),
+						data,
+						range,
+						new Date().toISOString(),
+					),
+					success: true,
+					message: "Insights generation rate-limited. Showing rule-based insights.",
+				});
+			} catch (err) {
+				console.error("Rule-based insights failed:", err);
+				return c.json({ data: emptyResponse(range), success: true });
+			}
 		}
 	}
 
@@ -199,20 +210,16 @@ async function generateInsights(
 		const expiresAt = new Date(now.getTime() + ttlHours * 60 * 60 * 1000).toISOString();
 		const createdAt = now.toISOString();
 
-		// Replace the previous batch so rows from an older batch (or another
-		// currency) never mix into the next cache read.
-		await db
-			.deleteFrom("ai_insights")
-			.where("site_id", "=", siteId)
-			.where("range", "=", range)
-			.execute();
-
-		// Cache each insight row
+		// Replace the previous batch in one D1 batch (one transaction) so rows
+		// from an older batch, another currency, or a concurrent writer never
+		// mix into the next cache read.
+		const writes: Compilable[] = [
+			db.deleteFrom("ai_insights").where("site_id", "=", siteId).where("range", "=", range),
+		];
 		for (const insight of rawInsights) {
 			const id = generateId();
-			await db
-				.insertInto("ai_insights")
-				.values({
+			writes.push(
+				db.insertInto("ai_insights").values({
 					id,
 					site_id: siteId,
 					range,
@@ -227,9 +234,11 @@ async function generateInsights(
 					confidence: insight.confidence,
 					created_at: createdAt,
 					expires_at: expiresAt,
-				})
-				.execute();
+				}),
+			);
 		}
+		if (c.env?.DB) await executeBatch(c.env.DB, writes, writes.length);
+		else for (const q of writes) await db.executeQuery(q.compile());
 
 		return freshResponse(rawInsights, data, range, createdAt);
 	} catch (err) {
