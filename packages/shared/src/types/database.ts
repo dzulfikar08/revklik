@@ -239,6 +239,25 @@ export interface KlikapaDatabase {
 	pakasir_orders: PakasirOrderTable;
 	webhook_dedupe: WebhookDedupeTable;
 	account_usage: AccountUsageTable;
+	password_resets: PasswordResetTable;
+	login_attempts: LoginAttemptTable;
+}
+
+export interface PasswordResetTable {
+	id: string;
+	user_id: string;
+	/** SHA-256 of the emailed token; the plaintext is never stored. */
+	token_hash: string;
+	expires_at: string;
+	used_at: string | null;
+	created_at: string;
+}
+
+/** Fixed-window attempt counters (login, password-reset requests). */
+export interface LoginAttemptTable {
+	key: string;
+	count: number;
+	window_start: string;
 }
 
 /** Monthly ingested-event counter per account (all sites of the owner). */
@@ -434,5 +453,7 @@ export interface ReferralTable {
 	event: string;
 	commission_amount: number;
 	status: string;
+	/** Payment id a commission was earned on (idempotency key); null for signups. */
+	source_ref?: string | null;
 	created_at: string;
 }

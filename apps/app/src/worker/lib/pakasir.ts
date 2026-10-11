@@ -1,6 +1,8 @@
 import type { Kysely } from "kysely";
 import type { KlikapaDatabase } from "@revklik/shared";
 import { generateId } from "../utils";
+import { recordReferralCommission } from "./affiliates";
+import { convertAmount, type FxRates, usdRates } from "./fx";
 import type { PlanTier } from "./plans";
 
 // Pakasir (QRIS payment links) — docs: https://pakasir.com/p/docs
@@ -71,6 +73,7 @@ interface PakasirPaymentInput {
 	amount: number;
 	paymentMethod?: string | null;
 	completedAt?: string | null;
+	fxRates?: FxRates;
 }
 
 export interface ActivationResult {
@@ -87,7 +90,7 @@ export async function activatePakasirPayment(
 	db: Kysely<KlikapaDatabase>,
 	input: PakasirPaymentInput,
 ): Promise<ActivationResult> {
-	const { userId, plan, orderId } = input;
+	const { userId, plan, orderId, amount } = input;
 	const nowMs = Date.now();
 	const now = new Date(nowMs).toISOString();
 
@@ -141,6 +144,13 @@ export async function activatePakasirPayment(
 			}),
 		)
 		.execute();
+
+	await recordReferralCommission(
+		db,
+		userId,
+		`pakasir:${orderId}`,
+		convertAmount(amount, "IDR", "USD", input.fxRates ?? usdRates()),
+	);
 
 	return { activated: true, alreadyProcessed: false };
 }

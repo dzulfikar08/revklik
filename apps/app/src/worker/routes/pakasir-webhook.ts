@@ -1,5 +1,6 @@
 import { Hono } from "hono";
 import { createDb } from "../db";
+import { usdRates } from "../lib/fx";
 import type { Env } from "../types";
 import type { PlanTier } from "../lib/plans";
 import {
@@ -68,6 +69,7 @@ pakasirWebhookRoutes.post("/", async (c) => {
 		amount,
 		paymentMethod: payment_method,
 		completedAt: completed_at,
+		fxRates: usdRates(c.env),
 	});
 
 	return c.json({ success: true, ...result });

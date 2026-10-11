@@ -2,7 +2,7 @@
  * Version the live schema must reach. Bump it whenever a step is appended to
  * VERSIONED_STEPS; a DB already at this version costs one SELECT per isolate.
  */
-export const SCHEMA_VERSION = 6;
+export const SCHEMA_VERSION = 7;
 
 const migrated = new WeakSet<D1Database>();
 
@@ -59,7 +59,30 @@ const VERSIONED_STEPS: MigrationStep[] = [
 			),
 	},
 	{ version: 6, run: (d1) => runDdl(d1, "ALTER TABLE users ADD COLUMN intended_plan TEXT") },
+	{ version: 7, run: authHardeningSchema },
 ];
+
+/** DEV-34: password resets, D1 login throttle, session expiry, referral commissions. */
+async function authHardeningSchema(d1: D1Database): Promise<void> {
+	await runDdl(
+		d1,
+		"CREATE TABLE IF NOT EXISTS password_resets (id TEXT PRIMARY KEY, user_id TEXT NOT NULL, token_hash TEXT NOT NULL UNIQUE, expires_at TEXT NOT NULL, used_at TEXT, created_at TEXT NOT NULL DEFAULT (datetime('now')))",
+	);
+	await runDdl(d1, "CREATE INDEX IF NOT EXISTS idx_pr_user ON password_resets(user_id)");
+	await runDdl(
+		d1,
+		"CREATE TABLE IF NOT EXISTS login_attempts (key TEXT PRIMARY KEY, count INTEGER NOT NULL DEFAULT 0, window_start TEXT NOT NULL)",
+	);
+	await runDdl(d1, "CREATE INDEX IF NOT EXISTS idx_users_email_lower ON users(lower(email))");
+	await runDdl(d1, "ALTER TABLE referrals ADD COLUMN source_ref TEXT");
+	await runDdl(d1, "CREATE UNIQUE INDEX IF NOT EXISTS idx_ref_source ON referrals(source_ref)");
+	// Sessions minted before expiry existed get the same 30-day horizon as new ones.
+	await runBackfill(
+		d1,
+		"UPDATE api_keys SET expires_at = ? WHERE token_type = 'session' AND expires_at IS NULL",
+		new Date(Date.now() + 30 * 86_400_000).toISOString(),
+	);
+}
 
 /** DEV-29: QRIS orders live outside subscriptions; webhook idempotency keys. */
 async function billingIntegritySchema(d1: D1Database): Promise<void> {

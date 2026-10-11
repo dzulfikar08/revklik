@@ -3,7 +3,7 @@ import { createMiddleware } from "hono/factory";
 import type { Kysely } from "kysely";
 import type { KlikapaDatabase } from "@revklik/shared";
 import type { Env } from "../types";
-import { isSubscriptionActive } from "./entitlement";
+import { INGEST_GRACE_MS, isSubscriptionActive } from "./entitlement";
 import { PLANS, requirePlan } from "./plans";
 
 type GateEnv = Env;
@@ -39,16 +39,19 @@ export const requirePlanTier = (required: GatedPlan, methods?: readonly string[]
 	});
 
 const ACCESS_TTL_MS = 30_000;
-const accessCache = new Map<string, { ok: boolean; at: number }>();
+const accessCache = new Map<string, { ok: boolean; periodEnd: string | null; at: number }>();
 
 /** Drop cached access verdicts (tests). */
 export function clearAccessCache(): void {
 	accessCache.clear();
 }
 
-async function accountHasAccess(db: Kysely<KlikapaDatabase>, accountId: string): Promise<boolean> {
+async function accountAccess(
+	db: Kysely<KlikapaDatabase>,
+	accountId: string,
+): Promise<{ ok: boolean; periodEnd: string | null }> {
 	const cached = accessCache.get(accountId);
-	if (cached && Date.now() - cached.at < ACCESS_TTL_MS) return cached.ok;
+	if (cached && Date.now() - cached.at < ACCESS_TTL_MS) return cached;
 	const row = await db
 		.selectFrom("users")
 		.leftJoin("subscriptions", "subscriptions.user_id", "users.id")
@@ -69,9 +72,17 @@ async function accountHasAccess(db: Kysely<KlikapaDatabase>, accountId: string):
 			status: row.status,
 			current_period_end: row.current_period_end ?? null,
 		});
+	const verdict = { ok, periodEnd: row?.current_period_end ?? null };
 	if (accessCache.size > 10_000) accessCache.clear();
-	accessCache.set(accountId, { ok, at: Date.now() });
-	return ok;
+	accessCache.set(accountId, { ...verdict, at: Date.now() });
+	return verdict;
+}
+
+/** Whole days of post-period ingest grace left (0 once it has run out). */
+export function graceDaysRemaining(periodEnd: string | null, now = Date.now()): number {
+	const end = periodEnd ? new Date(periodEnd).getTime() : Number.NaN;
+	if (!Number.isFinite(end)) return 0;
+	return Math.max(0, Math.ceil((end + INGEST_GRACE_MS - now) / 86_400_000));
 }
 
 /**
@@ -88,7 +99,8 @@ export const requireActiveSubscription = createMiddleware<GateEnv>(async (c, nex
 	const site = siteId
 		? await db.selectFrom("sites").select(["user_id"]).where("id", "=", siteId).executeTakeFirst()
 		: undefined;
-	if (await accountHasAccess(db, site?.user_id ?? userId)) return next();
+	const access = await accountAccess(db, site?.user_id ?? userId);
+	if (access.ok) return next();
 
 	const caller = await db
 		.selectFrom("users")
@@ -96,5 +108,12 @@ export const requireActiveSubscription = createMiddleware<GateEnv>(async (c, nex
 		.where("id", "=", userId)
 		.executeTakeFirst();
 	if (caller?.role === "super_admin") return next();
-	return c.json({ success: false, error: "subscription_inactive" }, 402);
+	return c.json(
+		{
+			success: false,
+			error: "subscription_inactive",
+			grace_days_remaining: graceDaysRemaining(access.periodEnd),
+		},
+		402,
+	);
 });

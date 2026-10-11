@@ -13,6 +13,7 @@ import {
 	pakasirCheckoutUrl,
 	verifyWithPakasir,
 } from "../lib/pakasir";
+import { usdRates } from "../lib/fx";
 import type { Env } from "../types";
 
 export const billingRoutes = new Hono<Env>();
@@ -389,6 +390,7 @@ billingRoutes.post("/pakasir/verify", async (c) => {
 		amount: order.amount,
 		paymentMethod: tx.payment_method,
 		completedAt: tx.completed_at,
+		fxRates: usdRates(c.env),
 	});
 	return c.json({ data: { status: "active", plan: order.plan }, success: true });
 });

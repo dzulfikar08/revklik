@@ -1,11 +1,13 @@
 import { Hono } from "hono";
 import type { Kysely } from "kysely";
 import type { KlikapaDatabase } from "@revklik/shared";
-import { createDb } from "../db";
+import { createDb, sql } from "../db";
+import { recordReferralCommission } from "../lib/affiliates";
+import { convertAmount, usdRates } from "../lib/fx";
 import type { Env } from "../types";
 import { PLANS, type PlanTier } from "../lib/plans";
 import { verifyStandardWebhook } from "../lib/standard-webhooks";
-import { generateId } from "../utils";
+import { generateId, normalizeEmail } from "../utils";
 
 export const billingWebhookRoutes = new Hono<Env>();
 
@@ -23,6 +25,8 @@ interface PolarBillingData {
 	current_period_start?: string;
 	current_period_end?: string;
 	cancel_at_period_end?: boolean;
+	total_amount?: number | null;
+	currency?: string;
 	product_id?: string;
 	customer_id?: string;
 	customer_email?: string | null;
@@ -40,7 +44,6 @@ const HANDLED_EVENTS = new Set([
 	"subscription.canceled",
 	"subscription.revoked",
 	"order.paid",
-	"order.refunded",
 ]);
 
 /** Plan from checkout metadata, else from the Polar product id configured per tier. */
@@ -116,7 +119,7 @@ billingWebhookRoutes.post("/", async (c) => {
 				const matched = await db
 					.selectFrom("users")
 					.select(["id"])
-					.where("email", "=", customerEmail)
+					.where(sql<string>`lower(email)`, "=", normalizeEmail(customerEmail))
 					.executeTakeFirst();
 				if (matched) userId = matched.id;
 			}
@@ -159,9 +162,13 @@ billingWebhookRoutes.post("/", async (c) => {
 					}),
 				)
 				.execute();
-		} else if (eventType === "order.paid" || eventType === "order.refunded") {
+		} else if (eventType === "order.paid") {
 			// RevKlik's own sales are not the customer's revenue: they are never
-			// written into the paying customer's site analytics.
+			// written into the paying customer's site analytics. They do pay the
+			// referring affiliate, keyed on the order id.
+			const amount = (data.total_amount ?? 0) / 100;
+			const amountUsd = convertAmount(amount, data.currency ?? "USD", "USD", usdRates(c.env));
+			if (data.id) await recordReferralCommission(db, userId, `polar:${data.id}`, amountUsd);
 		} else if (eventType === "subscription.canceled") {
 			// Cancellation is scheduled: access runs to current_period_end.
 			await db

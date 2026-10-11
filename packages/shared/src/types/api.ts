@@ -144,6 +144,8 @@ export interface SiteWithStats extends Site {
 	revenue_sparkline: number[];
 	/** Currency of revenue / revenue_sparkline. */
 	currency?: string;
+	/** True once the site has received any event (false = snippet not installed). */
+	has_events?: boolean;
 }
 
 // Embeddable live-stats widget

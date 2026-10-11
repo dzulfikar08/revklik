@@ -43,7 +43,7 @@ siteRoutes.get("/", async (c) => {
 	const sitesWithStats: SiteWithStats[] = await Promise.all(
 		sites.map(async ({ revenue_currency, ...site }) => {
 			const money = { currency: displayCurrency(revenue_currency, rates), rates };
-			const [stats, sparkRows, revenueRows] = await Promise.all([
+			const [stats, sparkRows, revenueRows, anyEvent] = await Promise.all([
 				db
 					.selectFrom("events")
 					.select([
@@ -73,6 +73,13 @@ siteRoutes.get("/", async (c) => {
 					.groupBy(sql`date(${sql.ref("timestamp")})`)
 					.orderBy("timestamp", "asc")
 					.execute(),
+				// Ever received anything: drives the "Not installed" badge.
+				db
+					.selectFrom("events")
+					.select("id")
+					.where("site_id", "=", site.id)
+					.limit(1)
+					.executeTakeFirst(),
 			]);
 
 			return {
@@ -83,6 +90,7 @@ siteRoutes.get("/", async (c) => {
 				sparkline: sparkRows.map((r) => Number(r.count)),
 				revenue_sparkline: revenueRows.map((r) => Number(r.revenue ?? 0)),
 				currency: money.currency,
+				has_events: !!anyEvent,
 			};
 		}),
 	);

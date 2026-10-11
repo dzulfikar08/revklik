@@ -19,7 +19,20 @@ describe("lapsed accounts (DEV-34)", () => {
 		expect((await dash.json()) as Record<string, unknown>).toEqual({
 			success: false,
 			error: "subscription_inactive",
+			// period ended 2 days ago: 12 of the 14 grace days remain
+			grace_days_remaining: 12,
 		});
+
+		const expired = await t.seedUser({
+			id: "u-past-grace",
+			plan: "starter",
+			periodEnd: ago(30),
+			withSite: "s-past-grace",
+		});
+		const gone = await t.call("GET", "/api/analytics/dashboard?site_id=s-past-grace", {
+			token: expired,
+		});
+		expect(((await gone.json()) as { grace_days_remaining: number }).grace_days_remaining).toBe(0);
 
 		expect((await t.call("GET", "/api/billing/subscription", { token })).status).toBe(200);
 		expect((await t.call("GET", "/api/sites", { token })).status).toBe(200);
