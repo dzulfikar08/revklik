@@ -72,3 +72,11 @@
 	--color-down: var(--down);
 	--color-violet: var(--violet);
 }
+
+/* Reduced motion: loading skeletons stay as static placeholders instead of
+   pulsing. Spinners are left alone; they are the only "still working" cue. */
+@media (prefers-reduced-motion: reduce) {
+	.animate-pulse {
+		animation: none;
+	}
+}

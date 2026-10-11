@@ -11,10 +11,11 @@ import { useEffect, useMemo, useRef, useState } from "react";
 
 import { fetchHeatmap, GrowthPlanLockedError } from "@/lib/legacy/growth";
 import type { HeatmapData } from "@/lib/legacy/growth";
+import { useT } from "@/lib/i18n";
 import { fmt } from "./data";
 import type { RangeKey } from "./data";
 import { GrowthLocked, GrowthMsg } from "./growth-locked";
-import { CountBarRow, Panel } from "./ui";
+import { CodeSentence, CountBarRow, Panel } from "./ui";
 
 /* 50x50 click grid painted like a page: blue (low) → orange (mid) → red (hot). */
 const paintClickGrid = (canvas: HTMLCanvasElement, grid: number[][]): void => {
@@ -102,6 +103,7 @@ export const HeatmapPanel = ({
 	filterStr: string;
 	topPages: { path: string }[];
 }) => {
+	const t = useT();
 	const [path, setPath] = useState("/");
 	const canvasRef = useRef<HTMLCanvasElement>(null);
 
@@ -169,10 +171,10 @@ export const HeatmapPanel = ({
 						<div className="bg-muted/60 h-72 animate-pulse rounded-lg" />
 					) : !data || data.totalClicks === 0 ? (
 						<GrowthMsg>
-							No clicks recorded on this page. Heatmaps need{" "}
-							<code className="text-foreground/80 whitespace-nowrap">data-heatmap="true"</code> on
-							your tracking script and visitor consent via{" "}
-							<code className="text-foreground/80 whitespace-nowrap">klikapa_consent.heatmap</code>.
+							<CodeSentence
+								template={t("heatmap.empty")}
+								codes={{ attr: 'data-heatmap="true"', consent: "klikapa_consent.heatmap" }}
+							/>
 						</GrowthMsg>
 					) : (
 						<div className="grid gap-3 md:grid-cols-[1.2fr_1fr]">

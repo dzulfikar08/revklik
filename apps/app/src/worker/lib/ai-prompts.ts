@@ -191,7 +191,8 @@ export async function aggregateData(
 			.orderBy("page_count", "asc")
 			.execute(),
 
-		// 8. Total events + total revenue
+		// 8. Total events + total revenue. Same expression as the dashboard KPI
+		// (getOverviewStats): refunds/negative rows are excluded there too.
 		db
 			.selectFrom("events")
 			.select([

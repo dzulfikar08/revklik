@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowRight, RefreshCw, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 
+import { useT } from "@/lib/i18n";
 import { fetchInsights, GrowthPlanLockedError, refreshInsights } from "@/lib/legacy/growth";
 import type { AiInsight, InsightType, InsightsResponse } from "@/lib/legacy/growth";
 
@@ -31,6 +32,7 @@ const TYPE_COLORS: Record<InsightType, string> = {
  * Confidence sits under the title as quiet metadata, not beside it as a score.
  */
 const InsightCard = ({ insight }: { insight: AiInsight }) => {
+	const t = useT();
 	const color = TYPE_COLORS[insight.type] ?? "var(--chart)";
 	return (
 		<li className="bg-muted/40 flex items-start gap-3 rounded-xl p-3">
@@ -47,7 +49,7 @@ const InsightCard = ({ insight }: { insight: AiInsight }) => {
 			<div className="min-w-0 flex-1">
 				<p className="text-[13px] leading-5 font-semibold text-pretty">{insight.title}</p>
 				<p className="text-muted-foreground mt-0.5 text-[11px] tabular-nums">
-					{Math.round(insight.confidence * 100)}% confidence
+					{t("insights.confidence", { pct: Math.round(insight.confidence * 100) })}
 				</p>
 				<p className="text-foreground/80 mt-1.5 text-xs leading-relaxed text-pretty">
 					{insight.summary}
@@ -56,7 +58,7 @@ const InsightCard = ({ insight }: { insight: AiInsight }) => {
 					<p className="text-muted-foreground mt-2 flex gap-1.5 text-xs leading-relaxed text-pretty">
 						<ArrowRight aria-hidden className="mt-0.5 size-3 shrink-0 opacity-70" />
 						<span>
-							<span className="sr-only">Recommended action: </span>
+							<span className="sr-only">{t("insights.action")} </span>
 							{insight.action}
 						</span>
 					</p>
