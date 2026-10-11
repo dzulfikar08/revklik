@@ -1,15 +1,21 @@
-import { Button } from "@revklik/ui/components/button";
+import { Button, buttonVariants } from "@revklik/ui/components/button";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
-import { Loader2, Plus } from "lucide-react";
+import { Code2, CreditCard, Loader2, Plus } from "lucide-react";
 import { useState } from "react";
 
-import { fetchSites } from "@/lib/legacy/api";
+import { openBilling } from "@/lib/billing-nav";
+import { useT } from "@/lib/i18n";
+import { fetchSites, isSubscriptionInactive } from "@/lib/legacy/api";
 import type { SiteWithStats } from "@/lib/legacy/api";
 
 import { fmt, money, RANGES } from "./data";
 import type { RangeKey } from "./data";
+import { SubscriptionBanner } from "./billing-view";
+import { siteHasEvents, SnippetModal } from "./snippet-modal";
+import type { SnippetSite } from "./snippet-modal";
 import { SitesView } from "./sites-view";
+import { UpgradeLock } from "./upgrade-lock";
 
 /* -------------------------------- sparkline -------------------------------- */
 
@@ -40,22 +46,52 @@ const Spark = ({ values }: { values: number[] }) => {
 
 /* --------------------------------- site card ------------------------------- */
 
-const SiteCard = ({ site }: { site: SiteWithStats }) => (
-	<Link
-		to="/analytics/$siteId"
-		params={{ siteId: site.id }}
-		className="bg-card ring-foreground/10 hover:bg-accent/40 block rounded-2xl p-4 ring-1 transition-colors outline-offset-2 focus-visible:outline-2"
-	>
-		<p className="truncate font-medium">{site.domain || site.name}</p>
-		<p className="text-muted-foreground mt-0.5 text-xs tabular-nums">
-			{fmt(site.visitors)} visitors · {fmt(site.pageviews)} pageviews
-			{site.revenue > 0 ? ` · ${money(site.revenue)}` : ""}
-		</p>
-		<div className="mt-3">
-			<Spark values={site.sparkline} />
+/**
+ * The domain link stretches over the whole card (after:inset-0), so the
+ * install button can sit on top without nesting a button inside a link.
+ */
+const SiteCard = ({
+	site,
+	onInstall,
+}: {
+	site: SiteWithStats;
+	onInstall: (site: SiteWithStats) => void;
+}) => {
+	const t = useT();
+	const installed = siteHasEvents(site);
+	return (
+		<div className="bg-card ring-foreground/10 hover:bg-accent/40 relative rounded-2xl p-4 ring-1 transition-colors">
+			<div className="flex items-start gap-2">
+				<Link
+					to="/analytics/$siteId"
+					params={{ siteId: site.id }}
+					className="focus-visible:outline-ring min-w-0 flex-1 truncate rounded-sm font-medium outline-offset-2 after:absolute after:inset-0 after:rounded-2xl focus-visible:outline-2"
+				>
+					{site.domain || site.name}
+				</Link>
+				{installed ? null : (
+					<span className="bg-amber-400/15 text-amber-800 ring-amber-500/30 dark:text-amber-200 shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium ring-1">
+						{t("install.notInstalled")}
+					</span>
+				)}
+			</div>
+			<p className="text-muted-foreground mt-0.5 text-xs tabular-nums">
+				{fmt(site.visitors)} visitors · {fmt(site.pageviews)} pageviews
+				{site.revenue > 0 ? ` · ${money(site.revenue, site.currency)}` : ""}
+			</p>
+			<div className="mt-3">
+				{installed ? (
+					<Spark values={site.sparkline} />
+				) : (
+					<Button variant="outline" className="relative z-10 h-9" onClick={() => onInstall(site)}>
+						<Code2 className="size-3.5" aria-hidden />
+						{t("install.cta")}
+					</Button>
+				)}
+			</div>
 		</div>
-	</Link>
-);
+	);
+};
 
 /* ------------------------------- range pills ------------------------------- */
 
@@ -90,6 +126,7 @@ const RangePills = ({
 const SitesOverviewPage = () => {
 	const [rangeKey, setRangeKey] = useState<RangeKey>("7d");
 	const [manageOpen, setManageOpen] = useState(false);
+	const [installFor, setInstallFor] = useState<SnippetSite | null>(null);
 
 	const sitesQ = useQuery({
 		queryFn: () => fetchSites(rangeKey),
@@ -99,9 +136,18 @@ const SitesOverviewPage = () => {
 	});
 	const sites = sitesQ.data ?? [];
 
+	if (isSubscriptionInactive(sitesQ.error)) {
+		return (
+			<div className="bg-background text-foreground min-h-svh pt-3">
+				<UpgradeLock error={sitesQ.error} onUpgrade={() => openBilling()} />
+			</div>
+		);
+	}
+
 	return (
 		<div className="bg-background text-foreground min-h-svh">
 			<main className="mx-auto max-w-7xl px-3 pt-6 pb-6 md:px-4">
+				<SubscriptionBanner onUpgrade={() => openBilling()} />
 				<div className="mb-4 flex flex-wrap items-center justify-between gap-3">
 					<div>
 						<h1 className="text-lg font-semibold">Sites</h1>
@@ -109,6 +155,12 @@ const SitesOverviewPage = () => {
 					</div>
 					<div className="flex flex-wrap items-center gap-2">
 						<RangePills rangeKey={rangeKey} onRange={setRangeKey} />
+						<Link
+							to="/analytics/billing"
+							className={buttonVariants({ size: "sm", variant: "outline" })}
+						>
+							<CreditCard aria-hidden /> Billing
+						</Link>
 						<Button size="sm" onClick={() => setManageOpen(true)}>
 							<Plus /> Add site
 						</Button>
@@ -136,12 +188,19 @@ const SitesOverviewPage = () => {
 				) : (
 					<div className="grid gap-2.5 sm:grid-cols-2 lg:grid-cols-3">
 						{sites.map((s) => (
-							<SiteCard key={s.id} site={s} />
+							<SiteCard
+								key={s.id}
+								site={s}
+								onInstall={(site) =>
+									setInstallFor({ domain: site.domain, hasEvents: false, id: site.id })
+								}
+							/>
 						))}
 					</div>
 				)}
 			</main>
 			<SitesView open={manageOpen} onClose={() => setManageOpen(false)} />
+			{installFor ? <SnippetModal site={installFor} onClose={() => setInstallFor(null)} /> : null}
 		</div>
 	);
 };

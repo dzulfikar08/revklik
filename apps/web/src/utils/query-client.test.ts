@@ -1,5 +1,5 @@
 /** Offline tests for the global QueryCache toast policy. */
-import { QueryClient } from "@tanstack/react-query";
+import { MutationObserver, QueryClient } from "@tanstack/react-query";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
@@ -9,7 +9,12 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock("sonner", () => ({ toast: mocks }));
 
-import { createQueryClient } from "./query-client";
+import { setLocale } from "@/lib/i18n";
+import { LegacyApiError } from "@/lib/legacy/api";
+
+import { createQueryClient, PLAN_TOAST_ID } from "./query-client";
+
+setLocale("en");
 
 const boom = () => Promise.reject(new Error("kaboom"));
 
@@ -69,6 +74,45 @@ describe("QueryCache error toast policy", () => {
 		).rejects.toThrow("kaboom");
 
 		expect(mocks.error).toHaveBeenCalledExactlyOnceWith("Error: kaboom", expect.anything());
+	});
+
+	it("stays quiet on 402 subscription_inactive (the upgrade lock covers it)", async () => {
+		const qc = createQueryClient();
+		const lapsed = () =>
+			Promise.reject(
+				new LegacyApiError("Request failed (402)", 402, { error: "subscription_inactive" }),
+			);
+
+		await expect(
+			qc.fetchQuery({ queryFn: lapsed, queryKey: ["dash"], retry: false }),
+		).rejects.toThrow();
+
+		expect(mocks.error).not.toHaveBeenCalled();
+	});
+
+	it("turns 403 plan_required into one upgrade toast", async () => {
+		const qc = createQueryClient();
+		const gated = () =>
+			Promise.reject(
+				new LegacyApiError("Request failed (403)", 403, {
+					error: "plan_required",
+					required_plan: "starter",
+				}),
+			);
+
+		await expect(
+			qc.fetchQuery({ queryFn: gated, queryKey: ["funnel"], retry: false }),
+		).rejects.toThrow();
+		await expect(new MutationObserver(qc, { mutationFn: gated }).mutate()).rejects.toThrow();
+
+		expect(mocks.error).toHaveBeenCalledTimes(2);
+		expect(mocks.error).toHaveBeenLastCalledWith(
+			"This needs the Starter plan.",
+			expect.objectContaining({
+				action: expect.objectContaining({ label: "Upgrade" }),
+				id: PLAN_TOAST_ID,
+			}),
+		);
 	});
 
 	it("createQueryClient returns an isolated client", () => {

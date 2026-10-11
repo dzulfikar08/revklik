@@ -1,11 +1,13 @@
 import { Button } from "@revklik/ui/components/button";
 import { Input } from "@revklik/ui/components/input";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Check, Code2, Copy, EyeOff, Loader2, Plus, Trash2, X } from "lucide-react";
-import { useEffect, useState } from "react";
+import { Code2, EyeOff, Loader2, Plus, Trash2, X } from "lucide-react";
+import { useState } from "react";
 import { toast } from "sonner";
 
-import { fetchSites } from "@/lib/legacy/api";
+import { normalizeDomain } from "@/lib/domain";
+import { useT } from "@/lib/i18n";
+import { fetchSites, isPlanRequired } from "@/lib/legacy/api";
 import type { SiteWithStats } from "@/lib/legacy/api";
 import {
 	addExclusion,
@@ -13,166 +15,18 @@ import {
 	deleteLegacySite,
 	fetchExclusions,
 	fetchMyFingerprint,
-	fetchSiteSnippet,
 	purgeMyVisits,
 	removeExclusion,
 } from "@/lib/legacy/sites";
+import { useModalDialog } from "@/lib/use-modal-dialog";
 
 import { fmt, money } from "./data";
+import { siteHasEvents, SnippetModal } from "./snippet-modal";
+import type { SnippetSite } from "./snippet-modal";
 import { Panel } from "./ui";
 
 const fpLabel = (fp: string): string =>
 	fp.length > 36 ? `${fp.slice(0, 24)}…${fp.slice(-8)}` : fp;
-
-/* ------------------------------ snippet modal ------------------------------ */
-
-const SnippetModal = ({ site, onClose }: { site: SiteWithStats; onClose: () => void }) => {
-	const [copied, setCopied] = useState(false);
-	const [promptCopied, setPromptCopied] = useState(false);
-	const snippetQ = useQuery({
-		queryKey: ["legacy", "snippet", site.id],
-		queryFn: () => fetchSiteSnippet(site.id),
-		retry: false,
-	});
-
-	useEffect(() => {
-		const onKey = (e: globalThis.KeyboardEvent) => {
-			if (e.key === "Escape") {
-				onClose();
-			}
-		};
-		window.addEventListener("keydown", onKey);
-		return () => window.removeEventListener("keydown", onKey);
-	}, [onClose]);
-
-	const snippet = snippetQ.data?.snippet ?? "";
-	const agentPrompt = `Install RevKlik analytics on this website.
-
-Site ID: ${site.id}
-
-Fetch and follow the full setup guide, then implement it:
-https://revklik.com/docs.txt`;
-
-	const copy = async () => {
-		try {
-			await navigator.clipboard.writeText(snippet);
-			setCopied(true);
-			setTimeout(() => setCopied(false), 1600);
-		} catch {
-			toast.error("Couldn't copy the snippet");
-		}
-	};
-
-	const copyAgentPrompt = async () => {
-		try {
-			await navigator.clipboard.writeText(agentPrompt);
-			setPromptCopied(true);
-			setTimeout(() => setPromptCopied(false), 1600);
-		} catch {
-			toast.error("Couldn't copy the prompt");
-		}
-	};
-
-	return (
-		<div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-			<button
-				type="button"
-				aria-label="Close dialog"
-				onClick={onClose}
-				className="animate-in fade-in absolute inset-0 bg-black/55 backdrop-blur-[2px]"
-			/>
-			<div
-				role="dialog"
-				aria-modal="true"
-				aria-label={`Tracking snippet for ${site.domain}`}
-				tabIndex={-1}
-				autoFocus
-				className="bg-card ring-foreground/10 animate-in fade-in zoom-in-95 relative w-full max-w-xl rounded-2xl p-4 ring-1 duration-150 outline-none"
-			>
-				<div className="mb-3 flex items-start gap-2">
-					<div className="min-w-0">
-						<h2 className="truncate text-sm font-semibold">
-							Tracking snippet <span className="text-muted-foreground">· {site.domain}</span>
-						</h2>
-						<p className="text-muted-foreground mt-0.5 text-xs">
-							Paste this into your site&apos;s HTML. Stats start flowing on the first visit.
-						</p>
-					</div>
-					<button
-						type="button"
-						aria-label="Close"
-						onClick={onClose}
-						className="hover:bg-muted focus-visible:outline-ring ms-auto rounded-md p-1.5 outline-offset-2 focus-visible:outline-2"
-					>
-						<X className="size-4" aria-hidden />
-					</button>
-				</div>
-
-				<pre className="bg-background ring-foreground/10 max-h-48 overflow-auto rounded-xl p-3 font-mono text-[11px] leading-relaxed ring-1">
-					{snippetQ.isLoading
-						? "Loading…"
-						: snippetQ.isError
-							? "Couldn't load the snippet."
-							: snippet}
-				</pre>
-
-				<div className="mt-3 flex justify-end">
-					<Button size="sm" disabled={!snippet || snippetQ.isLoading} onClick={copy}>
-						{copied ? (
-							<Check className="size-3.5" aria-hidden />
-						) : (
-							<Copy className="size-3.5" aria-hidden />
-						)}
-						{copied ? "Copied" : "Copy snippet"}
-					</Button>
-				</div>
-
-				<div className="border-foreground/10 mt-4 border-t pt-4">
-					<h3 className="text-xs font-semibold tracking-wider uppercase">
-						Set up with an AI agent
-					</h3>
-					<p className="text-muted-foreground mt-1 text-xs">
-						Paste this prompt into Claude Code, Cursor, or any other agent — it installs the tracker
-						correctly for you.
-					</p>
-					<pre className="bg-background ring-foreground/10 mt-2 max-h-40 overflow-auto rounded-xl p-3 font-mono text-[11px] leading-relaxed whitespace-pre-wrap break-words ring-1">
-						{agentPrompt}
-					</pre>
-					<div className="mt-3 flex items-center justify-between gap-2">
-						<p className="text-muted-foreground text-[11px]">
-							Full docs:{" "}
-							<a
-								href="https://revklik.com/docs.txt"
-								target="_blank"
-								rel="noopener noreferrer"
-								className="hover:text-foreground underline-offset-2 hover:underline"
-							>
-								docs.txt
-							</a>{" "}
-							·{" "}
-							<a
-								href="https://docs.revklik.com"
-								target="_blank"
-								rel="noopener noreferrer"
-								className="hover:text-foreground underline-offset-2 hover:underline"
-							>
-								docs.revklik.com
-							</a>
-						</p>
-						<Button size="sm" variant="outline" onClick={copyAgentPrompt}>
-							{promptCopied ? (
-								<Check className="size-3.5" aria-hidden />
-							) : (
-								<Copy className="size-3.5" aria-hidden />
-							)}
-							{promptCopied ? "Copied" : "Copy agent prompt"}
-						</Button>
-					</div>
-				</div>
-			</div>
-		</div>
-	);
-};
 
 /* ---------------------------- exclusions section --------------------------- */
 
@@ -338,7 +192,7 @@ const SiteRow = ({
 						{site.visitors || site.pageviews ? (
 							<span className="ml-1.5 font-mono tabular-nums">
 								· {fmt(site.visitors)} visitors · {fmt(site.pageviews)} views
-								{site.revenue ? ` · ${money(site.revenue)}` : ""}
+								{site.revenue ? ` · ${money(site.revenue, site.currency)}` : ""}
 							</span>
 						) : null}
 					</p>
@@ -402,159 +256,172 @@ const SiteRow = ({
 
 /* -------------------------------- sites view ------------------------------- */
 
-export const SitesView = ({ open, onClose }: { open: boolean; onClose: () => void }) => {
+const SitesPanel = ({ onClose }: { onClose: () => void }) => {
+	const t = useT();
 	const qc = useQueryClient();
-	const [snippetFor, setSnippetFor] = useState<SiteWithStats | null>(null);
+	const [snippetFor, setSnippetFor] = useState<SnippetSite | null>(null);
 	const [name, setName] = useState("");
 	const [domain, setDomain] = useState("");
+	const dialog = useModalDialog<HTMLElement>(onClose);
 
 	const sitesQ = useQuery({
 		queryKey: ["legacy", "sites", "manage"],
 		queryFn: () => fetchSites("30d"),
-		enabled: open,
 		retry: false,
 		staleTime: 30_000,
 	});
 	const sites = sitesQ.data ?? [];
 
-	useEffect(() => {
-		if (!open) {
-			return;
-		}
-		const onKey = (e: globalThis.KeyboardEvent) => {
-			if (e.key === "Escape" && !snippetFor) {
-				onClose();
-			}
-		};
-		window.addEventListener("keydown", onKey);
-		return () => window.removeEventListener("keydown", onKey);
-	}, [open, onClose, snippetFor]);
-
 	const addMut = useMutation({
-		mutationFn: () => createLegacySite(name.trim(), domain.trim().toLowerCase()),
+		mutationFn: (host: string) => createLegacySite(name.trim(), host),
 		onSuccess: (site) => {
 			qc.invalidateQueries({ queryKey: ["legacy", "sites"] });
 			setName("");
 			setDomain("");
-			toast.success(`Site added — ${site.domain} is ready for its snippet.`);
+			toast.success(t("sites.added", { domain: site.domain }));
+			// Straight to install: the snippet is the only next step.
+			setSnippetFor({ domain: site.domain, hasEvents: false, id: site.id });
 		},
-		onError: (e: Error) => toast.error(e.message),
+		onError: (e: Error) => {
+			// Site limit / plan errors get the global toast with an Upgrade action.
+			if (!isPlanRequired(e)) {
+				toast.error(e.message);
+			}
+		},
 	});
 
 	const submitAdd = () => {
 		if (!name.trim() || !domain.trim()) {
-			toast.error("Name and domain are both required.");
+			toast.error(t("sites.required"));
 			return;
 		}
-		if (sites.some((s) => s.domain === domain.trim().toLowerCase())) {
-			toast.error("That domain is already added.");
+		const host = normalizeDomain(domain);
+		if (!host) {
+			toast.error(t("sites.invalidDomain"));
 			return;
 		}
-		addMut.mutate();
+		// Show the cleaned value so the user sees what gets saved.
+		setDomain(host);
+		if (sites.some((s) => s.domain === host)) {
+			toast.error(t("sites.duplicate"));
+			return;
+		}
+		addMut.mutate(host);
 	};
-
-	if (!open) {
-		return null;
-	}
 
 	return (
 		<div className="fixed inset-0 z-40">
-			<dialog
-				open
-				aria-label="Manage sites"
-				className="fixed inset-0 z-40 m-0 h-svh max-h-none w-full max-w-none overflow-visible border-0 bg-transparent p-0"
+			<button
+				type="button"
+				tabIndex={-1}
+				aria-hidden
+				onClick={onClose}
+				className="animate-in fade-in absolute inset-0 bg-black/55 backdrop-blur-[2px]"
+			/>
+			<aside
+				ref={dialog.ref}
+				onKeyDown={dialog.onKeyDown}
+				role="dialog"
+				aria-modal="true"
+				aria-labelledby="sites-panel-title"
+				tabIndex={-1}
+				className="bg-card ring-foreground/10 animate-in slide-in-from-right-8 absolute inset-y-0 right-0 flex w-full max-w-[560px] flex-col rounded-l-2xl ring-1 duration-200 outline-none"
 			>
-				<button
-					type="button"
-					aria-label="Close panel"
-					onClick={onClose}
-					className="animate-in fade-in absolute inset-0 bg-black/55 backdrop-blur-[2px]"
-				/>
-				<aside
-					role="dialog"
-					aria-modal="true"
-					aria-label="Manage sites"
-					tabIndex={-1}
-					autoFocus
-					className="bg-card ring-foreground/10 animate-in slide-in-from-right-8 absolute inset-y-0 right-0 flex w-full max-w-[560px] flex-col rounded-l-2xl ring-1 duration-200 outline-none"
-				>
-					<div className="border-border/60 flex items-center gap-2 border-b p-3">
-						<p className="text-sm font-semibold">
-							Sites <span className="text-muted-foreground font-mono text-xs">{sites.length}</span>
-						</p>
-						<button
-							type="button"
-							aria-label="Close"
-							onClick={onClose}
-							className="hover:bg-muted focus-visible:outline-ring ms-auto rounded-md p-1.5 outline-offset-2 focus-visible:outline-2"
+				<div className="border-border/60 flex items-center gap-2 border-b p-3">
+					<h2 id="sites-panel-title" className="text-sm font-semibold">
+						{t("sites.title")}{" "}
+						<span className="text-muted-foreground font-mono text-xs">{sites.length}</span>
+					</h2>
+					<button
+						type="button"
+						aria-label={t("sites.close")}
+						onClick={onClose}
+						className="hover:bg-muted focus-visible:outline-ring ms-auto -m-1 rounded-md p-2.5 outline-offset-2 focus-visible:outline-2"
+					>
+						<X className="size-4" aria-hidden />
+					</button>
+				</div>
+
+				<div className="flex-1 space-y-2.5 overflow-y-auto p-3">
+					<Panel title={t("sites.addTitle")}>
+						<form
+							className="grid gap-2"
+							onSubmit={(e) => {
+								e.preventDefault();
+								submitAdd();
+							}}
 						>
-							<X className="size-4" aria-hidden />
-						</button>
-					</div>
+							<div className="grid gap-2 sm:grid-cols-2">
+								<Input
+									value={name}
+									onChange={(e) => setName(e.target.value)}
+									placeholder={t("sites.namePlaceholder")}
+									aria-label={t("sites.nameLabel")}
+									data-autofocus
+									className="h-10"
+								/>
+								<Input
+									value={domain}
+									onChange={(e) => setDomain(e.target.value)}
+									onBlur={() => {
+										const host = normalizeDomain(domain);
+										if (host) setDomain(host);
+									}}
+									placeholder="example.com"
+									aria-label={t("sites.domainLabel")}
+									inputMode="url"
+									autoCapitalize="none"
+									autoCorrect="off"
+									spellCheck={false}
+									className="h-10"
+								/>
+							</div>
+							<div className="flex items-center justify-end">
+								<Button type="submit" className="h-10" disabled={addMut.isPending}>
+									{addMut.isPending ? (
+										<Loader2 className="size-3.5 animate-spin" aria-hidden />
+									) : (
+										<Plus className="size-3.5" aria-hidden />
+									)}
+									{t("sites.addBtn")}
+								</Button>
+							</div>
+						</form>
+					</Panel>
 
-					<div className="flex-1 space-y-2.5 overflow-y-auto p-3">
-						<Panel title="Add a site">
-							<form
-								className="grid gap-2"
-								onSubmit={(e) => {
-									e.preventDefault();
-									submitAdd();
-								}}
-							>
-								<div className="grid gap-2 sm:grid-cols-2">
-									<Input
-										value={name}
-										onChange={(e) => setName(e.target.value)}
-										placeholder="Name — e.g. My blog"
-										aria-label="Site name"
-									/>
-									<Input
-										value={domain}
-										onChange={(e) => setDomain(e.target.value)}
-										placeholder="example.com"
-										aria-label="Site domain"
-										inputMode="url"
-									/>
-								</div>
-								<div className="flex items-center justify-end">
-									<Button type="submit" size="sm" disabled={addMut.isPending}>
-										{addMut.isPending ? (
-											<Loader2 className="size-3.5 animate-spin" aria-hidden />
-										) : (
-											<Plus className="size-3.5" aria-hidden />
-										)}
-										Add site
-									</Button>
-								</div>
-							</form>
-						</Panel>
-
-						{sitesQ.isLoading ? (
-							<p className="text-muted-foreground py-6 text-center text-xs">Loading sites…</p>
-						) : sitesQ.isError ? (
-							<p className="rounded-xl bg-(--down)/10 px-3 py-2 text-xs text-(--down)" role="alert">
-								{sitesQ.error instanceof Error ? sitesQ.error.message : "Couldn't load sites."}
-							</p>
-						) : sites.length === 0 ? (
-							<p className="text-muted-foreground py-6 text-center text-xs">
-								No sites yet — add your first one above.
-							</p>
-						) : (
-							<ul className="grid gap-2">
-								{sites.map((s) => (
-									<SiteRow
-										key={s.id}
-										site={s}
-										onSnippet={setSnippetFor}
-										onDeleted={(d) => toast.success(`Deleted ${d}`)}
-									/>
-								))}
-							</ul>
-						)}
-					</div>
-				</aside>
-			</dialog>
+					{sitesQ.isLoading ? (
+						<p className="text-muted-foreground py-6 text-center text-xs">{t("sites.loading")}</p>
+					) : sitesQ.isError ? (
+						<p className="rounded-xl bg-(--down)/10 px-3 py-2 text-xs text-(--down)" role="alert">
+							{t("sites.loadError")}
+						</p>
+					) : sites.length === 0 ? (
+						<p className="text-muted-foreground py-6 text-center text-xs">{t("sites.empty")}</p>
+					) : (
+						<ul className="grid gap-2">
+							{sites.map((s) => (
+								<SiteRow
+									key={s.id}
+									site={s}
+									onSnippet={(site) =>
+										setSnippetFor({
+											domain: site.domain,
+											hasEvents: siteHasEvents(site),
+											id: site.id,
+										})
+									}
+									onDeleted={(d) => toast.success(`Deleted ${d}`)}
+								/>
+							))}
+						</ul>
+					)}
+				</div>
+			</aside>
 			{snippetFor ? <SnippetModal site={snippetFor} onClose={() => setSnippetFor(null)} /> : null}
 		</div>
 	);
 };
+
+/** Slide-over for adding sites, copying snippets and managing exclusions. */
+export const SitesView = ({ open, onClose }: { open: boolean; onClose: () => void }) =>
+	open ? <SitesPanel onClose={onClose} /> : null;

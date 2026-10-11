@@ -7,6 +7,7 @@ import type { ReactNode } from "react";
 import { CountBarRow, Panel, PanelTabs, StatTile, TrafficChart } from "@/components/analytics/ui";
 import { RANGES, fmt, fmtC, money, pointLabel } from "@/components/analytics/data";
 import type { Point, RangeKey } from "@/components/analytics/data";
+import { useT } from "@/lib/i18n";
 
 /**
  * Chrome-less public dashboard at /public/:token — the viewer-facing page
@@ -459,19 +460,38 @@ function PublicDashboardPage() {
 					<RevenuePanel dash={dash} loading={loading} />
 				</div>
 			</main>
-			{!embed && (
-				<footer className="text-muted-foreground py-4 text-center text-xs">
-					<a
-						href="https://revklik.com"
-						target="_blank"
-						rel="noopener noreferrer"
-						className="hover:text-foreground underline-offset-2 hover:underline"
-					>
-						Powered by RevKlik
-					</a>
-				</footer>
-			)}
+			{!embed && <PublicFooter />}
 		</div>
+	);
+}
+
+/* Viewers of a shared dashboard are prospects: credit RevKlik and offer the
+   same dashboard. UTM tags (not ?ref=, which is the affiliate code) mark
+   the source. */
+const PUBLIC_UTM = "utm_source=public-dashboard&utm_medium=referral";
+
+function PublicFooter() {
+	const t = useT();
+	return (
+		<footer className="text-muted-foreground flex flex-wrap items-center justify-center gap-x-3 gap-y-1 py-4 text-xs">
+			<a
+				href={`https://revklik.com/?${PUBLIC_UTM}`}
+				target="_blank"
+				rel="noopener noreferrer"
+				className="hover:text-foreground focus-visible:outline-ring inline-flex min-h-11 items-center rounded-sm underline-offset-2 outline-offset-2 hover:underline focus-visible:outline-2"
+			>
+				Powered by RevKlik
+			</a>
+			<span aria-hidden>·</span>
+			<a
+				href={`https://app.revklik.com/register?${PUBLIC_UTM}`}
+				target="_blank"
+				rel="noopener noreferrer"
+				className="text-foreground focus-visible:outline-ring inline-flex min-h-11 items-center rounded-sm font-medium underline underline-offset-2 outline-offset-2 focus-visible:outline-2"
+			>
+				{t("public.makeYours")}
+			</a>
+		</footer>
 	);
 }
 
@@ -483,5 +503,5 @@ export const Route = createFileRoute("/public/$token")({
 	validateSearch: (search: Record<string, unknown>): { embed?: boolean } =>
 		search.embed ? { embed: true } : {},
 	component: PublicDashboardPage,
-	head: () => ({ meta: [{ title: "Dashboard · revklik" }] }),
+	head: () => ({ meta: [{ title: "Dashboard · RevKlik" }] }),
 });

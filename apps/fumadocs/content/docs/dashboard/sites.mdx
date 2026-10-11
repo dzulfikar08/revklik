@@ -9,14 +9,19 @@ the dashboard's top bar).
 ## Add a site
 
 Enter a **name** (e.g. `My blog`) and a **domain** (e.g. `example.com`) and
-click **Add site**. Domains are lowercased and must be unique; a duplicate is
-rejected with _That domain is already added_.
+click **Add site**. A pasted URL is reduced to its domain (scheme, path, and
+trailing slash removed) and lowercased. Domains must be unique; a duplicate
+is rejected with _That domain is already added_. If your plan's site limit is
+reached, RevKlik says so and offers an **Upgrade** button.
 
 ## Snippet
 
-Every row has a **Snippet** button that opens the
-_Tracking snippet · domain_ modal. The snippet is generated per site; copy it
-and paste it into your site's HTML. See
+The _Tracking snippet · domain_ modal opens as soon as a site is added, and
+every row has a **Snippet** button to open it again. The snippet is generated
+per site; copy it and paste it into your site's HTML. While the modal is
+open it waits for the site's first pageview and confirms when it arrives.
+Sites that have not received any data yet are marked _Not installed_ on the
+Sites page. See
 [getting started](/getting-started#3-install-the-tracking-snippet) for the
 full walkthrough.
 

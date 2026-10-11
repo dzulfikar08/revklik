@@ -89,7 +89,37 @@ const nfc = new Intl.NumberFormat("en-US", {
 	notation: "compact",
 });
 export const fmtC = (v: number): string => nfc.format(Math.round(v));
-export const money = (v: number): string => `$${nf.format(Math.round(v))}`;
+const moneyFormats = new Map<string, Intl.NumberFormat>();
+
+/** Whole-unit currency formatter; IDR uses id-ID grouping ("Rp 64.000"). */
+const moneyFormat = (currency: string): Intl.NumberFormat | null => {
+	const cached = moneyFormats.get(currency);
+	if (cached) {
+		return cached;
+	}
+	try {
+		const f = new Intl.NumberFormat(currency === "IDR" ? "id-ID" : "en-US", {
+			currency,
+			maximumFractionDigits: 0,
+			minimumFractionDigits: 0,
+			style: "currency",
+		});
+		moneyFormats.set(currency, f);
+		return f;
+	} catch {
+		// Unknown ISO code from the API: fall back to USD formatting.
+		return null;
+	}
+};
+
+/** Revenue amount in `currency` (ISO 4217, default USD), rounded to whole units. */
+export const money = (v: number, currency?: string | null): string => {
+	const code = currency?.toUpperCase();
+	if (!code || code === "USD") {
+		return `$${nf.format(Math.round(v))}`;
+	}
+	return moneyFormat(code)?.format(Math.round(v)) ?? `$${nf.format(Math.round(v))}`;
+};
 export const pctDelta = (now: number, before: number): number =>
 	before === 0 ? 0 : ((now - before) / before) * 100;
 export const fmtPct = (v: number): string => `${v >= 0 ? "+" : ""}${v.toFixed(1)}%`;

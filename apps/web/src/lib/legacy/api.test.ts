@@ -11,6 +11,8 @@ import {
 	encodeFilterString,
 	getToken,
 	getLegacyUser,
+	isPlanRequired,
+	isSubscriptionInactive,
 	legacyFetch,
 	legacyLogin,
 	legacyLogout,
@@ -112,6 +114,48 @@ describe("legacyFetch envelope unwrapping", () => {
 		expect((err as LegacyApiError).message).toBe("Request failed (500)");
 		expect((err as LegacyApiError).status).toBe(500);
 	});
+
+	it("keeps 402 subscription_inactive as a code, not a message", async () => {
+		const fetch = fetchMock();
+		fetch.mockResolvedValue({
+			ok: false,
+			status: 402,
+			json: async () => ({ success: false, error: "subscription_inactive" }),
+		});
+		vi.stubGlobal("fetch", fetch);
+
+		const err = await legacyFetch("/analytics/dashboard").catch((e: unknown) => e);
+		expect(isSubscriptionInactive(err)).toBe(true);
+		expect(isPlanRequired(err)).toBe(false);
+		expect((err as LegacyApiError).message).toBe("Request failed (402)");
+	});
+
+	it("maps 403 plan_required and the site-limit quota response", async () => {
+		const fetch = fetchMock();
+		fetch.mockResolvedValueOnce({
+			ok: false,
+			status: 403,
+			json: async () => ({ success: false, error: "plan_required", required_plan: "growth" }),
+		});
+		fetch.mockResolvedValueOnce({
+			ok: false,
+			status: 403,
+			json: async () => ({
+				success: false,
+				error: "Site limit reached (1 for Micro plan). Upgrade to create more sites.",
+				quota: { limit: 1, used: 1, plan: "micro" },
+			}),
+		});
+		vi.stubGlobal("fetch", fetch);
+
+		const planErr = await legacyFetch("/x").catch((e: unknown) => e);
+		expect(isPlanRequired(planErr)).toBe(true);
+		expect((planErr as LegacyApiError).body?.required_plan).toBe("growth");
+
+		const limitErr = await legacyFetch("/sites").catch((e: unknown) => e);
+		expect(isPlanRequired(limitErr)).toBe(true);
+		expect((limitErr as LegacyApiError).message).toMatch(/^Site limit reached/u);
+	});
 });
 
 describe("legacyFetch 401 recovery", () => {
@@ -122,7 +166,7 @@ describe("legacyFetch 401 recovery", () => {
 		vi.stubGlobal("fetch", fetch);
 
 		await expect(legacyFetch("/x")).rejects.toMatchObject({
-			message: "Session expired — sign in again",
+			message: "Session expired. Sign in again",
 			status: 401,
 		});
 		expect(localStorage.getItem("kp_token")).toBeNull();
@@ -180,6 +224,24 @@ describe("native auth flows", () => {
 			password: "pw123456",
 		});
 		expect(localStorage.getItem("kp_token")).toBe("kp_new");
+	});
+
+	it("legacyRegister forwards ref (body + query) and plan", async () => {
+		const fetch = fetchMock();
+		fetch.mockResolvedValue(okEnvelope({ user: TEST_USER, token: "kp_new" }));
+		vi.stubGlobal("fetch", fetch);
+
+		await legacyRegister("A", "a@b.c", "pw123456", { plan: "growth", ref: "budi" });
+
+		const [url, init] = fetch.mock.calls[0] as unknown as [string, { body: string }];
+		expect(url).toBe(`${LEGACY_API_BASE}/auth/register?ref=budi`);
+		expect(JSON.parse(init.body)).toEqual({
+			name: "A",
+			email: "a@b.c",
+			password: "pw123456",
+			plan: "growth",
+			ref: "budi",
+		});
 	});
 
 	it("surfaces the API error message on bad credentials", async () => {

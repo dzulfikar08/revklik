@@ -29,9 +29,9 @@ export default defineConfig({
 				clientsClaim: true,
 			},
 			manifest: {
-				name: "revklik",
-				short_name: "revklik",
-				description: "revklik — privacy-friendly web analytics",
+				name: "RevKlik",
+				short_name: "RevKlik",
+				description: "RevKlik: privacy-friendly web analytics",
 				theme_color: "#0c0c0c",
 			},
 			pwaAssets: { disabled: false, config: true },

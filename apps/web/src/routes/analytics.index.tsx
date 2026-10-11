@@ -4,5 +4,5 @@ import SitesOverviewPage from "@/components/analytics/sites-overview";
 
 export const Route = createFileRoute("/analytics/")({
 	component: SitesOverviewPage,
-	head: () => ({ meta: [{ title: "Sites · revklik" }] }),
+	head: () => ({ meta: [{ title: "Sites · RevKlik" }] }),
 });
