@@ -38,15 +38,26 @@ export const RETENTION_TABLES = [
 
 const IDENT_RE = /^[a-z_]+$/;
 
+/** Shortest hard-delete horizon accepted: below the longest plan retention would cut paid history. */
+export const MIN_HARD_DELETE_DAYS = 90;
+
+export interface ChunkedDeleteResult {
+	deleted: number;
+	/** Tables that still had rows when maxRounds ran out. */
+	unfinished: string[];
+}
+
 /**
- * Delete rows matching `where` in PURGE_CHUNK slices, one table per D1 batch
- * round, until each table runs dry or maxRounds is hit. Returns rows deleted.
+ * Delete rows matching `where` in PURGE_CHUNK slices, one statement per table
+ * per D1 batch round, until each table runs dry or maxRounds is hit. Callers
+ * pass predicates that lead with an indexed column (site_id) so each slice is
+ * an index range, not a table scan.
  */
 export async function deleteInChunks(
 	d1: D1Database,
 	targets: ReadonlyArray<{ table: string; where: string; params: unknown[] }>,
 	maxRounds = 1_000,
-): Promise<number> {
+): Promise<ChunkedDeleteResult> {
 	let pending = targets.filter((t) => IDENT_RE.test(t.table));
 	let deleted = 0;
 	for (let round = 0; round < maxRounds && pending.length > 0; round++) {
@@ -66,37 +77,58 @@ export async function deleteInChunks(
 		});
 		pending = next;
 	}
-	return deleted;
+	return { deleted, unfinished: pending.map((t) => t.table) };
 }
 
-/** Remove every row belonging to a site (the sites row itself is left to the caller). */
-export function purgeSiteRows(d1: D1Database, siteId: string): Promise<number> {
+/** Rounds one site-delete request may spend before handing back 202. */
+export const SITE_DELETE_ROUNDS = 40;
+
+/** Remove rows belonging to a site; `unfinished` non-empty means call again. */
+export function purgeSiteRows(
+	d1: D1Database,
+	siteId: string,
+	maxRounds = SITE_DELETE_ROUNDS,
+): Promise<ChunkedDeleteResult> {
 	return deleteInChunks(
 		d1,
 		SITE_SCOPED_TABLES.map((table) => ({ table, where: "site_id = ?", params: [siteId] })),
+		maxRounds,
 	);
 }
 
 /**
- * Hard-delete raw analytics older than `days`. Disabled (returns 0) unless
- * RETENTION_HARD_DELETE_DAYS is set to a positive number.
+ * Hard-delete raw analytics older than `days`, site by site so every slice
+ * rides the (site_id, time) indexes. Disabled (0) unless
+ * RETENTION_HARD_DELETE_DAYS is set; values under MIN_HARD_DELETE_DAYS are refused.
  */
 export async function purgeExpiredRows(
 	d1: D1Database,
 	daysSetting: string | undefined,
 	now = Date.now(),
-	maxRounds = 200,
+	maxRoundsPerSite = 50,
 ): Promise<number> {
 	const days = Number(daysSetting);
-	if (!daysSetting || !Number.isFinite(days) || days <= 0) return 0;
+	if (!daysSetting || !Number.isFinite(days)) return 0;
+	if (days < MIN_HARD_DELETE_DAYS) {
+		console.error(
+			`RETENTION_HARD_DELETE_DAYS=${daysSetting} refused (minimum ${MIN_HARD_DELETE_DAYS})`,
+		);
+		return 0;
+	}
 	const cutoff = new Date(now - days * 86_400_000).toISOString();
-	return deleteInChunks(
-		d1,
-		RETENTION_TABLES.map(({ table, column }) => ({
-			table,
-			where: `${column} < ?`,
-			params: [cutoff],
-		})),
-		maxRounds,
-	);
+	const sites = await d1.prepare("SELECT id FROM sites").all<{ id: string }>();
+	let deleted = 0;
+	for (const { id } of sites.results ?? []) {
+		const result = await deleteInChunks(
+			d1,
+			RETENTION_TABLES.map(({ table, column }) => ({
+				table,
+				where: `site_id = ? AND ${column} < ?`,
+				params: [id, cutoff],
+			})),
+			maxRoundsPerSite,
+		);
+		deleted += result.deleted;
+	}
+	return deleted;
 }

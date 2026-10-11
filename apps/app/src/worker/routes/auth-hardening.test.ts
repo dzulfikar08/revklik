@@ -104,9 +104,13 @@ describe("sessions and tokens (DEV-34)", () => {
 
 describe("password reset (DEV-34)", () => {
 	it("emails a single-use link, sets the password and signs out sessions", async () => {
-		const sent: { to: string; text?: string }[] = [];
+		const sent: { to: string; subject: string; text?: string }[] = [];
 		const t = await createMigratedTestApp({
-			EMAIL: { send: async (m: { to: string; text?: string }) => void sent.push(m) },
+			EMAIL: {
+				send: async (m: { to: string; subject: string; text?: string }) => {
+					if (m.subject.includes("reset")) sent.push(m);
+				},
+			},
 			APP_URL: "https://app.test",
 		});
 		const reg = await t.call("POST", "/api/auth/register", {

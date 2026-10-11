@@ -161,6 +161,7 @@ describe("Polar billing webhook (DEV-29)", () => {
 	it("subscription.canceled keeps access to period end; revoked ends it; replays are no-ops", async () => {
 		const t = await createMigratedTestApp({ POLAR_WEBHOOK_SECRET: POLAR_SECRET });
 		await t.seedUser({ id: "u-p2", plan: "growth" });
+		t.db.exec("UPDATE subscriptions SET polar_subscription_id = 'sub_1' WHERE user_id = 'u-p2'");
 		const periodEnd = new Date(Date.now() + 10 * 86_400_000).toISOString();
 
 		const cancel = await polarDelivery({

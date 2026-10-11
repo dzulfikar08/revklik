@@ -13,7 +13,10 @@ export interface AttemptPolicy {
 }
 
 export const LOGIN_POLICY: AttemptPolicy = { max: 10, windowMs: 15 * 60_000 };
+/** Per-account ceiling across all IPs, against distributed guessing. */
+export const LOGIN_EMAIL_POLICY: AttemptPolicy = { max: 30, windowMs: 60 * 60_000 };
 export const RESET_REQUEST_POLICY: AttemptPolicy = { max: 5, windowMs: 60 * 60_000 };
+export const VERIFY_RESEND_POLICY: AttemptPolicy = { max: 3, windowMs: 60 * 60_000 };
 
 export async function isLimited(
 	db: Kysely<KlikapaDatabase>,

@@ -7,9 +7,11 @@ import { recordReferralSignup } from "../lib/affiliates";
 import {
 	clearAttempts,
 	isLimited,
+	LOGIN_EMAIL_POLICY,
 	LOGIN_POLICY,
 	recordAttempt,
 	RESET_REQUEST_POLICY,
+	VERIFY_RESEND_POLICY,
 } from "../lib/attempt-limit";
 import { sendEmail, sendNewSignupAlert } from "../lib/email";
 import { PLANS } from "../lib/plans";
@@ -64,6 +66,39 @@ function clientIp(header: string | undefined): string {
 	return header || "unknown";
 }
 
+const VERIFY_TTL_MS = 48 * 3_600_000;
+
+/** Mint a single-use verification token and email the link. */
+async function sendVerificationEmail(
+	db: Kysely<KlikapaDatabase>,
+	user: { id: string; email: string },
+	env: Env["Bindings"],
+): Promise<void> {
+	const bytes = crypto.getRandomValues(new Uint8Array(32));
+	const token = Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
+	await db
+		.insertInto("email_verifications")
+		.values({
+			id: generateId(),
+			user_id: user.id,
+			token_hash: await hashToken(token),
+			expires_at: new Date(Date.now() + VERIFY_TTL_MS).toISOString(),
+			used_at: null,
+			created_at: new Date().toISOString(),
+		})
+		.execute();
+	const link = `${env.APP_URL || "https://app.revklik.com"}/verify-email?token=${token}`;
+	await sendEmail(
+		{
+			to: user.email,
+			subject: "RevKlik — confirm your email",
+			html: `<p>Confirm this address for your RevKlik account:</p><p><a href="${link}">Verify email</a> (valid 48 hours).</p>`,
+			text: `Confirm your RevKlik email (valid 48 hours): ${link}`,
+		},
+		env.EMAIL,
+	);
+}
+
 // POST /auth/register — optional `ref` (affiliate code) and `plan` (intent only)
 authRoutes.post("/register", async (c) => {
 	const db = c.get("db");
@@ -99,6 +134,11 @@ authRoutes.post("/register", async (c) => {
 		})
 		.execute();
 	const key = await issueSessionToken(db, userId, "default");
+	c.executionCtx.waitUntil(
+		sendVerificationEmail(db, { id: userId, email }, c.env).catch((err) =>
+			console.error("[auth] verification email failed:", err),
+		),
+	);
 	if (superAdminEmail && role !== "super_admin") {
 		c.executionCtx.waitUntil(
 			sendNewSignupAlert(superAdminEmail, { name, email, via: "password" }, c.env.EMAIL),
@@ -134,7 +174,11 @@ authRoutes.post("/login", async (c) => {
 	const email = normalizeEmail(body?.email);
 	const password = typeof body?.password === "string" ? body.password : "";
 	const limitKey = `login:${clientIp(c.req.header("cf-connecting-ip"))}:${email}`;
-	if (await isLimited(db, limitKey, LOGIN_POLICY)) {
+	const emailKey = `login-email:${email}`;
+	if (
+		(await isLimited(db, limitKey, LOGIN_POLICY)) ||
+		(await isLimited(db, emailKey, LOGIN_EMAIL_POLICY))
+	) {
 		return c.json({ error: "too_many_attempts", success: false }, 429);
 	}
 
@@ -144,6 +188,7 @@ authRoutes.post("/login", async (c) => {
 		: { ok: false, needsRehash: false };
 	if (!user || !check.ok) {
 		await recordAttempt(db, limitKey, LOGIN_POLICY);
+		await recordAttempt(db, emailKey, LOGIN_EMAIL_POLICY);
 		return c.json({ error: "Invalid credentials", success: false }, 401);
 	}
 	await clearAttempts(db, limitKey);
@@ -240,12 +285,72 @@ authRoutes.post("/reset-password", async (c) => {
 		.set({ password_hash: await hashPassword(password) })
 		.where("id", "=", userId)
 		.execute();
+	// A reset means the old credentials may be known: every session and API
+	// token (kp_, rvt_, rv_) dies, as does every other outstanding reset link.
+	await db.deleteFrom("api_keys").where("user_id", "=", userId).execute();
 	await db
-		.deleteFrom("api_keys")
+		.deleteFrom("password_resets")
 		.where("user_id", "=", userId)
-		.where("token_type", "=", "session")
+		.where("used_at", "is", null)
 		.execute();
 	return c.json({ success: true });
+});
+
+// POST /auth/verify-email {token} — single use, 48h
+authRoutes.post("/verify-email", async (c) => {
+	const db = c.get("db");
+	if (!db) return c.json({ error: "DB unavailable", success: false }, 503);
+	const body = await c.req.json().catch(() => ({}));
+	const token = typeof body?.token === "string" ? body.token : "";
+	const row = token
+		? await db
+				.selectFrom("email_verifications")
+				.select(["id", "user_id", "expires_at", "used_at"])
+				.where("token_hash", "=", await hashToken(token))
+				.executeTakeFirst()
+		: undefined;
+	if (!row || row.used_at) return c.json({ error: "invalid_token", success: false }, 400);
+	if (Date.parse(row.expires_at) <= Date.now()) {
+		return c.json({ error: "expired", success: false }, 400);
+	}
+	const nowIso = new Date().toISOString();
+	const claimed = await db
+		.updateTable("email_verifications")
+		.set({ used_at: nowIso })
+		.where("id", "=", row.id)
+		.where("used_at", "is", null)
+		.returning("id")
+		.execute();
+	if (claimed.length === 0) return c.json({ error: "invalid_token", success: false }, 400);
+	await db
+		.updateTable("users")
+		.set({ email_verified_at: nowIso })
+		.where("id", "=", row.user_id)
+		.where("email_verified_at", "is", null)
+		.execute();
+	return c.json({ success: true });
+});
+
+// POST /auth/resend-verification — caller's own address, 3 per hour
+authRoutes.post("/resend-verification", async (c) => {
+	const db = c.get("db");
+	if (!db) return c.json({ error: "DB unavailable", success: false }, 503);
+	const userId = await resolveTokenUserId(db, c.req.header("Authorization"));
+	if (!userId) return c.json({ error: "Unauthorized", success: false }, 401);
+	const user = await db
+		.selectFrom("users")
+		.select(["id", "email", "email_verified_at"])
+		.where("id", "=", userId)
+		.executeTakeFirst();
+	if (!user) return c.json({ error: "User not found", success: false }, 404);
+	if (user.email_verified_at) return c.json({ data: { already_verified: true }, success: true });
+	const limitKey = `verify:${userId}`;
+	if (await isLimited(db, limitKey, VERIFY_RESEND_POLICY)) {
+		return c.json({ error: "too_many_attempts", success: false }, 429);
+	}
+	await recordAttempt(db, limitKey, VERIFY_RESEND_POLICY);
+	await sendVerificationEmail(db, user, c.env);
+	return c.json({ data: { sent: true }, success: true });
 });
 
 // POST /auth/logout — delete the presented session token (resolves its own auth)
@@ -364,6 +469,7 @@ authRoutes.get("/google/callback", async (c) => {
 		sub?: string | null;
 		name?: string | null;
 		picture?: string | null;
+		email_verified?: boolean;
 	};
 	try {
 		const pr = await fetch("https://openidconnect.googleapis.com/v1/userinfo", {
@@ -382,7 +488,7 @@ authRoutes.get("/google/callback", async (c) => {
 
 	const existingUser = await db
 		.selectFrom("users")
-		.select(["id", "email", "name", "role", "google_id", "avatar_url"])
+		.select(["id", "email", "name", "role", "google_id", "avatar_url", "email_verified_at"])
 		.where((eb) =>
 			eb.or([
 				googleSub ? eb("google_id", "=", googleSub) : eb("id", "=", "__never__"),
@@ -394,12 +500,30 @@ authRoutes.get("/google/callback", async (c) => {
 	let userId: string;
 	if (existingUser) {
 		userId = existingUser.id;
+		if (!existingUser.google_id && profile.email_verified === false) {
+			return c.json({ error: "Google has not verified this email address", success: false }, 403);
+		}
 		if (!existingUser.google_id && googleSub) {
+			// Google proves ownership of the address. An unverified password account
+			// on it may have been pre-registered by someone else: its password,
+			// sessions and API tokens are wiped so only the Google owner remains.
+			const takeover = !existingUser.email_verified_at;
 			await db
 				.updateTable("users")
-				.set({ google_id: googleSub, avatar_url: profile.picture || existingUser.avatar_url })
+				.set({
+					google_id: googleSub,
+					avatar_url: profile.picture || existingUser.avatar_url,
+					email_verified_at: existingUser.email_verified_at ?? new Date().toISOString(),
+					...(takeover ? { password_hash: "" } : {}),
+				})
 				.where("id", "=", userId)
 				.execute();
+			if (takeover) {
+				await db.deleteFrom("api_keys").where("user_id", "=", userId).execute();
+				console.warn(
+					`[auth] google sign-in took over unverified account ${userId}: password and tokens cleared`,
+				);
+			}
 		}
 		if (isSuperAdmin && existingUser.role !== "super_admin") {
 			await db.updateTable("users").set({ role: "super_admin" }).where("id", "=", userId).execute();
@@ -416,6 +540,7 @@ authRoutes.get("/google/callback", async (c) => {
 				password_hash: "",
 				google_id: googleSub,
 				avatar_url: profile.picture || null,
+				email_verified_at: new Date().toISOString(),
 				role: isSuperAdmin ? "super_admin" : "user",
 				intended_plan: oauth.plan && oauth.plan in PLANS ? oauth.plan : null,
 				created_at: new Date().toISOString(),
@@ -451,12 +576,20 @@ authRoutes.get("/me", async (c) => {
 	if (!userId) return c.json({ error: "Unauthorized", success: false }, 401);
 	const user = await db
 		.selectFrom("users")
-		.select(["id", "name", "email", "role"])
+		.select(["id", "name", "email", "role", "email_verified_at"])
 		.where("id", "=", userId)
 		.executeTakeFirst();
 	if (!user) return c.json({ error: "User not found", success: false }, 404);
 	return c.json({
-		data: { user: { id: user.id, name: user.name, email: user.email, role: user.role } },
+		data: {
+			user: {
+				id: user.id,
+				name: user.name,
+				email: user.email,
+				role: user.role,
+				email_verified: !!user.email_verified_at,
+			},
+		},
 		success: true,
 	});
 });

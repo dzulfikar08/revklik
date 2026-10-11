@@ -23,7 +23,7 @@ import {
 	validateSite,
 } from "../lib/analytics-queries";
 import { planRequiredBody } from "../lib/plan-gate";
-import { requirePlan } from "../lib/plans";
+import { requirePlanForSite } from "../lib/plans";
 import {
 	getChannelBreakdown,
 	getDeviceBreakdown,
@@ -746,7 +746,7 @@ analyticsRoutes.get(
 		const site = await validateSite(db, userId, siteId);
 		if (!site) return c.json({ error: "Site not found", success: false }, 404);
 
-		const planCheck = await requirePlan(db, userId, 2);
+		const planCheck = await requirePlanForSite(db, userId, siteId, 2);
 		if (!planCheck.allowed) return c.json(planRequiredBody("growth", planCheck.plan), 403);
 
 		const { start } = rangeFor(c, range);
@@ -794,7 +794,7 @@ analyticsRoutes.get("/recordings", async (c) => {
 	const site = await validateSite(db, userId, siteId);
 	if (!site) return c.json({ error: "Site not found", success: false }, 404);
 
-	const planCheck = await requirePlan(db, userId, 2);
+	const planCheck = await requirePlanForSite(db, userId, siteId, 2);
 	if (!planCheck.allowed) return c.json(planRequiredBody("growth", planCheck.plan), 403);
 
 	const { start } = rangeFor(c, range);
@@ -838,9 +838,6 @@ analyticsRoutes.get("/recordings/:id", async (c) => {
 	const userId = c.get("userId");
 	const recordingId = c.req.param("id");
 
-	const planCheck = await requirePlan(db, userId, 2);
-	if (!planCheck.allowed) return c.json(planRequiredBody("growth", planCheck.plan), 403);
-
 	const row = await db
 		.selectFrom("session_recordings")
 		.selectAll()
@@ -850,6 +847,9 @@ analyticsRoutes.get("/recordings/:id", async (c) => {
 
 	const site = await validateSite(db, userId, row.site_id);
 	if (!site) return c.json({ error: "Not found", success: false }, 404);
+
+	const planCheck = await requirePlanForSite(db, userId, row.site_id, 2);
+	if (!planCheck.allowed) return c.json(planRequiredBody("growth", planCheck.plan), 403);
 
 	let events: Array<{
 		t: number;

@@ -66,6 +66,8 @@ export interface SiteTable {
 	widget_tz_offset?: number;
 	/** ISO code revenue is displayed in; rows in other currencies are converted. */
 	revenue_currency?: string;
+	/** NULL until inferred by the cron; then 'auto', or 'user'/'default' when set explicitly. */
+	revenue_currency_source?: string | null;
 }
 
 export interface UserTable {
@@ -79,6 +81,8 @@ export interface UserTable {
 	created_at: string;
 	/** Plan picked on the pricing page before signup; informational only. */
 	intended_plan?: string | null;
+	/** Set once the owner proved the address (email link or Google sign-in). */
+	email_verified_at?: string | null;
 }
 
 export interface ApiKeyTable {
@@ -240,6 +244,7 @@ export interface KlikapaDatabase {
 	webhook_dedupe: WebhookDedupeTable;
 	account_usage: AccountUsageTable;
 	password_resets: PasswordResetTable;
+	email_verifications: EmailVerificationTable;
 	login_attempts: LoginAttemptTable;
 }
 
@@ -247,6 +252,15 @@ export interface PasswordResetTable {
 	id: string;
 	user_id: string;
 	/** SHA-256 of the emailed token; the plaintext is never stored. */
+	token_hash: string;
+	expires_at: string;
+	used_at: string | null;
+	created_at: string;
+}
+
+export interface EmailVerificationTable {
+	id: string;
+	user_id: string;
 	token_hash: string;
 	expires_at: string;
 	used_at: string | null;
@@ -386,6 +400,8 @@ export interface SubscriptionTable {
 	polar_customer_id: string | null;
 	// Legacy: last QRIS order id. New orders live in pakasir_orders.
 	pakasir_order_id: string | null;
+	/** End of the period bought via QRIS; Polar events never cut access below it. */
+	pakasir_paid_until?: string | null;
 	created_at: string;
 	updated_at: string;
 }

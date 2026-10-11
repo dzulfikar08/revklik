@@ -34,13 +34,10 @@ interface PolarBillingData {
 	product?: { id?: string; name?: string | null } | null;
 }
 
-const SUBSCRIPTION_UPSERT_EVENTS = new Set([
+const HANDLED_EVENTS = new Set([
 	"subscription.created",
 	"subscription.active",
 	"subscription.updated",
-]);
-const HANDLED_EVENTS = new Set([
-	...SUBSCRIPTION_UPSERT_EVENTS,
 	"subscription.canceled",
 	"subscription.revoked",
 	"order.paid",
@@ -112,7 +109,9 @@ billingWebhookRoutes.post("/", async (c) => {
 		let userId = data?.metadata?.user_id || event.metadata?.user_id;
 		const plan = resolvePlan(data, event.metadata, c.env);
 
-		// Fallback: match user by customer email (direct checkout links have no metadata)
+		// Fallback: match user by customer email (direct checkout links have no
+		// metadata). Only owner-proven addresses match, so an unverified signup
+		// squatting someone's email cannot receive their plan.
 		if (!userId) {
 			const customerEmail = data?.customer?.email || data?.customer_email;
 			if (customerEmail) {
@@ -120,48 +119,90 @@ billingWebhookRoutes.post("/", async (c) => {
 					.selectFrom("users")
 					.select(["id"])
 					.where(sql<string>`lower(email)`, "=", normalizeEmail(customerEmail))
+					.where((eb) =>
+						eb.or([eb("email_verified_at", "is not", null), eb("google_id", "is not", null)]),
+					)
 					.executeTakeFirst();
 				if (matched) userId = matched.id;
 			}
 		}
 
-		if (!userId) return c.json({ error: "Missing user_id" }, 400);
+		if (!userId) {
+			console.warn(`[billing-webhook] ${eventType}: no matching user, ignored`);
+			return c.json({ success: true, ignored: true });
+		}
+
+		const nowMs = Date.now();
+		const nowIso = new Date(nowMs).toISOString();
+		const current = await db
+			.selectFrom("subscriptions")
+			.select(["polar_subscription_id", "pakasir_paid_until"])
+			.where("user_id", "=", userId)
+			.executeTakeFirst();
+		// A QRIS-paid period is never shortened by Polar lifecycle events.
+		const paidUntil =
+			current?.pakasir_paid_until && Date.parse(current.pakasir_paid_until) > nowMs
+				? current.pakasir_paid_until
+				: null;
+		const floorEnd = (end: string | undefined) =>
+			paidUntil && (!end || end < paidUntil) ? paidUntil : end;
+		const ownsRow = !!data.id && current?.polar_subscription_id === data.id;
+
+		const cancelAtPeriodEnd =
+			data.cancel_at_period_end === undefined ? undefined : data.cancel_at_period_end ? 1 : 0;
+		const liveStatus = (status: string | undefined) =>
+			paidUntil && status !== "active" && status !== "trialing" ? "active" : status || "active";
 
 		// checkout.created is deliberately absent: it fires before payment and its
 		// data.id / status describe the checkout, not a subscription.
-		if (SUBSCRIPTION_UPSERT_EVENTS.has(eventType)) {
-			const cancelAtPeriodEnd =
-				data.cancel_at_period_end === undefined ? undefined : data.cancel_at_period_end ? 1 : 0;
+		if (eventType === "subscription.created" || eventType === "subscription.active") {
 			await db
 				.insertInto("subscriptions")
 				.values({
 					id: generateId(),
 					user_id: userId,
 					plan: plan || "starter",
-					status: data?.status || "active",
-					current_period_start: data?.current_period_start || new Date().toISOString(),
+					status: liveStatus(data?.status),
+					current_period_start: data?.current_period_start || nowIso,
 					current_period_end:
-						data?.current_period_end || new Date(Date.now() + 30 * 86400000).toISOString(),
+						floorEnd(data?.current_period_end) || new Date(nowMs + 30 * 86_400_000).toISOString(),
 					cancel_at_period_end: cancelAtPeriodEnd ?? 0,
 					polar_subscription_id: data?.id || null,
 					polar_customer_id: data?.customer_id || null,
-					created_at: new Date().toISOString(),
-					updated_at: new Date().toISOString(),
+					created_at: nowIso,
+					updated_at: nowIso,
 				})
 				.onConflict((oc) =>
 					oc.column("user_id").doUpdateSet({
 						// Without a resolvable plan keep the stored one rather than guess.
 						plan: plan || undefined,
-						status: data?.status || "active",
+						status: liveStatus(data?.status),
 						current_period_start: data?.current_period_start || undefined,
-						current_period_end: data?.current_period_end || undefined,
+						current_period_end: floorEnd(data?.current_period_end),
 						cancel_at_period_end: cancelAtPeriodEnd,
 						polar_subscription_id: data?.id || undefined,
 						polar_customer_id: data?.customer_id || undefined,
-						updated_at: new Date().toISOString(),
+						updated_at: nowIso,
 					}),
 				)
 				.execute();
+		} else if (eventType === "subscription.updated") {
+			// Updates only ever apply to the subscription they describe.
+			if (ownsRow) {
+				await db
+					.updateTable("subscriptions")
+					.set({
+						plan: plan || undefined,
+						status: liveStatus(data?.status),
+						current_period_start: data?.current_period_start || undefined,
+						current_period_end: floorEnd(data?.current_period_end),
+						cancel_at_period_end: cancelAtPeriodEnd,
+						updated_at: nowIso,
+					})
+					.where("user_id", "=", userId)
+					.where("polar_subscription_id", "=", data.id ?? "")
+					.execute();
+			}
 		} else if (eventType === "order.paid") {
 			// RevKlik's own sales are not the customer's revenue: they are never
 			// written into the paying customer's site analytics. They do pay the
@@ -169,29 +210,40 @@ billingWebhookRoutes.post("/", async (c) => {
 			const amount = (data.total_amount ?? 0) / 100;
 			const amountUsd = convertAmount(amount, data.currency ?? "USD", "USD", usdRates(c.env));
 			if (data.id) await recordReferralCommission(db, userId, `polar:${data.id}`, amountUsd);
-		} else if (eventType === "subscription.canceled") {
+		} else if (eventType === "subscription.canceled" && ownsRow) {
 			// Cancellation is scheduled: access runs to current_period_end.
 			await db
 				.updateTable("subscriptions")
 				.set({
 					cancel_at_period_end: 1,
-					current_period_end: data?.current_period_end || undefined,
-					updated_at: new Date().toISOString(),
+					current_period_end: floorEnd(data?.current_period_end),
+					updated_at: nowIso,
 				})
 				.where("user_id", "=", userId)
+				.where("polar_subscription_id", "=", data.id ?? "")
 				.execute();
-		} else if (eventType === "subscription.revoked") {
-			// Revocation ends access now (period over, refund, or immediate cancel).
-			const now = new Date().toISOString();
+		} else if (eventType === "subscription.revoked" && ownsRow) {
+			// Revocation ends Polar access now; a QRIS-paid period carries on alone.
 			await db
 				.updateTable("subscriptions")
-				.set({
-					status: "canceled",
-					cancel_at_period_end: 0,
-					current_period_end: now,
-					updated_at: now,
-				})
+				.set(
+					paidUntil
+						? {
+								status: "active",
+								cancel_at_period_end: 0,
+								current_period_end: paidUntil,
+								polar_subscription_id: null,
+								updated_at: nowIso,
+							}
+						: {
+								status: "canceled",
+								cancel_at_period_end: 0,
+								current_period_end: nowIso,
+								updated_at: nowIso,
+							},
+				)
 				.where("user_id", "=", userId)
+				.where("polar_subscription_id", "=", data.id ?? "")
 				.execute();
 		}
 		await markProcessed(db, dedupeKey);

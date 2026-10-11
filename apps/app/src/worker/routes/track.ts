@@ -254,9 +254,12 @@ trackRoutes.post("/track", async (c) => {
 
 	const writes: Compilable[] = [];
 	const seenSids = new Set<string>();
+	// A batch never overshoots the plan: events past the remaining allowance are dropped.
+	const allowance = Math.max(0, enforcement.eventsLimit - enforcement.eventsUsed);
 	let ingested = 0;
 	for (const payload of payloads) {
 		if (payload.s !== siteId) continue;
+		if (ingested >= allowance) break;
 		ingested++;
 		const isNewSession = !seenSids.has(payload.sid);
 		seenSids.add(payload.sid);
@@ -373,11 +376,20 @@ trackRoutes.post("/track", async (c) => {
 		);
 	}
 
-	if (enforcement.ownerId && ingested > 0) {
-		writes.push(accountUsageIncrement(db, enforcement.ownerId, ingested));
-		incrementCachedUsage(enforcement.ownerId, ingested);
+	// One batch = one D1 transaction, usage first: either all of it lands or none.
+	const usage =
+		enforcement.ownerId && ingested > 0
+			? accountUsageIncrement(db, enforcement.ownerId, ingested)
+			: null;
+	try {
+		await executeBatch(c.env.DB, usage ? [usage, ...writes] : writes, writes.length + 1);
+	} catch (err) {
+		if (!usage) throw err;
+		// Fail open on the counter: keep the events, lose only the usage bump.
+		console.error("[track] batch with usage increment failed, retrying without it:", err);
+		await executeBatch(c.env.DB, writes, writes.length);
 	}
-	await executeBatch(c.env.DB, writes);
+	if (enforcement.ownerId && ingested > 0) incrementCachedUsage(enforcement.ownerId, ingested);
 
 	return c.json(
 		{ success: true, vid: resolvedVid !== first.vid ? resolvedVid : undefined },
@@ -729,7 +741,11 @@ trackRoutes.post("/track/payment", async (c) => {
 		.execute();
 
 	if (enforcement.ownerId) {
-		await accountUsageIncrement(db, enforcement.ownerId, 1).execute();
+		try {
+			await accountUsageIncrement(db, enforcement.ownerId, 1).execute();
+		} catch (err) {
+			console.error("[track/payment] usage increment failed:", err);
+		}
 		incrementCachedUsage(enforcement.ownerId, 1);
 	}
 

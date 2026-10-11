@@ -80,43 +80,55 @@ export function mapXenditMethod(_method: string, channel: string): string {
 	return channelMap[channel] || channel.toLowerCase();
 }
 
+/** Stripe's replay window for the `t=` timestamp (their library default). */
+export const STRIPE_TOLERANCE_SECONDS = 300;
+
+/**
+ * Stripe-Signature: `t=<unix>,v1=<hex>[,v1=<hex>...]`. The HMAC-SHA256 key is
+ * the whole endpoint secret as UTF-8 (whsec_ prefix included) over
+ * `${t}.${payload}`. Any v1 entry may match; never throws.
+ */
 export async function verifyStripeSignature(
 	payload: string,
 	signatureHeader: string,
 	secret: string,
+	nowSeconds = Math.floor(Date.now() / 1000),
 ): Promise<boolean> {
-	// Stripe-Signature header format: t=timestamp,v1=signature[,v1=signature...]
-	const parts = signatureHeader.split(",");
-	let timestamp = "";
-	let v1Signature = "";
-	for (const part of parts) {
-		const eqIdx = part.indexOf("=");
-		if (eqIdx === -1) continue;
-		const key = part.slice(0, eqIdx);
-		const value = part.slice(eqIdx + 1);
-		if (key === "t") timestamp = value;
-		else if (key === "v1") v1Signature = value;
+	try {
+		let timestamp = "";
+		const signatures: string[] = [];
+		for (const part of signatureHeader.split(",")) {
+			const eqIdx = part.indexOf("=");
+			if (eqIdx === -1) continue;
+			const key = part.slice(0, eqIdx).trim();
+			const value = part.slice(eqIdx + 1).trim();
+			if (key === "t") timestamp = value;
+			else if (key === "v1") signatures.push(value);
+		}
+		const ts = Number(timestamp);
+		if (!timestamp || !Number.isFinite(ts) || signatures.length === 0) return false;
+		if (Math.abs(nowSeconds - ts) > STRIPE_TOLERANCE_SECONDS) return false;
+
+		const enc = new TextEncoder();
+		const key = await crypto.subtle.importKey(
+			"raw",
+			enc.encode(secret),
+			{ name: "HMAC", hash: "SHA-256" },
+			false,
+			["sign"],
+		);
+		const sig = await crypto.subtle.sign("HMAC", key, enc.encode(`${timestamp}.${payload}`));
+		const computed = Array.from(new Uint8Array(sig), (b) => b.toString(16).padStart(2, "0")).join(
+			"",
+		);
+		let matched = false;
+		for (const candidate of signatures) {
+			if (timingSafeEqual(computed, candidate)) matched = true;
+		}
+		return matched;
+	} catch {
+		return false;
 	}
-	if (!timestamp || !v1Signature) return false;
-
-	const signedPayload = `${timestamp}.${payload}`;
-
-	// Decode the whsec_ prefixed secret from base64
-	const rawSecret = secret.startsWith("whsec_") ? secret.slice(7) : secret;
-	const secretBytes = Uint8Array.from(atob(rawSecret), (c) => c.charCodeAt(0));
-
-	const enc = new TextEncoder();
-	const key = await crypto.subtle.importKey(
-		"raw",
-		secretBytes,
-		{ name: "HMAC", hash: "SHA-256" },
-		false,
-		["sign"],
-	);
-	const sig = await crypto.subtle.sign("HMAC", key, enc.encode(signedPayload));
-	const computed = Array.from(new Uint8Array(sig), (b) => b.toString(16).padStart(2, "0")).join("");
-
-	return timingSafeEqual(computed, v1Signature);
 }
 
 export async function verifyLemonSqueezySignature(

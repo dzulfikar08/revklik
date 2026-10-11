@@ -182,6 +182,7 @@ siteRoutes.post("/", async (c) => {
 			name,
 			domain,
 			revenue_currency: country.toUpperCase() === "ID" ? "IDR" : "USD",
+			revenue_currency_source: "default",
 			created_at: new Date().toISOString(),
 			share_token: null,
 			public_dashboard: 0,
@@ -214,9 +215,15 @@ siteRoutes.delete("/:siteId", async (c) => {
 		.executeTakeFirst();
 	if (!site) return c.json({ error: "Site not found", success: false }, 404);
 
-	// Dependents first, in bounded chunks; the site row goes last so a failed
-	// run can simply be retried.
-	await purgeSiteRows(c.env.DB, siteId);
+	// Dependents first, in bounded chunks; the site row goes only once every
+	// table ran dry. A very large site answers 202 and finishes on the next DELETE.
+	const purge = await purgeSiteRows(c.env.DB, siteId);
+	if (purge.unfinished.length > 0) {
+		return c.json(
+			{ data: { status: "deleting", remaining_tables: purge.unfinished }, success: true },
+			202,
+		);
+	}
 	await db.deleteFrom("sites").where("id", "=", siteId).execute();
 	return c.json({ success: true });
 });
@@ -248,7 +255,7 @@ siteRoutes.patch("/:siteId", async (c) => {
 	}
 	await db
 		.updateTable("sites")
-		.set({ revenue_currency: currency })
+		.set({ revenue_currency: currency, revenue_currency_source: "user" })
 		.where("id", "=", siteId)
 		.execute();
 	return c.json({ data: { id: siteId, revenue_currency: currency }, success: true });
