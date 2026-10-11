@@ -45,7 +45,11 @@ import { paywuzWebhookRoutes } from "./routes/webhooks-paywuz";
 import { xenditWebhookRoutes } from "./routes/webhooks-xendit";
 import { widgetRoutes } from "./routes/widgets";
 import { widgetLiveRoutes } from "./routes/widgets-live";
-import { requireActiveSubscription, requirePlanTier } from "./lib/plan-gate";
+import {
+	requireActiveSubscription,
+	requirePlanTier,
+	type ResourceSiteResolver,
+} from "./lib/plan-gate";
 import { refreshSessionExpiry } from "./lib/session";
 import type { Env } from "./types";
 import { hashToken } from "./utils";
@@ -77,6 +81,19 @@ const authMiddleware = createMiddleware<Env>(async (c, next) => {
 	c.set("userId", apiKey.user_id);
 	await next();
 });
+
+/** /integrations/:id[/...] is gated on the integration's own site, not the query. */
+const integrationSiteId: ResourceSiteResolver = async (c) => {
+	const id = /^\/api\/integrations\/([^/]+)/.exec(c.req.path)?.[1];
+	if (!id) return undefined;
+	const row = await c
+		.get("db")
+		.selectFrom("integrations")
+		.select(["site_id"])
+		.where("id", "=", id)
+		.executeTakeFirst();
+	return row?.site_id;
+};
 
 const adminMiddleware = createMiddleware<Env>(async (c, next) => {
 	const userId = c.get("userId");
@@ -146,7 +163,10 @@ export function createApp(): Hono<Env> {
 
 	// Removing an integration stays possible after a downgrade.
 	app.use("/integrations/*", authMiddleware);
-	app.use("/integrations/*", requirePlanTier("growth", ["POST", "PATCH", "PUT"]));
+	app.use(
+		"/integrations/*",
+		requirePlanTier("growth", ["POST", "PATCH", "PUT"], integrationSiteId),
+	);
 	app.route("/integrations", integrationRoutes);
 
 	app.use("/appstoreconnect/*", authMiddleware);

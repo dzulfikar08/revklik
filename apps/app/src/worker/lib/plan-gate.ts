@@ -20,33 +20,45 @@ export function planRequiredBody(required: GatedPlan, current: string) {
 	};
 }
 
+/** Site a path-addressed resource belongs to (e.g. /integrations/:id), if any. */
+export type ResourceSiteResolver = (c: Context<GateEnv>) => Promise<string | undefined>;
+
 /**
- * site_id from the query string and/or JSON body (Hono caches the parse).
- * `conflict` when both are present and differ: the gate must not check one
- * site while the handler acts on another.
+ * Every site the request names: the addressed resource's own site, the query
+ * site_id and the body site_id. Handlers call c.req.json() whatever the
+ * content-type, so the body is always parsed here too (Hono caches the parse
+ * for the handler). `conflict` when any two disagree: the gate must never
+ * check one site while the handler acts on another.
  */
 async function requestSiteId(
 	c: Context<GateEnv>,
+	resolveResource?: ResourceSiteResolver,
 ): Promise<{ siteId?: string; conflict?: boolean }> {
-	const fromQuery = c.req.query("site_id") || undefined;
-	let fromBody: string | undefined;
-	if (c.req.header("content-type")?.includes("application/json")) {
+	const named: string[] = [];
+	if (resolveResource) {
+		const own = await resolveResource(c);
+		if (own) named.push(own);
+	}
+	const fromQuery = c.req.query("site_id");
+	if (fromQuery) named.push(fromQuery);
+	if (c.req.method !== "GET" && c.req.method !== "HEAD") {
 		const body = await c.req.json().catch(() => null);
 		const raw = (body as { site_id?: unknown } | null)?.site_id;
-		if (typeof raw === "string" && raw) fromBody = raw;
+		if (typeof raw === "string" && raw) named.push(raw);
 	}
-	if (fromQuery && fromBody && fromQuery !== fromBody) return { conflict: true };
-	return { siteId: fromQuery ?? fromBody };
+	if (new Set(named).size > 1) return { conflict: true };
+	return { siteId: named[0] };
 }
 
 /** 403 response when the site owner's (else caller's) plan is below `required`, else null. */
 export async function checkPlan(
 	c: Context<GateEnv>,
 	required: GatedPlan,
+	resolveResource?: ResourceSiteResolver,
 ): Promise<Response | null> {
-	const target = await requestSiteId(c);
+	const target = await requestSiteId(c, resolveResource);
 	if (target.conflict) {
-		return c.json({ success: false, error: "site_id in query and body differ" }, 400);
+		return c.json({ success: false, error: "Request names more than one site" }, 400);
 	}
 	const check = await requirePlanForSite(
 		c.get("db"),
@@ -58,10 +70,14 @@ export async function checkPlan(
 }
 
 /** Middleware form of checkPlan; `methods` limits it to those HTTP methods. */
-export const requirePlanTier = (required: GatedPlan, methods?: readonly string[]) =>
+export const requirePlanTier = (
+	required: GatedPlan,
+	methods?: readonly string[],
+	resolveResource?: ResourceSiteResolver,
+) =>
 	createMiddleware<GateEnv>(async (c, next) => {
 		if (methods && !methods.includes(c.req.method)) return next();
-		const denied = await checkPlan(c, required);
+		const denied = await checkPlan(c, required, resolveResource);
 		if (denied) return denied;
 		await next();
 	});
