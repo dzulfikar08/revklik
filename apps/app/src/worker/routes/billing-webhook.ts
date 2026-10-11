@@ -174,8 +174,12 @@ billingWebhookRoutes.post("/", async (c) => {
 
 		// checkout.created is deliberately absent: it fires before payment and its
 		// data.id / status describe the checkout, not a subscription.
+		// Only a period that came from an earlier Polar subscription can make an
+		// event stale; a QRIS-only period (no Polar id) never blocks an upgrade,
+		// and floorEnd keeps the QRIS horizon regardless.
 		const staleCreate =
 			(eventType === "subscription.created" || eventType === "subscription.active") &&
+			!!current?.polar_subscription_id &&
 			!!current?.current_period_end &&
 			!!data.current_period_end &&
 			data.current_period_end < current.current_period_end &&
