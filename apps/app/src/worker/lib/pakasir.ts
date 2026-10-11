@@ -19,9 +19,14 @@ export const PAKASIR_PRICES: Record<PlanTier, number> = {
 };
 
 // order_id format stamped by POST /billing/checkout/pakasir:
-//   RVK-{userId8}-{base36 timestamp}
+//   RVK-{userId8}-{base36 timestamp}{4 random base36}
+// The random tail keeps two checkouts in the same millisecond (double click)
+// from colliding on the pakasir_orders primary key.
 export function newPakasirOrderId(userId: string, now = Date.now()): string {
-	return `RVK-${userId.slice(0, 8)}-${now.toString(36).toUpperCase()}`;
+	const tail =
+		crypto.getRandomValues(new Uint32Array(1))[0]?.toString(36).slice(-4).padStart(4, "0") ??
+		"0000";
+	return `RVK-${userId.slice(0, 8)}-${now.toString(36).toUpperCase()}${tail.toUpperCase()}`;
 }
 
 export function pakasirCheckoutUrl(amount: number, orderId: string, successUrl: string): string {
