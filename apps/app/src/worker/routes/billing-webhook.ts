@@ -136,7 +136,13 @@ billingWebhookRoutes.post("/", async (c) => {
 		const nowIso = new Date(nowMs).toISOString();
 		const current = await db
 			.selectFrom("subscriptions")
-			.select(["polar_subscription_id", "pakasir_paid_until"])
+			.select([
+				"polar_subscription_id",
+				"polar_customer_id",
+				"pakasir_paid_until",
+				"current_period_end",
+				"status",
+			])
 			.where("user_id", "=", userId)
 			.executeTakeFirst();
 		// A QRIS-paid period is never shortened by Polar lifecycle events.
@@ -146,7 +152,20 @@ billingWebhookRoutes.post("/", async (c) => {
 				: null;
 		const floorEnd = (end: string | undefined) =>
 			paidUntil && (!end || end < paidUntil) ? paidUntil : end;
-		const ownsRow = !!data.id && current?.polar_subscription_id === data.id;
+		// The row belongs to this subscription when the ids match, or when no
+		// subscription id is stored (QRIS-only rows, and ids cleared by migration
+		// v11 because an abandoned checkout had overwritten them) and the Polar
+		// customer is the same or unknown. A matched row gets its id repaired.
+		const storedId = current?.polar_subscription_id ?? null;
+		const sameCustomer =
+			!current?.polar_customer_id ||
+			!data.customer_id ||
+			current.polar_customer_id === data.customer_id;
+		const ownsRow = !!data.id && (storedId === data.id || (storedId === null && sameCustomer));
+		const repair = {
+			polar_subscription_id: data.id,
+			polar_customer_id: data.customer_id || undefined,
+		};
 
 		const cancelAtPeriodEnd =
 			data.cancel_at_period_end === undefined ? undefined : data.cancel_at_period_end ? 1 : 0;
@@ -155,7 +174,16 @@ billingWebhookRoutes.post("/", async (c) => {
 
 		// checkout.created is deliberately absent: it fires before payment and its
 		// data.id / status describe the checkout, not a subscription.
-		if (eventType === "subscription.created" || eventType === "subscription.active") {
+		const staleCreate =
+			(eventType === "subscription.created" || eventType === "subscription.active") &&
+			!!current?.current_period_end &&
+			!!data.current_period_end &&
+			data.current_period_end < current.current_period_end &&
+			(current.status === "active" || current.status === "trialing");
+		if (staleCreate) {
+			// Out-of-order delivery: never roll a newer period back to an older one.
+			console.warn(`[billing-webhook] ${eventType} ${data.id}: older than stored period, ignored`);
+		} else if (eventType === "subscription.created" || eventType === "subscription.active") {
 			await db
 				.insertInto("subscriptions")
 				.values({
@@ -197,10 +225,10 @@ billingWebhookRoutes.post("/", async (c) => {
 						current_period_start: data?.current_period_start || undefined,
 						current_period_end: floorEnd(data?.current_period_end),
 						cancel_at_period_end: cancelAtPeriodEnd,
+						...repair,
 						updated_at: nowIso,
 					})
 					.where("user_id", "=", userId)
-					.where("polar_subscription_id", "=", data.id ?? "")
 					.execute();
 			}
 		} else if (eventType === "order.paid") {
@@ -217,10 +245,10 @@ billingWebhookRoutes.post("/", async (c) => {
 				.set({
 					cancel_at_period_end: 1,
 					current_period_end: floorEnd(data?.current_period_end),
+					...repair,
 					updated_at: nowIso,
 				})
 				.where("user_id", "=", userId)
-				.where("polar_subscription_id", "=", data.id ?? "")
 				.execute();
 		} else if (eventType === "subscription.revoked" && ownsRow) {
 			// Revocation ends Polar access now; a QRIS-paid period carries on alone.
@@ -239,11 +267,11 @@ billingWebhookRoutes.post("/", async (c) => {
 								status: "canceled",
 								cancel_at_period_end: 0,
 								current_period_end: nowIso,
+								...repair,
 								updated_at: nowIso,
 							},
 				)
 				.where("user_id", "=", userId)
-				.where("polar_subscription_id", "=", data.id ?? "")
 				.execute();
 		}
 		await markProcessed(db, dedupeKey);

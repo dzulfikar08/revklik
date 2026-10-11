@@ -4,7 +4,7 @@ import type { Kysely } from "kysely";
 import type { KlikapaDatabase } from "@revklik/shared";
 import type { Env } from "../types";
 import { INGEST_GRACE_MS, isSubscriptionActive } from "./entitlement";
-import { PLANS, type PlanTier, requirePlanForSite } from "./plans";
+import { accessibleSiteOwner, PLANS, type PlanTier, requirePlanForSite } from "./plans";
 
 type GateEnv = Env;
 
@@ -20,14 +20,23 @@ export function planRequiredBody(required: GatedPlan, current: string) {
 	};
 }
 
-/** site_id from the query string, else from a JSON body (Hono caches the parse). */
-async function requestSiteId(c: Context<GateEnv>): Promise<string | undefined> {
-	const fromQuery = c.req.query("site_id");
-	if (fromQuery) return fromQuery;
-	if (!c.req.header("content-type")?.includes("application/json")) return undefined;
-	const body = await c.req.json().catch(() => null);
-	const siteId = (body as { site_id?: unknown } | null)?.site_id;
-	return typeof siteId === "string" ? siteId : undefined;
+/**
+ * site_id from the query string and/or JSON body (Hono caches the parse).
+ * `conflict` when both are present and differ: the gate must not check one
+ * site while the handler acts on another.
+ */
+async function requestSiteId(
+	c: Context<GateEnv>,
+): Promise<{ siteId?: string; conflict?: boolean }> {
+	const fromQuery = c.req.query("site_id") || undefined;
+	let fromBody: string | undefined;
+	if (c.req.header("content-type")?.includes("application/json")) {
+		const body = await c.req.json().catch(() => null);
+		const raw = (body as { site_id?: unknown } | null)?.site_id;
+		if (typeof raw === "string" && raw) fromBody = raw;
+	}
+	if (fromQuery && fromBody && fromQuery !== fromBody) return { conflict: true };
+	return { siteId: fromQuery ?? fromBody };
 }
 
 /** 403 response when the site owner's (else caller's) plan is below `required`, else null. */
@@ -35,10 +44,14 @@ export async function checkPlan(
 	c: Context<GateEnv>,
 	required: GatedPlan,
 ): Promise<Response | null> {
+	const target = await requestSiteId(c);
+	if (target.conflict) {
+		return c.json({ success: false, error: "site_id in query and body differ" }, 400);
+	}
 	const check = await requirePlanForSite(
 		c.get("db"),
 		c.get("userId"),
-		await requestSiteId(c),
+		target.siteId,
 		PLANS[required].tier,
 	);
 	return check.allowed ? null : c.json(planRequiredBody(required, check.plan), 403);
@@ -122,11 +135,9 @@ export const requireActiveSubscription = createMiddleware<GateEnv>(async (c, nex
 	if (c.req.method !== "GET") return next();
 	const db = c.get("db");
 	const userId = c.get("userId");
-	const siteId = c.req.query("site_id");
-	const site = siteId
-		? await db.selectFrom("sites").select(["user_id"]).where("id", "=", siteId).executeTakeFirst()
-		: undefined;
-	const access = await accountAccess(db, site?.user_id ?? userId);
+	// Only a site the caller belongs to lends its owner's subscription.
+	const ownerId = await accessibleSiteOwner(db, userId, c.req.query("site_id"));
+	const access = await accountAccess(db, ownerId ?? userId);
 	if (access.ok) {
 		// Plan retention is a read window: older rows exist but are not served.
 		if (access.retentionDays !== null) {

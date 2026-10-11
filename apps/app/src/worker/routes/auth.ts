@@ -192,6 +192,7 @@ authRoutes.post("/login", async (c) => {
 		return c.json({ error: "Invalid credentials", success: false }, 401);
 	}
 	await clearAttempts(db, limitKey);
+	await clearAttempts(db, emailKey);
 	if (check.needsRehash) {
 		await db
 			.updateTable("users")

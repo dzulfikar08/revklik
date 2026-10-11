@@ -111,9 +111,36 @@ export async function requirePlan(
 }
 
 /**
- * Tier check for a site-scoped feature: the site OWNER's plan decides (team
- * members ride on it). A super-admin caller always passes; an unknown site
- * falls back to the caller's own plan.
+ * Owner of `siteId` when the caller may act on it (owner or ACCEPTED team
+ * member); undefined otherwise, so a foreign site id never lends its plan.
+ */
+export async function accessibleSiteOwner(
+	db: Kysely<KlikapaDatabase>,
+	userId: string,
+	siteId: string | null | undefined,
+): Promise<string | undefined> {
+	if (!siteId) return undefined;
+	const site = await db
+		.selectFrom("sites")
+		.select(["user_id"])
+		.where("id", "=", siteId)
+		.executeTakeFirst();
+	if (!site) return undefined;
+	if (site.user_id === userId) return site.user_id;
+	const member = await db
+		.selectFrom("team_members")
+		.select("id")
+		.where("site_id", "=", siteId)
+		.where("user_id", "=", userId)
+		.where("accepted_at", "is not", null)
+		.executeTakeFirst();
+	return member ? site.user_id : undefined;
+}
+
+/**
+ * Tier check for a site-scoped feature: the site OWNER's plan decides when the
+ * caller is the owner or an accepted member; otherwise the caller's own plan.
+ * A super-admin caller always passes.
  */
 export async function requirePlanForSite(
 	db: Kysely<KlikapaDatabase>,
@@ -121,15 +148,13 @@ export async function requirePlanForSite(
 	siteId: string | null | undefined,
 	requiredTier: number,
 ): Promise<{ allowed: boolean; plan: string }> {
-	const owner = siteId
-		? await db.selectFrom("sites").select(["user_id"]).where("id", "=", siteId).executeTakeFirst()
-		: undefined;
-	if (!owner || owner.user_id === userId) return requirePlan(db, userId, requiredTier);
+	const ownerId = await accessibleSiteOwner(db, userId, siteId);
+	if (!ownerId || ownerId === userId) return requirePlan(db, userId, requiredTier);
 	const caller = await db
 		.selectFrom("users")
 		.select(["role"])
 		.where("id", "=", userId)
 		.executeTakeFirst();
 	if (caller?.role === "super_admin") return { allowed: true, plan: "growth" };
-	return requirePlan(db, owner.user_id, requiredTier);
+	return requirePlan(db, ownerId, requiredTier);
 }

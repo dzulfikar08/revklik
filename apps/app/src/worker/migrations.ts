@@ -2,7 +2,7 @@
  * Version the live schema must reach. Bump it whenever a step is appended to
  * VERSIONED_STEPS; a DB already at this version costs one SELECT per isolate.
  */
-export const SCHEMA_VERSION = 10;
+export const SCHEMA_VERSION = 11;
 
 const migrated = new WeakSet<D1Database>();
 
@@ -75,7 +75,33 @@ const VERSIONED_STEPS: MigrationStep[] = [
 		run: (d1) => runDdl(d1, "ALTER TABLE sites ADD COLUMN revenue_currency_source TEXT"),
 	},
 	{ version: 10, run: accountProofSchema },
+	{ version: 11, run: preDeployRepairs },
 ];
+
+const CHECKOUT_STATUSES = "('open', 'expired', 'confirmed', 'succeeded', 'failed')";
+
+/**
+ * Every account that exists when this runs predates email verification and is
+ * treated as verified, so a later Google sign-in never wipes a real owner's
+ * password. Only signups after this deploy can be unverified. Rows that the old
+ * checkout.created branch overwrote carry a checkout status and checkout id:
+ * the id is cleared (the next subscription event re-attaches the real one) and
+ * the status restored from the period.
+ */
+async function preDeployRepairs(d1: D1Database): Promise<void> {
+	await runDdl(
+		d1,
+		"UPDATE users SET email_verified_at = COALESCE(created_at, datetime('now')) WHERE email_verified_at IS NULL",
+	);
+	await runBackfill(
+		d1,
+		`UPDATE subscriptions
+       SET polar_subscription_id = NULL,
+           status = CASE WHEN current_period_end > ? THEN 'active' ELSE 'canceled' END
+       WHERE status IN ${CHECKOUT_STATUSES}`,
+		new Date().toISOString(),
+	);
+}
 
 /** Review fixes: QRIS-paid horizon, email verification. */
 async function accountProofSchema(d1: D1Database): Promise<void> {
@@ -143,10 +169,24 @@ async function billingIntegritySchema(d1: D1Database): Promise<void> {
 		d1,
 		"CREATE TABLE IF NOT EXISTS webhook_dedupe (key TEXT PRIMARY KEY, created_at TEXT NOT NULL DEFAULT (datetime('now')))",
 	);
-	// Carry orders recorded on the subscription row over: an active row's order
-	// was already applied, so it lands as completed and can never be replayed.
-	// Required: without it a completed order could be replayed, so failure throws.
-	await runDdl(
+	await carryOverPakasirOrders(d1);
+	// subscription.canceled used to end access immediately; rows still inside a
+	// paid period get their access back (they stay flagged cancel_at_period_end).
+	await runBackfill(
+		d1,
+		"UPDATE subscriptions SET status = 'active' WHERE status = 'canceled' AND cancel_at_period_end = 1 AND polar_subscription_id IS NOT NULL AND current_period_end > ?",
+		new Date().toISOString(),
+	);
+}
+
+/**
+ * Copy QRIS orders recorded on subscription rows into pakasir_orders (an active
+ * row's order lands as completed so it cannot be replayed). Idempotent and
+ * non-fatal: the Pakasir webhook also adopts legacy orders on sight, and the
+ * 03:00 cron re-runs this.
+ */
+export async function carryOverPakasirOrders(d1: D1Database): Promise<void> {
+	await runBackfill(
 		d1,
 		`INSERT INTO pakasir_orders (order_id, user_id, plan, amount, checkout_url, status, created_at, processed_at)
        SELECT pakasir_order_id, user_id, plan,
@@ -158,13 +198,6 @@ async function billingIntegritySchema(d1: D1Database): Promise<void> {
        FROM subscriptions
        WHERE pakasir_order_id IS NOT NULL AND plan IN ('micro', 'starter', 'growth')
        ON CONFLICT(order_id) DO NOTHING`,
-	);
-	// subscription.canceled used to end access immediately; rows still inside a
-	// paid period get their access back (they stay flagged cancel_at_period_end).
-	await runBackfill(
-		d1,
-		"UPDATE subscriptions SET status = 'active' WHERE status = 'canceled' AND cancel_at_period_end = 1 AND polar_subscription_id IS NOT NULL AND current_period_end > ?",
-		new Date().toISOString(),
 	);
 }
 
@@ -209,13 +242,36 @@ async function releaseMigrationLock(d1: D1Database, token: string): Promise<void
 	}
 }
 
-export async function migrateDatabase(d1: D1Database): Promise<void> {
+const LOCK_POLL_MS = 250;
+const LOCK_WAIT_MS = 15_000;
+
+/**
+ * Another isolate is migrating: hold this request until the schema reaches
+ * SCHEMA_VERSION so it never runs against missing columns. True on success.
+ */
+async function waitForMigration(d1: D1Database, waitMs: number): Promise<boolean> {
+	const deadline = Date.now() + waitMs;
+	while (Date.now() < deadline) {
+		await new Promise((r) => setTimeout(r, LOCK_POLL_MS));
+		if ((await readSchemaVersion(d1)) >= SCHEMA_VERSION) return true;
+	}
+	return false;
+}
+
+export async function migrateDatabase(
+	d1: D1Database,
+	opts: { lockWaitMs?: number } = {},
+): Promise<void> {
 	if (migrated.has(d1)) return;
 
 	const current = await readSchemaVersion(d1);
 	if (current < SCHEMA_VERSION) {
 		const token = crypto.randomUUID();
-		if (!(await acquireMigrationLock(d1, token))) return;
+		if (!(await acquireMigrationLock(d1, token))) {
+			if (await waitForMigration(d1, opts.lockWaitMs ?? LOCK_WAIT_MS)) migrated.add(d1);
+			else console.error("migration lock held past the wait budget; serving on the current schema");
+			return;
+		}
 		try {
 			// Re-read under the lock: another isolate may have finished meanwhile.
 			const locked = await readSchemaVersion(d1);
