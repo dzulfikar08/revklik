@@ -45,10 +45,16 @@ import {
 	fetchSites,
 	fetchVisitors,
 	isSubscriptionInactive,
+	LegacyApiError,
 	updateVisitor,
 } from "@/lib/legacy/api";
 import { useT } from "@/lib/i18n";
+import { openBilling } from "@/lib/billing-nav";
+import { parsePlan, planLabel } from "@/lib/legacy/billing";
 import type { PlanTier } from "@/lib/legacy/billing";
+
+import { GrowthLocked } from "./growth-locked";
+import { VerifyEmailBanner } from "./verify-email-banner";
 import type {
 	CampaignPerformance,
 	CrawlerSlot,
@@ -209,7 +215,8 @@ const parseProps = (raw: string | null): [string, string][] => {
 	}
 };
 
-export const stepToEvent = (s: JourneyStep): VisitorEvent | null => {
+/** `currency` is the dashboard response's ISO code; USD when absent. */
+export const stepToEvent = (s: JourneyStep, currency?: string): VisitorEvent | null => {
 	if (s.event_type === "pageview") {
 		return { kind: "view", page: s.path, time: s.timestamp };
 	}
@@ -219,7 +226,7 @@ export const stepToEvent = (s: JourneyStep): VisitorEvent | null => {
 			event: s.name ?? "conversion",
 			kind: "conversion",
 			props: p.length ? p : undefined,
-			revenue: s.revenue ? money(s.revenue) : undefined,
+			revenue: s.revenue ? money(s.revenue, currency) : undefined,
 			time: s.timestamp,
 		};
 	}
@@ -264,12 +271,16 @@ export const stepToEvent = (s: JourneyStep): VisitorEvent | null => {
 	};
 };
 
-export const profileToVisitor = (p: VisitorProfile, journeys: VisitorJourney[]): Visitor => {
+export const profileToVisitor = (
+	p: VisitorProfile,
+	journeys: VisitorJourney[],
+	currency?: string,
+): Visitor => {
 	const mine = journeys
 		.filter((j) => j.visitor_id === p.visitor_id)
 		.toSorted((a, b) => a.started_at.localeCompare(b.started_at));
 	const events = mine
-		.flatMap((j) => j.steps.map(stepToEvent))
+		.flatMap((j) => j.steps.map((s) => stepToEvent(s, currency)))
 		.filter((e): e is VisitorEvent => e !== null)
 		.toSorted((a, b) => a.time.localeCompare(b.time));
 	const source = mine[0]?.utm_source ?? hostOf(mine[0]?.referrer) ?? "direct";
@@ -302,7 +313,7 @@ export const profileToVisitor = (p: VisitorProfile, journeys: VisitorJourney[]):
 		os: p.os,
 		params: [],
 		source,
-		spent: p.total_revenue > 0 ? money(p.total_revenue) : null,
+		spent: p.total_revenue > 0 ? money(p.total_revenue, currency) : null,
 		tags: parseTags(p.tags),
 		visitorId: p.visitor_id,
 	};
@@ -339,12 +350,12 @@ const deviceGlyph = (device: string) => {
 
 const NEUTRAL_GLYPH = { bg: "oklch(0.34 0.02 260)", shape: "square" as const };
 
-const journeyChip = (s: JourneyStep): string => {
+const journeyChip = (s: JourneyStep, currency?: string): string => {
 	if (s.event_type === "pageview") {
 		return s.path || "/";
 	}
 	if (s.event_type === "conversion") {
-		return `${s.name ?? "purchase"} ${money(s.revenue ?? 0)}`;
+		return `${s.name ?? "purchase"} ${money(s.revenue ?? 0, currency)}`;
 	}
 	return s.name ?? s.event_type;
 };
@@ -1071,7 +1082,7 @@ const ExplorePanel = ({
 	const visitors = useMemo(
 		() =>
 			(visitorsQ.data ?? [])
-				.map((p) => profileToVisitor(p, journeys))
+				.map((p) => profileToVisitor(p, journeys, dash?.currency))
 				.filter((v) =>
 					pathPrefix
 						? v.events.some(
@@ -1080,7 +1091,7 @@ const ExplorePanel = ({
 						: true,
 				)
 				.toSorted((a, b) => (exploreSort === "events" ? b.events.length - a.events.length : 0)),
-		[visitorsQ.data, journeys, exploreSort, pathPrefix],
+		[visitorsQ.data, journeys, exploreSort, pathPrefix, dash?.currency],
 	);
 	const filteredJourneys = useMemo(
 		() =>
@@ -1232,7 +1243,7 @@ const ExplorePanel = ({
 								const realSteps = j.steps.filter(
 									(s) => s.event_type !== "custom" || s.name !== "heartbeat",
 								);
-								const chips = realSteps.slice(0, 6).map(journeyChip);
+								const chips = realSteps.slice(0, 6).map((s) => journeyChip(s, dash?.currency));
 								return (
 									<div
 										key={j.session_id}
@@ -1268,7 +1279,7 @@ const ExplorePanel = ({
 										{j.total_revenue > 0 ? (
 											<span className="inline-flex items-center gap-1 rounded-full bg-(--chart)/10 px-2 py-0.5 font-mono text-[11px] text-(--chart)">
 												<Check className="size-3" aria-hidden />
-												{money(j.total_revenue)}
+												{money(j.total_revenue, dash?.currency)}
 											</span>
 										) : (
 											<span className="bg-muted text-muted-foreground rounded-full px-2 py-0.5 text-[11px]">
@@ -1297,23 +1308,39 @@ const ExplorePanel = ({
 	);
 };
 
+/**
+ * Plan that unlocks funnels when the funnel read is plan-gated (403);
+ * Starter unless the API names another tier.
+ */
+export const funnelLockPlan = (error: unknown): PlanTier | null => {
+	if (!(error instanceof LegacyApiError) || error.status !== 403) {
+		return null;
+	}
+	return parsePlan(error.body?.required_plan) ?? "starter";
+};
+
 const FunnelSection = ({
 	siteId,
 	rangeKey,
 	filterStr,
+	onUpgrade,
 }: {
 	siteId: string;
 	rangeKey: RangeKey;
 	filterStr: string;
+	onUpgrade: (plan: PlanTier) => void;
 }) => {
 	const [funnelPath, setFunnelPath] = useState("");
 	const funnelQ = useQuery({
 		enabled: Boolean(siteId),
+		// Plan-locked accounts get the inline lock below, not a toast per load.
+		meta: { silent: true },
 		queryFn: () => fetchFunnel(siteId, rangeKey, filterStr),
 		queryKey: ["legacy", "funnel", siteId, rangeKey, filterStr],
 		retry: false,
 		staleTime: 60_000,
 	});
+	const lockedPlan = funnelLockPlan(funnelQ.error);
 	const funnel = funnelQ.data;
 	const funnelPage = funnel?.pages.find((p) => p.path === funnelPath) ?? funnel?.pages[0];
 	const funnelSteps = funnelPage?.steps ?? funnel?.steps ?? [];
@@ -1338,10 +1365,24 @@ const FunnelSection = ({
 			</div>
 			<PanelBody
 				loading={funnelQ.isLoading}
-				hasData={funnelSteps.length > 0}
+				hasData={funnelSteps.length > 0 || Boolean(funnelQ.error)}
 				emptyText="No funnel data — needs pageview + scroll_section events."
 			>
-				<FunnelChart rate={funnelRate} steps={funnelSteps} />
+				{lockedPlan ? (
+					<GrowthLocked
+						feature="Funnels"
+						plan={planLabel(lockedPlan)}
+						onUpgrade={() => onUpgrade(lockedPlan)}
+					/>
+				) : funnelQ.error ? (
+					<PanelMsg>
+						{isSubscriptionInactive(funnelQ.error)
+							? "Pick a plan to see funnels."
+							: "Couldn't load the funnel."}
+					</PanelMsg>
+				) : (
+					<FunnelChart rate={funnelRate} steps={funnelSteps} />
+				)}
 			</PanelBody>
 		</section>
 	);
@@ -1751,10 +1792,10 @@ const AnalyticsPage = ({
 		}
 		const local = (sheetProfilesQ.data ?? []).find((x) => x.visitor_id === visitorSheetId);
 		if (local) {
-			return profileToVisitor(local, dash?.journeys ?? NO_JOURNEYS);
+			return profileToVisitor(local, dash?.journeys ?? NO_JOURNEYS, dash?.currency);
 		}
 		return sheetFetched?.profile.visitor_id === visitorSheetId
-			? profileToVisitor(sheetFetched.profile, sheetFetched.journeys)
+			? profileToVisitor(sheetFetched.profile, sheetFetched.journeys, dash?.currency)
 			: null;
 	}, [visitorSheetId, sheetProfilesQ.data, sheetFetched, dash]);
 
@@ -1901,6 +1942,7 @@ const AnalyticsPage = ({
 			) : view === "home" ? (
 				<main className="mx-auto max-w-7xl px-3 pt-3 pb-6 md:px-4">
 					<SubscriptionBanner onUpgrade={() => setView("billing")} />
+					<VerifyEmailBanner />
 					{errorMsg ? (
 						<p
 							className="mb-2.5 rounded-xl bg-(--down)/10 px-3 py-2 text-xs text-(--down)"
@@ -2006,7 +2048,12 @@ const AnalyticsPage = ({
 							siteId={siteId}
 						/>
 					</div>
-					<FunnelSection siteId={siteId} rangeKey={rangeKey} filterStr={filterStr} />
+					<FunnelSection
+						siteId={siteId}
+						rangeKey={rangeKey}
+						filterStr={filterStr}
+						onUpgrade={openBilling}
+					/>
 				</main>
 			) : view === "share" ? (
 				<ShareWidgetTokensView />

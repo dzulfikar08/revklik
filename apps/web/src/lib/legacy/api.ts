@@ -51,6 +51,8 @@ export interface LegacyUser {
 	name: string;
 	email: string;
 	role: string;
+	/** From /auth/me; absent on older workers (treated as verified). */
+	email_verified?: boolean;
 }
 
 export interface LegacyStats {
@@ -323,6 +325,13 @@ export class LegacyApiError extends Error {
 	}
 }
 
+/** snake_case error codes are meant for code paths, not for display. */
+const ERROR_CODE = /^[a-z]+(?:_[a-z]+)+$/u;
+
+/** The envelope's error if it is prose; null for a code or nothing. */
+export const readableError = (error: string | undefined | null): string | null =>
+	error && !ERROR_CODE.test(error) ? error : null;
+
 /** 402 from a gated read: the trial or subscription has lapsed. */
 export const isSubscriptionInactive = (err: unknown): err is LegacyApiError =>
 	err instanceof LegacyApiError &&
@@ -359,7 +368,12 @@ const authRequest = async (
 		error?: string;
 	} | null;
 	if (!res.ok || !json?.success || !json.data) {
-		throw new LegacyApiError(json?.error || "Couldn't sign you in. Please try again", res.status);
+		// Codes like "too_many_attempts" stay on err.code; only prose is shown.
+		throw new LegacyApiError(
+			readableError(json?.error) ?? "Couldn't sign you in. Please try again",
+			res.status,
+			json ? { error: json.error } : undefined,
+		);
 	}
 	cachedToken = json.data.token;
 	localStorage.setItem(TOKEN_KEY, json.data.token);
@@ -433,6 +447,41 @@ export const resetPassword = async (token: string, password: string): Promise<vo
 	}
 };
 
+export type VerifyEmailResult = "verified" | "invalid_token" | "expired" | "error";
+
+/**
+ * Email verification link target. The API answers {success:true}, or 400
+ * with error "invalid_token" / "expired"; anything else is reported as a
+ * generic failure.
+ */
+export const verifyEmail = async (token: string): Promise<VerifyEmailResult> => {
+	try {
+		const res = await fetch(`${API_BASE}/auth/verify-email`, {
+			method: "POST",
+			headers: { "Content-Type": "application/json" },
+			body: JSON.stringify({ token }),
+		});
+		const json = (await res.json().catch(() => null)) as
+			| (LegacyErrorBody & { success?: boolean })
+			| null;
+		if (res.ok && json?.success) return "verified";
+		if (json?.error === "invalid_token" || json?.error === "expired") return json.error;
+		return "error";
+	} catch {
+		return "error";
+	}
+};
+
+/** Send the verification email again. */
+export const resendVerification = (): Promise<unknown> =>
+	legacyFetch("/auth/resend-verification", { method: "POST" });
+
+/** Current user, fresh from the API (email_verified included when supported). */
+export const fetchMe = async (): Promise<LegacyUser | null> => {
+	const data = await legacyFetch<{ user?: LegacyUser }>("/auth/me");
+	return data?.user ?? null;
+};
+
 /**
  * Sign out: delete the presented session server-side, then drop all local
  * state. Best-effort — local sign-out wins even if the network fails.
@@ -451,9 +500,6 @@ export const legacySignOut = async (): Promise<void> => {
 	}
 	legacyLogout();
 };
-
-/** snake_case error codes are meant for code paths, not for display. */
-const ERROR_CODE = /^[a-z]+(?:_[a-z]+)+$/u;
 
 export const legacyFetchEnvelope = async <T>(
 	path: string,
@@ -477,7 +523,7 @@ export const legacyFetchEnvelope = async <T>(
 		// Error envelopes carry machine-readable codes (402 subscription_inactive,
 		// 403 plan_required); keep them so the UI can offer an upgrade path.
 		const body = (await res.json?.().catch(() => null)) as LegacyErrorBody | null | undefined;
-		const readable = body?.error && !ERROR_CODE.test(body.error) ? body.error : null;
+		const readable = readableError(body?.error);
 		throw new LegacyApiError(
 			readable ?? `Request failed (${res.status})`,
 			res.status,
@@ -510,6 +556,13 @@ const rangeQuery = (p: URLSearchParams, range: string): URLSearchParams => {
 	return p;
 };
 
+/**
+ * Viewer's UTC offset in minutes, east-positive (UTC+7 → "420"), which is
+ * what the worker expects. getTimezoneOffset() is west-positive, hence the
+ * sign flip.
+ */
+export const tzParam = (date = new Date()): string => String(-date.getTimezoneOffset());
+
 export const fetchSites = (range: string): Promise<SiteWithStats[]> =>
 	legacyFetch(`/sites?${rangeQuery(new URLSearchParams(), range)}`);
 
@@ -519,6 +572,7 @@ export const fetchDashboard = (
 	filters: string,
 ): Promise<SiteDashboard> => {
 	const p = rangeQuery(new URLSearchParams({ site_id: siteId }), range);
+	p.set("tz", tzParam());
 	if (filters) {
 		p.set("filters", filters);
 	}
@@ -550,6 +604,7 @@ export const fetchCampaigns = async (
 	filters: string,
 ): Promise<CampaignPerformance[]> => {
 	const p = rangeQuery(new URLSearchParams({ site_id: siteId }), range);
+	p.set("tz", tzParam());
 	if (filters) {
 		p.set("filters", filters);
 	}
@@ -707,6 +762,12 @@ export const connectSSE = (siteId: string, onEvent: (event: LiveEvent) => void):
 			const res = await fetch(`${API_BASE}/analytics/stream?site_id=${siteId}`, {
 				headers: { Authorization: `Bearer ${token}` },
 			});
+			if (res.status === 401) {
+				// Dead session: retrying cannot succeed. Stop for good (the
+				// visibility listener checks `aborted` too).
+				aborted = true;
+				return;
+			}
 			if (!res.ok || !res.body) {
 				schedule(run);
 				return;

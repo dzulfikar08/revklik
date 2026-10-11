@@ -11,6 +11,8 @@ vi.mock("sonner", () => ({ toast: mocks }));
 
 import { setLocale } from "@/lib/i18n";
 import { LegacyApiError } from "@/lib/legacy/api";
+import { GrowthPlanLockedError } from "@/lib/legacy/growth";
+import { registerSessionExpiredHandler } from "@/lib/session-nav";
 
 import { createQueryClient, PLAN_TOAST_ID } from "./query-client";
 
@@ -113,6 +115,30 @@ describe("QueryCache error toast policy", () => {
 				id: PLAN_TOAST_ID,
 			}),
 		);
+	});
+
+	it("sends a mid-session 401 to sign-in without a toast", async () => {
+		const expired = vi.fn();
+		registerSessionExpiredHandler(expired);
+		const qc = createQueryClient();
+		const dead = () => Promise.reject(new LegacyApiError("Session expired", 401));
+
+		await expect(qc.fetchQuery({ queryFn: dead, queryKey: ["s"], retry: false })).rejects.toThrow();
+		await expect(new MutationObserver(qc, { mutationFn: dead }).mutate()).rejects.toThrow();
+
+		expect(expired).toHaveBeenCalledTimes(2);
+		expect(mocks.error).not.toHaveBeenCalled();
+	});
+
+	it("does not toast Growth-locked panels (they render their own lock)", async () => {
+		const qc = createQueryClient();
+		const locked = () => Promise.reject(new GrowthPlanLockedError("growth"));
+
+		await expect(
+			qc.fetchQuery({ queryFn: locked, queryKey: ["heatmap"], retry: false }),
+		).rejects.toThrow();
+
+		expect(mocks.error).not.toHaveBeenCalled();
 	});
 
 	it("createQueryClient returns an isolated client", () => {

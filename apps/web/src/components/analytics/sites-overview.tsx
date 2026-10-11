@@ -16,6 +16,7 @@ import { siteHasEvents, SnippetModal } from "./snippet-modal";
 import type { SnippetSite } from "./snippet-modal";
 import { SitesView } from "./sites-view";
 import { UpgradeLock } from "./upgrade-lock";
+import { VerifyEmailBanner } from "./verify-email-banner";
 
 /* -------------------------------- sparkline -------------------------------- */
 
@@ -148,6 +149,7 @@ const SitesOverviewPage = () => {
 		<div className="bg-background text-foreground min-h-svh">
 			<main className="mx-auto max-w-7xl px-3 pt-6 pb-6 md:px-4">
 				<SubscriptionBanner onUpgrade={() => openBilling()} />
+				<VerifyEmailBanner />
 				<div className="mb-4 flex flex-wrap items-center justify-between gap-3">
 					<div>
 						<h1 className="text-lg font-semibold">Sites</h1>

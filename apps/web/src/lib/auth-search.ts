@@ -46,6 +46,19 @@ export type AfterAuthTarget =
 	| { to: "/analytics/billing"; search: { plan: PlanTier } }
 	| { to: "/analytics" };
 
+/**
+ * Google OAuth start URL. The worker carries `ref` and `plan` through the
+ * OAuth state to the new account; both are validated before they're sent.
+ */
+export const googleAuthUrl = (apiBase: string, ref: unknown, plan: unknown): string => {
+	const query = new URLSearchParams();
+	const validRef = parseRef(ref);
+	const validPlan = parsePlan(plan);
+	if (validRef) query.set("ref", validRef);
+	if (validPlan) query.set("plan", validPlan);
+	return `${apiBase}/auth/google${query.size > 0 ? `?${query}` : ""}`;
+};
+
 /** A picked plan goes to billing, then a saved `next`, else the sites list. */
 export const afterAuthTarget = (search: AuthSearch): AfterAuthTarget => {
 	if (search.plan) return { search: { plan: search.plan }, to: "/analytics/billing" };

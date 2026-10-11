@@ -7,7 +7,7 @@ import { toast } from "sonner";
 import { LocaleToggle } from "@/components/locale-toggle";
 import { formatDate, useLocale, useT } from "@/lib/i18n";
 import type { MessageKey } from "@/lib/i18n";
-import { isPlanRequired } from "@/lib/legacy/api";
+import { isPlanRequired, LegacyApiError } from "@/lib/legacy/api";
 import {
 	IDR_PRICE,
 	cancelSubscription,
@@ -323,7 +323,8 @@ const periodLine = (
 			: t("billing.trialEndsToday");
 	}
 	if (!state.paidActive) return t("billing.endedOn", { date: date(sub.current_period_end) });
-	return sub.cancel_at_period_end
+	// QRIS purchases (no Polar subscription) cover one period and never renew.
+	return sub.cancel_at_period_end || !sub.polar_subscription_id
 		? t("billing.accessUntil", { date: date(sub.current_period_end) })
 		: t("billing.renews", { date: date(sub.current_period_end) });
 };
@@ -360,7 +361,14 @@ export const BillingView = ({
 
 	const checkoutMut = useMutation({
 		mutationFn: createCheckout,
-		onError: toastError,
+		onError: (err) => {
+			// 503: card checkout (Polar) is not configured or down.
+			if (err instanceof LegacyApiError && err.status === 503) {
+				toast.error(t("billing.cardUnavailable"));
+				return;
+			}
+			toastError(err);
+		},
 		onSuccess: (data) => {
 			window.location.href = data.url;
 		},
@@ -459,7 +467,12 @@ export const BillingView = ({
 	const qrisAvailable = plansQ.data?.qris_available ?? false;
 	const busy = checkoutMut.isPending || pakasirMut.isPending;
 	const state = sub ? subscriptionState(sub) : null;
-	const canCancel = Boolean(sub?.id && state?.paidActive && !sub.cancel_at_period_end);
+	// Only Polar (card) subscriptions renew, so only they can be canceled;
+	// a paid plan without one was bought with QRIS for a single period.
+	const isQrisPlan = Boolean(sub?.id && state?.paidActive && !sub.polar_subscription_id);
+	const canCancel = Boolean(
+		sub?.id && state?.paidActive && sub.polar_subscription_id && !sub.cancel_at_period_end,
+	);
 	const date = (iso: string) => formatDate(iso, locale);
 	const pendingPlan = pendingQris ? parsePlan(pendingQris.plan) : undefined;
 
@@ -598,6 +611,10 @@ export const BillingView = ({
 									</Button>
 								</div>
 							)
+						) : isQrisPlan ? (
+							<p className="text-muted-foreground max-w-prose text-xs">
+								{t("billing.qrisNoRenew", { date: date(sub.current_period_end) })}
+							</p>
 						) : null}
 					</div>
 				)}
