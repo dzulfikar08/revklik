@@ -360,7 +360,12 @@ export const RecordingsPanel = ({
 			) : listQ.isLoading ? (
 				<GrowthSkeleton rows={5} />
 			) : recordings.length === 0 ? (
-				<GrowthMsg>No recordings yet. Enable recording in your tracking script.</GrowthMsg>
+				<GrowthMsg>
+					No recordings in this range. Recording needs{" "}
+					<code className="text-foreground/80 whitespace-nowrap">data-heatmap="true"</code> on your
+					tracking script and visitor consent via{" "}
+					<code className="text-foreground/80 whitespace-nowrap">klikapa_consent.recording</code>.
+				</GrowthMsg>
 			) : (
 				<table className="w-full text-left text-xs">
 					<thead>

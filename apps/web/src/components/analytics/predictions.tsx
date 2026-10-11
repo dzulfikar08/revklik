@@ -71,7 +71,9 @@ export const PredictionsPanel = ({
 			) : q.isLoading ? (
 				<GrowthSkeleton rows={4} />
 			) : top5.length === 0 ? (
-				<GrowthMsg>No visitor data yet</GrowthMsg>
+				<GrowthMsg>
+					No visitors to score yet. Predictions start once visitor profiles exist.
+				</GrowthMsg>
 			) : (
 				<>
 					<button

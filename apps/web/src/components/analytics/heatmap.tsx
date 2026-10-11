@@ -169,7 +169,10 @@ export const HeatmapPanel = ({
 						<div className="bg-muted/60 h-72 animate-pulse rounded-lg" />
 					) : !data || data.totalClicks === 0 ? (
 						<GrowthMsg>
-							No click data for this page yet. Make sure the heatmap script is installed.
+							No clicks recorded on this page. Heatmaps need{" "}
+							<code className="text-foreground/80 whitespace-nowrap">data-heatmap="true"</code> on
+							your tracking script and visitor consent via{" "}
+							<code className="text-foreground/80 whitespace-nowrap">klikapa_consent.heatmap</code>.
 						</GrowthMsg>
 					) : (
 						<div className="grid gap-3 md:grid-cols-[1.2fr_1fr]">
