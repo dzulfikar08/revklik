@@ -49,6 +49,7 @@ import {
 	updateVisitor,
 } from "@/lib/legacy/api";
 import { useT } from "@/lib/i18n";
+import type { MessageKey } from "@/lib/i18n";
 import { openBilling } from "@/lib/billing-nav";
 import { parsePlan, planLabel } from "@/lib/legacy/billing";
 import type { PlanTier } from "@/lib/legacy/billing";
@@ -433,6 +434,7 @@ const slotValue = (slot: CrawlerSlot, tab: CrawlerTabKey): number =>
  * sees JS-executing bots (agents, headless browsers, prefetchers).
  */
 const CrawlersPanel = ({ siteId, rangeKey }: { siteId: string; rangeKey: RangeKey }) => {
+	const tr = useT();
 	const [crawlerTab, setCrawlerTab] = useState<CrawlerTabKey>("all");
 	const crawlersQ = useQuery({
 		enabled: Boolean(siteId),
@@ -473,21 +475,17 @@ const CrawlersPanel = ({ siteId, rangeKey }: { siteId: string; rangeKey: RangeKe
 	// Zero hits is the common case: a one-line strip instead of a full panel
 	// of dead space. The full chart only mounts when there is something to plot.
 	if (crawlersQ.isLoading || crawlersQ.error || (data?.totals.all ?? 0) === 0) {
-		let note = "No AI crawler visits in this range.";
+		let note = tr("dash.crawlers.none");
 		if (crawlersQ.isLoading) {
-			note = "Checking for AI crawler visits…";
+			note = tr("dash.crawlers.checking");
 		} else if (crawlersQ.error) {
-			note = "Couldn't load AI crawler visits. Reload to try again.";
+			note = tr("dash.crawlers.error");
 		}
 		return (
 			<section className="bg-card ring-foreground/10 flex flex-wrap items-baseline gap-x-3 gap-y-0.5 rounded-2xl px-3 py-2.5 ring-1">
-				<h2 className="text-sm font-semibold">AI crawlers</h2>
+				<h2 className="text-sm font-semibold">{tr("dash.crawlers.title")}</h2>
 				<p className="text-muted-foreground text-xs" aria-live="polite">
-					{note}{" "}
-					<span className="hidden sm:inline">
-						Counts AI agents (ChatGPT, Claude, Gemini and others) that run your tracking script;
-						they are kept out of your visitor numbers.
-					</span>
+					{note} <span className="hidden sm:inline">{tr("dash.crawlers.about")}</span>
 				</p>
 			</section>
 		);
@@ -665,6 +663,7 @@ const LocationPanel = ({
 	rangeKey: RangeKey;
 	filterStr: string;
 }) => {
+	const tr = useT();
 	const [locationTab, setLocationTab] = useState<LocationTabKey>("country");
 	const [locationSort, setLocationSort] = useState<"desc" | "asc">("desc");
 	const geoQ = useQuery({
@@ -704,7 +703,7 @@ const LocationPanel = ({
 				return (
 					<div
 						className="bg-muted/40 h-72 animate-pulse rounded-lg"
-						aria-label="Loading globe"
+						aria-label={tr("dash.loadingGlobe")}
 						role="status"
 					/>
 				);
@@ -769,13 +768,14 @@ const LocationPanel = ({
 };
 
 /** Platform rows come from the sessions table, not raw events. */
-const PLATFORM_EMPTY: Record<PlatformTabKey, string> = {
-	browser: "No sessions with browser data in this range.",
-	device: "No sessions with device data in this range.",
-	os: "No sessions with OS data in this range.",
-};
+const PLATFORM_EMPTY = {
+	browser: "dash.platform.browser",
+	device: "dash.platform.device",
+	os: "dash.platform.os",
+} as const satisfies Record<PlatformTabKey, MessageKey>;
 
 const PlatformPanel = ({ dash, loading }: DashProps) => {
+	const tr = useT();
 	const [platformTab, setPlatformTab] = useState<PlatformTabKey>("device");
 	const [platformDir, setPlatformDir] = useState<"desc" | "asc">("desc");
 	const src = useMemo(() => {
@@ -825,7 +825,7 @@ const PlatformPanel = ({ dash, loading }: DashProps) => {
 			<PanelBody
 				loading={loading}
 				hasData={sorted.length > 0}
-				emptyText={PLATFORM_EMPTY[platformTab]}
+				emptyText={tr(PLATFORM_EMPTY[platformTab])}
 			>
 				<div className="grid max-h-[420px] gap-1 overflow-y-auto">
 					{sorted.map((d) => (
@@ -850,6 +850,7 @@ const RevenuePanel = ({
 	rangeKey,
 	filterStr,
 }: DashProps & { siteId: string; rangeKey: RangeKey; filterStr: string }) => {
+	const tr = useT();
 	const [revenueTab, setRevenueTab] = useState<RevenueTabKey>("source");
 	const ascQ = useQuery({
 		enabled: Boolean(siteId) && revenueTab === "appstore",
@@ -903,7 +904,7 @@ const RevenuePanel = ({
 	const campaigns = campaignsQ.data ?? [];
 	const campaignBody = () => {
 		if (campaignsQ.isLoading) {
-			return <SkeletonRows rows={4} label="Loading campaigns" />;
+			return <SkeletonRows rows={4} label={tr("dash.loadingCampaigns")} />;
 		}
 		if (!campaigns.length) {
 			return <PanelMsg>No campaigns recorded.</PanelMsg>;
@@ -1054,20 +1055,23 @@ const LivePanel = ({
 	online: number | null;
 	feed: LiveFeedItem[];
 }) => {
+	const tr = useT();
 	const scrolls = feed.length > LIVE_FEED_VISIBLE;
 	return (
-		<Panel title="Live" hint="latest pageviews">
+		<Panel title="Live" hint={tr("dash.live.hint")}>
 			<p className="mb-1.5 flex items-center gap-2 text-[13px]">
 				<span className="size-2 shrink-0 rounded-full bg-(--up)" aria-hidden />
 				<span className="tabular-nums">
-					{online === null ? "Connecting…" : `${fmt(online)} online on ${domain ?? "this site"}`}
+					{online === null
+						? tr("dash.live.connecting")
+						: tr("dash.live.online", { count: fmt(online), domain: domain ?? "" })}
 				</span>
 			</p>
 			{feed.length === 0 ? (
-				<PanelMsg>No pageviews yet this session. New visits appear here as they happen.</PanelMsg>
+				<PanelMsg>{tr("dash.live.empty")}</PanelMsg>
 			) : (
 				<section
-					aria-label="Latest pageviews"
+					aria-label={tr("dash.live.hint")}
 					// Focusable so keyboard users can scroll the capped list.
 					tabIndex={scrolls ? 0 : undefined}
 					className={
@@ -1118,6 +1122,7 @@ const ExplorePanel = ({
 	pathFilter?: string | null;
 	onClearPathFilter?: () => void;
 }) => {
+	const tr = useT();
 	const [exploreTab, setExploreTab] = useState<"users" | "journeys">("users");
 	const [visitorRowId, setVisitorRowId] = useState<string | null>(null);
 	const queryClient = useQueryClient();
@@ -1221,9 +1226,7 @@ const ExplorePanel = ({
 						loading={visitorsQ.isLoading}
 						hasData={visitors.length > 0}
 						emptyText={
-							pathPrefix
-								? `No identified visitors touch ${pathPrefix}.`
-								: "No visitor profiles yet. A profile is created when the tracker records a visitor's first session."
+							pathPrefix ? `No identified visitors touch ${pathPrefix}.` : tr("dash.users.empty")
 						}
 					>
 						<div>
@@ -1406,6 +1409,7 @@ const FunnelSection = ({
 	filterStr: string;
 	onUpgrade: (plan: PlanTier) => void;
 }) => {
+	const tr = useT();
 	const [funnelPath, setFunnelPath] = useState("");
 	const funnelQ = useQuery({
 		enabled: Boolean(siteId),
@@ -1441,7 +1445,7 @@ const FunnelSection = ({
 					{/* Phones: the chart overlay would sit on the bands, so the rate moves here. */}
 					{funnelSteps.length > 0 && !funnelQ.error ? (
 						<span className="text-foreground font-semibold sm:hidden">
-							{funnelRate}% convert ·{" "}
+							{tr("dash.funnel.rate", { rate: funnelRate })} ·{" "}
 						</span>
 					) : null}
 					data-section scroll funnel
@@ -1750,6 +1754,7 @@ const StatTiles = ({
 	compare: SiteDashboard["compare"];
 	currency?: string;
 }) => {
+	const tr = useT();
 	const badge = (k: CompareKey, lowerIsBetter = false) => {
 		const d = deltaBadge(compare?.[k], lowerIsBetter);
 		return d ? { delta: d.label, tone: d.tone } : {};
@@ -1774,13 +1779,13 @@ const StatTiles = ({
 			<StatTile
 				label="Bounce rate"
 				value={stats ? `${stats.bounceRate.toFixed(1)}%` : undefined}
-				note={noSessions ? "No sessions yet" : undefined}
+				note={noSessions ? tr("dash.noSessions") : undefined}
 				{...(noSessions ? {} : badge("bounceRate", true))}
 			/>
 			<StatTile
 				label="Visit duration"
 				value={stats ? duration(stats.avgDuration) : undefined}
-				note={noSessions ? "No sessions yet" : undefined}
+				note={noSessions ? tr("dash.noSessions") : undefined}
 				{...(noSessions ? {} : badge("avgDuration"))}
 			/>
 			<StatTile
@@ -1822,6 +1827,7 @@ const AnalyticsPage = ({
 	onView: (view: ViewKey) => void;
 	highlightPlan?: PlanTier;
 }) => {
+	const tr = useT();
 	const navigate = useNavigate();
 	const setView = onView;
 	const [snippetOpen, setSnippetOpen] = useState(false);
@@ -2122,7 +2128,7 @@ const AnalyticsPage = ({
 								skeleton={
 									// Same box as the chart (h-52/h-60 + tick row) so nothing jumps.
 									<div className="mb-5 h-52 md:h-60" role="status">
-										<span className="sr-only">Loading traffic chart…</span>
+										<span className="sr-only">{tr("dash.loadingChart")}</span>
 										<div className="bg-muted/40 h-full animate-pulse rounded-lg" aria-hidden />
 									</div>
 								}

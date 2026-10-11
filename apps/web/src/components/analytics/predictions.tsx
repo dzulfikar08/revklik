@@ -9,6 +9,8 @@ import { fetchPredictions, GrowthPlanLockedError, refreshPredictions } from "@/l
 import type { RevenuePrediction } from "@/lib/legacy/growth";
 
 import { GrowthLocked, GrowthMsg, GrowthSkeleton } from "./growth-locked";
+import { useT } from "@/lib/i18n";
+
 import { Panel } from "./ui";
 
 const scoreTone = (p: number): string =>
@@ -23,6 +25,7 @@ export const PredictionsPanel = ({
 	onUpgrade: () => void;
 	siteId: string;
 }) => {
+	const t = useT();
 	const [refreshing, setRefreshing] = useState(false);
 	const q = useQuery({
 		enabled: Boolean(siteId),
@@ -71,9 +74,7 @@ export const PredictionsPanel = ({
 			) : q.isLoading ? (
 				<GrowthSkeleton rows={4} />
 			) : top5.length === 0 ? (
-				<GrowthMsg>
-					No visitors to score yet. Predictions start once visitor profiles exist.
-				</GrowthMsg>
+				<GrowthMsg>{t("predictions.empty")}</GrowthMsg>
 			) : (
 				<>
 					<button

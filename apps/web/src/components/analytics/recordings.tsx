@@ -10,11 +10,12 @@ import { Monitor, Smartphone, Tablet, X } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
+import { useT } from "@/lib/i18n";
 import { agoLabel } from "./data";
 import { fetchRecording, fetchRecordings, GrowthPlanLockedError } from "@/lib/legacy/growth";
 import type { RecordingDetail, RecordingEventType, RecordingSummary } from "@/lib/legacy/growth";
 import { GrowthLocked, GrowthMsg, GrowthSkeleton } from "./growth-locked";
-import { Panel } from "./ui";
+import { CodeSentence, Panel } from "./ui";
 
 /* --------------------------------- format ---------------------------------- */
 
@@ -311,6 +312,7 @@ export const RecordingsPanel = ({
 	rangeKey: string;
 	filterStr: string;
 }) => {
+	const t = useT();
 	const [activeId, setActiveId] = useState<string | null>(null);
 
 	const listQ = useQuery({
@@ -361,10 +363,10 @@ export const RecordingsPanel = ({
 				<GrowthSkeleton rows={5} />
 			) : recordings.length === 0 ? (
 				<GrowthMsg>
-					No recordings in this range. Recording needs{" "}
-					<code className="text-foreground/80 whitespace-nowrap">data-heatmap="true"</code> on your
-					tracking script and visitor consent via{" "}
-					<code className="text-foreground/80 whitespace-nowrap">klikapa_consent.recording</code>.
+					<CodeSentence
+						template={t("recordings.empty")}
+						codes={{ attr: 'data-heatmap="true"', consent: "klikapa_consent.recording" }}
+					/>
 				</GrowthMsg>
 			) : (
 				<table className="w-full text-left text-xs">

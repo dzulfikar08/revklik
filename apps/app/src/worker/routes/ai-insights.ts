@@ -7,7 +7,14 @@ import type {
 	InsightType,
 	KlikapaDatabase,
 } from "@revklik/shared";
-import { type AiBinding, aggregateData, callWorkersAI } from "../lib/ai-prompts";
+import {
+	type AggregatedData,
+	type AiBinding,
+	type RawInsight,
+	aggregateData,
+	callWorkersAI,
+	generateFallbackInsights,
+} from "../lib/ai-prompts";
 import { planRequiredBody } from "../lib/plan-gate";
 import { resolveQueryScope } from "../lib/site-scope";
 import { requirePlanForSite } from "../lib/plans";
@@ -64,16 +71,23 @@ aiInsightsRoutes.get("/", async (c) => {
 
 	const now = new Date().toISOString();
 	const ttlHours = getCacheTtlHours(range);
+	// Cached insight text has amounts baked in, so a row is only reusable when
+	// it was written in the site's current display currency.
+	const scope = await resolveQueryScope(db, siteId, c.env, undefined);
+	const currency = scope.money.currency;
 
 	// Check for non-expired cached insights
-	const cached = await db
-		.selectFrom("ai_insights")
-		.selectAll()
-		.where("site_id", "=", siteId)
-		.where("range", "=", range)
-		.where("expires_at", ">", now)
-		.orderBy("created_at", "desc")
-		.execute();
+	const cached = rowsInCurrency(
+		await db
+			.selectFrom("ai_insights")
+			.selectAll()
+			.where("site_id", "=", siteId)
+			.where("range", "=", range)
+			.where("expires_at", ">", now)
+			.orderBy("created_at", "desc")
+			.execute(),
+		currency,
+	);
 
 	if (cached.length > 0) {
 		return c.json({ data: buildResponse(cached, range), success: true });
@@ -92,22 +106,28 @@ aiInsightsRoutes.get("/", async (c) => {
 	if (recentCall) {
 		const elapsed = Date.now() - new Date(recentCall.created_at).getTime();
 		if (elapsed < RATE_LIMIT_MS) {
-			// Rate limited — return expired cache if available, otherwise empty
-			const expired = await db
-				.selectFrom("ai_insights")
-				.selectAll()
-				.where("site_id", "=", siteId)
-				.where("range", "=", range)
-				.orderBy("created_at", "desc")
-				.execute();
+			// Rate limited: reuse expired cache in the right currency, otherwise
+			// the rule-based insights (no AI call, nothing cached).
+			const expired = rowsInCurrency(
+				await db
+					.selectFrom("ai_insights")
+					.selectAll()
+					.where("site_id", "=", siteId)
+					.where("range", "=", range)
+					.orderBy("created_at", "desc")
+					.execute(),
+				currency,
+			);
 
 			if (expired.length > 0) {
 				return c.json({ data: buildResponse(expired, range), success: true });
 			}
+			const { start } = getDateRange(range);
+			const data = await aggregateData(db, siteId, start.toISOString(), scope.money);
 			return c.json({
-				data: emptyResponse(range),
+				data: freshResponse(generateFallbackInsights(data), data, range, new Date().toISOString()),
 				success: true,
-				message: "Insights generation rate-limited. Try again later.",
+				message: "Insights generation rate-limited. Showing rule-based insights.",
 			});
 		}
 	}
@@ -165,16 +185,27 @@ async function generateInsights(
 ): Promise<InsightsResponse> {
 	const { start } = getDateRange(range);
 	const startIso = start.toISOString();
+	let currency = "USD";
+	let data: AggregatedData | null = null;
 
 	try {
 		// Site display currency (with FX), so insight amounts match the dashboard.
 		const scope = await resolveQueryScope(db, siteId, c.env, undefined);
-		const data = await aggregateData(db, siteId, startIso, scope.money);
+		currency = scope.money.currency;
+		data = await aggregateData(db, siteId, startIso, scope.money);
 		const rawInsights = await callWorkersAI(c.env?.AI, data, range);
 
 		const now = new Date();
 		const expiresAt = new Date(now.getTime() + ttlHours * 60 * 60 * 1000).toISOString();
 		const createdAt = now.toISOString();
+
+		// Replace the previous batch so rows from an older batch (or another
+		// currency) never mix into the next cache read.
+		await db
+			.deleteFrom("ai_insights")
+			.where("site_id", "=", siteId)
+			.where("range", "=", range)
+			.execute();
 
 		// Cache each insight row
 		for (const insight of rawInsights) {
@@ -200,38 +231,28 @@ async function generateInsights(
 				.execute();
 		}
 
-		return {
-			insights: rawInsights.map((r, i) => ({
-				id: `${createdAt}-${i}`,
-				type: r.type,
-				title: r.title,
-				summary: r.summary,
-				detail: r.detail,
-				confidence: r.confidence,
-				action: r.action,
-			})),
-			generated_at: createdAt,
-			data_summary: {
-				total_events: data.totalEvents,
-				total_revenue: data.totalRevenue,
-				date_range: range,
-				currency: data.currency,
-			},
-		};
+		return freshResponse(rawInsights, data, range, createdAt);
 	} catch (err) {
 		console.error("Insight generation failed:", err);
 
-		// Try returning expired cache as fallback
-		const fallback = await db
-			.selectFrom("ai_insights")
-			.selectAll()
-			.where("site_id", "=", siteId)
-			.where("range", "=", range)
-			.orderBy("created_at", "desc")
-			.execute();
+		// Expired cache is only a fallback when it was written in this currency.
+		const fallback = rowsInCurrency(
+			await db
+				.selectFrom("ai_insights")
+				.selectAll()
+				.where("site_id", "=", siteId)
+				.where("range", "=", range)
+				.orderBy("created_at", "desc")
+				.execute(),
+			currency,
+		);
 
 		if (fallback.length > 0) {
 			return buildResponse(fallback, range);
+		}
+		// Aggregation worked but the AI call or the cache write failed.
+		if (data) {
+			return freshResponse(generateFallbackInsights(data), data, range, new Date().toISOString());
 		}
 
 		return emptyResponse(range);
@@ -241,6 +262,48 @@ async function generateInsights(
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
+
+/** Currency a cached row's amounts were written in; null for pre-currency rows. */
+function rowCurrency(row: AiInsightTable): string | null {
+	if (!row.data_refs) return null;
+	try {
+		const d: { currency?: unknown } = JSON.parse(row.data_refs);
+		return typeof d.currency === "string" ? d.currency : null;
+	} catch {
+		return null;
+	}
+}
+
+/** Cached rows usable for a site whose display currency is `currency`. */
+export function rowsInCurrency(rows: AiInsightTable[], currency: string): AiInsightTable[] {
+	return rows.filter((r) => rowCurrency(r) === currency);
+}
+
+function freshResponse(
+	raw: RawInsight[],
+	data: AggregatedData,
+	range: string,
+	createdAt: string,
+): InsightsResponse {
+	return {
+		insights: raw.map((r, i) => ({
+			id: `${createdAt}-${i}`,
+			type: r.type,
+			title: r.title,
+			summary: r.summary,
+			detail: r.detail,
+			confidence: r.confidence,
+			action: r.action,
+		})),
+		generated_at: createdAt,
+		data_summary: {
+			total_events: data.totalEvents,
+			total_revenue: data.totalRevenue,
+			date_range: range,
+			currency: data.currency,
+		},
+	};
+}
 
 function buildResponse(rows: AiInsightTable[], range: string): InsightsResponse {
 	const insights: AiInsight[] = rows.map((r, i) => {

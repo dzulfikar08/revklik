@@ -10,6 +10,8 @@ import {
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { MouseEvent, ReactNode, TouchEvent } from "react";
 
+import { useT } from "@/lib/i18n";
+
 import { fmt, money, niceMax } from "./data";
 import type { Point } from "./data";
 
@@ -40,6 +42,7 @@ export const StatTile = ({
 	/** Replaces a value that would be misleading (e.g. no sessions to average). */
 	note?: string;
 }) => {
+	const t = useT();
 	const Arrow = tone === "good" ? ArrowUpRight : ArrowDownRight;
 	return (
 		<div
@@ -52,7 +55,7 @@ export const StatTile = ({
 				) : value === undefined ? (
 					<>
 						<span className="bg-muted h-5 w-20 animate-pulse rounded-md" aria-hidden />
-						<span className="sr-only">Loading {label}</span>
+						<span className="sr-only">{t("dash.loadingLabel", { label })}</span>
 					</>
 				) : (
 					<span className="text-[22px] leading-7 font-semibold tracking-tight whitespace-nowrap tabular-nums">
@@ -67,7 +70,7 @@ export const StatTile = ({
 					>
 						<Arrow className="size-3" aria-hidden />
 						{delta}
-						<span className="sr-only"> vs previous period</span>
+						<span className="sr-only"> {t("dash.vsPrevious")}</span>
 					</span>
 				) : null}
 			</div>
@@ -130,29 +133,56 @@ export const Panel = ({
  * Loading placeholder shaped like the bar rows it stands in for, so a panel
  * keeps its height when data lands instead of jumping from one text line.
  */
-export const SkeletonRows = ({
-	rows = 6,
-	label = "Loading",
+export const SkeletonRows = ({ rows = 6, label }: { rows?: number; label?: string }) => {
+	const t = useT();
+	return (
+		<div className="grid gap-1" role="status">
+			<span className="sr-only">{label ?? t("dash.loading")}</span>
+			{Array.from({ length: rows }, (_, i) => (
+				<div
+					key={i}
+					aria-hidden
+					className="bg-muted/40 flex h-9 items-center justify-between gap-4 rounded-lg px-2.5"
+				>
+					<span
+						className="bg-muted h-3 animate-pulse rounded"
+						style={{ width: `${Math.max(28, 72 - i * 9)}%` }}
+					/>
+					<span className="bg-muted h-3 w-8 animate-pulse rounded" />
+				</div>
+			))}
+		</div>
+	);
+};
+
+/**
+ * Renders a translated sentence whose `{name}` placeholders are code
+ * snippets (attribute names, globals): translators keep the sentence whole
+ * while the code stays verbatim and unbroken.
+ */
+const PLACEHOLDER_SPLIT = /(\{\w+\})/u;
+const PLACEHOLDER_NAME = /^\{(\w+)\}$/u;
+
+export const CodeSentence = ({
+	template,
+	codes,
 }: {
-	rows?: number;
-	label?: string;
+	template: string;
+	codes: Record<string, string>;
 }) => (
-	<div className="grid gap-1" role="status">
-		<span className="sr-only">{label}…</span>
-		{Array.from({ length: rows }, (_, i) => (
-			<div
-				key={i}
-				aria-hidden
-				className="bg-muted/40 flex h-9 items-center justify-between gap-4 rounded-lg px-2.5"
-			>
-				<span
-					className="bg-muted h-3 animate-pulse rounded"
-					style={{ width: `${Math.max(28, 72 - i * 9)}%` }}
-				/>
-				<span className="bg-muted h-3 w-8 animate-pulse rounded" />
-			</div>
-		))}
-	</div>
+	<>
+		{template.split(PLACEHOLDER_SPLIT).map((part, i) => {
+			const name = PLACEHOLDER_NAME.exec(part)?.[1];
+			const code = name ? codes[name] : undefined;
+			return code ? (
+				<code key={`${part}-${i}`} className="text-foreground/80 whitespace-nowrap">
+					{code}
+				</code>
+			) : (
+				part
+			);
+		})}
+	</>
 );
 
 export const SortHint = ({

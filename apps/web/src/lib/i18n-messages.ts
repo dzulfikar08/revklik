@@ -197,6 +197,38 @@ const en = {
 
 	// public dashboard
 	"public.makeYours": "Make a dashboard like this",
+
+	// analytics dashboard
+	"dash.loading": "Loading…",
+	"dash.loadingLabel": "Loading {label}",
+	"dash.loadingChart": "Loading traffic chart…",
+	"dash.loadingCampaigns": "Loading campaigns",
+	"dash.loadingGlobe": "Loading globe",
+	"dash.vsPrevious": "vs previous period",
+	"dash.noSessions": "No sessions yet",
+	"dash.crawlers.title": "AI crawlers",
+	"dash.crawlers.none": "No AI crawler visits in this range.",
+	"dash.crawlers.checking": "Checking for AI crawler visits…",
+	"dash.crawlers.error": "Couldn't load AI crawler visits. Reload to try again.",
+	"dash.crawlers.about":
+		"Counts AI agents (ChatGPT, Claude, Gemini and others) that run your tracking script; they are kept out of your visitor numbers.",
+	"dash.platform.browser": "No sessions with browser data in this range.",
+	"dash.platform.device": "No sessions with device data in this range.",
+	"dash.platform.os": "No sessions with OS data in this range.",
+	"dash.live.hint": "latest pageviews",
+	"dash.live.connecting": "Connecting…",
+	"dash.live.online": "{count} online on {domain}",
+	"dash.live.empty": "No pageviews yet this session. New visits appear here as they happen.",
+	"dash.users.empty":
+		"No visitor profiles yet. A profile is created when the tracker records a visitor's first visit.",
+	"dash.funnel.rate": "{rate}% convert",
+	"insights.confidence": "{pct}% confidence",
+	"insights.action": "Recommended action:",
+	"heatmap.empty":
+		"No clicks recorded on this page. Heatmaps need {attr} on your tracking script and visitor consent via {consent}.",
+	"recordings.empty":
+		"No recordings in this range. Recording needs {attr} on your tracking script and visitor consent via {consent}.",
+	"predictions.empty": "No visitors to score yet. Predictions start once visitor profiles exist.",
 } as const;
 
 export type MessageKey = keyof typeof en;
@@ -380,6 +412,40 @@ const id: Record<BaseKey, string> = {
 	"banner.cancelling": "Langganan kamu berhenti {date}. Pilih paket supaya akses tetap jalan.",
 
 	"public.makeYours": "Buat dashboard seperti ini",
+
+	"dash.loading": "Memuat…",
+	"dash.loadingLabel": "Memuat {label}",
+	"dash.loadingChart": "Memuat grafik trafik…",
+	"dash.loadingCampaigns": "Memuat kampanye",
+	"dash.loadingGlobe": "Memuat globe",
+	"dash.vsPrevious": "dibanding periode sebelumnya",
+	"dash.noSessions": "Belum ada sesi",
+	"dash.crawlers.title": "Crawler AI",
+	"dash.crawlers.none": "Belum ada kunjungan crawler AI di rentang ini.",
+	"dash.crawlers.checking": "Mengecek kunjungan crawler AI…",
+	"dash.crawlers.error":
+		"Kunjungan crawler AI gagal dimuat. Muat ulang halaman untuk mencoba lagi.",
+	"dash.crawlers.about":
+		"Menghitung agen AI (ChatGPT, Claude, Gemini, dan lainnya) yang menjalankan skrip tracking kamu. Kunjungan ini tidak ikut dihitung sebagai pengunjung.",
+	"dash.platform.browser": "Belum ada sesi dengan data browser di rentang ini.",
+	"dash.platform.device": "Belum ada sesi dengan data perangkat di rentang ini.",
+	"dash.platform.os": "Belum ada sesi dengan data OS di rentang ini.",
+	"dash.live.hint": "pageview terbaru",
+	"dash.live.connecting": "Menyambungkan…",
+	"dash.live.online": "{count} orang online di {domain}",
+	"dash.live.empty":
+		"Belum ada pageview sejak halaman ini dibuka. Kunjungan baru langsung muncul di sini.",
+	"dash.users.empty":
+		"Belum ada profil pengunjung. Profil dibuat saat tracker mencatat kunjungan pertama seseorang.",
+	"dash.funnel.rate": "{rate}% konversi",
+	"insights.confidence": "Keyakinan {pct}%",
+	"insights.action": "Saran tindakan:",
+	"heatmap.empty":
+		"Belum ada klik tercatat di halaman ini. Heatmap butuh {attr} di skrip tracking dan izin pengunjung lewat {consent}.",
+	"recordings.empty":
+		"Belum ada rekaman di rentang ini. Rekaman butuh {attr} di skrip tracking dan izin pengunjung lewat {consent}.",
+	"predictions.empty":
+		"Belum ada pengunjung untuk dinilai. Prediksi mulai muncul setelah ada profil pengunjung.",
 };
 
 export const MESSAGES: {
