@@ -53,5 +53,5 @@ penguntitan atas orang tertentu.
 Kalau Anda menjalankan situs, toko online, atau jasa digital di Indonesia,
 analytics yang tidak bicara revenue adalah setengah alat. Daftar di
 [app.revklik.com](https://app.revklik.com), tempel snippet-nya, dan hubungkan
-payment provider Anda. Paket Micro gratis, dan Anda bisa melihat panel
-revenue sendiri hari ini juga.
+payment provider Anda. Trial 7 hari mencakup semua fitur Growth tanpa kartu
+kredit, jadi Anda bisa melihat panel revenue sendiri hari ini juga.

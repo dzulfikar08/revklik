@@ -116,8 +116,8 @@ terlihat.
 ### Fitur atribusi revenue ada di paket yang mana?
 
 Panel revenue dan atribusi tersedia mulai paket Starter, Rp 64.000 per
-bulan, dibayar dengan QRIS atau kartu, tanpa kontrak. Paket Micro gratis
-bisa Anda pakai dulu untuk mencoba tracking tanpa risiko.
+bulan, dibayar dengan QRIS atau kartu, tanpa kontrak. Akun baru mendapat trial 7 hari
+dengan semua fitur Growth, termasuk panel revenue, tanpa kartu kredit.
 
 ## Coba di situs Anda sendiri
 

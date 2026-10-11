@@ -12,8 +12,8 @@ langkah, dan statistik mengalir sejak kunjungan pertama.
 
 Daftar di [app.revklik.com](https://app.revklik.com) dengan email dan
 password, atau lanjut dengan Google. Setiap akun baru langsung dapat
-**gratis 7 hari, tanpa kartu kredit**. Setelah trial, Anda tetap bisa
-melanjutkan di paket Micro yang gratis.
+**trial 7 hari dengan semua fitur Growth, tanpa kartu kredit**. Setelah
+trial, paket termurah Micro Rp 16.000 per bulan.
 
 ## 2. Tambahkan situs Anda
 

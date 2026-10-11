@@ -44,13 +44,13 @@ const features = [
 const plans = [
 	{
 		name: "Micro",
-		price: "Gratis",
-		period: null,
-		note: "Untuk mencoba tanpa risiko.",
+		price: "Rp 16.000",
+		period: "/bulan",
+		note: "Untuk blog dan situs pribadi.",
 		features: [
 			"1 situs",
 			"10K event per bulan",
-			"Skrip di bawah 1KB",
+			"Skrip ~4 KB (gzip)",
 			"Retensi 7 hari",
 		],
 		highlight: false,
@@ -126,7 +126,7 @@ const faqs = [
 
 <Base
 	title="RevKlik: analytics web dan revenue yang ramah privasi"
-	description="Lihat siapa yang berkunjung, apa yang mereka baca, dan kapan kunjungan berubah jadi uang masuk. Tanpa cookie, skrip di bawah 1KB, harga dalam rupiah, bayar dengan QRIS atau kartu."
+	description="Lihat siapa yang berkunjung, apa yang mereka baca, dan kapan kunjungan berubah jadi uang masuk. Tanpa cookie, trial 7 hari tanpa kartu, harga dalam rupiah, bayar dengan QRIS atau kartu."
 >
 	<!-- Hero -->
 	<section class="mx-auto max-w-6xl px-4 pt-16 pb-20 md:px-6 md:pt-24 md:pb-28">
@@ -142,10 +142,10 @@ const faqs = [
 				</p>
 				<div class="mt-8 flex flex-wrap items-center gap-4">
 					<a
-						href={`${APP_URL}/login`}
+						href={`${APP_URL}/register`}
 						class="btn bg-accent text-accent-ink hover:bg-accent/90 rounded-btn px-5 py-2.5 text-sm font-medium"
 					>
-						Mulai gratis
+						Coba gratis 7 hari
 					</a>
 					<a
 						href={DOCS_URL}
@@ -157,7 +157,7 @@ const faqs = [
 					</a>
 				</div>
 				<p class="text-muted mt-4 text-xs">
-					Gratis 7 hari, tanpa kartu. Lanjut dengan paket Micro gratis.
+					Trial 7 hari dengan semua fitur Growth, tanpa kartu. Setelah itu mulai Rp 16.000/bulan.
 				</p>
 			</div>
 
@@ -180,7 +180,7 @@ const faqs = [
 					</p>
 				</div>
 				<figcaption class="text-muted flex items-center justify-between px-2 py-2.5 text-[11px]">
-					<span>Di bawah 1KB, tanpa cookie</span>
+					<span>~4 KB (gzip), tanpa cookie</span>
 					<span class="bg-accent-soft text-accent rounded-full px-2 py-0.5 font-medium">Live dalam hitungan detik</span>
 				</figcaption>
 			</figure>
@@ -340,7 +340,7 @@ const faqs = [
 							))}
 						</ul>
 						<a
-							href={`${APP_URL}/login`}
+							href={`${APP_URL}/register?plan=${plan.name.toLowerCase()}`}
 							class:list={[
 								"btn mt-6 block rounded-btn px-4 py-2 text-center text-sm font-medium",
 								plan.highlight
@@ -348,7 +348,7 @@ const faqs = [
 									: "border-line text-text hover:bg-surface-2 border",
 							]}
 						>
-							{plan.price === "Gratis" ? "Mulai" : "Pilih paket"}
+							Mulai trial gratis
 						</a>
 					</div>
 				))}
@@ -392,10 +392,10 @@ const faqs = [
 					mengalir pada kunjungan pertama.
 				</p>
 				<a
-					href={`${APP_URL}/login`}
+					href={`${APP_URL}/register`}
 					class="btn bg-accent text-accent-ink hover:bg-accent/90 mt-7 inline-block rounded-btn px-6 py-2.5 text-sm font-medium"
 				>
-					Mulai gratis
+					Coba gratis 7 hari
 				</a>
 			</div>
 		</div>
