@@ -1,11 +1,71 @@
-let migrationRan = false;
+/**
+ * Version the live schema must reach. Bump it whenever a step is appended to
+ * VERSIONED_STEPS; a DB already at this version costs one SELECT per isolate.
+ */
+export const SCHEMA_VERSION = 2;
 
-/** True once migrateDatabase has completed successfully on this isolate. */
-export const hasMigrated = (): boolean => migrationRan;
+const migrated = new WeakSet<D1Database>();
+
+/** True once migrateDatabase has completed for this D1 binding on this isolate. */
+export const hasMigrated = (d1: D1Database): boolean => migrated.has(d1);
+
+const ALREADY_APPLIED_RE = /duplicate column|already exists|no such index/i;
+
+/** Run one idempotent DDL statement; only "already applied" errors are swallowed. */
+async function runDdl(d1: D1Database, statement: string): Promise<void> {
+	try {
+		await d1.prepare(statement).run();
+	} catch (err) {
+		if (err instanceof Error && ALREADY_APPLIED_RE.test(err.message)) return;
+		throw err;
+	}
+}
+
+const SCHEMA_VERSION_TABLE =
+	"CREATE TABLE IF NOT EXISTS schema_version (id INTEGER PRIMARY KEY CHECK (id = 1), version INTEGER NOT NULL, updated_at TEXT NOT NULL)";
+
+interface MigrationStep {
+	version: number;
+	run: (d1: D1Database) => Promise<void>;
+}
+
+const VERSIONED_STEPS: MigrationStep[] = [
+	{ version: 1, run: baselineSchema },
+	{ version: 2, run: (d1) => runDdl(d1, SCHEMA_VERSION_TABLE) },
+];
+
+async function readSchemaVersion(d1: D1Database): Promise<number> {
+	try {
+		const row = await d1
+			.prepare("SELECT version FROM schema_version WHERE id = 1")
+			.first<{ version: number }>();
+		return Number(row?.version ?? 0);
+	} catch {
+		return 0;
+	}
+}
 
 export async function migrateDatabase(d1: D1Database): Promise<void> {
-	if (migrationRan) return;
+	if (migrated.has(d1)) return;
 
+	const current = await readSchemaVersion(d1);
+	if (current < SCHEMA_VERSION) {
+		for (const step of VERSIONED_STEPS) {
+			if (step.version > current) await step.run(d1);
+		}
+		await runDdl(d1, SCHEMA_VERSION_TABLE);
+		await d1
+			.prepare(
+				"INSERT INTO schema_version (id, version, updated_at) VALUES (1, ?, ?) ON CONFLICT(id) DO UPDATE SET version = MAX(version, excluded.version), updated_at = excluded.updated_at",
+			)
+			.bind(SCHEMA_VERSION, new Date().toISOString())
+			.run();
+	}
+	migrated.add(d1);
+}
+
+/** Pre-versioning schema: every statement is idempotent and tolerates partial prior runs. */
+async function baselineSchema(d1: D1Database): Promise<void> {
 	try {
 		await d1.batch([
 			d1.prepare(
@@ -774,6 +834,4 @@ export async function migrateDatabase(d1: D1Database): Promise<void> {
 	} catch {
 		/* table may already exist */
 	}
-
-	migrationRan = true;
 }

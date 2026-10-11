@@ -106,7 +106,7 @@ export function createApp(): Hono<Env> {
 			// Bind first: the API must serve even when migrations fail.
 			c.set("db", createDb(d1));
 			// Throttle failed-migration retries to one attempt per minute per isolate.
-			if (!hasMigrated() && Date.now() - lastMigrationAttempt > MIGRATION_RETRY_MS) {
+			if (!hasMigrated(d1) && Date.now() - lastMigrationAttempt > MIGRATION_RETRY_MS) {
 				lastMigrationAttempt = Date.now();
 				try {
 					await migrateDatabase(d1);
@@ -240,15 +240,9 @@ export function createApp(): Hono<Env> {
 	// Public dashboard (no auth)
 	app.route("/public", publicLiveRoutes);
 	app.get("/public/:token", async (c) => {
-		const d1 = c.env.DB;
-		if (!d1) return c.json({ error: "DB unavailable", success: false }, 503);
-		try {
-			await migrateDatabase(d1);
-		} catch {}
-		c.set("db", createDb(d1));
-
+		const db = c.get("db") as Kysely<KlikapaDatabase> | undefined;
+		if (!db) return c.json({ error: "DB unavailable", success: false }, 503);
 		const token = c.req.param("token");
-		const db = c.get("db") as Kysely<KlikapaDatabase>;
 		const site = await db
 			.selectFrom("sites")
 			.select(["id", "name", "domain", "public_dashboard"])

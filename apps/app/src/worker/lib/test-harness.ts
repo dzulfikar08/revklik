@@ -49,11 +49,7 @@ export function makeD1(db: Database): D1Like {
 	};
 }
 
-/**
- * Minimal tables for route-level tests. The migrations module has a
- * process-wide "already ran" guard, so a second test file with a fresh
- * in-memory DB cannot go through migrateDatabase again.
- */
+/** Minimal tables for route-level tests that skip the full migrateDatabase run. */
 export function createRouteTables(db: Database): void {
 	db.exec(`
 		CREATE TABLE IF NOT EXISTS users (id TEXT PRIMARY KEY, email TEXT NOT NULL UNIQUE, password_hash TEXT NOT NULL, name TEXT NOT NULL, google_id TEXT, avatar_url TEXT, role TEXT NOT NULL DEFAULT 'user', created_at TEXT NOT NULL DEFAULT (datetime('now')));
