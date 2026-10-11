@@ -232,6 +232,25 @@ export interface KlikapaDatabase {
 	marketplace_orders: MarketplaceOrderTable;
 	affiliates: AffiliateTable;
 	referrals: ReferralTable;
+	pakasir_orders: PakasirOrderTable;
+	webhook_dedupe: WebhookDedupeTable;
+}
+
+export interface PakasirOrderTable {
+	order_id: string;
+	user_id: string;
+	plan: string;
+	amount: number;
+	checkout_url: string;
+	status: "pending" | "completed";
+	created_at: string;
+	processed_at: string | null;
+}
+
+/** Idempotency keys for webhook deliveries and payment records. */
+export interface WebhookDedupeTable {
+	key: string;
+	created_at: string;
 }
 
 export interface HeatmapClickTable {
@@ -333,7 +352,7 @@ export interface SubscriptionTable {
 	cancel_at_period_end: number;
 	polar_subscription_id: string | null;
 	polar_customer_id: string | null;
-	// Pakasir (QRIS) pending order — set at checkout, verified by webhook/verify endpoint.
+	// Legacy: last QRIS order id. New orders live in pakasir_orders.
 	pakasir_order_id: string | null;
 	created_at: string;
 	updated_at: string;

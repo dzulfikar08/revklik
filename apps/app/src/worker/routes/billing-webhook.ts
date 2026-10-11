@@ -1,7 +1,11 @@
 import { Hono } from "hono";
+import type { Kysely } from "kysely";
+import type { KlikapaDatabase } from "@revklik/shared";
 import { createDb, sql } from "../db";
 import { type PolarOrder, processPolarOrder } from "../lib/polar";
 import type { Env } from "../types";
+import { PLANS, type PlanTier } from "../lib/plans";
+import { verifyStandardWebhook } from "../lib/standard-webhooks";
 import { generateId } from "../utils";
 
 export const billingWebhookRoutes = new Hono<Env>();
@@ -19,6 +23,8 @@ interface PolarBillingData {
 	metadata?: Record<string, string | undefined>;
 	current_period_start?: string;
 	current_period_end?: string;
+	cancel_at_period_end?: boolean;
+	product_id?: string;
 	customer_id?: string;
 	customer_email?: string | null;
 	customer?: { email?: string | null } | null;
@@ -33,7 +39,44 @@ interface PolarBillingData {
 		state?: string | null;
 		city?: string | null;
 	} | null;
-	product?: { name?: string | null } | null;
+	product?: { id?: string; name?: string | null } | null;
+}
+
+const SUBSCRIPTION_UPSERT_EVENTS = new Set([
+	"subscription.created",
+	"subscription.active",
+	"subscription.updated",
+]);
+const HANDLED_EVENTS = new Set([
+	...SUBSCRIPTION_UPSERT_EVENTS,
+	"subscription.canceled",
+	"subscription.revoked",
+	"order.paid",
+	"order.refunded",
+]);
+
+/** Plan from checkout metadata, else from the Polar product id configured per tier. */
+function resolvePlan(
+	data: PolarBillingData,
+	eventMetadata: Record<string, string | undefined> | undefined,
+	env: Env["Bindings"],
+): PlanTier | null {
+	const fromMeta = data.metadata?.plan || eventMetadata?.plan;
+	if (fromMeta && fromMeta in PLANS) return fromMeta as PlanTier;
+	const productId = data.product_id || data.product?.id;
+	if (!productId) return null;
+	if (productId === env.POLAR_GROWTH_PRODUCT_ID) return "growth";
+	if (productId === env.POLAR_STARTER_PRODUCT_ID) return "starter";
+	if (productId === env.POLAR_MICRO_PRODUCT_ID) return "micro";
+	return null;
+}
+
+async function markProcessed(db: Kysely<KlikapaDatabase>, key: string): Promise<void> {
+	await db
+		.insertInto("webhook_dedupe")
+		.values({ key, created_at: new Date().toISOString() })
+		.onConflict((oc) => oc.column("key").doNothing())
+		.execute();
 }
 
 // POST / — Billing webhook (no auth — Polar calls this)
@@ -43,55 +86,40 @@ billingWebhookRoutes.post("/", async (c) => {
 	const db = createDb(d1);
 	const body = await c.req.text();
 
-	// Verify Polar webhook signature using standardwebhooks format
+	// Fail closed: without the secret any caller could grant itself a plan.
 	const secret = c.env.POLAR_WEBHOOK_SECRET || "";
-	if (secret) {
-		const webhookId = c.req.header("webhook-id") || "";
-		const webhookTs = c.req.header("webhook-timestamp") || "";
-		const webhookSig = c.req.header("webhook-signature") || "";
-		if (!webhookId || !webhookTs || !webhookSig) {
-			return c.json({ error: "Missing webhook headers" }, 401);
-		}
-		// standardwebhooks: signed_payload = "${webhook_id}.${webhook_timestamp}.${body}"
-		const signedPayload = `${webhookId}.${webhookTs}.${body}`;
-		const enc = new TextEncoder();
-		// Secret is base64-encoded (strip whsec_ prefix if present)
-		const rawSecret = secret.startsWith("whsec_") ? secret.slice(7) : secret;
-		const secretBytes = Uint8Array.from(atob(rawSecret), (c) => c.charCodeAt(0));
-		const key = await crypto.subtle.importKey(
-			"raw",
-			secretBytes,
-			{ name: "HMAC", hash: "SHA-256" },
-			false,
-			["sign"],
-		);
-		const sig = await crypto.subtle.sign("HMAC", key, enc.encode(signedPayload));
-		const computedSig = `v1,${btoa(String.fromCharCode(...new Uint8Array(sig)))}`;
-		// Compare against any signature in the header (space-separated)
-		const sigs = webhookSig.split(" ");
-		let valid = false;
-		for (const s of sigs) {
-			let r = 0;
-			const a = computedSig,
-				b = s.startsWith("v1,") ? s : `v1,${s}`;
-			const maxLen = Math.max(a.length, b.length);
-			for (let i = 0; i < maxLen; i++) r |= (a.charCodeAt(i) || 0) ^ (b.charCodeAt(i) || 0);
-			if (r === 0) {
-				valid = true;
-				break;
-			}
-		}
-		if (!valid) return c.json({ error: "Invalid signature" }, 401);
-	}
+	if (!secret) return c.json({ error: "POLAR_WEBHOOK_SECRET not configured" }, 503);
+	const webhookId = c.req.header("webhook-id") || "";
+	const verdict = await verifyStandardWebhook(
+		body,
+		{
+			id: webhookId,
+			timestamp: c.req.header("webhook-timestamp") || "",
+			signature: c.req.header("webhook-signature") || "",
+		},
+		secret,
+	);
+	if (verdict === "missing_headers") return c.json({ error: "Missing webhook headers" }, 401);
+	if (verdict === "stale") return c.json({ error: "Stale webhook timestamp" }, 401);
+	if (verdict !== "ok") return c.json({ error: "Invalid signature" }, 401);
+
+	const dedupeKey = `polar-billing:${webhookId}`;
+	const replay = await db
+		.selectFrom("webhook_dedupe")
+		.select("key")
+		.where("key", "=", dedupeKey)
+		.executeTakeFirst();
+	if (replay) return c.json({ success: true, duplicate: true });
 
 	try {
 		const event = JSON.parse(body) as PolarBillingEvent;
 		// Polar webhook types: subscription.created, subscription.active, subscription.canceled, etc.
-		const eventType = event.type;
+		const eventType = event.type ?? "";
+		if (!HANDLED_EVENTS.has(eventType)) return c.json({ success: true, ignored: eventType });
 		const data: PolarBillingData = event.data ?? {};
 		// Metadata can be at top level (from checkout) or in data
 		let userId = data?.metadata?.user_id || event.metadata?.user_id;
-		const plan = data?.metadata?.plan || event.metadata?.plan;
+		const plan = resolvePlan(data, event.metadata, c.env);
 
 		// Fallback: match user by customer email (direct checkout links have no metadata)
 		if (!userId) {
@@ -108,12 +136,11 @@ billingWebhookRoutes.post("/", async (c) => {
 
 		if (!userId) return c.json({ error: "Missing user_id" }, 400);
 
-		if (
-			eventType === "checkout.created" ||
-			eventType === "subscription.created" ||
-			eventType === "subscription.active" ||
-			eventType === "subscription.updated"
-		) {
+		// checkout.created is deliberately absent: it fires before payment and its
+		// data.id / status describe the checkout, not a subscription.
+		if (SUBSCRIPTION_UPSERT_EVENTS.has(eventType)) {
+			const cancelAtPeriodEnd =
+				data.cancel_at_period_end === undefined ? undefined : data.cancel_at_period_end ? 1 : 0;
 			await db
 				.insertInto("subscriptions")
 				.values({
@@ -124,7 +151,7 @@ billingWebhookRoutes.post("/", async (c) => {
 					current_period_start: data?.current_period_start || new Date().toISOString(),
 					current_period_end:
 						data?.current_period_end || new Date(Date.now() + 30 * 86400000).toISOString(),
-					cancel_at_period_end: 0,
+					cancel_at_period_end: cancelAtPeriodEnd ?? 0,
 					polar_subscription_id: data?.id || null,
 					polar_customer_id: data?.customer_id || null,
 					created_at: new Date().toISOString(),
@@ -132,9 +159,12 @@ billingWebhookRoutes.post("/", async (c) => {
 				})
 				.onConflict((oc) =>
 					oc.column("user_id").doUpdateSet({
-						plan: plan || "starter",
+						// Without a resolvable plan keep the stored one rather than guess.
+						plan: plan || undefined,
 						status: data?.status || "active",
+						current_period_start: data?.current_period_start || undefined,
 						current_period_end: data?.current_period_end || undefined,
+						cancel_at_period_end: cancelAtPeriodEnd,
 						polar_subscription_id: data?.id || undefined,
 						polar_customer_id: data?.customer_id || undefined,
 						updated_at: new Date().toISOString(),
@@ -145,7 +175,7 @@ billingWebhookRoutes.post("/", async (c) => {
 			// Revenue attribution: create conversion event from checkout metadata
 			const visitorId = data?.metadata?.klikapa_visitor_id;
 			const sessionId = data?.metadata?.klikapa_session_id;
-			if (visitorId && plan && plan !== "free") {
+			if (visitorId && plan) {
 				const userSites = await db
 					.selectFrom("sites")
 					.select(["id"])
@@ -245,18 +275,34 @@ billingWebhookRoutes.post("/", async (c) => {
 			if (!siteId) return c.json({ error: "No site found for user" }, 404);
 
 			const result = await processPolarOrder(db, order as PolarOrder, siteId);
+			await markProcessed(db, dedupeKey);
 			return c.json({ success: true, result });
 		} else if (eventType === "subscription.canceled") {
+			// Cancellation is scheduled: access runs to current_period_end.
 			await db
 				.updateTable("subscriptions")
 				.set({
 					cancel_at_period_end: 1,
-					status: "canceled",
+					current_period_end: data?.current_period_end || undefined,
 					updated_at: new Date().toISOString(),
 				})
 				.where("user_id", "=", userId)
 				.execute();
+		} else if (eventType === "subscription.revoked") {
+			// Revocation ends access now (period over, refund, or immediate cancel).
+			const now = new Date().toISOString();
+			await db
+				.updateTable("subscriptions")
+				.set({
+					status: "canceled",
+					cancel_at_period_end: 0,
+					current_period_end: now,
+					updated_at: now,
+				})
+				.where("user_id", "=", userId)
+				.execute();
 		}
+		await markProcessed(db, dedupeKey);
 		return c.json({ success: true });
 	} catch (err) {
 		return c.json({ error: err instanceof Error ? err.message : "Webhook error" }, 500);

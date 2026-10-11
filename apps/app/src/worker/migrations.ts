@@ -2,7 +2,7 @@
  * Version the live schema must reach. Bump it whenever a step is appended to
  * VERSIONED_STEPS; a DB already at this version costs one SELECT per isolate.
  */
-export const SCHEMA_VERSION = 2;
+export const SCHEMA_VERSION = 3;
 
 const migrated = new WeakSet<D1Database>();
 
@@ -32,7 +32,57 @@ interface MigrationStep {
 const VERSIONED_STEPS: MigrationStep[] = [
 	{ version: 1, run: baselineSchema },
 	{ version: 2, run: (d1) => runDdl(d1, SCHEMA_VERSION_TABLE) },
+	{ version: 3, run: billingIntegritySchema },
 ];
+
+/** DEV-29: QRIS orders live outside subscriptions; webhook idempotency keys. */
+async function billingIntegritySchema(d1: D1Database): Promise<void> {
+	await runDdl(
+		d1,
+		`CREATE TABLE IF NOT EXISTS pakasir_orders (
+      order_id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      plan TEXT NOT NULL,
+      amount INTEGER NOT NULL,
+      checkout_url TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'pending',
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      processed_at TEXT
+    )`,
+	);
+	await runDdl(
+		d1,
+		"CREATE INDEX IF NOT EXISTS idx_po_user ON pakasir_orders(user_id, status, created_at)",
+	);
+	await runDdl(
+		d1,
+		"CREATE TABLE IF NOT EXISTS webhook_dedupe (key TEXT PRIMARY KEY, created_at TEXT NOT NULL DEFAULT (datetime('now')))",
+	);
+	// Carry orders recorded on the subscription row over: an active row's order
+	// was already applied, so it lands as completed and can never be replayed.
+	await d1
+		.prepare(
+			`INSERT INTO pakasir_orders (order_id, user_id, plan, amount, checkout_url, status, created_at, processed_at)
+       SELECT pakasir_order_id, user_id, plan,
+         CASE plan WHEN 'micro' THEN 16000 WHEN 'starter' THEN 64000 ELSE 192000 END,
+         'https://app.pakasir.com/pay/revklik/' || CASE plan WHEN 'micro' THEN 16000 WHEN 'starter' THEN 64000 ELSE 192000 END || '?order_id=' || pakasir_order_id || '&qris_only=1',
+         CASE WHEN status = 'pending' THEN 'pending' ELSE 'completed' END,
+         updated_at,
+         CASE WHEN status = 'pending' THEN NULL ELSE updated_at END
+       FROM subscriptions
+       WHERE pakasir_order_id IS NOT NULL AND plan IN ('micro', 'starter', 'growth')
+       ON CONFLICT(order_id) DO NOTHING`,
+		)
+		.run();
+	// subscription.canceled used to end access immediately; rows still inside a
+	// paid period get their access back (they stay flagged cancel_at_period_end).
+	await d1
+		.prepare(
+			"UPDATE subscriptions SET status = 'active' WHERE status = 'canceled' AND cancel_at_period_end = 1 AND polar_subscription_id IS NOT NULL AND current_period_end > ?",
+		)
+		.bind(new Date().toISOString())
+		.run();
+}
 
 async function readSchemaVersion(d1: D1Database): Promise<number> {
 	try {

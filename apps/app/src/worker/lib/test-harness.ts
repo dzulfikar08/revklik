@@ -84,3 +84,97 @@ export async function seedSiteWithSessionKey(
 		.run(generateId(), "u1", await hashToken(token), token.slice(0, 8), "test", "session", now);
 	return { token, siteId: "s1" };
 }
+
+export const testExecCtx = {
+	waitUntil: (p: Promise<unknown>) => {
+		void p.catch(() => {});
+	},
+	passThroughOnException: () => {},
+	abort: () => {},
+	props: {},
+};
+
+export interface SeedUserOptions {
+	id: string;
+	email?: string;
+	role?: string;
+	plan?: string;
+	status?: string;
+	periodEnd?: string;
+	withSite?: string;
+}
+
+export interface MigratedTestApp {
+	db: Database;
+	d1: D1Database;
+	env: Record<string, unknown>;
+	call: (
+		method: string,
+		path: string,
+		opts?: { token?: string; body?: unknown; headers?: Record<string, string> },
+	) => Promise<Response>;
+	/** Inserts user (+ subscription, + site) and returns a kp_ session token. */
+	seedUser: (opts: SeedUserOptions) => Promise<string>;
+}
+
+/** Fully migrated in-memory DB behind the real app; envExtras merge into bindings. */
+export async function createMigratedTestApp(
+	envExtras: Record<string, unknown> = {},
+): Promise<MigratedTestApp> {
+	const { createApp } = await import("../app");
+	const { migrateDatabase } = await import("../migrations");
+	const db = new Database(":memory:");
+	const d1 = makeD1(db) as unknown as D1Database;
+	await migrateDatabase(d1);
+	const app = createApp();
+	const env: Record<string, unknown> = {
+		DB: d1,
+		ASSETS: { fetch: async () => new Response("nf", { status: 404 }) },
+		...envExtras,
+	};
+	const call: MigratedTestApp["call"] = async (method, path, opts = {}) => {
+		const headers: Record<string, string> = { ...opts.headers };
+		if (opts.token) headers.Authorization = `Bearer ${opts.token}`;
+		let body: string | undefined;
+		if (opts.body !== undefined) {
+			body = typeof opts.body === "string" ? opts.body : JSON.stringify(opts.body);
+			headers["content-type"] ??= "application/json";
+		}
+		return app.fetch(
+			new Request(`http://local${path}`, { method, headers, body }),
+			env,
+			testExecCtx as never,
+		);
+	};
+	const seedUser: MigratedTestApp["seedUser"] = async (o) => {
+		const now = new Date().toISOString();
+		db.prepare(
+			"INSERT INTO users (id, email, password_hash, name, role, created_at) VALUES (?,?,?,?,?,?)",
+		).run(o.id, o.email ?? `${o.id}@example.com`, "x", o.id, o.role ?? "user", now);
+		if (o.plan) {
+			db.prepare(
+				"INSERT INTO subscriptions (id, user_id, plan, status, current_period_start, current_period_end, cancel_at_period_end, created_at, updated_at) VALUES (?,?,?,?,?,?,0,?,?)",
+			).run(
+				`sub-${o.id}`,
+				o.id,
+				o.plan,
+				o.status ?? "active",
+				now,
+				o.periodEnd ?? new Date(Date.now() + 20 * 86_400_000).toISOString(),
+				now,
+				now,
+			);
+		}
+		if (o.withSite) {
+			db.prepare(
+				"INSERT INTO sites (id, user_id, name, domain, created_at) VALUES (?,?,?,?,?)",
+			).run(o.withSite, o.id, o.withSite, `${o.withSite}.example.com`, now);
+		}
+		const token = `kp_test_${generateId()}`;
+		db.prepare(
+			"INSERT INTO api_keys (id, user_id, key_hash, key_prefix, name, token_type, created_at) VALUES (?,?,?,?,?,?,?)",
+		).run(generateId(), o.id, await hashToken(token), token.slice(0, 8), "test", "session", now);
+		return token;
+	};
+	return { db, d1, env, call, seedUser };
+}

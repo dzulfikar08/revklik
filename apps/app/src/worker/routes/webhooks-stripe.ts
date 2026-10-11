@@ -23,6 +23,7 @@ interface StripeCheckoutSession {
 	amount_subtotal?: number | null;
 	currency?: string | null;
 	payment_method_types?: string[] | null;
+	payment_settings?: { payment_method_types?: string[] | null } | null;
 	subscription?: string | null;
 	mode?: string | null;
 }
@@ -120,8 +121,12 @@ stripeWebhookRoutes.post("/", async (c) => {
 
 	const amount = (session.amount_total ?? session.amount_subtotal ?? 0) / 100;
 	const currency = (session.currency || "usd").toUpperCase();
+	// Checkout sessions list payment_method_types; invoice.paid objects carry them
+	// under payment_settings.
 	const paymentMethodType =
-		session.payment_method_types?.[0] || session.payment_method_types?.[0] || "card";
+		session.payment_method_types?.[0] ||
+		session.payment_settings?.payment_method_types?.[0] ||
+		"card";
 	const mappedMethod = mapStripePaymentMethod(paymentMethodType);
 	const stripeSessionId = session.id || "";
 
