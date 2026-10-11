@@ -12,6 +12,7 @@ import {
 	queryCampaigns,
 	queryDevices,
 	queryGeo,
+	queryGscQueries,
 	queryJourneys,
 	queryOverview,
 	queryReferrers,
@@ -93,6 +94,8 @@ export const TOOL_HANDLERS: Record<ToolName, ToolHandler> = {
 			intArg(a, "limit", 20, 100),
 			strArg(a, "path"),
 		),
+	gsc_queries: async (ctx, a) =>
+		queryGscQueries(ctx, resolveSiteId(ctx, a.site_id), intArg(a, "limit", 20, 100)),
 	export_events: async (ctx, a) => {
 		const siteId = resolveSiteId(ctx, a.site_id);
 		const range = strArg(a, "range") ?? "30d";

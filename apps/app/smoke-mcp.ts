@@ -115,8 +115,8 @@ async function get(path: string, token?: string) {
 	const r = await post(rpc("tools/list"));
 	const tools = r.json?.result?.tools ?? [];
 	check(
-		"tools/list → 12 tools",
-		tools.length === 12,
+		"tools/list → 13 tools",
+		tools.length === 13,
 		tools.map((t: { name: string }) => t.name),
 	);
 	check(
@@ -134,6 +134,7 @@ async function get(path: string, token?: string) {
 				"revenue_breakdown",
 				"campaigns",
 				"visitor_journeys",
+				"gsc_queries",
 				"export_events",
 			]),
 	);
@@ -310,6 +311,15 @@ async function get(path: string, token?: string) {
 	const r = await post(rpc("tools/call", { name: "analytics_overview", arguments: {} }), SITE);
 	const data = JSON.parse(r.json?.result?.content?.[0]?.text ?? "{}");
 	check("rv_ + omitted site_id → bound site default", data?.pageviews === 3, data);
+}
+{
+	const r = await post(rpc("tools/call", { name: "gsc_queries", arguments: {} }), SITE);
+	const data = JSON.parse(r.json?.result?.content?.[0]?.text ?? "null");
+	check(
+		"gsc_queries → per-query aggregates (empty array before first sync)",
+		Array.isArray(data),
+		data,
+	);
 }
 {
 	const r = await post(

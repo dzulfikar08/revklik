@@ -70,22 +70,24 @@ the token as a Bearer `Authorization` header.
 
 ## Tools
 
-Twelve read-only tools, mirroring `/api/v1` one to one:
+Thirteen read-only tools, mirroring the REST API one to one (`gsc_queries` is
+backed by the GSC endpoint `/api/gsc/queries`, which predates v1):
 
-| Tool                   | Returns                                                          | Scope              |
-| ---------------------- | ---------------------------------------------------------------- | ------------------ |
-| `whoami`               | Token identity: user, plan, token type, scopes, bound site       |                    |
-| `list_sites`           | Sites the token can access (owned + team)                        | `sites:read`       |
-| `analytics_overview`   | Pageviews, visitors, sessions, bounce rate, revenue, conversions | `analytics:read`   |
-| `analytics_timeseries` | Pageviews and visitors per day (hourly for ranges up to 48h)     | `analytics:read`   |
-| `top_pages`            | Top pages by pageviews                                           | `analytics:read`   |
-| `top_referrers`        | Traffic sources with visitor share, `direct` included            | `analytics:read`   |
-| `geo_breakdown`        | Visitors by country, region, and city                            | `analytics:read`   |
-| `device_breakdown`     | Visitors by device type, OS, and browser                         | `analytics:read`   |
-| `revenue_breakdown`    | Revenue by source, by country, and over time                     | `analytics:read`   |
-| `campaigns`            | UTM campaigns with conversions, revenue, and conversion rate     | `analytics:read`   |
-| `visitor_journeys`     | Recent sessions with step-by-step journeys and known profiles    | `analytics:read`   |
-| `export_events`        | Raw rows (events, visitors, or sessions) as JSON or CSV          | `analytics:export` |
+| Tool                   | Returns                                                           | Scope              |
+| ---------------------- | ----------------------------------------------------------------- | ------------------ |
+| `whoami`               | Token identity: user, plan, token type, scopes, bound site        |                    |
+| `list_sites`           | Sites the token can access (owned + team)                         | `sites:read`       |
+| `analytics_overview`   | Pageviews, visitors, sessions, bounce rate, revenue, conversions  | `analytics:read`   |
+| `analytics_timeseries` | Pageviews and visitors per day (hourly for ranges up to 48h)      | `analytics:read`   |
+| `top_pages`            | Top pages by pageviews                                            | `analytics:read`   |
+| `top_referrers`        | Traffic sources with visitor share, `direct` included             | `analytics:read`   |
+| `geo_breakdown`        | Visitors by country, region, and city                             | `analytics:read`   |
+| `device_breakdown`     | Visitors by device type, OS, and browser                          | `analytics:read`   |
+| `revenue_breakdown`    | Revenue by source, by country, and over time                      | `analytics:read`   |
+| `campaigns`            | UTM campaigns with conversions, revenue, and conversion rate      | `analytics:read`   |
+| `visitor_journeys`     | Recent sessions with step-by-step journeys and known profiles     | `analytics:read`   |
+| `gsc_queries`          | Google Search Console queries: clicks, impressions, CTR, position | `analytics:read`   |
+| `export_events`        | Raw rows (events, visitors, or sessions) as JSON or CSV           | `analytics:export` |
 
 Shared arguments:
 

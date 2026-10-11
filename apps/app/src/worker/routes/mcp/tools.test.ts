@@ -9,7 +9,7 @@ import { CANONICAL_TOOL_NAMES, TOOL_DEFS } from "./tools";
 describe("tool registry", () => {
 	test("registry matches CANONICAL_TOOL_NAMES exactly, in order", () => {
 		expect(TOOL_DEFS.map((d) => d.name)).toEqual([...CANONICAL_TOOL_NAMES]);
-		expect(TOOL_DEFS).toHaveLength(12);
+		expect(TOOL_DEFS).toHaveLength(13);
 	});
 
 	test("all tool names are snake_case", () => {
@@ -18,9 +18,11 @@ describe("tool registry", () => {
 		}
 	});
 
-	test("every description documents its backing v1 route", () => {
+	// GSC routes live under /api/gsc/* (they predate the v1 API); everything
+	// else is /api/v1/*. The invariant is "documents its backing REST route".
+	test("every description documents its backing REST route", () => {
 		for (const def of TOOL_DEFS) {
-			expect(def.description).toContain("REST: GET /api/v1/");
+			expect(def.description).toContain("REST: GET /api/");
 		}
 	});
 
@@ -31,22 +33,23 @@ describe("tool registry", () => {
 		}
 	});
 
-	test("site_id is required exactly for the 10 site-scoped analytics tools", () => {
-		const required = new Set<string>(
-			TOOL_DEFS.filter((d) => d.inputSchema.required?.includes("site_id")).map((d) => d.name),
-		);
-		const expected = new Set([
+	test("site_id is required exactly for the 11 site-scoped analytics tools", () => {
+		const required: string[] = TOOL_DEFS.filter((d) => d.inputSchema.required?.includes("site_id"))
+			.map((d) => d.name)
+			.sort();
+		const expected: string[] = [
 			"analytics_overview",
 			"analytics_timeseries",
+			"campaigns",
+			"device_breakdown",
+			"export_events",
+			"geo_breakdown",
+			"gsc_queries",
+			"revenue_breakdown",
 			"top_pages",
 			"top_referrers",
-			"geo_breakdown",
-			"device_breakdown",
-			"revenue_breakdown",
-			"campaigns",
 			"visitor_journeys",
-			"export_events",
-		]);
+		];
 		expect(required).toEqual(expected);
 	});
 

@@ -17,6 +17,7 @@ export const CANONICAL_TOOL_NAMES = [
 	"revenue_breakdown",
 	"campaigns",
 	"visitor_journeys",
+	"gsc_queries",
 	"export_events",
 ] as const;
 
@@ -143,6 +144,13 @@ export const TOOL_DEFS: ToolDef[] = [
 					'Only sessions whose steps include a pageview with this path prefix, e.g. "/voltrus-mes" matches /voltrus-mes and /voltrus-mes/…',
 			},
 		}),
+	},
+	{
+		name: "gsc_queries",
+		description:
+			"Stored Google Search Console queries for a site, aggregated per query over the stored ~30d window (sync refreshes the last 7d): clicks, impressions, CTR, average position. REST: GET /api/gsc/queries",
+		scope: "analytics:read",
+		inputSchema: siteArgs({ limit: limitProperty(20) }, ["site_id"]),
 	},
 	{
 		name: "export_events",

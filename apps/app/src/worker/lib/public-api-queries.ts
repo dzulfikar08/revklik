@@ -776,6 +776,63 @@ export async function queryCampaigns(ctx: PublicApiCtx, siteId: string | undefin
 	}));
 }
 
+// --- Search Console ---
+
+export interface GscQueryAggregate {
+	query: string;
+	clicks: number;
+	impressions: number;
+	ctr: number;
+	position: number;
+	days_seen: number;
+	first_date: string;
+	last_date: string;
+}
+
+// Stored Google Search Console queries rolled up per query over the stored
+// window (~30 days; `revklik gsc sync` / the dashboard refresh the last 7).
+// Same rollup as the CLI `revklik gsc queries`: clicks and impressions summed,
+// ctr and position averaged across days.
+export async function queryGscQueries(
+	ctx: PublicApiCtx,
+	siteId: string | undefined,
+	limit: number,
+): Promise<GscQueryAggregate[]> {
+	const db = ctx.db;
+	const id = await guardSite(ctx, siteId);
+
+	const thirtyDaysAgo = new Date(Date.now() - 30 * 86400000).toISOString().split("T")[0] ?? "";
+	const rows = await db
+		.selectFrom("search_console_data")
+		.select([
+			"query",
+			({ fn }) => fn.sum<number>("clicks").as("clicks"),
+			({ fn }) => fn.sum<number>("impressions").as("impressions"),
+			({ fn }) => fn.avg<number>("ctr").as("ctr"),
+			({ fn }) => fn.avg<number>("position").as("position"),
+			({ fn }) => fn.count<number>("id").as("days_seen"),
+			({ fn }) => fn.min("date").as("first_date"),
+			({ fn }) => fn.max("date").as("last_date"),
+		])
+		.where("site_id", "=", id)
+		.where("date", ">=", thirtyDaysAgo)
+		.groupBy("query")
+		.orderBy("clicks", "desc")
+		.limit(limit)
+		.execute();
+
+	return rows.map((r) => ({
+		query: r.query,
+		clicks: Number(r.clicks),
+		impressions: Number(r.impressions),
+		ctr: Number(r.ctr),
+		position: Number(r.position),
+		days_seen: Number(r.days_seen),
+		first_date: String(r.first_date),
+		last_date: String(r.last_date),
+	}));
+}
+
 // --- Export ---
 
 export const EXPORT_COLUMNS = {

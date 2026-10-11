@@ -61,5 +61,5 @@ describe("callTool dispatch", () => {
 test("every canonical tool name has a handler (compile-time Record + runtime check)", () => {
 	// TOOL_HANDLERS is Record<ToolName, …> so TS already enforces exhaustiveness;
 	// this guards against runtime-only registries sneaking in.
-	expect([...CANONICAL_TOOL_NAMES].length).toBe(12);
+	expect([...CANONICAL_TOOL_NAMES].length).toBe(13);
 });
