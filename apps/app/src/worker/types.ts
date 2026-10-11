@@ -33,6 +33,8 @@ export type Bindings = {
 	TOKOPEDIA_FS_ID?: string;
 	// Admin bootstrap
 	SUPER_ADMIN_EMAIL?: string;
+	// IDR per 1 USD for revenue conversion (default 16000)
+	FX_USD_IDR?: string;
 };
 
 export type Env = { Bindings: Bindings; Variables: Variables };

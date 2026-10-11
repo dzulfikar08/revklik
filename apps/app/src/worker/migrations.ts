@@ -2,7 +2,7 @@
  * Version the live schema must reach. Bump it whenever a step is appended to
  * VERSIONED_STEPS; a DB already at this version costs one SELECT per isolate.
  */
-export const SCHEMA_VERSION = 3;
+export const SCHEMA_VERSION = 4;
 
 const migrated = new WeakSet<D1Database>();
 
@@ -33,6 +33,11 @@ const VERSIONED_STEPS: MigrationStep[] = [
 	{ version: 1, run: baselineSchema },
 	{ version: 2, run: (d1) => runDdl(d1, SCHEMA_VERSION_TABLE) },
 	{ version: 3, run: billingIntegritySchema },
+	{
+		version: 4,
+		run: (d1) =>
+			runDdl(d1, "ALTER TABLE sites ADD COLUMN revenue_currency TEXT NOT NULL DEFAULT 'USD'"),
+	},
 ];
 
 /** DEV-29: QRIS orders live outside subscriptions; webhook idempotency keys. */

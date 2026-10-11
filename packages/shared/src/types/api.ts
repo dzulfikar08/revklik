@@ -23,6 +23,8 @@ export interface TrackEventPayload {
 	ut?: string;
 	uco?: string;
 	rv?: number;
+	/** ISO currency of rv; defaults to the site's revenue_currency. */
+	cur?: string;
 	pr?: Record<string, string>;
 	ts?: number;
 	dv?: string;
@@ -140,6 +142,8 @@ export interface SiteWithStats extends Site {
 	sparkline: number[];
 	revenue: number;
 	revenue_sparkline: number[];
+	/** Currency of revenue / revenue_sparkline. */
+	currency?: string;
 }
 
 // Embeddable live-stats widget
@@ -300,6 +304,8 @@ export interface SiteDashboard {
 	exitPages: { path: string; exits: number }[];
 	revenueByMethod: RevenueByPaymentMethod[];
 	revenueByProvider: RevenueByPaymentProvider[];
+	/** ISO code every revenue figure above is expressed in (site revenue_currency). */
+	currency?: string;
 }
 
 export interface VisitorProfile {

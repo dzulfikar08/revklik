@@ -2,14 +2,16 @@ import { Hono } from "hono";
 import type { Kysely } from "kysely";
 import type { CreateSitePayload, KlikapaDatabase, Site, SiteWithStats } from "@revklik/shared";
 import { sql } from "../db";
+import { normalizeCurrency, revenueSql, usdRates } from "../lib/fx";
 import { getPlanLimits } from "../lib/plans";
+import { displayCurrency } from "../lib/site-scope";
 import { clampTzOffset } from "../lib/widget-live";
 import { fingerprintFromRequest, generateId } from "../utils";
 import { invalidateExcludedCache } from "./track";
 
 type Variables = { db: Kysely<KlikapaDatabase>; userId: string };
 
-export const siteRoutes = new Hono<{ Variables: Variables }>();
+export const siteRoutes = new Hono<{ Variables: Variables; Bindings: { FX_USD_IDR?: string } }>();
 
 siteRoutes.get("/", async (c) => {
 	const db = c.get("db");
@@ -17,10 +19,11 @@ siteRoutes.get("/", async (c) => {
 
 	const sites = await db
 		.selectFrom("sites")
-		.select(["id", "name", "domain", "created_at"])
+		.select(["id", "name", "domain", "created_at", "revenue_currency"])
 		.where("user_id", "=", userId)
 		.orderBy("created_at", "desc")
 		.execute();
+	const rates = usdRates(c.env);
 
 	const rangeParam = c.req.query("range") || "7d";
 	let startIso: string;
@@ -37,7 +40,8 @@ siteRoutes.get("/", async (c) => {
 	}
 
 	const sitesWithStats: SiteWithStats[] = await Promise.all(
-		sites.map(async (site) => {
+		sites.map(async ({ revenue_currency, ...site }) => {
+			const money = { currency: displayCurrency(revenue_currency, rates), rates };
 			const [stats, sparkRows, revenueRows] = await Promise.all([
 				db
 					.selectFrom("events")
@@ -61,7 +65,7 @@ siteRoutes.get("/", async (c) => {
 				// Daily revenue across all event types (revenue can ride on conversions too).
 				db
 					.selectFrom("events")
-					.select([({ fn }) => fn.sum<number>("revenue").as("revenue")])
+					.select([sql<number>`SUM(${revenueSql(money)})`.as("revenue")])
 					.where("site_id", "=", site.id)
 					.where("revenue", ">", 0)
 					.where("timestamp", ">=", startIso)
@@ -77,6 +81,7 @@ siteRoutes.get("/", async (c) => {
 				revenue: revenueRows.reduce((sum, r) => sum + Number(r.revenue ?? 0), 0),
 				sparkline: sparkRows.map((r) => Number(r.count)),
 				revenue_sparkline: revenueRows.map((r) => Number(r.revenue ?? 0)),
+				currency: money.currency,
 			};
 		}),
 	);
@@ -174,6 +179,39 @@ siteRoutes.delete("/:siteId", async (c) => {
 	await db.deleteFrom("visitor_profiles").where("site_id", "=", siteId).execute();
 	await db.deleteFrom("sites").where("id", "=", siteId).execute();
 	return c.json({ success: true });
+});
+
+// Revenue display currency; rows in other currencies are converted at query time.
+siteRoutes.patch("/:siteId", async (c) => {
+	const db = c.get("db");
+	const userId = c.get("userId");
+	const siteId = c.req.param("siteId");
+	const body = await c.req.json<{ revenue_currency?: unknown }>().catch(() => ({}) as never);
+	const site = await db
+		.selectFrom("sites")
+		.select(["id"])
+		.where("id", "=", siteId)
+		.where("user_id", "=", userId)
+		.executeTakeFirst();
+	if (!site) return c.json({ error: "Site not found", success: false }, 404);
+
+	const rates = usdRates(c.env);
+	const currency = normalizeCurrency(body?.revenue_currency);
+	if (!currency || !(currency in rates)) {
+		return c.json(
+			{
+				error: `revenue_currency must be one of: ${Object.keys(rates).join(", ")}`,
+				success: false,
+			},
+			400,
+		);
+	}
+	await db
+		.updateTable("sites")
+		.set({ revenue_currency: currency })
+		.where("id", "=", siteId)
+		.execute();
+	return c.json({ data: { id: siteId, revenue_currency: currency }, success: true });
 });
 
 siteRoutes.get("/:siteId/snippet", async (c) => {

@@ -2,6 +2,7 @@ import { Hono } from "hono";
 import type { Kysely } from "kysely";
 import type { IdentifyPayload, KlikapaDatabase, TrackEventPayload } from "@revklik/shared";
 import { sql } from "../db";
+import { eventCurrency, resolveEventTimestamp, sanitizeRevenue } from "../lib/ingest";
 import { enforceSiteQuota, incrementCachedCount } from "../lib/subscription-cache";
 import {
 	countryFromTimezone,
@@ -179,7 +180,7 @@ trackRoutes.post("/track", async (c) => {
 
 	const site = await db
 		.selectFrom("sites")
-		.select(["id"])
+		.select(["id", "revenue_currency"])
 		.where("id", "=", siteId)
 		.executeTakeFirst();
 	if (!site) return c.json({ error: "Invalid site_id", success: false }, 400);
@@ -247,7 +248,8 @@ trackRoutes.post("/track", async (c) => {
 		seenSids.add(payload.sid);
 		const sessionInc = isNewSession ? 1 : 0;
 
-		const ts = payload.ts ? new Date(payload.ts).toISOString() : new Date().toISOString();
+		const ts = resolveEventTimestamp(payload.ts);
+		const revenue = sanitizeRevenue(payload.rv);
 		const eventType = payload.t === "p" ? "pageview" : payload.t === "c" ? "conversion" : "custom";
 		const vid = fingerprint ? resolvedVid : payload.vid;
 
@@ -269,7 +271,9 @@ trackRoutes.post("/track", async (c) => {
 				utm_campaign: payload.uc ?? null,
 				utm_term: payload.ut ?? null,
 				utm_content: payload.uco ?? null,
-				revenue: payload.rv ?? null,
+				revenue,
+				currency:
+					revenue === null ? null : eventCurrency(payload.cur, payload.pr, site.revenue_currency),
 				props: payload.pr ? JSON.stringify(payload.pr) : null,
 				country: cfCountry,
 				region: cfRegion,
@@ -282,7 +286,7 @@ trackRoutes.post("/track", async (c) => {
 			.execute();
 
 		const pvInc = eventType === "pageview" ? 1 : 0;
-		const rvInc = payload.rv ?? 0;
+		const rvInc = revenue ?? 0;
 
 		await db
 			.insertInto("sessions")
@@ -573,9 +577,14 @@ trackRoutes.post("/track/payment", async (c) => {
 		);
 	}
 
+	const revenue = sanitizeRevenue(amount);
+	if (revenue === null) {
+		return c.json({ error: "amount must be a number between 0 and 1e9", success: false }, 400);
+	}
+
 	const site = await db
 		.selectFrom("sites")
-		.select(["id"])
+		.select(["id", "revenue_currency"])
 		.where("id", "=", siteId)
 		.executeTakeFirst();
 	if (!site) return c.json({ error: "Invalid site_id", success: false }, 400);
@@ -602,7 +611,7 @@ trackRoutes.post("/track/payment", async (c) => {
 		.select(["id"])
 		.where("site_id", "=", siteId)
 		.where("event_type", "=", "conversion")
-		.where("props", "like", `%"transaction_id":"${transaction_id}"%`)
+		.where(sql<string>`json_extract(props, '$.transaction_id')`, "=", String(transaction_id))
 		.executeTakeFirst();
 	if (existing) return c.json({ success: true, event_id: existing.id, duplicate: true });
 
@@ -638,7 +647,8 @@ trackRoutes.post("/track/payment", async (c) => {
 	}
 
 	const sessionId = body.sid || generateId();
-	const ts = body.timestamp ? new Date(body.timestamp).toISOString() : new Date().toISOString();
+	// Server-to-server payments may be backfilled, so only future/invalid times are clamped.
+	const ts = resolveEventTimestamp(body.timestamp, Date.now(), Number.POSITIVE_INFINITY);
 	const eventId = generateId();
 
 	await db
@@ -659,7 +669,8 @@ trackRoutes.post("/track/payment", async (c) => {
 			utm_campaign: utmCampaign,
 			utm_term: null,
 			utm_content: null,
-			revenue: Number(amount),
+			revenue,
+			currency: eventCurrency(body.currency, body.props, site.revenue_currency),
 			props: JSON.stringify({ transaction_id, ...(body.props || {}) }),
 			country: cfCountry,
 			region: cfRegion,
@@ -687,13 +698,13 @@ trackRoutes.post("/track/payment", async (c) => {
 			os: null,
 			total_sessions: 0,
 			total_pageviews: 0,
-			total_revenue: Number(amount),
+			total_revenue: revenue,
 			fingerprint: null,
 		})
 		.onConflict((oc) =>
 			oc.columns(["site_id", "visitor_id"]).doUpdateSet({
 				last_seen: ts,
-				total_revenue: sql`total_revenue + ${Number(amount)}`,
+				total_revenue: sql`total_revenue + ${revenue}`,
 			}),
 		)
 		.execute();

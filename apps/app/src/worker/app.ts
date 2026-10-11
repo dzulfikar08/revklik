@@ -252,9 +252,11 @@ export function createApp(): Hono<Env> {
 		if (!site) return c.json({ error: "Dashboard not found", success: false }, 404);
 
 		const { getDateRange } = await import("./utils");
+		const { resolveQueryScope } = await import("./lib/site-scope");
 		const range = c.req.query("range") || "7d";
 		const { start } = getDateRange(range);
 		const startIso = start.toISOString();
+		const scope = await resolveQueryScope(db, site.id, c.env, c.req.query("tz"));
 
 		const {
 			getOverviewStats,
@@ -278,15 +280,15 @@ export function createApp(): Hono<Env> {
 			revenueTimeseries,
 			channels,
 		] = await Promise.all([
-			getOverviewStats(db, site.id, startIso),
-			getTimeseries(db, site.id, startIso, false),
+			getOverviewStats(db, site.id, startIso, undefined, undefined, scope),
+			getTimeseries(db, site.id, startIso, false, undefined, undefined, scope),
 			getTopPages(db, site.id, startIso, 10),
 			getReferrers(db, site.id, startIso, 10),
 			getDeviceBreakdown(db, site.id, startIso),
-			getRevenueBySource(db, site.id, startIso),
-			getRevenueByCountry(db, site.id, startIso),
-			getRevenueTimeseries(db, site.id, startIso, false),
-			getChannelBreakdown(db, site.id, startIso),
+			getRevenueBySource(db, site.id, startIso, undefined, undefined, scope),
+			getRevenueByCountry(db, site.id, startIso, undefined, undefined, scope),
+			getRevenueTimeseries(db, site.id, startIso, false, undefined, undefined, scope),
+			getChannelBreakdown(db, site.id, startIso, undefined, undefined, scope),
 		]);
 
 		return c.json({
@@ -304,8 +306,10 @@ export function createApp(): Hono<Env> {
 					revenueByCountry,
 					revenueTimeseries,
 					channels,
+					currency: scope.money.currency,
 				},
 			},
+			currency: scope.money.currency,
 			success: true,
 		});
 	});

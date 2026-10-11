@@ -64,6 +64,8 @@ export interface SiteTable {
 	widget_enabled?: number;
 	widget_token?: string | null;
 	widget_tz_offset?: number;
+	/** ISO code revenue is displayed in; rows in other currencies are converted. */
+	revenue_currency?: string;
 }
 
 export interface UserTable {

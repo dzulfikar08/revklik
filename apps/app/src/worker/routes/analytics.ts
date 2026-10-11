@@ -42,10 +42,12 @@ import {
 	SESSION_COLS,
 	type SessionSummary,
 } from "../queries/analytics";
+import { revenueSql } from "../lib/fx";
+import { resolveQueryScope } from "../lib/site-scope";
 import { getDateRange } from "../utils";
 
 type Variables = { db: Kysely<KlikapaDatabase>; userId: string };
-type AnalyticsEnv = { Variables: Variables; Bindings: { DB: D1Database } };
+type AnalyticsEnv = { Variables: Variables; Bindings: { DB: D1Database; FX_USD_IDR?: string } };
 
 export const analyticsRoutes = new Hono<AnalyticsEnv>();
 
@@ -116,6 +118,7 @@ analyticsRoutes.get(
 		const site = await validateSite(db, userId, siteId);
 		if (!site) return c.json({ error: "Site not found", success: false }, 404);
 
+		const scope = await resolveQueryScope(db, siteId, c.env, c.req.query("tz"));
 		const { start, end } = getDateRange(range);
 		const startIso = start.toISOString();
 		const endIso = end.toISOString();
@@ -151,8 +154,8 @@ analyticsRoutes.get(
 			prevStats,
 			prevTimeseries,
 		] = await Promise.all([
-			getOverviewStats(db, siteId, startIso, filters, endIso),
-			getTimeseries(db, siteId, startIso, isHourly, filters, endIso),
+			getOverviewStats(db, siteId, startIso, filters, endIso, scope),
+			getTimeseries(db, siteId, startIso, isHourly, filters, endIso, scope),
 			getTopPages(db, siteId, startIso, 10, filters, endIso),
 			getReferrers(db, siteId, startIso, 10, filters, endIso),
 			getDeviceBreakdown(db, siteId, startIso, filters, endIso),
@@ -186,16 +189,16 @@ analyticsRoutes.get(
 				// Same cap as GET /visitors so journey coverage matches the Users tab.
 				.limit(100)
 				.execute(),
-			getRevenueBySource(db, siteId, startIso, filters, endIso),
-			getRevenueByCountry(db, siteId, startIso, filters, endIso),
-			getRevenueTimeseries(db, siteId, startIso, isHourly, filters, endIso),
-			getEntryPagesRevenue(db, siteId, startIso, filters, endIso),
+			getRevenueBySource(db, siteId, startIso, filters, endIso, scope),
+			getRevenueByCountry(db, siteId, startIso, filters, endIso, scope),
+			getRevenueTimeseries(db, siteId, startIso, isHourly, filters, endIso, scope),
+			getEntryPagesRevenue(db, siteId, startIso, filters, endIso, scope),
 			getExitPages(db, siteId, startIso, filters, endIso),
-			getRevenueByPaymentMethod(db, siteId, startIso, filters, endIso),
-			getRevenueByPaymentProvider(db, siteId, startIso, filters, endIso),
-			getChannelBreakdown(db, siteId, startIso, filters, endIso),
-			getOverviewStats(db, siteId, prevStartIso, filters, startIso),
-			getTimeseries(db, siteId, prevStartIso, isHourly, filters, startIso),
+			getRevenueByPaymentMethod(db, siteId, startIso, filters, endIso, scope),
+			getRevenueByPaymentProvider(db, siteId, startIso, filters, endIso, scope),
+			getChannelBreakdown(db, siteId, startIso, filters, endIso, scope),
+			getOverviewStats(db, siteId, prevStartIso, filters, startIso, scope),
+			getTimeseries(db, siteId, prevStartIso, isHourly, filters, startIso, scope),
 		]);
 
 		// Period-over-period comparison (current range vs the equal window before it)
@@ -313,8 +316,9 @@ analyticsRoutes.get(
 			revenueByMethod,
 			revenueByProvider,
 			channels,
+			currency: scope.money.currency,
 		};
-		return c.json({ data: dashboard, success: true });
+		return c.json({ data: dashboard, currency: scope.money.currency, success: true });
 	}),
 );
 
@@ -669,6 +673,7 @@ analyticsRoutes.get(
 		const { start, end } = getDateRange(range);
 		const startIso = start.toISOString();
 		const endIso = end.toISOString();
+		const scope = await resolveQueryScope(db, siteId, c.env, c.req.query("tz"));
 
 		const rows = await applyFilters(
 			db
@@ -680,7 +685,7 @@ analyticsRoutes.get(
 					({ fn }) => fn.count<number>("visitor_id").distinct().as("visitors"),
 					sql<string>`sum(case when event_type = 'pageview' then 1 else 0 end)`.as("pageviews"),
 					sql<string>`sum(case when event_type = 'conversion' then 1 else 0 end)`.as("conversions"),
-					sql<string>`coalesce(sum(revenue), 0)`.as("revenue"),
+					sql<string>`coalesce(sum(${revenueSql(scope.money)}), 0)`.as("revenue"),
 				])
 				.where("site_id", "=", siteId)
 				.where("timestamp", ">=", startIso)
@@ -706,6 +711,7 @@ analyticsRoutes.get(
 						? Math.round((Number(r.conversions) / Number(r.visitors)) * 10000) / 100
 						: 0,
 			})),
+			currency: scope.money.currency,
 			success: true,
 		});
 	}),

@@ -1,6 +1,5 @@
 import type { Kysely } from "kysely";
 import type { KlikapaDatabase } from "@revklik/shared";
-import { sql } from "kysely";
 import { generateId } from "../utils";
 import type { PlanTier } from "./plans";
 
@@ -88,7 +87,7 @@ export async function activatePakasirPayment(
 	db: Kysely<KlikapaDatabase>,
 	input: PakasirPaymentInput,
 ): Promise<ActivationResult> {
-	const { userId, plan, orderId, amount } = input;
+	const { userId, plan, orderId } = input;
 	const nowMs = Date.now();
 	const now = new Date(nowMs).toISOString();
 
@@ -139,99 +138,6 @@ export async function activatePakasirPayment(
 				cancel_at_period_end: 0,
 				pakasir_order_id: orderId,
 				updated_at: now,
-			}),
-		)
-		.execute();
-
-	// Revenue attribution — attach to the user's first site if they have one.
-	// visitor_id embeds the order_id, which doubles as the idempotency key.
-	const visitorId = `pakasir_${orderId.replace(/[^a-zA-Z0-9]/g, "_")}`;
-	const siteId = await db
-		.selectFrom("sites")
-		.select(["id"])
-		.where("user_id", "=", userId)
-		.orderBy("created_at")
-		.limit(1)
-		.executeTakeFirst()
-		.then((r) => r?.id);
-	if (!siteId) return { activated: true, alreadyProcessed: false };
-
-	const seen = await db
-		.selectFrom("events")
-		.select(["id"])
-		.where("site_id", "in", db.selectFrom("sites").select("id").where("user_id", "=", userId))
-		.where("visitor_id", "=", visitorId)
-		.where("event_type", "=", "conversion")
-		.where("name", "=", "subscription_payment")
-		.executeTakeFirst();
-	if (seen) return { activated: true, alreadyProcessed: true };
-
-	const ts = input.completedAt || now;
-	await db
-		.insertInto("events")
-		.values({
-			id: generateId(),
-			site_id: siteId,
-			session_id: generateId(),
-			visitor_id: visitorId,
-			timestamp: ts,
-			event_type: "conversion",
-			name: "subscription_payment",
-			path: "/billing/pakasir",
-			hostname: null,
-			referrer: null,
-			utm_source: null,
-			utm_medium: null,
-			utm_campaign: null,
-			utm_term: null,
-			utm_content: null,
-			country: "ID",
-			region: null,
-			city: null,
-			device_type: null,
-			browser: null,
-			os: null,
-			revenue: amount,
-			payment_provider: "pakasir",
-			payment_method: input.paymentMethod || null,
-			currency: "IDR",
-			props: JSON.stringify({
-				plan,
-				order_id: orderId,
-				payment_method: input.paymentMethod || null,
-				source: "pakasir_webhook",
-				amount_idr: amount,
-			}),
-			fingerprint: null,
-		})
-		.execute();
-
-	// visitor_profiles row is only written when it already exists — the visitor
-	// is synthetic (no real sessions), so we don't create profile noise for
-	// sites that have never seen this visitor.
-	await db
-		.insertInto("visitor_profiles")
-		.values({
-			id: generateId(),
-			site_id: siteId,
-			visitor_id: visitorId,
-			first_seen: ts,
-			last_seen: ts,
-			country: "ID",
-			region: null,
-			city: null,
-			device_type: null,
-			browser: null,
-			os: null,
-			total_sessions: 0,
-			total_pageviews: 0,
-			total_revenue: amount,
-			fingerprint: null,
-		})
-		.onConflict((oc) =>
-			oc.columns(["site_id", "visitor_id"]).doUpdateSet({
-				last_seen: ts,
-				total_revenue: sql`total_revenue + ${amount}`,
 			}),
 		)
 		.execute();

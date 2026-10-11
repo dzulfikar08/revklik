@@ -17,6 +17,29 @@ import type {
 import { sql } from "../db";
 import type { ParsedFilter } from "../lib/analytics-queries";
 import { applyFilters, applySessionFilters } from "../lib/analytics-queries";
+import { type MoneyContext, revenueSql, USD_MONEY } from "../lib/fx";
+
+/** Per-request presentation: revenue display currency and bucket timezone. */
+export interface QueryScope {
+	money: MoneyContext;
+	/** East-positive minutes; daily/hourly buckets are cut at this offset. */
+	tzOffset: number;
+}
+
+export const DEFAULT_SCOPE: QueryScope = { money: USD_MONEY, tzOffset: 0 };
+
+export function bucketSql(isHourly: boolean, tzOffset: number, column = "timestamp") {
+	const ref = sql.ref(column);
+	if (tzOffset === 0) {
+		return isHourly
+			? sql<string>`strftime('%Y-%m-%dT%H:00:00', ${ref})`
+			: sql<string>`date(${ref})`;
+	}
+	const shift = `${tzOffset >= 0 ? "+" : ""}${tzOffset} minutes`;
+	return isHourly
+		? sql<string>`strftime('%Y-%m-%dT%H:00:00', ${ref}, ${shift})`
+		: sql<string>`date(${ref}, ${shift})`;
+}
 
 const sourceSql = sql<string>`COALESCE(utm_source,
   CASE WHEN (referrer IS NULL OR referrer = '') AND LOWER(browser) = 'whatsapp' THEN 'whatsapp'
@@ -42,15 +65,22 @@ const sourceSql = sql<string>`COALESCE(utm_source,
   END)`;
 
 /**
- * Generate continuous bucket keys (UTC) between start and end so charts can
- * render empty days/hours as 0 instead of dropping them.
+ * Continuous bucket keys, in the scope's local time, for every day/hour the
+ * range touches (first and last partial buckets included) so charts render
+ * empty buckets as 0 instead of dropping them.
  */
-function bucketKeys(startIso: string, endIso: string | undefined, isHourly: boolean): string[] {
+export function bucketKeys(
+	startIso: string,
+	endIso: string | undefined,
+	isHourly: boolean,
+	tzOffset = 0,
+): string[] {
 	const stepMs = isHourly ? 3_600_000 : 86_400_000;
-	const startMs = new Date(startIso).getTime();
-	const endMs = Math.min(endIso ? new Date(endIso).getTime() : Date.now(), Date.now());
+	const shiftMs = tzOffset * 60_000;
+	const startLocal = new Date(startIso).getTime() + shiftMs;
+	const endLocal = Math.min(endIso ? new Date(endIso).getTime() : Date.now(), Date.now()) + shiftMs;
 	const keys: string[] = [];
-	for (let t = startMs; t < endMs; t += stepMs) {
+	for (let t = Math.floor(startLocal / stepMs) * stepMs; t < endLocal; t += stepMs) {
 		const d = new Date(t);
 		keys.push(isHourly ? `${d.toISOString().slice(0, 13)}:00:00` : d.toISOString().slice(0, 10));
 	}
@@ -131,13 +161,16 @@ export async function getOverviewStats(
 	startIso: string,
 	filters?: ParsedFilter[],
 	endIso?: string,
+	scope: QueryScope = DEFAULT_SCOPE,
 ): Promise<StatsResponse> {
 	let eventQ = db
 		.selectFrom("events")
 		.select([
 			sql<number>`COUNT(CASE WHEN event_type = 'pageview' THEN 1 END)`.as("pageviews"),
 			({ fn }) => fn.count<number>("visitor_id").distinct().as("visitors"),
-			sql<number>`COALESCE(SUM(CASE WHEN revenue > 0 THEN revenue END), 0)`.as("revenue"),
+			sql<number>`COALESCE(SUM(CASE WHEN revenue > 0 THEN ${revenueSql(scope.money)} END), 0)`.as(
+				"revenue",
+			),
 			sql<number>`COUNT(CASE WHEN event_type = 'conversion' THEN 1 END)`.as("conversions"),
 		])
 		.where("site_id", "=", siteId)
@@ -180,13 +213,10 @@ export async function getTimeseries(
 	isHourly: boolean,
 	filters?: ParsedFilter[],
 	endIso?: string,
+	scope: QueryScope = DEFAULT_SCOPE,
 ): Promise<TimeSeriesPoint[]> {
-	const tsDate = isHourly
-		? sql<string>`strftime('%Y-%m-%dT%H:00:00', ${sql.ref("timestamp")})`
-		: sql<string>`date(${sql.ref("timestamp")})`;
-	const tsGroup = isHourly
-		? sql`strftime('%Y-%m-%dT%H:00:00', ${sql.ref("timestamp")})`
-		: sql`date(${sql.ref("timestamp")})`;
+	const tsDate = bucketSql(isHourly, scope.tzOffset);
+	const tsGroup = bucketSql(isHourly, scope.tzOffset);
 
 	let q = db
 		.selectFrom("events")
@@ -203,7 +233,7 @@ export async function getTimeseries(
 	const tsRows = await applyFilters(q, filters).groupBy(tsGroup).orderBy("date", "asc").execute();
 
 	const byKey = new Map(tsRows.map((r) => [String(r.date ?? ""), r]));
-	return bucketKeys(startIso, endIso, isHourly).map((key) => {
+	return bucketKeys(startIso, endIso, isHourly, scope.tzOffset).map((key) => {
 		const row = byKey.get(key);
 		return {
 			date: key,
@@ -395,12 +425,13 @@ export async function getRevenueBySource(
 	startIso: string,
 	filters?: ParsedFilter[],
 	endIso?: string,
+	scope: QueryScope = DEFAULT_SCOPE,
 ): Promise<RevenueBySource[]> {
 	let q = db
 		.selectFrom("events")
 		.select([
 			sourceSql.as("source"),
-			({ fn }) => fn.sum<number>("revenue").as("revenue"),
+			sql<number>`SUM(${revenueSql(scope.money)})`.as("revenue"),
 			({ fn }) => fn.count<number>("id").as("conversions"),
 		])
 		.where("site_id", "=", siteId)
@@ -427,12 +458,13 @@ export async function getRevenueByCountry(
 	startIso: string,
 	filters?: ParsedFilter[],
 	endIso?: string,
+	scope: QueryScope = DEFAULT_SCOPE,
 ): Promise<RevenueByCountry[]> {
 	let q = db
 		.selectFrom("events")
 		.select([
 			sql<string>`COALESCE(country, 'unknown')`.as("country"),
-			({ fn }) => fn.sum<number>("revenue").as("revenue"),
+			sql<number>`SUM(${revenueSql(scope.money)})`.as("revenue"),
 			({ fn }) => fn.count<number>("id").as("conversions"),
 		])
 		.where("site_id", "=", siteId)
@@ -460,19 +492,16 @@ export async function getRevenueTimeseries(
 	isHourly: boolean,
 	filters?: ParsedFilter[],
 	endIso?: string,
+	scope: QueryScope = DEFAULT_SCOPE,
 ): Promise<RevenueTimeSeriesPoint[]> {
-	const tsDate = isHourly
-		? sql<string>`strftime('%Y-%m-%dT%H:00:00', ${sql.ref("timestamp")})`
-		: sql<string>`date(${sql.ref("timestamp")})`;
-	const tsGroup = isHourly
-		? sql`strftime('%Y-%m-%dT%H:00:00', ${sql.ref("timestamp")})`
-		: sql`date(${sql.ref("timestamp")})`;
+	const tsDate = bucketSql(isHourly, scope.tzOffset);
+	const tsGroup = bucketSql(isHourly, scope.tzOffset);
 
 	let q = db
 		.selectFrom("events")
 		.select([
 			tsDate.as("date"),
-			({ fn }) => fn.sum<number>("revenue").as("revenue"),
+			sql<number>`SUM(${revenueSql(scope.money)})`.as("revenue"),
 			({ fn }) => fn.count<number>("id").as("conversions"),
 		])
 		.where("site_id", "=", siteId)
@@ -483,7 +512,7 @@ export async function getRevenueTimeseries(
 	const rows = await applyFilters(q, filters).groupBy(tsGroup).orderBy("date", "asc").execute();
 
 	const byKey = new Map(rows.map((r) => [String(r.date ?? ""), r]));
-	return bucketKeys(startIso, endIso, isHourly).map((key) => {
+	return bucketKeys(startIso, endIso, isHourly, scope.tzOffset).map((key) => {
 		const row = byKey.get(key);
 		return {
 			date: key,
@@ -499,6 +528,7 @@ export async function getEntryPagesRevenue(
 	startIso: string,
 	filters?: ParsedFilter[],
 	endIso?: string,
+	scope: QueryScope = DEFAULT_SCOPE,
 ): Promise<EntryPageRevenue[]> {
 	let q = db
 		.selectFrom("sessions")
@@ -509,7 +539,7 @@ export async function getEntryPagesRevenue(
 			sql<number>`COUNT(DISTINCT CASE WHEN events.event_type = 'conversion' OR events.event_type = 'payment' THEN events.id END)`.as(
 				"conversions",
 			),
-			sql<number>`COALESCE(SUM(CASE WHEN events.revenue > 0 THEN events.revenue END), 0)`.as(
+			sql<number>`COALESCE(SUM(CASE WHEN events.revenue > 0 THEN ${revenueSql(scope.money, "events.revenue", "events.currency")} END), 0)`.as(
 				"revenue",
 			),
 		])
@@ -537,13 +567,14 @@ export async function getRevenueByPaymentMethod(
 	startIso: string,
 	filters?: ParsedFilter[],
 	endIso?: string,
+	scope: QueryScope = DEFAULT_SCOPE,
 ): Promise<RevenueByPaymentMethod[]> {
 	let q = db
 		.selectFrom("events")
 		.select([
 			sql<string>`COALESCE(payment_method, 'unknown')`.as("method"),
 			sql<number>`COUNT(*)`.as("count"),
-			sql<number>`COALESCE(SUM(revenue), 0)`.as("revenue"),
+			sql<number>`COALESCE(SUM(${revenueSql(scope.money)}), 0)`.as("revenue"),
 		])
 		.where("site_id", "=", siteId)
 		.where("revenue", ">", 0)
@@ -567,13 +598,14 @@ export async function getRevenueByPaymentProvider(
 	startIso: string,
 	filters?: ParsedFilter[],
 	endIso?: string,
+	scope: QueryScope = DEFAULT_SCOPE,
 ): Promise<RevenueByPaymentProvider[]> {
 	let q = db
 		.selectFrom("events")
 		.select([
 			sql<string>`COALESCE(payment_provider, 'unknown')`.as("provider"),
 			sql<number>`COUNT(*)`.as("count"),
-			sql<number>`COALESCE(SUM(revenue), 0)`.as("revenue"),
+			sql<number>`COALESCE(SUM(${revenueSql(scope.money)}), 0)`.as("revenue"),
 		])
 		.where("site_id", "=", siteId)
 		.where("revenue", ">", 0)
@@ -597,6 +629,7 @@ export async function getChannelBreakdown(
 	startIso: string,
 	filters?: ParsedFilter[],
 	endIso?: string,
+	scope: QueryScope = DEFAULT_SCOPE,
 ): Promise<ChannelEntry[]> {
 	// Mirrors categorizeChannel() — kept in SQL so we aggregate server-side
 	// instead of shipping every raw event row to the Worker.
@@ -629,7 +662,9 @@ export async function getChannelBreakdown(
 			channelExpr.as("channel"),
 			({ fn }) => fn.count<number>("visitor_id").distinct().as("visitors"),
 			({ fn }) => fn.count<number>("id").as("pageviews"),
-			sql<number>`COALESCE(SUM(CASE WHEN revenue > 0 THEN revenue END), 0)`.as("revenue"),
+			sql<number>`COALESCE(SUM(CASE WHEN revenue > 0 THEN ${revenueSql(scope.money)} END), 0)`.as(
+				"revenue",
+			),
 		])
 		.where("site_id", "=", siteId)
 		.where("timestamp", ">=", startIso);

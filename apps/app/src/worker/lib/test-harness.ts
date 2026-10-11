@@ -123,6 +123,10 @@ export async function createMigratedTestApp(
 ): Promise<MigratedTestApp> {
 	const { createApp } = await import("../app");
 	const { migrateDatabase } = await import("../migrations");
+	// Workers' edge cache: always miss so every request reaches the handler.
+	(globalThis as { caches?: unknown }).caches ??= {
+		default: { match: async () => undefined, put: async () => {} },
+	};
 	const db = new Database(":memory:");
 	const d1 = makeD1(db) as unknown as D1Database;
 	await migrateDatabase(d1);
@@ -140,11 +144,9 @@ export async function createMigratedTestApp(
 			body = typeof opts.body === "string" ? opts.body : JSON.stringify(opts.body);
 			headers["content-type"] ??= "application/json";
 		}
-		return app.fetch(
-			new Request(`http://local${path}`, { method, headers, body }),
-			env,
-			testExecCtx as never,
-		);
+		const init: RequestInit = { method, headers };
+		if (body !== undefined) init.body = body;
+		return app.fetch(new Request(`http://local${path}`, init), env, testExecCtx as never);
 	};
 	const seedUser: MigratedTestApp["seedUser"] = async (o) => {
 		const now = new Date().toISOString();
