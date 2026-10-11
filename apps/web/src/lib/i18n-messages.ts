@@ -396,7 +396,7 @@ const id: Record<BaseKey, string> = {
 	"billing.endedOn": "Berakhir {date}",
 	"billing.noPlan": "Belum ada paket aktif",
 	"billing.status.active": "Aktif",
-	"billing.status.trialing": "Masa coba gratis",
+	"billing.status.trialing": "Uji coba gratis",
 	"billing.status.pastDue": "Telat bayar",
 	"billing.status.canceled": "Berhenti",
 	"billing.usageOf": "{used} dari {limit}",

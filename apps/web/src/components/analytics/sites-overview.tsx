@@ -97,7 +97,7 @@ const SiteCard = ({
 					{showName ? <p className="text-muted-foreground truncate text-xs">{site.name}</p> : null}
 				</div>
 				{installed ? null : (
-					<span className="shrink-0 rounded-md bg-amber-400/15 px-1.5 py-0.5 text-[11px] font-medium text-amber-200 ring-1 ring-amber-500/30">
+					<span className="shrink-0 rounded-md bg-amber-400/15 px-1.5 py-0.5 text-[11px] font-medium text-amber-800 ring-1 dark:text-amber-200 ring-amber-500/30">
 						{t("install.notInstalled")}
 					</span>
 				)}

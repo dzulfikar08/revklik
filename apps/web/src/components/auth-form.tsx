@@ -44,8 +44,6 @@ function GoogleIcon() {
 	);
 }
 
-const linkClass = authLinkClass;
-
 const ForgotPasswordForm = ({ onBack }: { onBack: () => void }) => {
 	const t = useT();
 	const [email, setEmail] = useState("");
@@ -101,7 +99,11 @@ const ForgotPasswordForm = ({ onBack }: { onBack: () => void }) => {
 					</Button>
 				</form>
 			)}
-			<button type="button" className={`justify-self-center text-sm ${linkClass}`} onClick={onBack}>
+			<button
+				type="button"
+				className={`justify-self-center text-sm ${authLinkClass}`}
+				onClick={onBack}
+			>
 				{t("forgot.back")}
 			</button>
 		</AuthShell>
@@ -273,7 +275,7 @@ export const AuthForm = ({ mode, search }: { mode: AuthMode; search: AuthSearch 
 
 			<p className="text-muted-foreground mt-1 text-center text-[13px]">
 				{signUp ? t("auth.haveAccount") : t("auth.noAccount")}{" "}
-				<Link to={signUp ? "/login" : "/register"} search={search} className={linkClass}>
+				<Link to={signUp ? "/login" : "/register"} search={search} className={authLinkClass}>
 					{signUp ? t("auth.signInLink") : t("auth.createOne")}
 				</Link>
 			</p>
