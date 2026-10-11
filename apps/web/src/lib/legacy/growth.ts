@@ -2,14 +2,14 @@
  * Client endpoints for the Growth-tier features (Wave 2):
  * heatmap, session recordings, AI insights, revenue predictions.
  *
- * All four routes are gated server-side: a non-Growth subscription receives a
- * 403 whose body carries `{ required_plan }`. The shared helper throws before
- * that body becomes readable, so the gate is surfaced here as a
- * GrowthPlanLockedError (required_plan is "growth" on every one of these
- * routes).
+ * All four routes are gated server-side: a non-Growth subscription receives
+ * a 403 { error: "plan_required", required_plan }. Only that envelope is
+ * surfaced here as a GrowthPlanLockedError; any other 403 stays a
+ * LegacyApiError so it reaches the normal error path.
  */
 import type { VisitorJourney, VisitorProfile } from "./api";
 import { LegacyApiError, legacyFetch } from "./api";
+import { parsePlan } from "./billing";
 
 /* ---------------------------------- types ---------------------------------- */
 
@@ -112,8 +112,10 @@ const growthFetch = async <T>(path: string, opts?: RequestInit): Promise<T> => {
 	try {
 		return await legacyFetch<T>(path, opts);
 	} catch (err) {
-		if (err instanceof LegacyApiError && err.status === 403) {
-			throw new GrowthPlanLockedError("growth");
+		// Only a plan gate becomes the lock. Other 403s (e.g. removed from a
+		// team) must surface as real errors, since the lock is never toasted.
+		if (err instanceof LegacyApiError && err.status === 403 && err.code === "plan_required") {
+			throw new GrowthPlanLockedError(parsePlan(err.body?.required_plan) ?? "growth");
 		}
 		throw err;
 	}

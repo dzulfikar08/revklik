@@ -16,6 +16,7 @@ import {
 	fetchExclusions,
 	fetchMyFingerprint,
 	purgeMyVisits,
+	SiteDeleteTimeoutError,
 	removeExclusion,
 } from "@/lib/legacy/sites";
 import { useModalDialog } from "@/lib/use-modal-dialog";
@@ -169,17 +170,21 @@ const SiteRow = ({
 	onSnippet: (site: SiteWithStats) => void;
 	onDeleted: (domain: string) => void;
 }) => {
+	const t = useT();
 	const qc = useQueryClient();
 	const [confirming, setConfirming] = useState(false);
 	const [showExclusions, setShowExclusions] = useState(false);
 
+	// The row stays (with a "Deleting site data…" state) until the worker
+	// confirms the purge with a final 200; only then does the list refetch.
 	const deleteMut = useMutation({
 		mutationFn: () => deleteLegacySite(site.id),
 		onSuccess: () => {
 			qc.invalidateQueries({ queryKey: ["legacy", "sites"] });
 			onDeleted(site.domain);
 		},
-		onError: (e: Error) => toast.error(e.message),
+		onError: (e: Error) =>
+			toast.error(e instanceof SiteDeleteTimeoutError ? t("sites.deleteTimeout") : e.message),
 	});
 
 	return (
@@ -197,7 +202,16 @@ const SiteRow = ({
 						) : null}
 					</p>
 				</div>
-				{confirming ? (
+				{deleteMut.isPending ? (
+					<span
+						role="status"
+						aria-live="polite"
+						className="text-muted-foreground flex items-center gap-1.5 text-[11px]"
+					>
+						<Loader2 className="size-3.5 animate-spin motion-reduce:animate-none" aria-hidden />
+						{t("sites.deleting")}
+					</span>
+				) : confirming ? (
 					<span className="flex items-center gap-1.5">
 						<span className="text-muted-foreground text-[11px]">Delete site + all its data?</span>
 						<Button

@@ -85,6 +85,9 @@ const en = {
 	"sites.loadError": "Couldn't load sites.",
 	"sites.empty": "No sites yet. Add your first one above.",
 	"sites.limit": "You've reached your plan's site limit.",
+	"sites.deleting": "Deleting site data…",
+	"sites.deleteTimeout":
+		"Deleting this site is taking longer than expected. Try again in a minute; nothing is lost by retrying.",
 	"snippet.dialogLabel": "Tracking snippet for {domain}",
 	"snippet.title": "Tracking snippet",
 	"snippet.desc": "Paste this into your site's HTML. Data starts with the first visit.",
@@ -273,6 +276,9 @@ const id: Record<BaseKey, string> = {
 	"sites.loadError": "Daftar situs gagal dimuat.",
 	"sites.empty": "Belum ada situs. Tambahkan yang pertama di atas.",
 	"sites.limit": "Jumlah situs sudah mencapai batas paket kamu.",
+	"sites.deleting": "Menghapus data situs…",
+	"sites.deleteTimeout":
+		"Penghapusan situs ini lebih lama dari biasanya. Coba lagi sebentar lagi; mengulang tidak membuat data hilang.",
 	"snippet.dialogLabel": "Snippet pelacakan untuk {domain}",
 	"snippet.title": "Snippet pelacakan",
 	"snippet.desc": "Tempel kode ini di HTML situs kamu. Data mulai tercatat dari kunjungan pertama.",
