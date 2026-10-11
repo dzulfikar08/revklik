@@ -1,43 +1,62 @@
 ---
 title: Billing
-description: "RevKlik plans and pricing: free Micro, Starter, and Growth, paid monthly in IDR via QRIS or by card, cancel anytime."
+description: "RevKlik plans and pricing: Micro, Starter, and Growth, paid monthly in IDR via QRIS or in USD by card, with a 7-day Growth trial and no free plan."
 ---
 
-RevKlik has three plans: **Micro**, **Starter**, and **Growth**. Every new
-account starts on Micro with a **free 7-day trial, no card required**.
+RevKlik has three paid plans: **Micro**, **Starter**, and **Growth**. There
+is no free plan. Every new account gets a **7-day free trial of Growth, no
+card required**, so you can try every feature before choosing a plan.
 
 ## Plans
 
-| Plan         | Limits                    | API + widget tokens | Price                    |
-| ------------ | ------------------------- | ------------------- | ------------------------ |
-| Micro (free) | 1 site · 10K events/mo    | 2                   | free                     |
-| Starter      | 3 sites · 100K events/mo  | 5                   | Rp 64.000 via QRIS / mo  |
-| Growth       | 10 sites · 500K events/mo | unlimited           | Rp 192.000 via QRIS / mo |
+| Plan    | Limits                    | API + widget tokens | QRIS (IDR)      | Card (USD) |
+| ------- | ------------------------- | ------------------- | --------------- | ---------- |
+| Micro   | 1 site · 10K events/mo    | 2                   | Rp 16.000 / mo  | $1 / mo    |
+| Starter | 3 sites · 100K events/mo  | 5                   | Rp 64.000 / mo  | $4 / mo    |
+| Growth  | 10 sites · 500K events/mo | unlimited           | Rp 192.000 / mo | $12 / mo   |
 
-Usage bars in the billing view show **Events this month** and **Sites**
-against your plan's limits. QRIS prices are fixed; card prices are shown at
-checkout.
+Visitors from Indonesia see IDR prices first and can pay with QRIS; everyone
+else sees USD prices and pays by card. Usage bars in the billing view show
+**Events this month** and **Sites** against your plan's limits.
 
 <Callout type="tip" title="What Growth unlocks">
 	Heatmaps, session recordings, revenue predictions, and AI insights are Growth features; other
-	plans see a blurred preview with an *Upgrade to Growth* shortcut.
+	plans see a blurred preview with an *Upgrade to Growth* shortcut. The trial includes all of them.
 </Callout>
+
+## Trial
+
+- The trial starts when you create your account and runs for 7 days on
+  Growth.
+- The billing view shows how many days are left. You can buy any plan during
+  the trial, Growth included.
+- When the trial ends without a plan, the dashboard locks and shows the plans
+  instead.
+
+## After a trial or subscription ends
+
+Tracking does not stop straight away. For **14 days** after the trial or
+your subscription ends, RevKlik keeps recording visits from your sites, but
+the dashboard stays locked behind the plan picker. Billing stays reachable,
+and choosing a plan in that window unlocks everything recorded in the
+meantime. After the 14 days, tracking pauses until you pick a plan.
 
 ## Paying
 
-Every plan card offers two buttons:
+Every plan card offers:
 
-- **Pay with card**: a hosted checkout; after payment the subscription
-  activates immediately.
-- **Pay with QRIS**: opens the QRIS payment page in a new tab. Complete the
-  payment there, then press **I've paid** to verify back in RevKlik. The
-  banner lets you reopen the tab if you closed it.
+- **Pay with QRIS** (Indonesia only): opens the QRIS payment page in a new
+  tab. Complete the payment there, then press **I've paid, check now** back
+  in RevKlik. The reminder stays on the billing view, even after a reload,
+  until the payment is confirmed, and it lets you reopen the payment page.
+- **Pay with card**: a hosted checkout in USD. After payment you return to
+  RevKlik and the plan activates as soon as the payment is confirmed.
 
 All plans are **monthly and cancel anytime**.
 
 ## Managing your subscription
 
-The subscription banner shows `Renews on <date>` while active, or
+The billing view shows `Renews on <date>` while a plan is active, or
 `Access until <date>` after cancellation. **Cancel subscription** asks for a
 confirmation and keeps the plan active until the end of the period: nothing
 is deleted at that point, you simply stop renewing.
