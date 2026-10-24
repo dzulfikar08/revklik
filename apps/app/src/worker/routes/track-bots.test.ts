@@ -60,6 +60,10 @@ describe("POST /track bot flagging", () => {
 			{ id: "human-1", is_bot: 0, bot_reason: null },
 		]);
 		expect(t.db.query("SELECT COUNT(*) AS n FROM events WHERE is_bot = 1").get()).toEqual({ n: 2 });
+		// The network is kept on the session so a later rule can re-judge it.
+		expect(t.db.query("SELECT as_org FROM sessions WHERE id = 'bot-1'").get()).toEqual({
+			as_org: "Some ISP",
+		});
 
 		const stats = await getOverviewStats(
 			createDb(t.d1),
