@@ -4,6 +4,11 @@ import type { Kysely } from "kysely";
 import type { KlikapaDatabase } from "@revklik/shared";
 import type { Env } from "../types";
 import { generateId, hashToken } from "../utils";
+import {
+	fetchServiceAccountAccessToken,
+	GscServiceAccountError,
+	parseServiceAccountKey,
+} from "../lib/gsc-service-account";
 
 export const gscRoutes = new Hono<Env>();
 
@@ -33,6 +38,7 @@ const gscAuth = createMiddleware<Env>(async (c, next) => {
 
 gscRoutes.use("/queries/*", gscAuth);
 gscRoutes.use("/sync/*", gscAuth);
+gscRoutes.use("/service-account/*", gscAuth);
 
 // Helper: validate user owns the site
 async function validateSite(db: Kysely<KlikapaDatabase>, userId: string, siteId: string) {
@@ -303,6 +309,94 @@ gscRoutes.get("/callback", async (c) => {
 	return c.redirect(appUrl);
 });
 
+// POST /service-account - Connect a site with a Google service account JSON key.
+// Body: { site_id, key: <service account JSON object or string>, google_site_url? }.
+// The service account email must be added as a user on the Search Console property.
+gscRoutes.post("/service-account", async (c) => {
+	const db = c.get("db");
+	const userId = c.get("userId");
+	if (!db) return c.json({ error: "DB unavailable", success: false }, 503);
+
+	const body = (await c.req.json().catch(() => null)) as {
+		site_id?: string;
+		key?: unknown;
+		google_site_url?: string;
+	} | null;
+	if (!body?.site_id || body.key === undefined) {
+		return c.json({ error: "site_id and key required", success: false }, 400);
+	}
+
+	const site = await validateSite(db, userId, body.site_id);
+	if (!site) return c.json({ error: "Site not found", success: false }, 404);
+
+	let key;
+	try {
+		key = parseServiceAccountKey(body.key);
+	} catch (err) {
+		const message = err instanceof GscServiceAccountError ? err.message : "Invalid key";
+		return c.json({ error: message, success: false }, 400);
+	}
+
+	let googleSiteUrl = body.google_site_url?.trim() ?? "";
+	if (!googleSiteUrl) {
+		try {
+			const accessToken = await fetchServiceAccountAccessToken(key);
+			const res = await fetch("https://www.googleapis.com/webmasters/v3/sites", {
+				headers: { Authorization: `Bearer ${accessToken}` },
+			});
+			if (!res.ok) throw new Error(`GSC sites list failed (${res.status})`);
+			const data = (await res.json()) as { siteEntry?: Array<{ siteUrl: string }> };
+			googleSiteUrl =
+				(data.siteEntry ?? []).find((e) => gscSiteMatchesDomain(e.siteUrl, site.domain))
+					?.siteUrl ?? "";
+		} catch (err) {
+			return c.json(
+				{ error: err instanceof Error ? err.message : "Service account check failed", success: false },
+				401,
+			);
+		}
+		if (!googleSiteUrl) {
+			return c.json(
+				{
+					error: `No Search Console property for ${site.domain} is shared with ${key.client_email}. Add it as a user in Search Console, or pass google_site_url.`,
+					success: false,
+				},
+				409,
+			);
+		}
+	}
+
+	const config = JSON.stringify({
+		auth: "service_account",
+		client_email: key.client_email,
+		private_key: key.private_key,
+		google_site_url: googleSiteUrl,
+	});
+	const existing = await getGSCIntegration(db, body.site_id);
+	if (existing) {
+		await db.updateTable("integrations").set({ config }).where("id", "=", existing.id).execute();
+	} else {
+		await db
+			.insertInto("integrations")
+			.values({
+				id: generateId(),
+				site_id: body.site_id,
+				user_id: userId,
+				type: "google_search_console",
+				name: "Google Search Console",
+				config,
+				enabled: 1,
+				last_sync: null,
+				created_at: new Date().toISOString(),
+			})
+			.execute();
+	}
+	return c.json({
+		data: { client_email: key.client_email, google_site_url: googleSiteUrl },
+		success: true,
+	});
+});
+
 // GET /queries - Fetch search query data
 gscRoutes.get("/queries", async (c) => {
 	const db = c.get("db");
@@ -357,8 +451,9 @@ gscRoutes.post("/sync", async (c) => {
 	const clientSecret = c.env.GOOGLE_CLIENT_SECRET || "";
 	const config = JSON.parse((integration.config as string) || "{}");
 	const { refresh_token, google_site_url } = config;
+	const serviceAccount = config.auth === "service_account";
 
-	if (!refresh_token || !google_site_url) {
+	if (!google_site_url || (!serviceAccount && !refresh_token)) {
 		return c.json(
 			{
 				error: "Missing GSC credentials. Please re-authorize.",
@@ -368,10 +463,12 @@ gscRoutes.post("/sync", async (c) => {
 		);
 	}
 
-	// Refresh access token
+	// Refresh access token (OAuth) or mint one from the service account key
 	let accessToken: string;
 	try {
-		accessToken = await refreshAccessToken(refresh_token, clientId, clientSecret);
+		accessToken = serviceAccount
+			? await fetchServiceAccountAccessToken(parseServiceAccountKey(config))
+			: await refreshAccessToken(refresh_token, clientId, clientSecret);
 	} catch (err) {
 		return c.json(
 			{
