@@ -2,7 +2,7 @@
  * Version the live schema must reach. Bump it whenever a step is appended to
  * VERSIONED_STEPS; a DB already at this version costs one SELECT per isolate.
  */
-export const SCHEMA_VERSION = 12;
+export const SCHEMA_VERSION = 13;
 
 const migrated = new WeakSet<D1Database>();
 
@@ -77,6 +77,14 @@ const VERSIONED_STEPS: MigrationStep[] = [
 	{ version: 10, run: accountProofSchema },
 	{ version: 11, run: preDeployRepairs },
 	{ version: 12, run: botFilterSchema },
+	{
+		version: 13,
+		run: (d1) =>
+			runDdl(
+				d1,
+				"CREATE TABLE IF NOT EXISTS fx_rates (currency TEXT PRIMARY KEY, per_usd REAL NOT NULL, as_of TEXT NOT NULL)",
+			),
+	},
 ];
 
 const CHECKOUT_STATUSES = "('open', 'expired', 'confirmed', 'succeeded', 'failed')";

@@ -2,7 +2,7 @@ import type { Kysely } from "kysely";
 import type { KlikapaDatabase } from "@revklik/shared";
 import type { QueryScope } from "../queries/analytics";
 import { ensureSiteCurrency } from "./currency-backfill";
-import { normalizeCurrency, usdRates } from "./fx";
+import { loadUsdRates, normalizeCurrency } from "./fx";
 import { clampTzOffset } from "./widget-live";
 
 /** Site display currency, falling back to USD when unset or not convertible. */
@@ -22,7 +22,7 @@ export async function resolveQueryScope(
 	env: { FX_USD_IDR?: string } | undefined,
 	tzParam: string | undefined,
 ): Promise<QueryScope> {
-	const rates = usdRates(env);
+	const rates = await loadUsdRates(db, env);
 	const site = await db
 		.selectFrom("sites")
 		.select(["revenue_currency", "revenue_currency_source"])

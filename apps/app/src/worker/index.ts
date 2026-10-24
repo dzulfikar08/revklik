@@ -4,6 +4,7 @@ import { backupDatabase } from "./backup";
 import { syncAllAppStoreConnect } from "./lib/appstoreconnect";
 import { reclassifyRecentBots } from "./lib/bot-reclassify";
 import { inferSiteCurrencies } from "./lib/currency-backfill";
+import { refreshFxRates } from "./lib/fx";
 import { purgeExpiredRows } from "./lib/purge";
 import { carryOverPakasirOrders } from "./migrations";
 import type { Bindings } from "./types";
@@ -22,6 +23,9 @@ export default {
 			// Runs after the dump; a no-op unless RETENTION_HARD_DELETE_DAYS is set.
 			if (env.DB) {
 				await carryOverPakasirOrders(env.DB);
+				await refreshFxRates(createDb(env.DB)).catch((err) =>
+					console.error("FX refresh failed:", err),
+				);
 				await inferSiteCurrencies(createDb(env.DB)).catch((err) =>
 					console.error("Currency backfill failed:", err),
 				);

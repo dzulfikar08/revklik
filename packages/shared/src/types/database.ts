@@ -146,6 +146,13 @@ export interface VisitorProfileTable {
 	is_bot: Defaulted<number>;
 }
 
+/** Latest units of one currency per 1 USD, refreshed daily from a public rate feed. */
+export interface FxRateTable {
+	currency: string;
+	per_usd: number;
+	as_of: string;
+}
+
 export interface PaymentProviderTable {
 	id: string;
 	site_id: string;
@@ -247,6 +254,7 @@ export interface KlikapaDatabase {
 	heatmap_aggregates: HeatmapAggregateTable;
 	integrations: IntegrationTable;
 	crawler_hits: CrawlerHitTable;
+	fx_rates: FxRateTable;
 	webhook_events: WebhookEventTable;
 	ai_insights: AiInsightTable;
 	subscriptions: SubscriptionTable;

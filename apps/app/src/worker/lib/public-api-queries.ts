@@ -4,6 +4,8 @@ import type { KlikapaDatabase, WhoamiResponse } from "@revklik/shared";
 import { sql } from "../db";
 import type { PublicApiEnv } from "../middleware/public-auth";
 import { getDateRange } from "../utils";
+import { type MoneyContext, revenueSql } from "./fx";
+import { resolveQueryScope } from "./site-scope";
 import { toCsv } from "./analytics-queries";
 import { avgSessionSecondsSql } from "./session-duration";
 import { canonicalSource, externalReferrerOnly, sourceSql } from "./source-sql";
@@ -20,6 +22,8 @@ import { canonicalSource, externalReferrerOnly, sourceSql } from "./source-sql";
 
 export interface PublicApiCtx {
 	db: Kysely<KlikapaDatabase>;
+	/** Bindings that tune revenue conversion (FX_USD_IDR). */
+	env?: { FX_USD_IDR?: string };
 	userId: string;
 	tokenScopes: string[];
 	tokenSiteId: string | null;
@@ -40,6 +44,7 @@ export class PublicApiError extends Error {
 export function publicApiCtx(c: Context<PublicApiEnv>): PublicApiCtx {
 	return {
 		db: c.get("db"),
+		env: c.env,
 		userId: c.get("userId"),
 		tokenScopes: c.get("tokenScopes"),
 		tokenSiteId: c.get("tokenSiteId"),
@@ -114,6 +119,11 @@ export async function assertSiteExists(ctx: PublicApiCtx, siteId: string): Promi
 	if (!(await validateSite(ctx.db, ctx.userId, siteId))) {
 		throw new PublicApiError(404, "Site not found");
 	}
+}
+
+/** The site's revenue currency and today's rates: every revenue sum converts into it. */
+async function moneyFor(ctx: PublicApiCtx, siteId: string): Promise<MoneyContext> {
+	return (await resolveQueryScope(ctx.db, siteId, ctx.env, undefined)).money;
 }
 
 // Guard trio applied by every site-scoped analytics query.
@@ -242,6 +252,7 @@ export async function queryOverview(ctx: PublicApiCtx, siteId: string | undefine
 
 	const { start } = getDateRange(range);
 	const startIso = start.toISOString();
+	const money = await moneyFor(ctx, id);
 
 	const [pv, vi, se, bo, du, rev, conv] = await Promise.all([
 		db
@@ -282,7 +293,7 @@ export async function queryOverview(ctx: PublicApiCtx, siteId: string | undefine
 			.executeTakeFirst(),
 		db
 			.selectFrom("events")
-			.select(({ fn }) => [fn.sum<number>("revenue").as("total")])
+			.select(() => [sql<number>`SUM(${revenueSql(money)})`.as("total")])
 			.where("site_id", "=", id)
 			.where("revenue", "!=", 0)
 			.where("timestamp", ">=", startIso)
@@ -303,6 +314,7 @@ export async function queryOverview(ctx: PublicApiCtx, siteId: string | undefine
 		bounceRate: Math.round(Number(bo?.avg ?? 0) * 100),
 		avgDuration: Math.round(Number(du?.avg_duration ?? 0)),
 		revenue: Number(rev?.total ?? 0),
+		currency: money.currency,
 		conversions: Number(conv?.count ?? 0),
 	};
 }
@@ -510,6 +522,7 @@ export async function queryRevenue(ctx: PublicApiCtx, siteId: string | undefined
 	const id = await guardSite(ctx, siteId);
 
 	const { startIso, tsDate, tsGroup } = tsFragments(range);
+	const money = await moneyFor(ctx, id);
 
 	const [revBySource, revByCountry, revTs] = await Promise.all([
 		// Revenue by source
@@ -517,7 +530,7 @@ export async function queryRevenue(ctx: PublicApiCtx, siteId: string | undefined
 			.selectFrom("events")
 			.select([
 				sourceSql.as("source"),
-				({ fn }) => fn.sum<number>("revenue").as("revenue"),
+				sql<number>`SUM(${revenueSql(money)})`.as("revenue"),
 				sql<number>`COUNT(CASE WHEN revenue > 0 THEN 1 END)`.as("conversions"),
 			])
 			.where("site_id", "=", id)
@@ -532,7 +545,7 @@ export async function queryRevenue(ctx: PublicApiCtx, siteId: string | undefined
 			.selectFrom("events")
 			.select([
 				sql<string>`COALESCE(country, 'unknown')`.as("country"),
-				({ fn }) => fn.sum<number>("revenue").as("revenue"),
+				sql<number>`SUM(${revenueSql(money)})`.as("revenue"),
 				sql<number>`COUNT(CASE WHEN revenue > 0 THEN 1 END)`.as("conversions"),
 			])
 			.where("site_id", "=", id)
@@ -547,7 +560,7 @@ export async function queryRevenue(ctx: PublicApiCtx, siteId: string | undefined
 			.selectFrom("events")
 			.select([
 				tsDate.as("date"),
-				({ fn }) => fn.sum<number>("revenue").as("revenue"),
+				sql<number>`SUM(${revenueSql(money)})`.as("revenue"),
 				sql<number>`COUNT(CASE WHEN revenue > 0 THEN 1 END)`.as("conversions"),
 			])
 			.where("site_id", "=", id)
@@ -559,6 +572,7 @@ export async function queryRevenue(ctx: PublicApiCtx, siteId: string | undefined
 	]);
 
 	return {
+		currency: money.currency,
 		bySource: revBySource.map((r) => ({
 			source: String(r.source),
 			revenue: Number(r.revenue ?? 0),
@@ -738,6 +752,7 @@ export async function queryJourneys(
 export async function queryCampaigns(ctx: PublicApiCtx, siteId: string | undefined, range: string) {
 	const db = ctx.db;
 	const id = await guardSite(ctx, siteId);
+	const money = await moneyFor(ctx, id);
 
 	const { start } = getDateRange(range);
 	const startIso = start.toISOString();
@@ -751,7 +766,7 @@ export async function queryCampaigns(ctx: PublicApiCtx, siteId: string | undefin
 			sql<string>`count(distinct visitor_id)`.as("visitors"),
 			sql<string>`sum(case when event_type = 'pageview' then 1 else 0 end)`.as("pageviews"),
 			sql<string>`sum(case when event_type = 'conversion' then 1 else 0 end)`.as("conversions"),
-			sql<string>`coalesce(sum(revenue), 0)`.as("revenue"),
+			sql<string>`coalesce(sum(${revenueSql(money)}), 0)`.as("revenue"),
 		])
 		.where("site_id", "=", id)
 		.where("timestamp", ">=", startIso)

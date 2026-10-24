@@ -3,7 +3,7 @@ import type { Kysely } from "kysely";
 import type { KlikapaDatabase } from "@revklik/shared";
 import { hashToken } from "../utils";
 
-type Bindings = { DB: D1Database };
+type Bindings = { DB: D1Database; FX_USD_IDR?: string };
 type Variables = {
 	db: Kysely<KlikapaDatabase>;
 	userId: string;

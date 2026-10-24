@@ -47,7 +47,7 @@ const sale = (over: Record<string, unknown> = {}) => ({
 });
 
 interface OverviewBody {
-	data: { revenue: number; conversions: number; visitors: number };
+	data: { revenue: number; conversions: number; visitors: number; currency: string };
 }
 
 async function overview(t: MigratedTestApp, token: string): Promise<OverviewBody> {
@@ -166,6 +166,31 @@ describe("POST /api/v1/events/server", () => {
 		).toEqual({
 			total_revenue: 9.99,
 		});
+	});
+
+	it("reports mixed-currency sales in the site's currency", async () => {
+		const { t, writer } = await setup();
+		for (const [id, revenue, currency] of [
+			["jp", 3000, "JPY"],
+			["th", 700, "THB"],
+			["us", 10, "USD"],
+		] as const) {
+			await t.call("POST", "/api/v1/events/server", {
+				token: writer,
+				body: sale({ external_id: id, revenue, currency }),
+			});
+		}
+		const stats = await overview(t, writer);
+		// 3000 JPY and 700 THB are about 20 USD each at the fallback rates, plus 10 USD.
+		expect(stats.data.revenue).toBeCloseTo(50, 0);
+		expect(stats.data.currency).toBe("USD");
+		const breakdown = await t.call("GET", "/api/v1/analytics/revenue?site_id=s-se&range=7d", {
+			token: writer,
+		});
+		const revenue: { data: { currency: string; timeseries: { revenue: number }[] } } =
+			await breakdown.json();
+		expect(revenue.data.currency).toBe("USD");
+		expect(revenue.data.timeseries.reduce((sum, p) => sum + p.revenue, 0)).toBeCloseTo(50, 0);
 	});
 
 	it("rejects malformed bodies", async () => {
