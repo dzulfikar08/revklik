@@ -7,9 +7,11 @@ import {
 	sql,
 } from "kysely";
 import type { KlikapaDatabase } from "@revklik/shared";
+import { BotFilterPlugin } from "./lib/bot-filter-plugin";
 
 export function createDb(d1: D1Database): Kysely<KlikapaDatabase> {
 	return new Kysely<KlikapaDatabase>({
+		plugins: [new BotFilterPlugin()],
 		dialect: {
 			createDriver() {
 				const connection = {

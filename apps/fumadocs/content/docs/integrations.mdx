@@ -36,6 +36,55 @@ store the signing key. Revenue lands in your revenue panels automatically.
 | Stripe        | Cards, wallets, bank debits, subscriptions         |
 | Lemon Squeezy | Digital products and SaaS billing                  |
 
+### Server events API
+
+For purchases a webhook cannot reach (App Store notifications, a backend of
+your own), report them from your server:
+
+```bash
+curl -X POST https://<your-revklik-host>/api/v1/events/server \
+  -H "Authorization: Bearer rv_..." \
+  -H "Content-Type: application/json" \
+  -d '{
+    "site_id": "<site id>",
+    "name": "purchase",
+    "revenue": 9.99,
+    "currency": "USD",
+    "external_id": "<transaction id>",
+    "source": "app_store",
+    "props": { "product": "pro", "country": "ID", "environment": "Production" },
+    "occurred_at": "2026-10-24T09:30:00Z"
+  }'
+```
+
+Use a site token (`rv_`) with the `events:write` scope. `revenue` is in major
+units; send a **negative** number for a refund, under its own key such as
+`<transaction id>:refund`. The call is idempotent on `external_id`: a repeat
+returns `"duplicate": true` and books nothing. Pass `visitor_id` (the
+`_kp_vid` value from the browser) or `session_id` (`_kp_sid`) to attribute the
+sale to that visitor's source and campaign. A `revenue` of `0` is stored as a
+plain event, not a conversion.
+
+For Polar, put `revklik_visitor_id` and `revklik_session_id` in the checkout
+metadata. RevKlik books `order.paid` and `order.refunded` once per order, using
+the order's net amount (after discounts, before tax).
+
+## Bot filtering
+
+Traffic that is not a person is stored but flagged, and excluded from every
+dashboard, API and MCP number. It is flagged when the browser reports
+automation (`navigator.webdriver`), when Cloudflare Bot Management scores the
+request as a bot, when it comes from a datacenter-only city, or when a session
+behaves in ways a person cannot: several scroll depths in the same
+millisecond within a few seconds of loading with no click, bursts of pageviews,
+or more than 100 clicks. An hourly job re-judges recent sessions, so a rule
+change reclassifies old data too.
+
+Session duration counts each gap between two events up to 30 minutes, so a tab
+left open overnight no longer inflates the average. Traffic sources are merged
+by name: `bing`, `bing.com` and `www.bing.com` are one source, and only
+pageviews from outside your own domain count as a source.
+
 ## Marketplace
 
 Connect **Shopee** and **Tokopedia** with OAuth (or re-authorize when a grant

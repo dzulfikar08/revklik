@@ -2,6 +2,7 @@ import { createApp } from "./app";
 import { createDb } from "./db";
 import { backupDatabase } from "./backup";
 import { syncAllAppStoreConnect } from "./lib/appstoreconnect";
+import { reclassifyRecentBots } from "./lib/bot-reclassify";
 import { inferSiteCurrencies } from "./lib/currency-backfill";
 import { purgeExpiredRows } from "./lib/purge";
 import { carryOverPakasirOrders } from "./migrations";
@@ -27,6 +28,11 @@ export default {
 				const purged = await purgeExpiredRows(env.DB, env.RETENTION_HARD_DELETE_DAYS);
 				if (purged > 0) console.log(`Retention purge: ${purged} rows deleted`);
 			}
+			return;
+		}
+		if (controller.cron === "15 * * * *") {
+			// Hourly: sessions that grew into bot-shaped bursts since the last pass.
+			if (env.DB) await reclassifyRecentBots(env.DB);
 			return;
 		}
 		if (controller.cron === "0 18 * * *") {

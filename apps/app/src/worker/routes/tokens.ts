@@ -156,7 +156,11 @@ tokenRoutes.post("/", async (c) => {
 
 	// Site tokens can only have analytics scopes
 	if (type === "site") {
-		const siteAllowedScopes: string[] = [SCOPES.ANALYTICS_READ, SCOPES.ANALYTICS_EXPORT];
+		const siteAllowedScopes: string[] = [
+			SCOPES.ANALYTICS_READ,
+			SCOPES.ANALYTICS_EXPORT,
+			SCOPES.EVENTS_WRITE,
+		];
 		const disallowedScopes = tokenScopes.filter((s: string) => !siteAllowedScopes.includes(s));
 		if (disallowedScopes.length > 0) {
 			return c.json(

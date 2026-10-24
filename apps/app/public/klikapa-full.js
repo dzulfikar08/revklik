@@ -60,7 +60,7 @@
     if (ua.includes("Mac OS") || ua.includes("Windows") || ua.includes("Linux") || ua.includes("CrOS")) return "desktop";
     return "desktop";
   }
-  const device = { dv: detectDevice(), br: detectBrowser(), os: detectOS(), sr: `${screen.width}x${screen.height}`, ln: navigator.language, tz: Intl.DateTimeFormat().resolvedOptions().timeZone || "" };
+  const device = { dv: detectDevice(), br: detectBrowser(), os: detectOS(), sr: `${screen.width}x${screen.height}`, ln: navigator.language, tz: Intl.DateTimeFormat().resolvedOptions().timeZone || "", ...(navigator.webdriver === true ? { wd: 1 } : {}) };
 
   // UTM
   function parseUTM() {
@@ -123,6 +123,7 @@
     const p = w.location.pathname;
     if (p === lastPath) return;
     lastPath = p;
+    for (const k of Object.keys(scrollMilestones)) delete scrollMilestones[k];
     const utm = parseUTM();
     rememberUTM(utm);
     send({ t: "p", p, h: w.location.hostname, r: d.referrer || undefined, ...utm });
@@ -136,13 +137,16 @@
     const docH = d.documentElement.scrollHeight;
     const depth = Math.round(((scrollY + viewH) / docH) * 100);
 
-    // Depth milestones: 25%, 50%, 75%, 90%
+    // Depth milestones: 25%, 50%, 75%, 90%. One event per scroll, naming the
+    // deepest milestone newly reached (lower ones are marked reached).
+    let deepest = 0;
     [25, 50, 75, 90].forEach((m) => {
       if (depth >= m && !scrollMilestones[m]) {
         scrollMilestones[m] = true;
-        send({ t: "e", n: "scroll", p: lastPath, pr: { depth: m } });
+        deepest = m;
       }
     });
+    if (deepest) send({ t: "e", n: "scroll", p: lastPath, pr: { depth: deepest } });
 
     // Named sections
     d.querySelectorAll("[data-section]").forEach((el) => {
@@ -241,7 +245,7 @@
 
   // Scroll listener (throttled)
   let scrollTimer;
-  w.addEventListener("scroll", () => { clearTimeout(scrollTimer); scrollTimer = setTimeout(trackScroll, 600); }, { passive: true });
+  w.addEventListener("scroll", (e) => { if (!e.isTrusted) return; clearTimeout(scrollTimer); scrollTimer = setTimeout(trackScroll, 600); }, { passive: true });
 
   // Click listener
   d.addEventListener("click", trackClick);

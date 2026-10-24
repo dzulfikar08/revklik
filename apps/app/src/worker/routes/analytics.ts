@@ -44,6 +44,7 @@ import {
 	type SessionSummary,
 } from "../queries/analytics";
 import { revenueSql } from "../lib/fx";
+import { canonicalSource } from "../lib/source-sql";
 import { resolveQueryScope } from "../lib/site-scope";
 import { getDateRange } from "../utils";
 
@@ -695,7 +696,7 @@ analyticsRoutes.get(
 			db
 				.selectFrom("events")
 				.select([
-					"utm_source",
+					canonicalSource(sql.ref("utm_source")).as("utm_source"),
 					"utm_medium",
 					"utm_campaign",
 					({ fn }) => fn.count<number>("visitor_id").distinct().as("visitors"),
@@ -708,7 +709,7 @@ analyticsRoutes.get(
 				.where("timestamp", "<", endIso),
 			filters,
 		)
-			.groupBy(["utm_source", "utm_medium", "utm_campaign"])
+			.groupBy([canonicalSource(sql.ref("utm_source")), "utm_medium", "utm_campaign"])
 			.orderBy("visitors", "desc")
 			.limit(50)
 			.execute();

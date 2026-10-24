@@ -33,6 +33,8 @@ export interface TrackEventPayload {
 	sr?: string;
 	ln?: string;
 	tz?: string;
+	/** 1 when the browser reports `navigator.webdriver` (automation). */
+	wd?: 1;
 }
 
 export interface IdentifyPayload {
@@ -572,6 +574,8 @@ export const SCOPES = {
 	SITES_READ: "sites:read",
 	ANALYTICS_READ: "analytics:read",
 	ANALYTICS_EXPORT: "analytics:export",
+	/** POST /api/v1/events/server: trusted servers report purchases and refunds. */
+	EVENTS_WRITE: "events:write",
 	TOKENS_READ: "tokens:read",
 	TOKENS_WRITE: "tokens:write",
 } as const;

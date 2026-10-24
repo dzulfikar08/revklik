@@ -5,6 +5,8 @@ import { sql } from "../db";
 import type { PublicApiEnv } from "../middleware/public-auth";
 import { getDateRange } from "../utils";
 import { toCsv } from "./analytics-queries";
+import { avgSessionSecondsSql } from "./session-duration";
+import { canonicalSource, externalReferrerOnly, sourceSql } from "./source-sql";
 
 /**
  * Shared query layer for the public API. Consumed by both the v1 REST routes
@@ -138,15 +140,6 @@ function tsFragments(range: string) {
 	return { start, end, startIso, isHourly, tsDate, tsGroup };
 }
 
-const sourceExpr = sql<string>`COALESCE(utm_source,
-    CASE WHEN (referrer IS NULL OR referrer = '') AND LOWER(browser) = 'whatsapp' THEN 'whatsapp'
-    WHEN referrer IS NULL OR referrer = '' THEN 'direct'
-    ELSE LOWER(REPLACE(
-      SUBSTR(SUBSTR(referrer, INSTR(referrer, '://') + 3), 1,
-        INSTR(SUBSTR(referrer, INSTR(referrer, '://') + 3) || '/', '/') - 1),
-      'www.', ''))
-    END)`;
-
 // --- Whoami ---
 
 export async function queryWhoami(ctx: PublicApiCtx): Promise<WhoamiResponse> {
@@ -260,7 +253,10 @@ export async function queryOverview(ctx: PublicApiCtx, siteId: string | undefine
 			.executeTakeFirst(),
 		db
 			.selectFrom("events")
-			.select(({ fn }) => [fn.count<number>("visitor_id").distinct().as("count")])
+			.select(() => [
+				// Server-reported sales (external_id) belong to a buyer, not a site visit.
+				sql<number>`COUNT(DISTINCT CASE WHEN external_id IS NULL THEN visitor_id END)`.as("count"),
+			])
 			.where("site_id", "=", id)
 			.where("timestamp", ">=", startIso)
 			.executeTakeFirst(),
@@ -280,13 +276,7 @@ export async function queryOverview(ctx: PublicApiCtx, siteId: string | undefine
 		// (queries/analytics.ts) — sessions with ≥2 events carry ended_at.
 		db
 			.selectFrom("sessions")
-			.select(() => [
-				sql<
-					number | null
-				>`AVG(CASE WHEN ended_at IS NOT NULL THEN (julianday(ended_at) - julianday(started_at)) * 86400 END)`.as(
-					"avg_duration",
-				),
-			])
+			.select(() => [avgSessionSecondsSql.as("avg_duration")])
 			.where("site_id", "=", id)
 			.where("started_at", ">=", startIso)
 			.executeTakeFirst(),
@@ -294,7 +284,7 @@ export async function queryOverview(ctx: PublicApiCtx, siteId: string | undefine
 			.selectFrom("events")
 			.select(({ fn }) => [fn.sum<number>("revenue").as("total")])
 			.where("site_id", "=", id)
-			.where("revenue", ">", 0)
+			.where("revenue", "!=", 0)
 			.where("timestamp", ">=", startIso)
 			.executeTakeFirst(),
 		db
@@ -394,15 +384,24 @@ export async function queryReferrers(
 	const { start } = getDateRange(range);
 	const startIso = start.toISOString();
 
+	// Pageviews only (custom events carry no referrer and would inflate "direct"),
+	// and the site's own navigation is not a traffic source.
+	const site = await db
+		.selectFrom("sites")
+		.select("domain")
+		.where("id", "=", id)
+		.executeTakeFirst();
 	const rows = await db
 		.selectFrom("events")
 		.select([
-			sourceExpr.as("source"),
+			sourceSql.as("source"),
 			({ fn }) => fn.count<number>("visitor_id").distinct().as("visitors"),
 		])
 		.where("site_id", "=", id)
+		.where("event_type", "=", "pageview")
 		.where("timestamp", ">=", startIso)
-		.groupBy(sourceExpr)
+		.where(externalReferrerOnly(site?.domain ?? ""))
+		.groupBy(sourceSql)
 		.orderBy("visitors", "desc")
 		.limit(limit)
 		.execute();
@@ -436,6 +435,7 @@ export async function queryGeo(
 			({ fn }) => fn.count<number>("visitor_id").distinct().as("visitors"),
 		])
 		.where("site_id", "=", id)
+		.where("external_id", "is", null)
 		.where("timestamp", ">=", startIso)
 		.groupBy(["country", "region", "city"])
 		.orderBy("visitors", "desc")
@@ -516,14 +516,14 @@ export async function queryRevenue(ctx: PublicApiCtx, siteId: string | undefined
 		db
 			.selectFrom("events")
 			.select([
-				sourceExpr.as("source"),
+				sourceSql.as("source"),
 				({ fn }) => fn.sum<number>("revenue").as("revenue"),
-				({ fn }) => fn.count<number>("id").as("conversions"),
+				sql<number>`COUNT(CASE WHEN revenue > 0 THEN 1 END)`.as("conversions"),
 			])
 			.where("site_id", "=", id)
-			.where("revenue", ">", 0)
+			.where("revenue", "!=", 0)
 			.where("timestamp", ">=", startIso)
-			.groupBy(sourceExpr)
+			.groupBy(sourceSql)
 			.orderBy("revenue", "desc")
 			.limit(10)
 			.execute(),
@@ -533,10 +533,10 @@ export async function queryRevenue(ctx: PublicApiCtx, siteId: string | undefined
 			.select([
 				sql<string>`COALESCE(country, 'unknown')`.as("country"),
 				({ fn }) => fn.sum<number>("revenue").as("revenue"),
-				({ fn }) => fn.count<number>("id").as("conversions"),
+				sql<number>`COUNT(CASE WHEN revenue > 0 THEN 1 END)`.as("conversions"),
 			])
 			.where("site_id", "=", id)
-			.where("revenue", ">", 0)
+			.where("revenue", "!=", 0)
 			.where("timestamp", ">=", startIso)
 			.groupBy("country")
 			.orderBy("revenue", "desc")
@@ -548,10 +548,10 @@ export async function queryRevenue(ctx: PublicApiCtx, siteId: string | undefined
 			.select([
 				tsDate.as("date"),
 				({ fn }) => fn.sum<number>("revenue").as("revenue"),
-				({ fn }) => fn.count<number>("id").as("conversions"),
+				sql<number>`COUNT(CASE WHEN revenue > 0 THEN 1 END)`.as("conversions"),
 			])
 			.where("site_id", "=", id)
-			.where("revenue", ">", 0)
+			.where("revenue", "!=", 0)
 			.where("timestamp", ">=", startIso)
 			.groupBy(tsGroup)
 			.orderBy("date", "asc")
@@ -745,7 +745,7 @@ export async function queryCampaigns(ctx: PublicApiCtx, siteId: string | undefin
 	const rows = await db
 		.selectFrom("events")
 		.select([
-			"utm_source",
+			canonicalSource(sql.ref("utm_source")).as("utm_source"),
 			"utm_medium",
 			"utm_campaign",
 			sql<string>`count(distinct visitor_id)`.as("visitors"),
@@ -756,7 +756,7 @@ export async function queryCampaigns(ctx: PublicApiCtx, siteId: string | undefin
 		.where("site_id", "=", id)
 		.where("timestamp", ">=", startIso)
 		.where("utm_source", "is not", null)
-		.groupBy(["utm_source", "utm_medium", "utm_campaign"])
+		.groupBy([canonicalSource(sql.ref("utm_source")), "utm_medium", "utm_campaign"])
 		.orderBy(sql`count(distinct visitor_id)`, "desc")
 		.limit(50)
 		.execute();

@@ -34,6 +34,8 @@ export async function getAccountEventsUsed(
 		.selectFrom("events")
 		.select(({ fn }) => fn.count<number>("id").as("cnt"))
 		.where("site_id", "in", db.selectFrom("sites").select("id").where("user_id", "=", userId))
+		// Metering counts every stored event, flagged bot traffic included.
+		.where("is_bot", "in", [0, 1])
 		.where("timestamp", ">=", monthStartIso(month))
 		.executeTakeFirst();
 	const events = Number(counted?.cnt ?? 0);

@@ -2,6 +2,12 @@ import { normalizeCurrency } from "./fx";
 
 /** Largest single revenue value accepted from a client. */
 export const MAX_REVENUE = 1e9;
+/**
+ * Longest gap between two events of a session that still counts as activity.
+ * A tab left open overnight or an abandoned session adds this much, not hours.
+ */
+export const SESSION_GAP_CAP_SECONDS = 30 * 60;
+
 const FUTURE_SKEW_MS = 5 * 60_000;
 const MAX_CLIENT_AGE_MS = 48 * 3_600_000;
 

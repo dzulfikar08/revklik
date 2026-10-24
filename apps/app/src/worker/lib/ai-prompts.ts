@@ -9,6 +9,7 @@ import type { Kysely } from "kysely";
 import type { InsightType, KlikapaDatabase } from "@revklik/shared";
 import { sql } from "../db";
 import { type MoneyContext, USD_MONEY, revenueSql } from "./fx";
+import { canonicalSource } from "./source-sql";
 
 // ---------------------------------------------------------------------------
 // Aggregated data types
@@ -106,14 +107,15 @@ export async function aggregateData(
 		db
 			.selectFrom("events")
 			.select([
-				({ fn }) => fn.coalesce("utm_source", sql.lit("direct")).as("utm_source"),
+				({ fn }) =>
+					fn.coalesce(canonicalSource(sql.ref("utm_source")), sql.lit("direct")).as("utm_source"),
 				sql<number>`SUM(${revenue})`.as("revenue"),
 				({ fn }) => fn.count<number>("visitor_id").distinct().as("visitors"),
 			])
 			.where("site_id", "=", siteId)
-			.where("revenue", ">", 0)
+			.where("revenue", "!=", 0)
 			.where("timestamp", ">=", startIso)
-			.groupBy(({ fn }) => fn.coalesce("utm_source", sql.lit("direct")))
+			.groupBy(({ fn }) => fn.coalesce(canonicalSource(sql.ref("utm_source")), sql.lit("direct")))
 			.orderBy("revenue", "desc")
 			.limit(10)
 			.execute(),
@@ -127,7 +129,7 @@ export async function aggregateData(
 				({ fn }) => fn.count<number>("visitor_id").distinct().as("visitors"),
 			])
 			.where("site_id", "=", siteId)
-			.where("revenue", ">", 0)
+			.where("revenue", "!=", 0)
 			.where("timestamp", ">=", startIso)
 			.groupBy(({ fn }) => fn.coalesce("country", sql.lit("unknown")))
 			.orderBy("revenue", "desc")
@@ -197,7 +199,7 @@ export async function aggregateData(
 			.selectFrom("events")
 			.select([
 				({ fn }) => fn.count<number>("id").as("total_events"),
-				sql<number>`COALESCE(SUM(CASE WHEN revenue > 0 THEN ${revenue} END), 0)`.as(
+				sql<number>`COALESCE(SUM(CASE WHEN revenue != 0 THEN ${revenue} END), 0)`.as(
 					"total_revenue",
 				),
 			])

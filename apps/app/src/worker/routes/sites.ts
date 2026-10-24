@@ -92,7 +92,7 @@ siteRoutes.get("/", async (c) => {
 					.selectFrom("events")
 					.select([sql<number>`SUM(${revenueSql(money)})`.as("revenue")])
 					.where("site_id", "=", site.id)
-					.where("revenue", ">", 0)
+					.where("revenue", "!=", 0)
 					.where("timestamp", ">=", startIso)
 					.groupBy(sql`date(${sql.ref("timestamp")})`)
 					.orderBy("timestamp", "asc")
@@ -102,6 +102,7 @@ siteRoutes.get("/", async (c) => {
 					.selectFrom("events")
 					.select("id")
 					.where("site_id", "=", site.id)
+					.where("is_bot", "in", [0, 1])
 					.limit(1)
 					.executeTakeFirst(),
 			]);

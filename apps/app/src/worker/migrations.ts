@@ -2,7 +2,7 @@
  * Version the live schema must reach. Bump it whenever a step is appended to
  * VERSIONED_STEPS; a DB already at this version costs one SELECT per isolate.
  */
-export const SCHEMA_VERSION = 11;
+export const SCHEMA_VERSION = 12;
 
 const migrated = new WeakSet<D1Database>();
 
@@ -76,6 +76,7 @@ const VERSIONED_STEPS: MigrationStep[] = [
 	},
 	{ version: 10, run: accountProofSchema },
 	{ version: 11, run: preDeployRepairs },
+	{ version: 12, run: botFilterSchema },
 ];
 
 const CHECKOUT_STATUSES = "('open', 'expired', 'confirmed', 'succeeded', 'failed')";
@@ -290,6 +291,40 @@ export async function migrateDatabase(
 		}
 	}
 	migrated.add(d1);
+}
+
+/**
+ * Bot flagging, capped session duration and server-event idempotency. Every
+ * statement is a metadata-only ALTER (constant defaults), so the step is O(1)
+ * on a large events table; lib/bot-reclassify.ts fills the data afterwards.
+ */
+async function botFilterSchema(d1: D1Database): Promise<void> {
+	for (const statement of [
+		"ALTER TABLE events ADD COLUMN is_bot INTEGER NOT NULL DEFAULT 0",
+		"ALTER TABLE events ADD COLUMN external_id TEXT",
+		"ALTER TABLE sessions ADD COLUMN is_bot INTEGER NOT NULL DEFAULT 0",
+		"ALTER TABLE sessions ADD COLUMN bot_reason TEXT",
+		"ALTER TABLE sessions ADD COLUMN active_seconds INTEGER",
+		"ALTER TABLE sessions ADD COLUMN as_org TEXT",
+		"ALTER TABLE visitor_profiles ADD COLUMN is_bot INTEGER NOT NULL DEFAULT 0",
+		"CREATE UNIQUE INDEX IF NOT EXISTS idx_events_site_external ON events(site_id, external_id) WHERE external_id IS NOT NULL",
+	]) {
+		await runDdl(d1, statement);
+	}
+	// Orders booked before external_id existed keep deduping: lift the Polar order
+	// id out of props, one row per (site, order) so the unique index holds.
+	await runBackfill(
+		d1,
+		`UPDATE events
+		 SET external_id = CASE WHEN json_valid(props) THEN json_extract(props, '$.polar_order_id') END
+		 WHERE external_id IS NULL AND event_type = 'conversion' AND json_valid(props)
+		   AND json_extract(props, '$.polar_order_id') IS NOT NULL
+		   AND id IN (
+		     SELECT MIN(id) FROM events
+		     WHERE event_type = 'conversion' AND json_valid(props)
+		       AND json_extract(props, '$.polar_order_id') IS NOT NULL
+		     GROUP BY site_id, json_extract(props, '$.polar_order_id'))`,
+	);
 }
 
 /** Pre-versioning schema: every statement is idempotent and tolerates partial prior runs. */

@@ -81,6 +81,9 @@
 		sr: `${screen.width}x${screen.height}`,
 		ln: navigator.language,
 		tz: Intl.DateTimeFormat().resolvedOptions().timeZone || "",
+		// Automation (Selenium, Playwright, Puppeteer) announces itself; the server
+		// stores such traffic flagged as a bot instead of counting it as visitors.
+		...(navigator.webdriver === true ? { wd: 1 } : {}),
 	};
 
 	// UTM
@@ -163,6 +166,8 @@
 		const p = w.location.pathname;
 		if (p === lastPath) return;
 		lastPath = p;
+		// Scroll depth belongs to a page: a new path starts its milestones over.
+		for (const k of Object.keys(scrollMilestones)) delete scrollMilestones[k];
 		const utm = parseUTM();
 		rememberUTM(utm);
 		send({
@@ -174,8 +179,11 @@
 		});
 	}
 
-	// Scroll tracking
-	const scrollMilestones = {};
+	// Scroll tracking. Runs only from a real scroll event (never on load), and a
+	// scroll that crosses several milestones at once reports the deepest one as a
+	// single event, so one gesture can never emit 25/50/75/90 in the same
+	// millisecond. Lower milestones are marked reached; consumers read depth as
+	// "at least this far".
 	function trackScroll() {
 		const scrollY = w.scrollY;
 		const viewH = w.innerHeight;
@@ -183,12 +191,14 @@
 		const depth = Math.round(((scrollY + viewH) / docH) * 100);
 
 		// Depth milestones: 25%, 50%, 75%, 90%
+		let deepest = 0;
 		[25, 50, 75, 90].forEach((m) => {
 			if (depth >= m && !scrollMilestones[m]) {
 				scrollMilestones[m] = true;
-				send({ t: "e", n: "scroll", p: lastPath, pr: { depth: m } });
+				deepest = m;
 			}
 		});
+		if (deepest) send({ t: "e", n: "scroll", p: lastPath, pr: { depth: deepest } });
 
 		// Named sections
 		d.querySelectorAll("[data-section]").forEach((el) => {
@@ -325,7 +335,8 @@
 	let scrollTimer;
 	w.addEventListener(
 		"scroll",
-		() => {
+		(e) => {
+			if (!e.isTrusted) return;
 			clearTimeout(scrollTimer);
 			scrollTimer = setTimeout(trackScroll, 600);
 		},

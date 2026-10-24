@@ -17,6 +17,8 @@ import type {
 import { sql } from "../db";
 import type { ParsedFilter } from "../lib/analytics-queries";
 import { applyFilters, applySessionFilters } from "../lib/analytics-queries";
+import { avgSessionSecondsSql } from "../lib/session-duration";
+import { externalReferrerOnly, sourceSql } from "../lib/source-sql";
 import { type MoneyContext, revenueSql, USD_MONEY } from "../lib/fx";
 
 /** Per-request presentation: revenue display currency and bucket timezone. */
@@ -40,29 +42,6 @@ export function bucketSql(isHourly: boolean, tzOffset: number, column = "timesta
 		? sql<string>`strftime('%Y-%m-%dT%H:00:00', ${ref}, ${shift})`
 		: sql<string>`date(${ref}, ${shift})`;
 }
-
-const sourceSql = sql<string>`COALESCE(utm_source,
-  CASE WHEN (referrer IS NULL OR referrer = '') AND LOWER(browser) = 'whatsapp' THEN 'whatsapp'
-  WHEN referrer IS NULL OR referrer = '' THEN 'direct'
-  WHEN referrer LIKE '%ig_text_post_permalink%' OR referrer LIKE '%ig_text_feed_timeline%' THEN 'instagram'
-  ELSE
-    CASE LOWER(REPLACE(
-        SUBSTR(SUBSTR(referrer, INSTR(referrer, '://') + 3), 1,
-          INSTR(SUBSTR(referrer, INSTR(referrer, '://') + 3) || '/', '/') - 1),
-        'www.', ''))
-      WHEN 'l.threads.com' THEN 'threads'
-      WHEN 'threads.net' THEN 'threads'
-      WHEN 'm.facebook.com' THEN 'facebook'
-      WHEN 'facebook.com' THEN 'facebook'
-      WHEN 'fb.me' THEN 'facebook'
-      WHEN 't.co' THEN 'twitter'
-      WHEN 'instagram.com' THEN 'instagram'
-      ELSE LOWER(REPLACE(
-        SUBSTR(SUBSTR(referrer, INSTR(referrer, '://') + 3), 1,
-          INSTR(SUBSTR(referrer, INSTR(referrer, '://') + 3) || '/', '/') - 1),
-        'www.', ''))
-    END
-  END)`;
 
 /**
  * Continuous bucket keys, in the scope's local time, for every day/hour the
@@ -167,8 +146,9 @@ export async function getOverviewStats(
 		.selectFrom("events")
 		.select([
 			sql<number>`COUNT(CASE WHEN event_type = 'pageview' THEN 1 END)`.as("pageviews"),
-			({ fn }) => fn.count<number>("visitor_id").distinct().as("visitors"),
-			sql<number>`COALESCE(SUM(CASE WHEN revenue > 0 THEN ${revenueSql(scope.money)} END), 0)`.as(
+			// Server-reported sales (external_id) belong to a buyer, not a site visit.
+			sql<number>`COUNT(DISTINCT CASE WHEN external_id IS NULL THEN visitor_id END)`.as("visitors"),
+			sql<number>`COALESCE(SUM(CASE WHEN revenue != 0 THEN ${revenueSql(scope.money)} END), 0)`.as(
 				"revenue",
 			),
 			sql<number>`COUNT(CASE WHEN event_type = 'conversion' THEN 1 END)`.as("conversions"),
@@ -182,9 +162,7 @@ export async function getOverviewStats(
 		.select([
 			({ fn }) => fn.count<number>("id").as("sessions"),
 			({ fn }) => fn.avg<number>("is_bounce").as("bounce"),
-			sql<number>`AVG(CASE WHEN ended_at IS NOT NULL THEN (julianday(ended_at) - julianday(started_at)) * 86400 END)`.as(
-				"avg_duration",
-			),
+			avgSessionSecondsSql.as("avg_duration"),
 		])
 		.where("site_id", "=", siteId)
 		.where("started_at", ">=", startIso);
@@ -284,6 +262,13 @@ export async function getReferrers(
 	filters?: ParsedFilter[],
 	endIso?: string,
 ): Promise<SourceEntry[]> {
+	// Only pageviews carry a referrer; counting custom events (scroll, click) would
+	// file every visitor under "direct" as well as their real source.
+	const site = await db
+		.selectFrom("sites")
+		.select("domain")
+		.where("id", "=", siteId)
+		.executeTakeFirst();
 	let q = db
 		.selectFrom("events")
 		.select([
@@ -291,7 +276,9 @@ export async function getReferrers(
 			({ fn }) => fn.count<number>("visitor_id").distinct().as("visitors"),
 		])
 		.where("site_id", "=", siteId)
-		.where("timestamp", ">=", startIso);
+		.where("event_type", "=", "pageview")
+		.where("timestamp", ">=", startIso)
+		.where(externalReferrerOnly(site?.domain ?? ""));
 	if (endIso) q = q.where("timestamp", "<", endIso);
 
 	const sourceRows = await applyFilters(q, filters)
@@ -383,6 +370,7 @@ export async function getGeoData(
 			({ fn }) => fn.count<number>("visitor_id").distinct().as("visitors"),
 		])
 		.where("site_id", "=", siteId)
+		.where("external_id", "is", null)
 		.where("timestamp", ">=", startIso);
 	if (endIso) q = q.where("timestamp", "<", endIso);
 
@@ -432,10 +420,10 @@ export async function getRevenueBySource(
 		.select([
 			sourceSql.as("source"),
 			sql<number>`SUM(${revenueSql(scope.money)})`.as("revenue"),
-			({ fn }) => fn.count<number>("id").as("conversions"),
+			sql<number>`COUNT(CASE WHEN revenue > 0 THEN 1 END)`.as("conversions"),
 		])
 		.where("site_id", "=", siteId)
-		.where("revenue", ">", 0)
+		.where("revenue", "!=", 0)
 		.where("timestamp", ">=", startIso);
 	if (endIso) q = q.where("timestamp", "<", endIso);
 
@@ -465,10 +453,10 @@ export async function getRevenueByCountry(
 		.select([
 			sql<string>`COALESCE(country, 'unknown')`.as("country"),
 			sql<number>`SUM(${revenueSql(scope.money)})`.as("revenue"),
-			({ fn }) => fn.count<number>("id").as("conversions"),
+			sql<number>`COUNT(CASE WHEN revenue > 0 THEN 1 END)`.as("conversions"),
 		])
 		.where("site_id", "=", siteId)
-		.where("revenue", ">", 0)
+		.where("revenue", "!=", 0)
 		.where("timestamp", ">=", startIso);
 	if (endIso) q = q.where("timestamp", "<", endIso);
 
@@ -502,10 +490,10 @@ export async function getRevenueTimeseries(
 		.select([
 			tsDate.as("date"),
 			sql<number>`SUM(${revenueSql(scope.money)})`.as("revenue"),
-			({ fn }) => fn.count<number>("id").as("conversions"),
+			sql<number>`COUNT(CASE WHEN revenue > 0 THEN 1 END)`.as("conversions"),
 		])
 		.where("site_id", "=", siteId)
-		.where("revenue", ">", 0)
+		.where("revenue", "!=", 0)
 		.where("timestamp", ">=", startIso);
 	if (endIso) q = q.where("timestamp", "<", endIso);
 
@@ -539,7 +527,7 @@ export async function getEntryPagesRevenue(
 			sql<number>`COUNT(DISTINCT CASE WHEN events.event_type = 'conversion' OR events.event_type = 'payment' THEN events.id END)`.as(
 				"conversions",
 			),
-			sql<number>`COALESCE(SUM(CASE WHEN events.revenue > 0 THEN ${revenueSql(scope.money, "events.revenue", "events.currency")} END), 0)`.as(
+			sql<number>`COALESCE(SUM(CASE WHEN events.revenue != 0 THEN ${revenueSql(scope.money, "events.revenue", "events.currency")} END), 0)`.as(
 				"revenue",
 			),
 		])
@@ -577,7 +565,7 @@ export async function getRevenueByPaymentMethod(
 			sql<number>`COALESCE(SUM(${revenueSql(scope.money)}), 0)`.as("revenue"),
 		])
 		.where("site_id", "=", siteId)
-		.where("revenue", ">", 0)
+		.where("revenue", "!=", 0)
 		.where("timestamp", ">=", startIso);
 	if (endIso) q = q.where("timestamp", "<", endIso);
 
@@ -608,7 +596,7 @@ export async function getRevenueByPaymentProvider(
 			sql<number>`COALESCE(SUM(${revenueSql(scope.money)}), 0)`.as("revenue"),
 		])
 		.where("site_id", "=", siteId)
-		.where("revenue", ">", 0)
+		.where("revenue", "!=", 0)
 		.where("timestamp", ">=", startIso);
 	if (endIso) q = q.where("timestamp", "<", endIso);
 
@@ -662,7 +650,7 @@ export async function getChannelBreakdown(
 			channelExpr.as("channel"),
 			({ fn }) => fn.count<number>("visitor_id").distinct().as("visitors"),
 			({ fn }) => fn.count<number>("id").as("pageviews"),
-			sql<number>`COALESCE(SUM(CASE WHEN revenue > 0 THEN ${revenueSql(scope.money)} END), 0)`.as(
+			sql<number>`COALESCE(SUM(CASE WHEN revenue != 0 THEN ${revenueSql(scope.money)} END), 0)`.as(
 				"revenue",
 			),
 		])

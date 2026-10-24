@@ -27,6 +27,7 @@ adminRoutes.get("/stats", async (c) => {
 		db
 			.selectFrom("events")
 			.select(({ fn }) => [fn.count<number>("id").as("count")])
+			.where("is_bot", "in", [0, 1])
 			.executeTakeFirst(),
 		db
 			.selectFrom("subscriptions")
@@ -101,6 +102,7 @@ adminRoutes.get("/members", async (c) => {
 		db
 			.selectFrom("events")
 			.innerJoin("sites", "sites.id", "events.site_id")
+			.where("events.is_bot", "in", [0, 1])
 			.select([
 				"sites.user_id",
 				({ fn }) => fn.count<number>("events.id").as("total"),

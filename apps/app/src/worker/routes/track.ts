@@ -2,7 +2,13 @@ import { Hono } from "hono";
 import type { Compilable, Kysely } from "kysely";
 import type { IdentifyPayload, KlikapaDatabase, TrackEventPayload } from "@revklik/shared";
 import { sql } from "../db";
-import { eventCurrency, resolveEventTimestamp, sanitizeRevenue } from "../lib/ingest";
+import { classifyIngestSignals } from "../lib/bot-detection";
+import {
+	eventCurrency,
+	resolveEventTimestamp,
+	SESSION_GAP_CAP_SECONDS,
+	sanitizeRevenue,
+} from "../lib/ingest";
 import { accountUsageIncrement } from "../lib/account-usage";
 import { executeBatch } from "../lib/d1-batch";
 import { enforceSiteQuota, incrementCachedUsage } from "../lib/subscription-cache";
@@ -98,6 +104,10 @@ trackRoutes.post("/track", async (c) => {
 	const cfRegion = (cf?.region as string) ?? null;
 	const cfCity = (cf?.city as string) ?? null;
 	const cfAsOrg = (cf?.asOrganization as string | undefined) ?? null;
+	// Present only on Cloudflare Bot Management plans.
+	const cfBotManagement = cf?.botManagement as
+		| { score?: number; verifiedBot?: boolean }
+		| undefined;
 
 	// Support batch (array) or single event
 	const payloads: TrackEventPayload[] = Array.isArray(raw) ? raw : [raw];
@@ -115,7 +125,7 @@ trackRoutes.post("/track", async (c) => {
 	// always a silent success so the tracker never retries. UA-based only;
 	// datacenter IPs that spoof a real browser UA are not caught here.
 	const botUa = c.req.header("user-agent");
-	if (isBotUserAgent(botUa)) {
+	if (isBotUserAgent(botUa) || cfBotManagement?.verifiedBot === true) {
 		const hit = classifyCrawler(botUa);
 		const botSiteId = payloads[0]?.s;
 		if (hit && botSiteId) {
@@ -219,6 +229,16 @@ trackRoutes.post("/track", async (c) => {
 		cfCountry = countryFromTimezone(first.tz);
 	}
 
+	// Bots that pass the UA and network checks above are still stored, but
+	// flagged: analytics reads skip them, and a later rule change can re-judge them.
+	const botReason = classifyIngestSignals({
+		city: cfCity,
+		asOrganization: cfAsOrg,
+		botScore: cfBotManagement?.score,
+		webdriver: payloads.some((p) => p.wd === 1),
+	});
+	const isBot = botReason ? 1 : 0;
+
 	const deviceType = first.dv ?? null;
 	// WhatsApp in-app browsers ship a Chrome/Safari UA plus a `WhatsApp/x.y`
 	// token; the client-side parse only sees Chrome/Safari. Server UA wins so
@@ -298,6 +318,7 @@ trackRoutes.post("/track", async (c) => {
 				browser,
 				os,
 				fingerprint,
+				is_bot: isBot,
 			}),
 		);
 
@@ -327,13 +348,22 @@ trackRoutes.post("/track", async (c) => {
 					page_count: 1,
 					is_bounce: 1,
 					fingerprint,
+					is_bot: isBot,
+					bot_reason: botReason,
+					active_seconds: 0,
+					as_org: cfAsOrg,
 				})
 				.onConflict((oc) =>
 					oc.column("id").doUpdateSet({
 						exit_path: payload.p,
-						ended_at: ts,
+						// Out-of-order batches never move the end backwards, and a gap
+						// (idle tab, abandoned session) adds at most the cap.
+						active_seconds: sql`COALESCE(active_seconds, 0) + CAST(ROUND(MIN(${SESSION_GAP_CAP_SECONDS}, MAX(0, (julianday(${ts}) - julianday(COALESCE(ended_at, started_at))) * 86400))) AS INTEGER)`,
+						ended_at: sql`MAX(COALESCE(ended_at, started_at), ${ts})`,
 						page_count: sql`page_count + 1`,
 						is_bounce: 0,
+						is_bot: sql`MAX(is_bot, ${isBot})`,
+						bot_reason: sql`COALESCE(bot_reason, ${botReason})`,
 					}),
 				),
 		);
@@ -357,10 +387,13 @@ trackRoutes.post("/track", async (c) => {
 					total_pageviews: pvInc,
 					total_revenue: rvInc,
 					fingerprint,
+					is_bot: isBot,
 				})
 				.onConflict((oc) =>
 					oc.columns(["site_id", "visitor_id"]).doUpdateSet({
 						last_seen: ts,
+						// A human session clears an earlier bot verdict; a bot one never sets it.
+						is_bot: isBot ? undefined : 0,
 						fingerprint: fingerprint ?? undefined,
 						country: cfCountry ?? undefined,
 						region: cfRegion ?? undefined,

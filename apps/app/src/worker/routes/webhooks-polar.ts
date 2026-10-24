@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import type { Kysely } from "kysely";
 import type { KlikapaDatabase } from "@revklik/shared";
-import { sql } from "../db";
+import { recordServerEvent } from "../lib/server-events";
 import { verifyStandardWebhook } from "../lib/standard-webhooks";
 import type { Env } from "../types";
 import { generateId } from "../utils";
@@ -20,8 +20,14 @@ interface PolarWebhookData {
 	id?: string;
 	metadata?: Record<string, string | undefined>;
 	attributes?: PolarWebhookAttributes | null;
+	status?: string | null;
+	paid?: boolean | null;
+	billing_reason?: string | null;
 	// flat (top-level on data) variants of common fields
 	amount?: number | string | null;
+	net_amount?: number | string | null;
+	total_amount?: number | string | null;
+	refunded_amount?: number | string | null;
 	currency?: string | null;
 	customer_email?: string | null;
 	created_at?: string | null;
@@ -31,6 +37,8 @@ interface PolarWebhookData {
 
 interface PolarWebhookAttributes {
 	id?: string;
+	status?: string | null;
+	refunded_amount?: number | string | null;
 	metadata?: Record<string, string | undefined>;
 	amount?: number | string | null;
 	total?: number | string | null;
@@ -143,11 +151,13 @@ polarWebhookRoutes.post("/", async (c) => {
 	}
 
 	const type = body.type || body.event_type || ""; // e.g. "order.created"
-	const orderId = data.id || attributes.id || "";
-	const isSubscription = type === "subscription.created";
+	const orderId = String(data.id || attributes.id || "");
 
-	// One-time products fire "order.created"; ignore the rest (refunds/cancellations handled separately if needed).
-	if (type !== "order.created" && type !== "subscription.created") {
+	// Revenue comes from orders only. A subscription's first payment arrives as an
+	// order too (billing_reason subscription_create), so counting subscription.created
+	// as well would book every new subscriber twice.
+	const isRefund = type === "order.refunded";
+	if (type !== "order.created" && type !== "order.paid" && !isRefund) {
 		await logWebhookEvent(
 			db,
 			siteId,
@@ -158,121 +168,87 @@ polarWebhookRoutes.post("/", async (c) => {
 		);
 		return c.json({ success: true, action: "logged" });
 	}
+	// order.created can precede payment (pending invoices); order.paid follows and counts it.
+	// A payload without a status is the console's relay of an already-paid order.
+	const status = data.status ?? attributes.status;
+	if (type === "order.created" && status && status !== "paid" && data.paid !== true) {
+		await logWebhookEvent(
+			db,
+			siteId,
+			integration?.id ?? null,
+			`polar_${type}`,
+			rawBody,
+			"processed",
+		);
+		return c.json({ success: true, action: "pending" });
+	}
+	if (!orderId) return c.json({ error: "order id required" }, 400);
 
-	// Polar amounts are in cents. Handle both the flat (data.amount) and JSON:API (attributes.total) shapes.
+	// Polar amounts are cents. Real orders carry net_amount (after discounts, before
+	// tax) and total_amount; the console relay sends a flat `amount`; the legacy
+	// JSON:API shape nests them under attributes.
 	const rawAmount = Number(
-		data.amount ?? attributes.amount ?? attributes.total ?? attributes.net_amount ?? 0,
+		(isRefund ? (data.refunded_amount ?? attributes.refunded_amount) : null) ??
+			data.amount ??
+			attributes.amount ??
+			data.net_amount ??
+			attributes.net_amount ??
+			data.total_amount ??
+			attributes.total ??
+			0,
 	);
-	const amount = rawAmount / 100;
+	const amount = (Number.isFinite(rawAmount) ? rawAmount : 0) / 100;
 	const currency = (data.currency || attributes.currency || "usd").toString().toUpperCase();
 	const customerEmail =
 		data.customer?.email || attributes.customer_email || data.customer_email || null;
 	const productName =
 		data.product?.name || attributes.product_name || metadata.product_name || "Polar purchase";
 
-	// Dedupe by Polar order/subscription id in props.
-	const dedupeKey = isSubscription ? "polar_subscription_id" : "polar_order_id";
-	const existing = await db
-		.selectFrom("events")
-		.select(["id"])
-		.where("site_id", "=", siteId)
-		.where("event_type", "=", "conversion")
-		.where(sql<string>`json_extract(props, ${`$.${dedupeKey}`})`, "=", String(orderId))
+	const site = await db
+		.selectFrom("sites")
+		.select(["id", "revenue_currency"])
+		.where("id", "=", siteId)
 		.executeTakeFirst();
-	if (existing) return c.json({ success: true, duplicate: true });
+	if (!site) return c.json({ error: "Unknown site_id" }, 404);
 
-	const sessionId = metadata.revklik_session_id || generateId();
-	let visitorId = metadata.revklik_visitor_id || null;
-	if (sessionId) {
-		const sessionRow = await db
-			.selectFrom("sessions")
-			.select(["visitor_id"])
-			.where("id", "=", sessionId)
+	// The idempotency key is the order id, shared with the server events API, so an
+	// order seen through both paths (or twice through this one) books once.
+	const result = await recordServerEvent(db, site, {
+		siteId,
+		name: isRefund ? "refund" : "purchase_polar",
+		revenue: isRefund ? -amount : amount,
+		currency,
+		externalId: isRefund ? `${orderId}:refund` : orderId,
+		source: "polar",
+		props: {
+			polar_order_id: orderId,
+			product: productName,
+			billing_reason: data.billing_reason,
+			...(customerEmail ? { email: customerEmail } : {}),
+		},
+		occurredAt: data.created_at || attributes.created_at || null,
+		visitorId: metadata.revklik_visitor_id || null,
+		sessionId: metadata.revklik_session_id || null,
+		utmSource: metadata.utm_source || null,
+		utmMedium: metadata.utm_medium || null,
+		utmCampaign: metadata.utm_campaign || null,
+	});
+	if (result.duplicate) return c.json({ success: true, duplicate: true });
+
+	if (customerEmail) {
+		await db
+			.updateTable("visitor_profiles")
+			.set({ email: customerEmail })
 			.where("site_id", "=", siteId)
-			.executeTakeFirst();
-		if (sessionRow) visitorId = sessionRow.visitor_id;
+			.where("visitor_id", "=", result.visitorId)
+			.execute();
 	}
-	if (!visitorId) visitorId = `polar_${String(orderId).replace(/[^a-zA-Z0-9]/g, "_")}`;
-
-	const ts = data.created_at || attributes.created_at || new Date().toISOString();
-	const eventId = generateId();
-
-	await db
-		.insertInto("events")
-		.values({
-			id: eventId,
-			site_id: siteId,
-			session_id: sessionId,
-			visitor_id: visitorId,
-			timestamp: ts,
-			event_type: "conversion",
-			name: isSubscription ? "subscription_polar" : "purchase_polar",
-			path: "/checkout/success",
-			hostname: null,
-			referrer: null,
-			utm_source: metadata.utm_source || null,
-			utm_medium: metadata.utm_medium || null,
-			utm_campaign: metadata.utm_campaign || null,
-			utm_term: null,
-			utm_content: null,
-			country: null,
-			region: null,
-			city: null,
-			device_type: null,
-			browser: null,
-			os: null,
-			revenue: amount,
-			payment_provider: "polar",
-			currency,
-			props: JSON.stringify({
-				[dedupeKey]: orderId,
-				product: productName,
-				currency,
-				source: "polar_webhook",
-				...(customerEmail ? { email: customerEmail } : {}),
-			}),
-			fingerprint: null,
-		})
-		.execute();
-
-	await db
-		.insertInto("visitor_profiles")
-		.values({
-			id: generateId(),
-			site_id: siteId,
-			visitor_id: visitorId,
-			name: null,
-			email: customerEmail,
-			phone: null,
-			avatar: null,
-			first_seen: ts,
-			last_seen: ts,
-			country: null,
-			region: null,
-			city: null,
-			device_type: null,
-			browser: null,
-			os: null,
-			total_sessions: 0,
-			total_pageviews: 0,
-			total_revenue: amount,
-			tags: null,
-			notes: null,
-		})
-		.onConflict((oc) =>
-			oc.columns(["site_id", "visitor_id"]).doUpdateSet({
-				last_seen: ts,
-				email: customerEmail ?? undefined,
-				total_revenue: sql`total_revenue + ${amount}`,
-			}),
-		)
-		.execute();
 
 	await logWebhookEvent(db, siteId, integration?.id ?? null, `polar_${type}`, rawBody, "processed");
 	return c.json({
 		success: true,
-		event_id: eventId,
-		revenue: amount,
+		event_id: result.eventId,
+		revenue: isRefund ? -amount : amount,
 		currency,
 		product: productName,
 	});

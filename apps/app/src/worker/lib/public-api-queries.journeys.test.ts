@@ -15,9 +15,9 @@ function createTables(db: Database): void {
 	db.exec(`
 		CREATE TABLE IF NOT EXISTS sites (id TEXT PRIMARY KEY, user_id TEXT NOT NULL, name TEXT NOT NULL, domain TEXT, created_at TEXT NOT NULL DEFAULT (datetime('now')));
 		CREATE TABLE IF NOT EXISTS team_members (id TEXT PRIMARY KEY, site_id TEXT NOT NULL, user_id TEXT NOT NULL, accepted_at TEXT);
-		CREATE TABLE IF NOT EXISTS sessions (id TEXT PRIMARY KEY, site_id TEXT NOT NULL, visitor_id TEXT NOT NULL, started_at TEXT NOT NULL DEFAULT (datetime('now')), ended_at TEXT, entry_path TEXT, exit_path TEXT, referrer TEXT, utm_source TEXT, utm_medium TEXT, utm_campaign TEXT, country TEXT, region TEXT, city TEXT, device_type TEXT, browser TEXT, os TEXT, page_count INTEGER NOT NULL DEFAULT 1, is_bounce INTEGER NOT NULL DEFAULT 1);
-		CREATE TABLE IF NOT EXISTS events (id TEXT PRIMARY KEY, site_id TEXT NOT NULL, session_id TEXT NOT NULL, visitor_id TEXT NOT NULL, timestamp TEXT NOT NULL DEFAULT (datetime('now')), event_type TEXT NOT NULL DEFAULT 'pageview', name TEXT, path TEXT NOT NULL, revenue REAL, props TEXT);
-		CREATE TABLE IF NOT EXISTS visitor_profiles (id TEXT PRIMARY KEY, site_id TEXT NOT NULL, visitor_id TEXT NOT NULL, name TEXT, email TEXT, country TEXT, region TEXT, city TEXT, last_seen TEXT NOT NULL DEFAULT (datetime('now')));
+		CREATE TABLE IF NOT EXISTS sessions (id TEXT PRIMARY KEY, is_bot INTEGER NOT NULL DEFAULT 0, active_seconds INTEGER, site_id TEXT NOT NULL, visitor_id TEXT NOT NULL, started_at TEXT NOT NULL DEFAULT (datetime('now')), ended_at TEXT, entry_path TEXT, exit_path TEXT, referrer TEXT, utm_source TEXT, utm_medium TEXT, utm_campaign TEXT, country TEXT, region TEXT, city TEXT, device_type TEXT, browser TEXT, os TEXT, page_count INTEGER NOT NULL DEFAULT 1, is_bounce INTEGER NOT NULL DEFAULT 1);
+		CREATE TABLE IF NOT EXISTS events (id TEXT PRIMARY KEY, is_bot INTEGER NOT NULL DEFAULT 0, site_id TEXT NOT NULL, session_id TEXT NOT NULL, visitor_id TEXT NOT NULL, timestamp TEXT NOT NULL DEFAULT (datetime('now')), event_type TEXT NOT NULL DEFAULT 'pageview', name TEXT, path TEXT NOT NULL, revenue REAL, props TEXT);
+		CREATE TABLE IF NOT EXISTS visitor_profiles (id TEXT PRIMARY KEY, is_bot INTEGER NOT NULL DEFAULT 0, site_id TEXT NOT NULL, visitor_id TEXT NOT NULL, name TEXT, email TEXT, country TEXT, region TEXT, city TEXT, last_seen TEXT NOT NULL DEFAULT (datetime('now')));
 	`);
 }
 

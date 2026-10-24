@@ -38,7 +38,8 @@
 		},
 	],
 	"triggers": {
-		// 03:00 backup (+ opt-in retention purge), 18:00 App Store Connect sync.
-		"crons": ["0 3 * * *", "0 18 * * *"],
+		// 03:00 backup (+ opt-in retention purge), 18:00 App Store Connect sync,
+		// :15 hourly bot reclassification of recent sessions.
+		"crons": ["0 3 * * *", "0 18 * * *", "15 * * * *"],
 	},
 }

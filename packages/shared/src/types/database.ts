@@ -1,10 +1,20 @@
+/**
+ * Column with a database DEFAULT: always present on reads, optional on insert.
+ * Structurally identical to Kysely's `Generated<T>` (shared has no kysely dep).
+ */
+export type Defaulted<T> = {
+	readonly __select__: T;
+	readonly __insert__: T | undefined;
+	readonly __update__: T;
+};
+
 export interface EventTable {
 	id: string;
 	site_id: string;
 	session_id: string;
 	visitor_id: string;
 	timestamp: string;
-	event_type: "pageview" | "custom" | "conversion" | "payment" | "subscription";
+	event_type: "pageview" | "custom" | "conversion" | "refund" | "payment" | "subscription";
 	name: string | null;
 	path: string;
 	hostname: string | null;
@@ -27,6 +37,10 @@ export interface EventTable {
 	payment_method: string | null;
 	currency: string | null;
 	subscription_id: string | null;
+	/** 1 when classified as non-human traffic; excluded from every analytics read. */
+	is_bot: Defaulted<number>;
+	/** Idempotency key of server-side events (Apple transactionId, Polar order id). */
+	external_id: string | null;
 }
 
 export interface SessionTable {
@@ -50,6 +64,14 @@ export interface SessionTable {
 	page_count: number;
 	is_bounce: number;
 	fingerprint: string | null;
+	/** 1 when classified as non-human traffic; excluded from every analytics read. */
+	is_bot: Defaulted<number>;
+	/** Why the session was flagged (reason code), null for humans. */
+	bot_reason: string | null;
+	/** Seconds of activity: the gap between consecutive events counted up to a cap. */
+	active_seconds: number | null;
+	/** Cloudflare ASN organization of the first request, kept for reclassification. */
+	as_org: string | null;
 }
 
 export interface SiteTable {
@@ -121,6 +143,7 @@ export interface VisitorProfileTable {
 	tags: string | null;
 	notes: string | null;
 	fingerprint: string | null;
+	is_bot: Defaulted<number>;
 }
 
 export interface PaymentProviderTable {
