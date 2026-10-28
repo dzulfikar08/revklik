@@ -28,15 +28,16 @@ database, a tracking script of about 4 KB, and a dashboard in English and Bahasa
 
 ## Repository layout
 
-| Path                            | What                                                                        |
-| ------------------------------- | --------------------------------------------------------------------------- |
-| `apps/app`                      | The Worker (Hono + Kysely over D1), tracker scripts, Capacitor shell        |
-| `apps/web`                      | Dashboard SPA (TanStack Router/Query, Tailwind v4), served as Worker assets |
-| `apps/fumadocs`, `apps/landing` | Docs site and marketing site (Astro)                                        |
-| `apps/native`                   | RevKlik mobile app (Expo, iOS + Android): sale push alerts and earnings     |
-| `packages/shared`               | D1 and API types                                                            |
-| `packages/sdk`, `packages/cli`  | `@revklik/sdk` and `@revklik/cli`                                           |
-| `packages/{config,env,ui}`      | Shared tsconfig, typed env loader, UI kit                                   |
+| Path                           | What                                                                           |
+| ------------------------------ | ------------------------------------------------------------------------------ |
+| `apps/app`                     | The Worker (Hono + Kysely over D1), tracker scripts, Capacitor shell           |
+| `apps/web`                     | Dashboard SPA (TanStack Router/Query, Tailwind v4), served as Worker assets    |
+| `apps/fumadocs`                | Docs site (Astro)                                                              |
+| `apps/landing`                 | revklik.com marketing site (Astro → Pages `klikapa-landing`, `bun run deploy`) |
+| `apps/native`                  | RevKlik mobile app (Expo, iOS + Android): sale push alerts and earnings        |
+| `packages/shared`              | D1 and API types                                                               |
+| `packages/sdk`, `packages/cli` | `@revklik/sdk` and `@revklik/cli`                                              |
+| `packages/{config,env,ui}`     | Shared tsconfig, typed env loader, UI kit                                      |
 
 The worker is named `klikapa` in the hosted deployment for historical reasons (secrets, crons and
 the D1 database are attached to that name). Self-hosted installs pick their own name.
