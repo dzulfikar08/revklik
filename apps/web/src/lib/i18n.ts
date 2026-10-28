@@ -24,7 +24,8 @@ export const detectLocale = (): Locale => {
 		const params = new URLSearchParams(window.location.search);
 		const fromUrl = params.get("lang");
 		if (isLocale(fromUrl)) {
-			if (params.get("embed") !== "1") {
+			const embed = params.get("embed");
+			if (embed !== "1" && embed !== "true") {
 				localStorage.setItem(STORAGE_KEY, fromUrl);
 			}
 			return fromUrl;
