@@ -6,6 +6,7 @@ import { DocsPage, type DocsPageProps } from "fumadocs-ui/layouts/docs/page";
 import { RootProvider } from "fumadocs-ui/provider/astro";
 import type { ReactNode } from "react";
 
+import { BrandLockup } from "./brand-lockup";
 import SearchDialog from "./search";
 
 export function Docs({
@@ -38,14 +39,10 @@ export function Docs({
 					title: (
 						<a
 							href="https://app.revklik.com"
-							className="text-fd-foreground inline-flex items-center gap-2.5 text-[15px] font-semibold tracking-tight"
+							aria-label="RevKlik"
+							className="text-fd-foreground inline-flex items-center"
 						>
-							<img
-								alt="RevKlik logo"
-								className="ring-fd-border size-7 rounded-lg object-cover ring-1"
-								src="/revklik.webp"
-							/>
-							RevKlik
+							<BrandLockup className="h-6 w-auto" />
 						</a>
 					),
 				}}

@@ -119,8 +119,11 @@ nav .container {
 	font-style: normal;
 	color: var(--accent);
 }
-.logo img {
-	border-radius: var(--r-sm);
+.brand-mark {
+	display: inline-block;
+	flex: none;
+	vertical-align: middle;
+	margin-right: 6px;
 }
 .nav-links {
 	display: flex;
@@ -1615,7 +1618,7 @@ footer .container {
 	font-size: 17px;
 	display: flex;
 	align-items: center;
-	gap: 8px;
+	gap: 0;
 }
 .footer-left span em {
 	font-style: normal;
@@ -1791,6 +1794,6 @@ footer .container {
 .logo {
 	gap: 0;
 }
-.logo img {
+.logo .brand-mark {
 	margin-right: 8px;
 }

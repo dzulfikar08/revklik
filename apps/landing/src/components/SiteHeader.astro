@@ -1,10 +1,11 @@
 ---
 import { C } from '../data/copy';
 import { LOGIN_URL, REGISTER_URL } from '../data/site';
+import BrandMark from './BrandMark.astro';
 ---
 <header class="site-nav">
   <nav class="wrap nav-bar" aria-label={C.nav_label}>
-    <a href="/" class="brand"><img src="/revklik.webp" alt="" width="28" height="28"><span>Rev<b>Klik</b></span></a>
+    <a href="/" class="brand"><BrandMark width={34} /><span>Rev<b>Klik</b></span></a>
     <div id="site-menu" class="nav-menu">
       <a class="nav-link" href="#features">{C.nav_features}</a>
       <a class="nav-link" href="#cara-pasang">{C.nav_how}</a>

@@ -271,19 +271,17 @@ p {
 	min-height: 44px;
 	margin-right: auto;
 	font-size: 1.125rem;
-	font-weight: 600;
-	letter-spacing: -0.02em;
+	font-weight: 800;
+	letter-spacing: -0.03em;
 	text-decoration: none;
 }
 .brand b {
-	font-weight: 600;
+	font-weight: 800;
 	color: var(--accent);
 }
-.brand img,
-.footer-brand img {
-	border-radius: var(--r-sm);
-	outline: 1px solid oklch(1 0 0 / 0.1);
-	outline-offset: -1px;
+.brand svg,
+.footer-brand svg {
+	flex: none;
 }
 .nav-link {
 	display: inline-flex;

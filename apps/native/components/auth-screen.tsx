@@ -1,7 +1,6 @@
-import { Ionicons } from "@expo/vector-icons";
 import * as WebBrowser from "expo-web-browser";
 import { useState } from "react";
-import { KeyboardAvoidingView, ScrollView, Text, View } from "react-native";
+import { Image, KeyboardAvoidingView, ScrollView, Text, View } from "react-native";
 import { StyleSheet } from "react-native-unistyles";
 import { z } from "zod";
 
@@ -110,9 +109,11 @@ export const AuthScreen = () => {
 		<KeyboardAvoidingView behavior="height" style={styles.flex}>
 			<ScrollView contentContainerStyle={styles.scroll}>
 				<View style={styles.card}>
-					<View style={styles.logo}>
-						<Ionicons color="#F7A062" name="pulse" size={30} />
-					</View>
+					<Image
+						accessibilityLabel="RevKlik"
+						source={require("../assets/images/splash-icon.png")}
+						style={styles.logo}
+					/>
 					<Text style={styles.title}>
 						{mode === "sign-in" ? "Welcome back" : "Create your account"}
 					</Text>
@@ -236,16 +237,11 @@ const styles = StyleSheet.create((theme) => ({
 		textAlign: "center",
 	},
 	logo: {
-		alignItems: "center",
 		alignSelf: "center",
-		backgroundColor: `${theme.colors.chart}22`,
-		borderColor: `${theme.colors.chart}55`,
-		borderRadius: theme.borderRadius.lg,
-		borderWidth: 1,
-		height: 52,
-		justifyContent: "center",
+		height: 64,
 		marginBottom: 10,
-		width: 52,
+		resizeMode: "contain",
+		width: 64,
 	},
 	scroll: {
 		flexGrow: 1,

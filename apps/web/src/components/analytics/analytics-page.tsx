@@ -1,5 +1,6 @@
 import { getLegacyUser } from "@/lib/legacy/api";
 import { AdminView } from "./admin-view";
+import { BrandMark } from "@revklik/ui/components/brand-mark";
 import { Button } from "@revklik/ui/components/button";
 import { Input } from "@revklik/ui/components/input";
 import {
@@ -1530,11 +1531,7 @@ const TopBar = ({
 				title="All sites"
 				className="hover:bg-accent focus-visible:outline-ring -m-1 flex items-center gap-2.5 rounded-lg p-1 outline-offset-2 transition-colors"
 			>
-				<img
-					src="/revklik.webp"
-					alt=""
-					className="ring-foreground/10 size-7 rounded-lg object-cover ring-1"
-				/>
+				<BrandMark className="h-5 w-auto" />
 				{/* Phones keep the mark only: the site picker needs the width. */}
 				<span className="hidden text-[15px] font-semibold tracking-tight sm:inline">RevKlik</span>
 			</Link>

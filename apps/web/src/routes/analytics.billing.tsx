@@ -1,3 +1,4 @@
+import { BrandMark } from "@revklik/ui/components/brand-mark";
 import { createFileRoute, Link, redirect } from "@tanstack/react-router";
 import { ArrowLeft } from "lucide-react";
 
@@ -50,11 +51,7 @@ function BillingPage() {
 						className="hover:bg-accent focus-visible:outline-ring -m-1 flex min-h-11 items-center gap-2.5 rounded-lg p-1 pe-2 outline-offset-2 transition-colors focus-visible:outline-2"
 					>
 						<ArrowLeft className="text-muted-foreground size-4" aria-hidden />
-						<img
-							src="/revklik.webp"
-							alt=""
-							className="ring-foreground/10 size-7 rounded-lg object-cover ring-1"
-						/>
+						<BrandMark className="h-5 w-auto" />
 						<span className="text-[15px] font-semibold tracking-tight">RevKlik</span>
 						<span className="text-muted-foreground text-xs">· {t("billing.back")}</span>
 					</Link>

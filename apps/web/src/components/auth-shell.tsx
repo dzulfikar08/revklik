@@ -1,3 +1,4 @@
+import { BrandMark } from "@revklik/ui/components/brand-mark";
 import type { ReactNode } from "react";
 
 import { LocaleToggle } from "@/components/locale-toggle";
@@ -27,11 +28,7 @@ export const AuthShell = ({
 		<main className="grid flex-1 place-items-center px-4 pt-4 pb-16">
 			<section className="bg-card ring-foreground/10 w-full max-w-sm rounded-2xl px-5 py-7 ring-1 sm:px-7">
 				<header className="flex flex-col items-center text-center">
-					<img
-						src="/revklik.webp"
-						alt="RevKlik"
-						className="size-11 rounded-xl outline outline-1 -outline-offset-1 outline-white/10"
-					/>
+					<BrandMark role="img" aria-label="RevKlik" aria-hidden={false} className="h-10 w-auto" />
 					{eyebrow ? (
 						<p className="text-muted-foreground mt-4 text-xs font-medium tabular-nums">{eyebrow}</p>
 					) : null}

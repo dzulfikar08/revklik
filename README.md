@@ -1,4 +1,9 @@
-# RevKlik
+<h1 align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="packages/ui/src/assets/brand/lockup-dark.svg">
+    <img alt="RevKlik" src="packages/ui/src/assets/brand/lockup-light.svg" width="320">
+  </picture>
+</h1>
 
 Privacy-first web analytics that connects visitors to revenue. One Cloudflare Worker, one D1
 database, a tracking script of about 4 KB, and a dashboard in English and Bahasa Indonesia.
