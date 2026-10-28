@@ -61,7 +61,7 @@ const deviceGlyph = (device: string): DeviceIcon => {
 };
 
 const sortRows = (rows: CountRow[], dir: "asc" | "desc"): CountRow[] =>
-	rows.toSorted((a, b) => (dir === "desc" ? b.value - a.value : a.value - b.value));
+	[...rows].sort((a, b) => (dir === "desc" ? b.value - a.value : a.value - b.value));
 
 const rowsTotal = (rows: CountRow[]): number => rows.reduce((acc, r) => acc + r.value, 0);
 

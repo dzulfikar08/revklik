@@ -4,6 +4,9 @@
 		"strict": true,
 		"jsx": "react-jsx",
 		"types": ["node"],
+		// Hermes (the engine on device) lacks newer built-ins such as Array.prototype.toSorted; ES2022
+		// keeps them out of the type surface so a call fails typecheck instead of crashing the app.
+		"lib": ["DOM", "ES2022"],
 		"paths": {
 			"@/*": ["./*"]
 		}

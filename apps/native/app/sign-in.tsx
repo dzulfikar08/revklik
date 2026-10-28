@@ -10,7 +10,7 @@ const SignInRoute = () => {
 	const { status } = useAuth();
 
 	if (status === "signed-in") {
-		return <Redirect href="/(tabs)" />;
+		return <Redirect href="/earnings" />;
 	}
 
 	return (

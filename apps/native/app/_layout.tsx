@@ -5,7 +5,7 @@ import { Redirect, router, Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { StatusBar } from "expo-status-bar";
 import { useEffect } from "react";
-import { Alert } from "react-native";
+import { Alert, Platform } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { useUnistyles } from "react-native-unistyles";
 
@@ -15,6 +15,10 @@ import { configureNotifications, isDefaultTap, PushError, registerForPush } from
 import { queryClient } from "@/lib/query-client";
 
 SplashScreen.preventAutoHideAsync();
+
+// expo-notifications has no web implementation: the hook throws there and takes the whole app down.
+const useLastNotificationResponse =
+	Platform.OS === "web" ? () => null : Notifications.useLastNotificationResponse;
 
 export const unstable_settings = {
 	initialRouteName: "(tabs)",
@@ -54,7 +58,7 @@ const RootLayout = () => {
 	}, [status]);
 
 	// Tapping a sale/refund alert opens Earnings (cold start and warm).
-	const lastResponse = Notifications.useLastNotificationResponse();
+	const lastResponse = useLastNotificationResponse();
 	useEffect(() => {
 		if (status !== "signed-in" || !lastResponse || !isDefaultTap(lastResponse)) {
 			return;

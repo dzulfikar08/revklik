@@ -106,11 +106,11 @@ export const stepToEvent = (s: JourneyStep): VisitorEvent | null => {
 export const profileToVisitor = (p: VisitorProfile, journeys: VisitorJourney[]): Visitor => {
 	const mine = journeys
 		.filter((j) => j.visitor_id === p.visitor_id)
-		.toSorted((a, b) => a.started_at.localeCompare(b.started_at));
+		.sort((a, b) => a.started_at.localeCompare(b.started_at));
 	const events = mine
 		.flatMap((j) => j.steps.map(stepToEvent))
 		.filter((e): e is VisitorEvent => e !== null)
-		.toSorted((a, b) => a.time.localeCompare(b.time));
+		.sort((a, b) => a.time.localeCompare(b.time));
 	const source = mine[0]?.utm_source ?? hostOf(mine[0]?.referrer) ?? "direct";
 	const now = Date.now();
 	const activity = Array.from({ length: 7 }, (_, i) => {
@@ -157,7 +157,7 @@ export const aggregateGeo = (rows: GeoRow[], keyOf: (r: GeoRow) => string | null
 		map.set(key, (map.get(key) ?? 0) + r.visitors);
 	}
 	return [...map.entries()]
-		.toSorted((a, b) => b[1] - a[1])
+		.sort((a, b) => b[1] - a[1])
 		.map(([label, value]) => ({
 			flag: countryFlag(label) || undefined,
 			label,

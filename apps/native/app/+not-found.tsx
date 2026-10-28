@@ -17,7 +17,7 @@ export default function NotFoundScreen() {
 						<Text style={styles.description}>
 							Sorry, the page you're looking for doesn't exist.
 						</Text>
-						<Link href="/" style={styles.button}>
+						<Link href="/earnings" style={styles.button}>
 							<Text style={styles.buttonText}>Go to Home</Text>
 						</Link>
 					</View>

@@ -252,7 +252,7 @@ const JourneySheet = ({
 	const displayName = visitorName(visitor);
 
 	const events = useMemo(
-		() => (oldestFirst ? visitor.events.toReversed() : visitor.events),
+		() => (oldestFirst ? [...visitor.events].reverse() : visitor.events),
 		[visitor.events, oldestFirst],
 	);
 
