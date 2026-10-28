@@ -53,6 +53,8 @@ export type Bindings = {
 	EXPO_ACCESS_TOKEN?: string;
 	// IDR per 1 USD for revenue conversion (default 16000)
 	FX_USD_IDR?: string;
+	// Site id that receives a `signup` conversion for every new account (unset = off)
+	REVKLIK_SELF_SITE_ID?: string;
 };
 
 export type Env = { Bindings: Bindings; Variables: Variables };

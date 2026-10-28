@@ -1,7 +1,7 @@
 import { Button } from "@revklik/ui/components/button";
 import { Input } from "@revklik/ui/components/input";
 import { Label } from "@revklik/ui/components/label";
-import { Link, useNavigate } from "@tanstack/react-router";
+import { Link } from "@tanstack/react-router";
 import { LoaderCircle } from "lucide-react";
 import { useEffect, useState } from "react";
 
@@ -14,11 +14,19 @@ import {
 	requestPasswordReset,
 } from "@/lib/legacy/api";
 import { authErrorMessage } from "@/lib/auth-errors";
-import { afterAuthTarget, googleAuthUrl } from "@/lib/auth-search";
+import { afterAuthPath, googleAuthUrl } from "@/lib/auth-search";
 import type { AuthSearch } from "@/lib/auth-search";
 import { isSelfHosted } from "@/lib/instance-config";
 import { planLabel } from "@/lib/legacy/billing";
-import { clearSignupIntent, rememberRef, rememberSignupPlan, signupRef } from "@/lib/signup-intent";
+import {
+	clearSignupIntent,
+	rememberRef,
+	rememberSignupPlan,
+	rememberVisitorId,
+	signupRef,
+	signupVisitorId,
+} from "@/lib/signup-intent";
+import { loadAuthTracker } from "@/lib/tracker";
 
 export type AuthMode = "sign-in" | "sign-up";
 
@@ -118,18 +126,19 @@ const ForgotPasswordForm = ({ onBack }: { onBack: () => void }) => {
  */
 export const AuthForm = ({ mode, search }: { mode: AuthMode; search: AuthSearch }) => {
 	const t = useT();
-	const navigate = useNavigate();
 	const [forgot, setForgot] = useState(false);
 	const [name, setName] = useState("");
 	const [email, setEmail] = useState("");
 	const [password, setPassword] = useState("");
 	const [error, setError] = useState<string | null>(null);
 	const [pending, setPending] = useState(false);
-	const { plan, ref } = search;
+	const { plan, ref, rk_sid: rkSid, rk_vid: rkVid } = search;
 
 	useEffect(() => {
 		rememberRef(ref);
-	}, [ref]);
+		rememberVisitorId(rkVid);
+		loadAuthTracker({ sessionId: rkSid, visitorId: rkVid });
+	}, [ref, rkVid, rkSid]);
 
 	if (forgot) {
 		return <ForgotPasswordForm onBack={() => setForgot(false)} />;
@@ -147,19 +156,15 @@ export const AuthForm = ({ mode, search }: { mode: AuthMode; search: AuthSearch 
 				await legacyRegister(name.trim(), email.trim(), password, {
 					plan,
 					ref: signupRef(ref),
+					visitorId: signupVisitorId(rkVid),
 				});
 				clearSignupIntent();
 			} else {
 				await legacyLogin(email.trim(), password);
 			}
-			const target = afterAuthTarget(search);
-			if ("href" in target) {
-				await navigate({ href: target.href });
-			} else if (target.to === "/analytics/billing") {
-				await navigate({ search: target.search, to: target.to });
-			} else {
-				await navigate({ to: "/analytics" });
-			}
+			// A document load, not a router navigation: the tracker running on this
+			// page must not follow the user into the authenticated dashboard.
+			window.location.assign(afterAuthPath(search));
 		} catch (err) {
 			setError(authErrorMessage(err, signUp, t));
 		} finally {
@@ -184,7 +189,12 @@ export const AuthForm = ({ mode, search }: { mode: AuthMode; search: AuthSearch 
 		// The Google callback lands on /#token=…; the plan rides along in storage.
 		rememberSignupPlan(plan);
 		// The worker carries ?ref through the OAuth state to the new account.
-		window.location.href = googleAuthUrl(LEGACY_API_BASE, signupRef(ref), plan);
+		window.location.href = googleAuthUrl(
+			LEGACY_API_BASE,
+			signupRef(ref),
+			plan,
+			signupVisitorId(rkVid),
+		);
 	};
 
 	return (

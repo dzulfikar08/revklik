@@ -160,6 +160,9 @@
 			.catch(() => {});
 	}
 
+	// Per-page scroll milestones; declared before the first pageview() resets them.
+	const scrollMilestones = {};
+
 	// Page view
 	let lastPath = "";
 	function pageview() {
@@ -244,6 +247,19 @@
 		saObs.observe(saEl);
 	});
 
+	// The marketing site decorates sign-up links with rk_vid / rk_sid (journey
+	// hand-off); they identify one visitor, so they stay out of the click's href.
+	function cleanHref(h) {
+		try {
+			const u = new URL(h);
+			u.searchParams.delete("rk_vid");
+			u.searchParams.delete("rk_sid");
+			return u.toString();
+		} catch {
+			return h;
+		}
+	}
+
 	// Click tracking
 	function trackClick(e) {
 		// Goal tracking via data-revklik-goal attribute
@@ -280,7 +296,7 @@
 			target.getAttribute("name") ||
 			target.getAttribute("data-track") ||
 			(target.id ? `${target.tagName.toLowerCase()}#${target.id}` : "");
-		var href = target.href || "";
+		var href = cleanHref(target.href || "");
 		var tag = target.tagName.toLowerCase();
 		send({
 			t: "e",
@@ -365,6 +381,9 @@
 		},
 		getSessionId() {
 			return sid;
+		},
+		getVisitorId() {
+			return vid;
 		},
 		getUtmSource() {
 			return parseUTM().us || "";

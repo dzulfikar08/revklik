@@ -408,6 +408,8 @@ export interface RegisterExtras {
 	ref?: string | null;
 	/** Plan the visitor picked on the pricing page (?plan=). */
 	plan?: string | null;
+	/** Tracker visitor id from the marketing site (?rk_vid=), for the signup conversion. */
+	visitorId?: string | null;
 }
 
 /**
@@ -428,6 +430,9 @@ export const legacyRegister = (
 	}
 	if (extras.plan) {
 		body.plan = extras.plan;
+	}
+	if (extras.visitorId) {
+		body.rk_vid = extras.visitorId;
 	}
 	return authRequest("/auth/register", body, query);
 };

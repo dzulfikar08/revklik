@@ -240,6 +240,7 @@ trackRoutes.post("/track", async (c) => {
 		asOrganization: cfAsOrg,
 		botScore: cfBotManagement?.score,
 		webdriver: payloads.some((p) => p.wd === 1),
+		probeFields: payloads.flatMap((p) => [p.r, p.p, p.us, p.um, p.uc, p.ut, p.uco]),
 	});
 	const isBot = botReason ? 1 : 0;
 
@@ -369,6 +370,20 @@ trackRoutes.post("/track", async (c) => {
 						is_bot: sql`MAX(is_bot, ${isBot})`,
 						bot_reason: sql`COALESCE(bot_reason, ${botReason})`,
 					}),
+				),
+		);
+
+		// A session flagged as a probe taints every event in it, including later
+		// events whose own fields look clean.
+		writes.push(
+			db
+				.updateTable("events")
+				.set({ is_bot: 1 })
+				.where("site_id", "=", payload.s)
+				.where("session_id", "=", payload.sid)
+				.where("is_bot", "=", 0)
+				.where(
+					sql<boolean>`EXISTS (SELECT 1 FROM sessions WHERE id = ${payload.sid} AND site_id = ${payload.s} AND bot_reason = 'probe_payload')`,
 				),
 		);
 

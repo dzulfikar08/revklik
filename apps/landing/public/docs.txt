@@ -98,6 +98,7 @@ klikapa.identify(data)
     klikapa.identify({ email: 'user@example.com' });
 
 klikapa.getSessionId()      -> current session ID (string)
+klikapa.getVisitorId()      -> current visitor ID (string; hand it to another origin to continue the journey)
 klikapa.getUtmSource()      -> utm_source of the landing URL ("")
 klikapa.getUtmMedium()      -> utm_medium of the landing URL ("")
 klikapa.getUtmCampaign()    -> utm_campaign of the landing URL ("")

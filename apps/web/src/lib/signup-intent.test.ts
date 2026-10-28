@@ -3,9 +3,12 @@ import { beforeEach, describe, expect, it } from "vitest";
 import {
 	clearSignupIntent,
 	parseRef,
+	parseTrackerId,
+	rememberVisitorId,
 	rememberRef,
 	rememberSignupPlan,
 	signupRef,
+	signupVisitorId,
 	storedRef,
 	takeSignupPlan,
 } from "./signup-intent";
@@ -57,5 +60,36 @@ describe("signup intent", () => {
 		clearSignupIntent();
 		expect(storedRef()).toBeNull();
 		expect(takeSignupPlan()).toBeUndefined();
+	});
+});
+
+describe("journey visitor id", () => {
+	const VID = "4f7c2a9e-1b3d-4c5e-8f60-123456789abc";
+
+	it.each([
+		[VID, VID],
+		[VID.toUpperCase(), VID],
+		["not-a-uuid", undefined],
+		["", undefined],
+		[`${VID}x`, undefined],
+		[42, undefined],
+	])("parseTrackerId(%j) -> %j", (input, expected) => {
+		expect(parseTrackerId(input)).toBe(expected);
+	});
+
+	it("prefers a valid URL id over the stored one and drops invalid ones", () => {
+		rememberVisitorId(VID);
+		expect(signupVisitorId(undefined)).toBe(VID);
+		expect(signupVisitorId("1".repeat(36))).toBe(VID);
+		const other = "0a1b2c3d-4e5f-4a6b-9c7d-0123456789ab";
+		expect(signupVisitorId(other)).toBe(other);
+		rememberVisitorId("bad");
+		expect(signupVisitorId(undefined)).toBe(VID);
+	});
+
+	it("is cleared with the rest of the signup intent", () => {
+		rememberVisitorId(VID);
+		clearSignupIntent();
+		expect(signupVisitorId(undefined)).toBeNull();
 	});
 });

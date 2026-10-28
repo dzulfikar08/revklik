@@ -21,6 +21,8 @@ SUPER_ADMIN_EMAIL=you@example.com
 # FX_USD_IDR=16000
 # Hard-delete raw analytics older than N days (default: keep forever)
 # RETENTION_HARD_DELETE_DAYS=365
+# Site id that records each new signup as a `signup` conversion (default: off)
+# REVKLIK_SELF_SITE_ID=
 
 # --- Phone sale alerts ---------------------------------------------------------
 # Expo push access token. Alerts to the RevKlik mobile app work without it; set it only

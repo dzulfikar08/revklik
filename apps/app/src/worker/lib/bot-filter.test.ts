@@ -2,7 +2,12 @@ import { describe, expect, it } from "bun:test";
 import { Database } from "bun:sqlite";
 import { createDb } from "../db";
 import { getOverviewStats, getReferrers } from "../queries/analytics";
-import { classifyIngestSignals, classifySession, type SessionFeatures } from "./bot-detection";
+import {
+	classifyIngestSignals,
+	hasProbePayload,
+	classifySession,
+	type SessionFeatures,
+} from "./bot-detection";
 import { reclassifyBots } from "./bot-reclassify";
 import { migrateDatabase } from "../migrations";
 import { makeD1 } from "./test-harness";
@@ -337,5 +342,43 @@ describe("source normalization", () => {
 			direct: 1,
 			newsletter: 1,
 		});
+	});
+});
+
+describe("hasProbePayload", () => {
+	it("matches scanner payloads", () => {
+		for (const v of [
+			"javascript:domxssexecutionsink(1,'x')",
+			"https://a.com/?q=<script>alert(1)</script>",
+			"x>y",
+			"%3Cscript%3Ealert(1)",
+			"/p?q=XSSTAG123",
+			"1' AND SLEEP(5)--",
+			"1 UNION%20SELECT password",
+			"1+union+select+1",
+			"/../../etc/passwd",
+		]) {
+			expect(hasProbePayload(v)).toBe(true);
+		}
+		expect(hasProbePayload(null, "ok", "<b>")).toBe(true);
+	});
+
+	it("leaves normal traffic alone", () => {
+		for (const v of [
+			null,
+			"",
+			"https://www.google.com/",
+			"https://t.co/AbC123",
+			"https://www.google.com/search?q=sleep+tracker",
+			"spring sale \u{1F680}",
+			"black friday%20promo",
+			"newsletter_oct-2026",
+			"/blog/union-select-guide",
+			"/pricing?plan=pro&ref=x",
+		]) {
+			expect(hasProbePayload(v)).toBe(false);
+		}
+		expect(classifyIngestSignals({ probeFields: ["https://t.co/x", "/"] })).toBeNull();
+		expect(classifyIngestSignals({ probeFields: ["javascript:1"] })).toBe("probe_payload");
 	});
 });

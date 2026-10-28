@@ -104,4 +104,49 @@ describe("migrateDatabase", () => {
 			new Set(["direct", "whatsapp", "newsletter", "google.com", "twitter", "bing.com"]),
 		);
 	});
+
+	it("v18 flags probe-payload events, their sessions and all-bot visitors only", async () => {
+		const db = new Database(":memory:");
+		await migrateDatabase(makeD1(db) as unknown as D1Database);
+		const ev = db.prepare(
+			"INSERT INTO events (id, site_id, session_id, visitor_id, path, referrer, utm_source) VALUES (?, 's', ?, ?, ?, ?, ?)",
+		);
+		const ses = db.prepare(
+			"INSERT INTO sessions (id, site_id, visitor_id, started_at) VALUES (?, 's', ?, '2026-01-01')",
+		);
+		const vp = db.prepare(
+			"INSERT INTO visitor_profiles (site_id, visitor_id, first_seen, last_seen) VALUES ('s', ?, '2026-01-01', '2026-01-01')",
+		);
+		ev.run("bad1", "sb", "vb", "/", "javascript:domxssexecutionsink(1,'x')", null);
+		ev.run("bad2", "sb2", "vm", "/a/../b", null, null);
+		ev.run("tail1", "sb", "vb", "/pricing", null, null);
+		ev.run("ok1", "sg", "vm", "/", "https://www.google.com/", "spring sale \u{1F680}");
+		ev.run("ok2", "sg2", "vg", "/", "https://t.co/abc", null);
+		for (const [s, v] of [
+			["sb", "vb"],
+			["sb2", "vm"],
+			["sg", "vm"],
+			["sg2", "vg"],
+		])
+			ses.run(s, v);
+		for (const v of ["vb", "vm", "vg"]) vp.run(v);
+		db.exec("UPDATE schema_version SET version = 17");
+
+		await migrateDatabase(makeD1(db) as unknown as D1Database);
+
+		const flagged = (sql: string) =>
+			(db.query(sql).all() as Array<{ id: string }>).map((r) => r.id);
+		expect(flagged("SELECT id FROM events WHERE is_bot = 1 ORDER BY id")).toEqual([
+			"bad1",
+			"bad2",
+			"tail1",
+		]);
+		expect(flagged("SELECT id FROM sessions WHERE is_bot = 1 ORDER BY id")).toEqual(["sb", "sb2"]);
+		expect(flagged("SELECT visitor_id AS id FROM visitor_profiles WHERE is_bot = 1")).toEqual([
+			"vb",
+		]);
+		expect(db.query("SELECT bot_reason FROM sessions WHERE id = 'sb'").get()).toEqual({
+			bot_reason: "probe_payload",
+		});
+	});
 });

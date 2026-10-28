@@ -17,10 +17,15 @@ export type BotReason =
 	| "scroll_burst"
 	| "pageview_burst"
 	| "click_flood"
-	| "passive_linux_hit";
+	| "passive_linux_hit"
+	| "probe_payload";
 
 /** Reasons decided from request data that a session replay cannot reproduce. */
-const INGEST_ONLY_REASONS: Record<string, true> = { webdriver: true, bot_score: true };
+const INGEST_ONLY_REASONS: Record<string, true> = {
+	webdriver: true,
+	bot_score: true,
+	probe_payload: true,
+};
 
 /**
  * Cities that exist in visitor data almost only because a cloud region sits
@@ -57,7 +62,42 @@ export const PAGEVIEW_BURST_MIN_GAPS = 2;
 /** Sustained clicking beyond human speed (1284 clicks in 3.4 minutes was observed). */
 export const CLICK_FLOOD_MIN_CLICKS = 100;
 
+/**
+ * Lowercase substrings that only injection probes put in a referrer, UTM value
+ * or path (XSS/SQLi/traversal scanners). Matched after `normalizeProbeText`.
+ * Kept narrow: nothing here appears in Google/t.co referrers or ordinary
+ * campaign names (spaces, emoji, hyphens, `&` and `%20` are all safe).
+ */
+export const PROBE_MARKERS: readonly string[] = [
+	"javascript:",
+	"<",
+	">",
+	"%3cscript",
+	"xsstag",
+	"domxss",
+	"sleep(",
+	"union select",
+	"../",
+];
+
+/** Lowercases and turns `%20` / `+` into spaces so `UNION%20SELECT` matches `union select`. */
+export function normalizeProbeText(value: string): string {
+	return value.toLowerCase().replaceAll("%20", " ").replaceAll("+", " ");
+}
+
+/** True when any value carries a scanner payload marker. */
+export function hasProbePayload(...values: Array<string | null | undefined>): boolean {
+	for (const value of values) {
+		if (!value) continue;
+		const text = normalizeProbeText(value);
+		if (PROBE_MARKERS.some((marker) => text.includes(marker))) return true;
+	}
+	return false;
+}
+
 export interface IngestSignals {
+	/** Referrer, path and UTM values of the request's events. */
+	probeFields?: Array<string | null | undefined>;
 	city?: string | null;
 	asOrganization?: string | null;
 	/** `request.cf.botManagement.score`; only present on Cloudflare Bot Management plans. */
@@ -76,6 +116,7 @@ export function classifyIngestSignals(signals: IngestSignals): BotReason | null 
 	if (typeof signals.botScore === "number" && signals.botScore < BOT_SCORE_THRESHOLD) {
 		return "bot_score";
 	}
+	if (signals.probeFields && hasProbePayload(...signals.probeFields)) return "probe_payload";
 	if (classifyDatacenterVisitor(signals.asOrganization)) return "datacenter_org";
 	if (isDatacenterCity(signals.city)) return "datacenter_city";
 	return null;

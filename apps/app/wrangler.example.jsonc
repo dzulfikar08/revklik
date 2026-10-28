@@ -57,6 +57,10 @@
 		// "FX_USD_IDR": "16000",
 		// Hard-delete raw analytics older than N days (unset = keep forever).
 		// "RETENTION_HARD_DELETE_DAYS": "365",
+		// Site id (from your own dashboard) that records each new signup as a `signup`
+		// conversion, so a tracked marketing site can see which visits create accounts.
+		// Leave unset to record nothing.
+		// "REVKLIK_SELF_SITE_ID": "",
 	},
 	// Optional custom domain:
 	// "routes": [{ "pattern": "analytics.example.com", "custom_domain": true }],

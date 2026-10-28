@@ -46,4 +46,8 @@
 		// sale-alert retry + push receipt pass.
 		"crons": ["0 3 * * *", "0 18 * * *", "15 * * * *", "*/5 * * * *"],
 	},
+	"vars": {
+		// revklik.com's own site: new accounts are recorded there as a `signup` conversion.
+		"REVKLIK_SELF_SITE_ID": "d9701d64-9e78-4b73-9726-e4f41593b843",
+	},
 }

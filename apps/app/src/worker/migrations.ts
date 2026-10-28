@@ -1,11 +1,12 @@
 import { createDb } from "./db";
+import { PROBE_MARKERS } from "./lib/bot-detection";
 import { computedSourceSql } from "./lib/source-sql";
 
 /**
  * Version the live schema must reach. Bump it whenever a step is appended to
  * VERSIONED_STEPS; a DB already at this version costs one SELECT per isolate.
  */
-export const SCHEMA_VERSION = 17;
+export const SCHEMA_VERSION = 18;
 
 const migrated = new WeakSet<D1Database>();
 
@@ -100,6 +101,7 @@ const VERSIONED_STEPS: MigrationStep[] = [
 			),
 	},
 	{ version: 17, run: sourceSchema },
+	{ version: 18, run: probeBotBackfill },
 ];
 
 /** Rows rewritten per backfill statement: far below D1's per-query CPU and row-write limits. */
@@ -121,6 +123,101 @@ async function sourceSchema(d1: D1Database): Promise<void> {
 		} catch (err) {
 			console.error(`source backfill stopped on ${table}:`, err);
 		}
+	}
+}
+
+/**
+ * Flags scanner-probe traffic (lib/bot-detection.ts PROBE_MARKERS) that was
+ * ingested before the rule existed: matching events, their sessions and, when
+ * every session of a visitor is a bot, the visitor profile. One rowid-bounded
+ * chunk of events at a time; idempotent, so a stopped run resumes on the next.
+ */
+async function probeBotBackfill(d1: D1Database): Promise<void> {
+	const columns = [
+		"referrer",
+		"path",
+		"utm_source",
+		"utm_medium",
+		"utm_campaign",
+		"utm_term",
+		"utm_content",
+	];
+	const markers = PROBE_MARKERS.map((m) => `'${m.replaceAll("'", "''")}'`);
+	const matches = columns
+		.map((col) => {
+			const text = `lower(replace(replace(COALESCE(${col}, ''), '%20', ' '), '+', ' '))`;
+			return markers.map((m) => `instr(${text}, ${m}) > 0`).join(" OR ");
+		})
+		.join(" OR ");
+	try {
+		const first = await d1
+			.prepare("SELECT MIN(rowid) AS lo FROM events")
+			.all<{ lo: number | null }>();
+		let from = first.results[0]?.lo;
+		while (from !== null && from !== undefined) {
+			const edge = await d1
+				.prepare("SELECT rowid AS r FROM events WHERE rowid >= ? ORDER BY rowid LIMIT 1 OFFSET ?")
+				.bind(from, SOURCE_BACKFILL_CHUNK)
+				.all<{ r: number }>();
+			const until = edge.results[0]?.r;
+			const bounded = until === undefined ? "" : "AND rowid < ?";
+			const bounds = until === undefined ? [from] : [from, until];
+			const probes = `SELECT session_id FROM events WHERE rowid >= ? ${bounded} AND (${matches})`;
+			await d1
+				.prepare(
+					`UPDATE sessions SET is_bot = 1, bot_reason = COALESCE(bot_reason, 'probe_payload')
+					 WHERE is_bot = 0 AND id IN (${probes})`,
+				)
+				.bind(...bounds)
+				.run();
+			await d1
+				.prepare(
+					`UPDATE visitor_profiles SET is_bot = 1
+					 WHERE is_bot = 0
+					   AND visitor_id IN (SELECT visitor_id FROM events WHERE rowid >= ? ${bounded} AND (${matches}))
+					   AND NOT EXISTS (
+					     SELECT 1 FROM sessions s
+					     WHERE s.site_id = visitor_profiles.site_id
+					       AND s.visitor_id = visitor_profiles.visitor_id AND s.is_bot = 0)`,
+				)
+				.bind(...bounds)
+				.run();
+			await d1
+				.prepare(
+					`UPDATE events SET is_bot = 1 WHERE is_bot = 0 AND rowid >= ? ${bounded} AND (${matches})`,
+				)
+				.bind(...bounds)
+				.run();
+			from = until;
+		}
+		// Events of probe sessions that carry no marker themselves. Sessions
+		// are walked in rowid chunks; each pass only touches rows still unflagged.
+		const sessionFirst = await d1
+			.prepare("SELECT MIN(rowid) AS lo FROM sessions")
+			.all<{ lo: number | null }>();
+		let sessionFrom = sessionFirst.results[0]?.lo;
+		while (sessionFrom !== null && sessionFrom !== undefined) {
+			const edge = await d1
+				.prepare("SELECT rowid AS r FROM sessions WHERE rowid >= ? ORDER BY rowid LIMIT 1 OFFSET ?")
+				.bind(sessionFrom, SOURCE_BACKFILL_CHUNK)
+				.all<{ r: number }>();
+			const until = edge.results[0]?.r;
+			const bounded = until === undefined ? "" : "AND rowid < ?";
+			const bounds = until === undefined ? [sessionFrom] : [sessionFrom, until];
+			await d1
+				.prepare(
+					`UPDATE events SET is_bot = 1
+					 WHERE is_bot = 0 AND EXISTS (
+					   SELECT 1 FROM sessions s
+					   WHERE s.id = events.session_id AND s.site_id = events.site_id
+					     AND s.bot_reason = 'probe_payload' AND s.rowid >= ? ${bounded})`,
+				)
+				.bind(...bounds)
+				.run();
+			sessionFrom = until;
+		}
+	} catch (err) {
+		console.error("probe bot backfill stopped:", err);
 	}
 }
 

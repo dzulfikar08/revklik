@@ -8,6 +8,40 @@
   function k() { return window.klikapa; }
   function track(name, props) { if (k()) k().track(name, props); }
 
+  // Journey link: sign-up and sign-in live on app.revklik.com, a different
+  // origin, so the tracker's visitor/session ids are handed over in the URL
+  // (rk_vid / rk_sid). The app tracks its auth pages under the same ids and
+  // the new account's signup conversion lands on this visit's journey.
+  // Links are decorated on load and again right before any activation (click,
+  // middle click, context menu, keyboard) so a link opened in a new tab carries them too.
+  var APP_HOST = 'app.revklik.com';
+  function decorateAppLink(a) {
+    var api = k();
+    if (!api || !api.getVisitorId) return;
+    var url;
+    try { url = new URL(a.href, location.href); } catch (e) { return; }
+    if (url.hostname !== APP_HOST || !/^\/(register|login)\/?$/.test(url.pathname)) return;
+    url.searchParams.set('rk_vid', api.getVisitorId());
+    url.searchParams.set('rk_sid', api.getSessionId());
+    a.href = url.toString();
+  }
+  document.querySelectorAll('a[href]').forEach(decorateAppLink);
+  ['click', 'auxclick', 'contextmenu', 'keydown'].forEach(function (type) {
+    document.addEventListener(type, function (e) {
+      var a = e.target.closest && e.target.closest('a[href]');
+      if (a) decorateAppLink(a);
+    }, true);
+  });
+  // The ids identify one visitor; tracked events carry the plain link.
+  function plainHref(a) {
+    try {
+      var url = new URL(a.href, location.href);
+      url.searchParams.delete('rk_vid');
+      url.searchParams.delete('rk_sid');
+      return url.toString();
+    } catch (e) { return a.href || '#'; }
+  }
+
   // Mobile menu: toggle, close on Escape / link click / resize to desktop.
   var btn = document.querySelector('.menu-btn');
   var menu = document.getElementById('site-menu');
@@ -51,7 +85,7 @@
       track('cta_click', {
         label: el.textContent.trim().replace(/\s+/g, ' '),
         section: section ? section.dataset.section : 'nav',
-        href: el.href || '#'
+        href: el.href ? plainHref(el) : '#'
       });
     });
   });
@@ -59,7 +93,7 @@
   // Footer link clicks
   document.querySelectorAll('.footer-links a').forEach(function (a) {
     a.addEventListener('click', function () {
-      track('footer_click', { label: a.textContent.trim(), href: a.href });
+      track('footer_click', { label: a.textContent.trim(), href: plainHref(a) });
     });
   });
 

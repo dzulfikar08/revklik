@@ -181,6 +181,10 @@
   }
 
   // Click tracking
+  // Journey hand-off ids (rk_vid / rk_sid) identify one visitor: keep them out of click hrefs.
+  function cleanHref(h) {
+    try { const u = new URL(h); u.searchParams.delete("rk_vid"); u.searchParams.delete("rk_sid"); return u.toString(); } catch { return h; }
+  }
   function trackClick(e) {
     // Goal tracking via data-revklik-goal attribute
     var gEl = e.target.closest("[data-revklik-goal]");
@@ -209,7 +213,7 @@
       target.getAttribute("name") ||
       target.getAttribute("data-track") ||
       (target.id ? `${target.tagName.toLowerCase()}#${target.id}` : "");
-    var href = target.href || "";
+    var href = cleanHref(target.href || "");
     var tag = target.tagName.toLowerCase();
     send({ t: "e", n: "click", p: lastPath, pr: { label, href: href.slice(0, 200), tag } });
   }
@@ -263,6 +267,7 @@
     track(name, props, revenue) { send({ t: "e", n: name, p: lastPath, pr: props, rv: revenue }); },
     conversion(name, revenue, props) { send({ t: "c", n: name, p: lastPath, rv: revenue, pr: props }); },
     getSessionId() { return sid; },
+    getVisitorId() { return vid; },
     getUtmSource() { return parseUTM().us || ""; },
     getUtmMedium() { return parseUTM().um || ""; },
     getUtmCampaign() { return parseUTM().uc || ""; },

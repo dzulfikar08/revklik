@@ -18,6 +18,7 @@ import { isSelfHosted } from "../lib/entitlement";
 import { sendEmail, sendNewSignupAlert } from "../lib/email";
 import { PLANS } from "../lib/plans";
 import { issueSessionToken, refreshSessionExpiry } from "../lib/session";
+import { parseVisitorId, recordSignupEvent } from "../lib/signup-event";
 import { startTrial } from "../lib/trial";
 import type { Env } from "../types";
 import { generateId, hashPassword, hashToken, normalizeEmail, verifyPassword } from "../utils";
@@ -102,12 +103,13 @@ async function sendVerificationEmail(
 	);
 }
 
-// POST /auth/register — optional `ref` (affiliate code) and `plan` (intent only)
+// POST /auth/register — optional `ref` (affiliate code), `plan` (intent only) and
+// `rk_vid` (tracker visitor id from the marketing site, for the signup conversion)
 authRoutes.post("/register", async (c) => {
 	const db = c.get("db");
 	if (!db) return c.json({ error: "DB unavailable", success: false }, 503);
 	const body = await c.req.json().catch(() => ({}));
-	const { name, password, plan, ref } = body as Record<string, unknown>;
+	const { name, password, plan, ref, rk_vid } = body as Record<string, unknown>;
 	const email = normalizeEmail(body?.email);
 	const intendedPlan = typeof plan === "string" && plan in PLANS ? plan : null;
 	if (typeof name !== "string" || !name.trim() || !email || typeof password !== "string")
@@ -163,6 +165,15 @@ authRoutes.post("/register", async (c) => {
 
 		await startTrial(db, userId);
 	}
+
+	c.executionCtx.waitUntil(
+		recordSignupEvent(db, c.env, {
+			userId,
+			method: "email",
+			plan: intendedPlan,
+			visitorId: rk_vid,
+		}).catch((err) => console.error("[auth] signup event failed:", err)),
+	);
 
 	return c.json(
 		{
@@ -386,6 +397,8 @@ interface OAuthCookie {
 	state: string;
 	ref?: string;
 	plan?: string;
+	/** Tracker visitor id from the marketing site (see recordSignupEvent). */
+	rkVid?: string;
 	redirect?: string;
 }
 
@@ -403,7 +416,7 @@ function safeRedirect(raw: string | undefined, origin: string): string | undefin
 	return undefined;
 }
 
-// GET /auth/google — initiate Google OAuth; ?ref= and ?redirect_to= ride in the state cookie
+// GET /auth/google — initiate Google OAuth; ?ref=, ?plan=, ?rk_vid= and ?redirect_to= ride in the state cookie
 authRoutes.get("/google", (c) => {
 	const origin = new URL(c.req.url).origin;
 	const state = crypto.randomUUID();
@@ -411,6 +424,7 @@ authRoutes.get("/google", (c) => {
 		state,
 		ref: c.req.query("ref") || undefined,
 		plan: c.req.query("plan") || undefined,
+		rkVid: parseVisitorId(c.req.query("rk_vid")) ?? undefined,
 		redirect: safeRedirect(c.req.query("redirect_to"), origin),
 	};
 	setCookie(c, OAUTH_COOKIE, btoa(JSON.stringify(payload)), {
@@ -570,6 +584,14 @@ authRoutes.get("/google/callback", async (c) => {
 				console.error("[auth] referral tracking failed:", err);
 			}
 		}
+		c.executionCtx.waitUntil(
+			recordSignupEvent(db, c.env, {
+				userId,
+				method: "google",
+				plan: oauth.plan && oauth.plan in PLANS ? oauth.plan : null,
+				visitorId: oauth.rkVid,
+			}).catch((err) => console.error("[auth] signup event failed:", err)),
+		);
 		if (superAdminEmail && !isSuperAdmin) {
 			c.executionCtx.waitUntil(
 				sendNewSignupAlert(

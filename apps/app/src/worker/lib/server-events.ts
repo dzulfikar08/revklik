@@ -31,6 +31,10 @@ export interface ServerEventInput {
 	product?: string | null;
 	/** Real proceeds in `revenue`'s currency and sign, when the source knows them. */
 	netRevenue?: number | null;
+	/** Event type; default follows the sign of `revenue` (zero revenue = "custom"). */
+	eventType?: "conversion" | "custom" | null;
+	/** Page path stored on the event; default `/<source>`. */
+	path?: string | null;
 }
 
 export interface ServerEventResult {
@@ -45,10 +49,13 @@ export interface ServerEventSite {
 }
 
 /** Event type by sign: sale, refund, or a plain event when no money moved. */
-function eventTypeFor(revenue: number): "conversion" | "refund" | "custom" {
+function eventTypeFor(
+	revenue: number,
+	override?: ServerEventInput["eventType"],
+): "conversion" | "refund" | "custom" {
 	if (revenue > 0) return "conversion";
 	if (revenue < 0) return "refund";
-	return "custom";
+	return override ?? "custom";
 }
 
 const COUNTRY_RE = /^[A-Za-z]{2}$/;
@@ -152,7 +159,7 @@ export async function recordServerEvent(
 
 	const ts = resolveEventTimestamp(input.occurredAt, Date.now(), Number.POSITIVE_INFINITY);
 	const eventId = generateId();
-	const eventType = eventTypeFor(input.revenue);
+	const eventType = eventTypeFor(input.revenue, input.eventType);
 	const currency = eventCurrency(input.currency, input.props, site.revenue_currency);
 	const rail = normalizeRail(input.rail) ?? railFromSource(input.source);
 	const net = await resolveNet(db, {
@@ -176,7 +183,7 @@ export async function recordServerEvent(
 				timestamp: ts,
 				event_type: eventType,
 				name: input.name,
-				path: `/${input.source}`,
+				path: input.path || `/${input.source}`,
 				hostname: null,
 				referrer,
 				utm_source: utmSource,

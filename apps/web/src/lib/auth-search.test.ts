@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { parseView } from "@/components/analytics/views";
 import { siteHasEvents } from "@/components/analytics/snippet-modal";
 
-import { afterAuthTarget, parseNext, validateAuthSearch } from "./auth-search";
+import { afterAuthPath, afterAuthTarget, googleAuthUrl, parseNext, validateAuthSearch } from "./auth-search";
 
 describe("validateAuthSearch", () => {
 	it.each<[Record<string, unknown>, ReturnType<typeof validateAuthSearch>]>([
@@ -75,5 +75,30 @@ describe("siteHasEvents", () => {
 		[{}, true],
 	])("%j -> %s", (site, expected) => {
 		expect(siteHasEvents(site)).toBe(expected);
+	});
+});
+
+describe("journey ids", () => {
+	const VID = "4f7c2a9e-1b3d-4c5e-8f60-123456789abc";
+	const SID = "0a1b2c3d-4e5f-4a6b-9c7d-0123456789ab";
+
+	it("keeps UUID-shaped rk_vid / rk_sid and drops the rest", () => {
+		expect(validateAuthSearch({ rk_sid: SID, rk_vid: VID })).toEqual({ rk_sid: SID, rk_vid: VID });
+		expect(validateAuthSearch({ rk_sid: "x", rk_vid: "<script>" })).toEqual({});
+	});
+
+	it("sends rk_vid to Google only when valid", () => {
+		expect(googleAuthUrl("/api", "budi", "growth", VID)).toBe(
+			`/api/auth/google?ref=budi&plan=growth&rk_vid=${VID}`,
+		);
+		expect(googleAuthUrl("/api", undefined, undefined, "nope")).toBe("/api/auth/google");
+	});
+});
+
+describe("afterAuthPath", () => {
+	it("mirrors afterAuthTarget as a path", () => {
+		expect(afterAuthPath({ plan: "starter" })).toBe("/analytics/billing?plan=starter");
+		expect(afterAuthPath({ next: "/analytics/x?view=billing" })).toBe("/analytics/x?view=billing");
+		expect(afterAuthPath({})).toBe("/analytics");
 	});
 });

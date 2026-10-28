@@ -122,7 +122,9 @@ free allowances) and Bun.
    | `EXPO_ACCESS_TOKEN`                                                 | Phone sale alerts: only needed when "enhanced push security" is on for your Expo project                      |
 
    Plain `vars` (in the wrangler config, not secrets): `SELF_HOSTED`, `APP_URL`,
-   `SUPER_ADMIN_EMAIL`, `EMAIL_FROM`, `FX_USD_IDR`, `RETENTION_HARD_DELETE_DAYS`. Every variable
+   `SUPER_ADMIN_EMAIL`, `EMAIL_FROM`, `FX_USD_IDR`, `RETENTION_HARD_DELETE_DAYS`,
+   `REVKLIK_SELF_SITE_ID` (a site of yours that records a `signup` conversion for each new account;
+   unset = off). Every variable
    is documented in [`apps/app/.dev.vars.example`](apps/app/.dev.vars.example). The `POLAR_*` and
    `PAKASIR_*` variables belong to the hosted product's own billing and are ignored when
    `SELF_HOSTED=1`. Payment-provider credentials for _your_ sites (Stripe, Midtrans, ...) are
