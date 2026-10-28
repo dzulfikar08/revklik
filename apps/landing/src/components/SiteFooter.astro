@@ -1,27 +1,26 @@
 ---
 import { C } from '../data/copy';
 ---
-<footer>
-  <div class="container-wide">
-    <div class="footer-left">
-      <span><img src="/revklik.webp" alt="RevKlik analytics" width="22" height="22" style="vertical-align:middle;margin-right:8px;border-radius:4px">Rev<em>Klik</em></span>
-      <span class="footer-copy">{C.footer_copy}</span>
+<footer class="site-footer">
+  <div class="wrap">
+    <div class="footer-main">
+      <p class="footer-brand"><img src="/revklik.webp" alt="" width="22" height="22"><span>Rev<b>Klik</b></span><span class="footer-copy">{C.footer_copy}</span></p>
+      <ul class="footer-links">
+        <li><a href="/privacy.html">{C.f_privacy}</a></li>
+        <li><a href="/terms.html">{C.f_terms}</a></li>
+        <li><a href="/support.html">{C.f_support}</a></li>
+        <li><a href="https://docs.revklik.com">{C.f_docs}</a></li>
+        <li><a href="/blog.html">{C.nav_blog}</a></li>
+      </ul>
     </div>
-    <div class="footer-links">
-      <a href="/privacy.html">{C.f_privacy}</a>
-      <a href="/terms.html">{C.f_terms}</a>
-      <a href="/support.html">{C.f_support}</a>
-      <a href="https://docs.revklik.com">{C.f_docs}</a>
-      <a href="/blog.html">{C.nav_blog}</a>
-    </div>
-  </div>
-  <div class="container-wide footer-network">
-    <span class="footer-copy">Jaringan produk:</span>
-    <div class="footer-links">
-      <a href="https://nempel.com/cafe">Nempel — direktori cafe &amp; fasilitas</a>
-      <a href="https://voltrus.id">Voltrus</a>
-      <a href="https://cowculator.id">Cowculator</a>
-      <a href="https://epondok.id">E-Pondok</a>
+    <div class="footer-network">
+      <span class="footer-copy">{C.f_network}:</span>
+      <ul class="footer-links">
+        <li><a href="https://nempel.com/cafe">Nempel: direktori cafe &amp; fasilitas</a></li>
+        <li><a href="https://voltrus.id">Voltrus</a></li>
+        <li><a href="https://cowculator.id">Cowculator</a></li>
+        <li><a href="https://epondok.id">E-Pondok</a></li>
+      </ul>
     </div>
   </div>
 </footer>

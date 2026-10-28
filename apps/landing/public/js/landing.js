@@ -1,84 +1,99 @@
 // RevKlik landing page JS.
-// The site is Indonesian-only; Pakasir payment links get a fresh order_id per click.
+// Mobile menu, snippet copy, live-frame status, and click tracking.
+// Scroll reveals and the smooth-scroll handler were removed with the redesign:
+// anchors scroll via CSS (scroll-behavior, honoring prefers-reduced-motion).
 (function () {
   'use strict';
 
   function k() { return window.klikapa; }
+  function track(name, props) { if (k()) k().track(name, props); }
 
-  // Nav scroll state
-  var nav = document.getElementById('nav');
-  window.addEventListener('scroll', function () {
-    nav.classList.toggle('scrolled', window.scrollY > 50);
-  });
-
-  // Close mobile menu on link click
-  document.querySelectorAll('.nav-links a').forEach(function (a) {
-    a.addEventListener('click', function () {
-      document.querySelector('.nav-links').classList.remove('open');
+  // Mobile menu: toggle, close on Escape / link click / resize to desktop.
+  var btn = document.querySelector('.menu-btn');
+  var menu = document.getElementById('site-menu');
+  function setMenu(open) {
+    if (!btn || !menu) return;
+    menu.classList.toggle('is-open', open);
+    btn.setAttribute('aria-expanded', String(open));
+  }
+  if (btn && menu) {
+    btn.addEventListener('click', function () {
+      var open = btn.getAttribute('aria-expanded') !== 'true';
+      setMenu(open);
+      track('mobile_menu', { action: open ? 'open' : 'close' });
     });
-  });
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape' && btn.getAttribute('aria-expanded') === 'true') {
+        setMenu(false);
+        btn.focus();
+        track('mobile_menu', { action: 'close' });
+      }
+    });
+    menu.addEventListener('click', function (e) {
+      if (e.target.closest('a')) setMenu(false);
+    });
+    window.matchMedia('(min-width: 900px)').addEventListener('change', function (e) {
+      if (e.matches) setMenu(false);
+    });
+  }
 
-  // Scroll reveal
-  var obs = new IntersectionObserver(function (entries) {
-    entries.forEach(function (e) { if (e.isIntersecting) e.target.classList.add('vis'); });
-  }, { threshold: 0.08, rootMargin: '0px 0px -30px 0px' });
-  document.querySelectorAll('.fade-up').forEach(function (el) { obs.observe(el); });
-
-  // Smooth scroll
-  document.querySelectorAll('a[href^="#"]').forEach(function (a) {
-    a.addEventListener('click', function (e) {
-      var h = a.getAttribute('href');
-      if (h === '#') return;
-      e.preventDefault();
-      var target = document.querySelector(h);
-      if (target) target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  // Nav link clicks
+  document.querySelectorAll('.nav-menu a.nav-link').forEach(function (a) {
+    a.addEventListener('click', function () {
+      track('nav_click', { label: a.textContent.trim(), href: a.getAttribute('href') });
     });
   });
 
   // CTA click tracking
-  document.querySelectorAll('.nav-cta, .btn-accent, .btn-outline[href]').forEach(function (btn) {
-    btn.addEventListener('click', function () {
-      var section = btn.closest('[data-section]');
-      if (k()) k().track('cta_click', {
-        label: btn.textContent.trim().replace(/\s+/g, ' '),
-        section: section ? section.dataset.section : 'unknown',
-        href: btn.href || '#'
+  document.querySelectorAll('[data-cta]').forEach(function (el) {
+    el.addEventListener('click', function () {
+      var section = el.closest('[data-section]');
+      track('cta_click', {
+        label: el.textContent.trim().replace(/\s+/g, ' '),
+        section: section ? section.dataset.section : 'nav',
+        href: el.href || '#'
       });
-    });
-  });
-
-  // Mobile menu
-  var burger = document.querySelector('.burger');
-  if (burger) burger.addEventListener('click', function () {
-    if (k()) k().track('mobile_menu', { action: 'open' });
-  });
-  var navClose = document.querySelector('.nav-close');
-  if (navClose) navClose.addEventListener('click', function () {
-    if (k()) k().track('mobile_menu', { action: 'close' });
-  });
-
-  // Nav link clicks
-  document.querySelectorAll('.nav-links a').forEach(function (a) {
-    a.addEventListener('click', function () {
-      if (k()) k().track('nav_click', { label: a.textContent.trim(), href: a.getAttribute('href') });
     });
   });
 
   // Footer link clicks
   document.querySelectorAll('.footer-links a').forEach(function (a) {
     a.addEventListener('click', function () {
-      if (k()) k().track('footer_click', { label: a.textContent.trim(), href: a.href });
+      track('footer_click', { label: a.textContent.trim(), href: a.href });
     });
   });
 
-  // Snippet copy
-  document.querySelectorAll('[data-copy-snippet]').forEach(function (btn) {
-    var orig = btn.textContent;
-    btn.addEventListener('click', function () {
-      navigator.clipboard.writeText(btn.dataset.copySnippet);
-      btn.textContent = btn.dataset.copied || 'Copied!';
-      if (k()) k().track('snippet_copy', { section: 'how-it-works' });
-      setTimeout(function () { btn.textContent = orig; }, 2000);
+  // Snippet copy: success relabels the button, failure shows a visible message.
+  document.querySelectorAll('[data-copy-snippet]').forEach(function (copyBtn) {
+    var orig = copyBtn.textContent;
+    var status = copyBtn.closest('.snippet').querySelector('[data-copy-status]');
+    var timer;
+    function done(ok) {
+      clearTimeout(timer);
+      var msg = ok ? copyBtn.dataset.copied : copyBtn.dataset.failed;
+      if (ok) copyBtn.textContent = msg;
+      status.textContent = msg;
+      status.classList.toggle('is-error', !ok);
+      timer = setTimeout(function () {
+        copyBtn.textContent = orig;
+        status.textContent = '';
+        status.classList.remove('is-error');
+      }, 2500);
+      if (ok) track('snippet_copy', { section: 'how-it-works' });
+    }
+    copyBtn.addEventListener('click', function () {
+      if (!navigator.clipboard) { done(false); return; }
+      navigator.clipboard.writeText(copyBtn.dataset.copySnippet).then(
+        function () { done(true); },
+        function () { done(false); }
+      );
     });
+  });
+
+  // Live dashboard: hide the "loading" text once the iframe has loaded.
+  document.querySelectorAll('.frame-body').forEach(function (body) {
+    var frame = body.querySelector('iframe');
+    var status = body.querySelector('[data-frame-status]');
+    if (frame && status) frame.addEventListener('load', function () { status.hidden = true; });
   });
 })();

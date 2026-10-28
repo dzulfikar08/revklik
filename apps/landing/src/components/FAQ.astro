@@ -1,27 +1,24 @@
 ---
 import { C } from '../data/copy';
-const faqs = [
-  { q: C.faq1_q, a: C.faq1_a },
-  { q: C.faq2_q, a: C.faq2_a },
-  { q: C.faq3_q, a: C.faq3_a },
-  { q: C.faq4_q, a: C.faq4_a },
-  { q: C.faq5_q, a: C.faq5_a },
-  { q: C.faq6_q, a: C.faq6_a },
-];
 ---
 <section class="faq" id="faq" data-section="faq">
-  <div class="container">
-    <div class="faq-head fade-up">
-      <div class="section-eyebrow">{C.faq_eyebrow}</div>
-      <h2><Fragment set:html={C.faq_title} /></h2>
+  <div class="wrap">
+    <div class="section-head">
+      <h2>{C.faq_title}</h2>
     </div>
-    <div class="faq-list">
-      {faqs.map((f, i) => (
-        <details class={`faq-item fade-up d${(i % 3) + 1}`}>
-          <summary>{f.q}</summary>
-          <p>{f.a}</p>
-        </details>
-      ))}
+    <div class="faq-grid">
+      <div class="faq-list">
+        {C.faq.map((f) => (
+          <details class="faq-item">
+            <summary>{f.q}</summary>
+            <p>{f.a}</p>
+          </details>
+        ))}
+      </div>
+      <aside class="faq-aside">
+        <p>{C.faq_aside}</p>
+        <a class="link-plain" href="/support.html">{C.faq_aside_cta}</a>
+      </aside>
     </div>
   </div>
 </section>

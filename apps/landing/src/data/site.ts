@@ -1,6 +1,8 @@
-// Canonical tracker URL — served by the app worker, NOT the landing domain.
+import { C } from './copy';
+
+// Canonical tracker URL, served by the app worker, NOT the landing domain.
 // (https://revklik.com/klikapa.js returns the SPA HTML fallback and browsers
-// refuse to execute it due to nosniff — never use it in copy.)
+// refuse to execute it due to nosniff. Never use it in copy.)
 export const TRACKER_URL = 'https://app.revklik.com/klikapa.js';
 export const LOGIN_URL = 'https://app.revklik.com';
 export const REGISTER_URL = 'https://app.revklik.com/register';
@@ -9,20 +11,21 @@ export const SUPPORT_EMAIL = 'support@revklik.com';
 export type Plan = {
 	id: 'micro' | 'starter' | 'growth';
 	name: string;
-	// IDR price — must match PAKASIR_PRICES in the app worker.
+	// IDR price. Must match PAKASIR_PRICES in the app worker.
 	amount: number;
 	label: string;
 	events: number;
-	featKeys: string[];
-	ctaKey: string;
-	descKey: string;
-	popular?: boolean;
+	desc: string;
+	features: readonly string[];
+	// Starter is the first tier with revenue attribution, the product's core
+	// feature, so it is the one row that gets emphasis.
+	highlight?: boolean;
 };
 
 export const PLANS: Plan[] = [
-	{ id: 'micro', name: 'Micro', amount: 16_000, label: 'Rp 16.000', events: 10_000, featKeys: ['p0_f1', 'p0_f2', 'p0_f3', 'p0_f4', 'p0_f5'], ctaKey: 'p0_cta', descKey: 'p0_desc' },
-	{ id: 'starter', name: 'Starter', amount: 64_000, label: 'Rp 64.000', events: 100_000, featKeys: ['p1_f1', 'p1_f2', 'p1_f3', 'p1_f4', 'p1_f5'], ctaKey: 'p1_cta', descKey: 'p1_desc', popular: true },
-	{ id: 'growth', name: 'Growth', amount: 192_000, label: 'Rp 192.000', events: 500_000, featKeys: ['p2_f1', 'p2_f2', 'p2_f3', 'p2_f4'], ctaKey: 'p2_cta', descKey: 'p2_desc' },
+	{ id: 'micro', name: 'Micro', amount: 16_000, label: 'Rp 16.000', events: 10_000, desc: C.p0_desc, features: C.p0_f },
+	{ id: 'starter', name: 'Starter', amount: 64_000, label: 'Rp 64.000', events: 100_000, desc: C.p1_desc, features: C.p1_f, highlight: true },
+	{ id: 'growth', name: 'Growth', amount: 192_000, label: 'Rp 192.000', events: 500_000, desc: C.p2_desc, features: C.p2_f },
 ];
 
 // Pricing CTAs send the visitor to signup with the plan preselected. Every new

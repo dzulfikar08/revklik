@@ -1,33 +1,29 @@
 ---
 import { C } from '../data/copy';
 import { PLANS, registerUrl, SUPPORT_EMAIL } from '../data/site';
-const check = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6L9 17l-5-5"/></svg>';
 ---
 <section class="pricing" id="pricing" data-section="pricing">
-  <div class="container">
-    <div class="pricing-head fade-up">
-      <div class="section-eyebrow" style="justify-content:center">{C.price_eyebrow}</div>
-      <h2><Fragment set:html={C.price_title} /></h2>
+  <div class="wrap">
+    <div class="section-head">
+      <h2>{C.price_title}</h2>
       <p>{C.price_desc}</p>
     </div>
-    <div class="pricing-cards">
-      {PLANS.map((plan, i) => {
-        const checkCls = i === 2 ? 'r' : 'g';
-        return (
-          <div class={`pcard fade-up d${i + 1}${plan.popular ? ' pop' : ''}`} data-badge={C.badge_popular}>
-            <div class="pcard-name">{plan.name}</div>
-            <div class="pcard-price"><span class="cur">Rp</span><span class="amt">{plan.label.replace('Rp ', '')}</span><span class="per">{C.price_per}</span></div>
-            <div class="pcard-desc">{C[plan.descKey]}</div>
-            <ul class="pcard-list">
-              {plan.featKeys.map((k) => (
-                <li><span class={`check ${checkCls}`} set:html={check} /> <span>{C[k]}</span></li>
-              ))}
-            </ul>
-            <a href={registerUrl(plan)} class={plan.popular ? 'btn-accent' : 'btn-outline'} data-revklik-goal="register_click" data-revklik-goal-plan={plan.name}>{C[plan.ctaKey]}</a>
+    <div class="plans">
+      {PLANS.map((plan) => (
+        <article class={`plan${plan.highlight ? ' plan-highlight' : ''}`}>
+          <div class="plan-id">
+            <h3>{plan.name}</h3>
+            <p>{plan.desc}</p>
+            {plan.highlight && <p class="plan-note">{C.price_highlight}</p>}
           </div>
-        );
-      })}
+          <p class="plan-price"><span class="cur">Rp</span><span class="amt">{plan.label.replace('Rp ', '')}</span><span class="per">{C.price_per}</span></p>
+          <ul class="plan-feats">
+            {plan.features.map((f) => <li>{f}</li>)}
+          </ul>
+          <a href={registerUrl(plan)} class={`btn plan-cta ${plan.highlight ? 'btn-primary' : 'btn-ghost'}`} data-cta data-revklik-goal="register_click" data-revklik-goal-plan={plan.name}>{C.plan_cta}</a>
+        </article>
+      ))}
     </div>
-    <p class="pricing-note fade-up d3">{C.price_note} <a href={`mailto:${SUPPORT_EMAIL}`}>{SUPPORT_EMAIL}</a></p>
+    <p class="pricing-note">{C.price_note} <a href={`mailto:${SUPPORT_EMAIL}`}>{SUPPORT_EMAIL}</a></p>
   </div>
 </section>

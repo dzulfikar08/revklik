@@ -1,30 +1,23 @@
 ---
 import { C } from '../data/copy';
 import { REGISTER_URL } from '../data/site';
-const trust = [C.hero_trust1, C.hero_trust2, C.hero_trust3];
-const metrics = [
-  { val: C.metric_1_val, lbl: C.metric_1 },
-  { val: C.metric_2_val, lbl: C.metric_2 },
-  { val: C.metric_3_val, lbl: C.metric_3 },
-];
+const [plain, money] = C.hero_title;
 ---
 <section class="hero" data-section="hero">
-  <div class="container-wide">
-    <h1 class="fade-up"><Fragment set:html={C.hero_title} /></h1>
-    <p class="hero-sub fade-up d1">{C.hero_sub}</p>
-    <div class="hero-actions fade-up d2">
-      <a href={REGISTER_URL} class="btn-accent" data-revklik-goal="register_click" data-revklik-goal-location="hero">{C.hero_cta1}</a>
-      <a href="#pricing" class="btn-outline" data-revklik-goal="pricing_click" data-revklik-goal-location="hero">{C.hero_cta2}</a>
+  <div class="wrap hero-grid">
+    <div class="hero-copy">
+      <h1>{plain}<span class="hl">{money}</span></h1>
+      <p class="lede">{C.hero_sub}</p>
+      <div class="hero-actions">
+        <a href={REGISTER_URL} class="btn btn-primary" data-cta data-revklik-goal="register_click" data-revklik-goal-location="hero">{C.hero_cta1}</a>
+        <a href="#pricing" class="btn btn-ghost" data-cta data-revklik-goal="pricing_click" data-revklik-goal-location="hero">{C.hero_cta2}</a>
+      </div>
+      <p class="fine">{C.hero_note}</p>
     </div>
-    <div style="margin-top:12px;display:flex;gap:16px;flex-wrap:wrap;align-items:center" class="fade-up d2">
-      {trust.map((item) => (
-        <span style="font-size:12px;color:var(--text3);display:flex;align-items:center;gap:5px"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="2"><path d="M20 6L9 17l-5-5"/></svg> <span>{item}</span></span>
+    <dl class="specs" aria-label={C.specs_label}>
+      {C.specs.map((s) => (
+        <div class="spec"><dt>{s.lbl}</dt><dd>{s.val}</dd></div>
       ))}
-    </div>
-    <div class="hero-strip fade-up d3">
-      {metrics.map((m) => (
-        <div class="metric"><div class="metric-val">{m.val}</div><div class="metric-lbl">{m.lbl}</div></div>
-      ))}
-    </div>
+    </dl>
   </div>
 </section>

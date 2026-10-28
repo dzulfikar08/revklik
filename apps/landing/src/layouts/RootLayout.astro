@@ -2,15 +2,16 @@
 import SiteFooter from '../components/SiteFooter.astro';
 import SiteHeader from '../components/SiteHeader.astro';
 import '../styles/global.css';
+import { C } from '../data/copy';
 
 const SITE_ID = 'd9701d64-9e78-4b73-9726-e4f41593b843';
 const TRACKER = 'https://app.revklik.com/klikapa.js';
 const canonical = 'https://revklik.com/';
 
 const meta = {
-	title: 'RevKlik — Analytics yang Menunjukkan Channel Penghasil Uang',
+	title: 'RevKlik: Analytics yang Menunjukkan Channel Penghasil Uang',
 	description: 'Analytics website yang mencocokkan pembayaran Midtrans, Xendit, DOKU, dan Mayar dengan sumber traffic-nya. Tanpa cookie, satu baris script. Trial 7 hari tanpa kartu kredit, lalu mulai Rp 16.000/bulan via QRIS.',
-	ogTitle: 'RevKlik — Tahu Channel Mana yang Menghasilkan Uang',
+	ogTitle: 'RevKlik: Tahu Channel Mana yang Menghasilkan Uang',
 	ogDescription: 'Atribusi pendapatan untuk website Indonesia. Trial 7 hari tanpa kartu kredit, lalu mulai Rp 16.000/bulan via QRIS.',
 };
 
@@ -83,14 +84,19 @@ const jsonLdFaq = {
 
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesque:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<meta name="color-scheme" content="dark">
+<meta name="theme-color" content="#0b0e14">
+
+<script is:inline>document.documentElement.classList.add('js')</script>
 
 <script is:inline defer data-site-id={SITE_ID} src={TRACKER}></script>
 <script is:inline defer src="/js/landing.js"></script>
 </head>
 <body>
+<a class="skip-link" href="#konten">{C.skip}</a>
 <SiteHeader />
-<main>
+<main id="konten">
 	<slot />
 </main>
 <SiteFooter />

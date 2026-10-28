@@ -6,6 +6,12 @@ html {
 	scrollbar-gutter: stable;
 }
 
+* {
+	scrollbar-width: thin;
+	scrollbar-color: color-mix(in oklch, var(--color-fd-muted-foreground) 35%, transparent)
+		transparent;
+}
+
 html > body[data-scroll-locked] {
 	margin-right: 0px !important;
 	--removed-body-scroll-bar-size: 0px !important;

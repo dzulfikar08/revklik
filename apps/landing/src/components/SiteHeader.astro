@@ -2,25 +2,19 @@
 import { C } from '../data/copy';
 import { LOGIN_URL, REGISTER_URL } from '../data/site';
 ---
-<nav id="nav">
-  <div class="container-wide">
-    <a href="#" class="logo"><img src="/revklik.webp" alt="RevKlik analytics platform" width="28" height="28" style="vertical-align:middle;margin-right:6px;border-radius:6px">Rev<em>Klik</em></a>
-    <div class="nav-links">
-      <button class="nav-close" onclick="document.querySelector('.nav-links').classList.remove('open')" aria-label="Close">
-        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-      </button>
-      <a href="#features">{C.nav_features}</a>
-      <a href="#cara-pasang">{C.nav_how}</a>
-      <a href="#pricing">{C.nav_pricing}</a>
-      <a href="#faq">{C.nav_faq}</a>
-      <a href="/blog.html">{C.nav_blog}</a>
+<header class="site-nav">
+  <nav class="wrap nav-bar" aria-label={C.nav_label}>
+    <a href="/" class="brand"><img src="/revklik.webp" alt="" width="28" height="28"><span>Rev<b>Klik</b></span></a>
+    <div id="site-menu" class="nav-menu">
+      <a class="nav-link" href="#features">{C.nav_features}</a>
+      <a class="nav-link" href="#cara-pasang">{C.nav_how}</a>
+      <a class="nav-link" href="#pricing">{C.nav_pricing}</a>
+      <a class="nav-link" href="#faq">{C.nav_faq}</a>
+      <a class="nav-link" href="/blog.html">{C.nav_blog}</a>
+      <a href={REGISTER_URL} class="btn btn-primary menu-cta" data-cta data-revklik-goal="register_click" data-revklik-goal-location="nav_menu">{C.nav_cta}</a>
     </div>
-    <div class="nav-right">
-      <a href={LOGIN_URL} class="nav-login">{C.nav_login}</a>
-      <a href={REGISTER_URL} class="nav-cta" data-revklik-goal="register_click" data-revklik-goal-location="nav">{C.nav_cta}</a>
-    </div>
-    <button class="burger" onclick="document.querySelector('.nav-links').classList.toggle('open')" aria-label="Menu">
-      <svg width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
-    </button>
-  </div>
-</nav>
+    <a href={LOGIN_URL} class="nav-link nav-login">{C.nav_login}</a>
+    <a href={REGISTER_URL} class="btn btn-primary btn-sm nav-cta" data-cta data-revklik-goal="register_click" data-revklik-goal-location="nav">{C.nav_cta}</a>
+    <button type="button" class="menu-btn" aria-expanded="false" aria-controls="site-menu">{C.nav_menu}</button>
+  </nav>
+</header>
