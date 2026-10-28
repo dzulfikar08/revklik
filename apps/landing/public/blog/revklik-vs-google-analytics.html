@@ -19,9 +19,6 @@
 <meta name="twitter:image" content="https://revklik.com/og-image.webp">
 <link rel="icon" type="image/webp" sizes="32x32" href="../favicon.webp">
 <link rel="apple-touch-icon" sizes="180x180" href="../apple-touch-icon.webp">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesque:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <script type="application/ld+json">
 {
   "@context":"https://schema.org",
@@ -48,74 +45,10 @@
   ]
 }
 </script>
-<style>
-*,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
-:root{--bg:#0c0b0e;--bg2:#100f13;--bg3:#17161b;--text:#e8e4de;--text2:#a8a29e;--text3:#6b6560;--accent:#d4882a;--accent-dim:rgba(212,136,42,.1);--accent-mid:rgba(212,136,42,.2);--border:#1f1e24;--border2:#2a2930;--serif:var(--sans);--sans:'Hanken Grotesque',system-ui,sans-serif;--mono:'IBM Plex Mono',monospace}
-html{scroll-behavior:smooth}
-body{background:var(--bg);color:var(--text);font-family:var(--sans);line-height:1.6;-webkit-font-smoothing:antialiased}
-::selection{background:var(--accent);color:var(--text)}
-.container{max-width:1200px;margin:0 auto;padding:0 28px}
-a{color:inherit}
-nav{position:fixed;top:0;left:0;right:0;z-index:100;padding:20px 0;background:rgba(10,10,10,.88);backdrop-filter:blur(20px);border-bottom:1px solid var(--border)}
-nav .container{display:flex;align-items:center;justify-content:space-between}
-.logo{font-family:var(--sans);font-weight:600;font-size:26px;color:var(--text);text-decoration:none}
-.logo em{color:var(--accent)}
-.nav-links{display:flex;align-items:center;gap:32px}
-.nav-links a{font-size:14px;font-weight:500;color:var(--text2);text-decoration:none;transition:color .2s}
-.nav-links a:hover{color:var(--text)}
-.nav-cta{font-size:13px;font-weight:600;color:var(--text)!important;background:var(--accent);padding:11px 26px;border-radius:100px;text-decoration:none}
-
-.article-header{padding:160px 0 60px;text-align:center}
-.article-tag{font-family:var(--mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--accent);margin-bottom:16px}
-.article-header h1{font-family:var(--sans);font-weight:600;font-size:clamp(32px,5vw,52px);letter-spacing:-.03em;line-height:1.1;margin-bottom:20px;max-width:800px;margin-left:auto;margin-right:auto}
-.article-meta{font-family:var(--mono);font-size:12px;color:var(--text3);display:flex;justify-content:center;gap:20px}
-
-.article-body{max-width:720px;margin:0 auto;padding:0 28px 120px}
-.article-body h2{font-family:var(--sans);font-weight:600;font-size:32px;margin:48px 0 20px;letter-spacing:-.02em;line-height:1.2}
-.article-body h3{font-family:var(--sans);font-weight:600;font-size:24px;margin:36px 0 16px;letter-spacing:-.01em}
-.article-body p{font-size:17px;line-height:1.8;color:var(--text2);margin-bottom:24px}
-.article-body ul,.article-body ol{font-size:17px;line-height:1.8;color:var(--text2);margin-bottom:24px;padding-left:24px}
-.article-body li{margin-bottom:8px}
-.article-body blockquote{border-left:3px solid var(--accent);padding:16px 24px;margin:32px 0;background:var(--accent-dim);border-radius:0 8px 8px 0;font-style:italic;color:var(--text);font-size:17px}
-.article-body strong{color:var(--text);font-weight:600}
-.article-body a{color:var(--accent);text-decoration:none;border-bottom:1px solid var(--accent-mid);transition:border-color .2s}
-.article-body a:hover{border-color:var(--accent)}
-.article-body .callout{background:var(--bg3);border:1px solid var(--border);border-radius:12px;padding:24px 28px;margin:32px 0}
-.article-body .callout-title{font-family:var(--mono);font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--accent);margin-bottom:8px}
-.article-body .callout p{margin-bottom:0;font-size:15px}
-.article-body code{font-family:var(--mono);font-size:14px;background:var(--bg3);padding:2px 8px;border-radius:4px;color:var(--accent)}
-
-/* Comparison table */
-.cmp-table{width:100%;border-collapse:collapse;margin:32px 0;font-size:15px}
-.cmp-table th{text-align:left;padding:14px 16px;font-family:var(--mono);font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--text3);border-bottom:2px solid var(--border2)}
-.cmp-table td{padding:14px 16px;border-bottom:1px solid var(--border);color:var(--text2);vertical-align:top}
-.cmp-table tr:hover td{background:var(--bg3)}
-.cmp-table .label{color:var(--text);font-weight:500;width:30%}
-.cmp-table .win{color:var(--accent);font-weight:500}
-
-.article-nav{border-top:1px solid var(--border);padding:40px 0}
-.article-nav .container{display:flex;justify-content:space-between;flex-wrap:wrap;gap:16px}
-.article-nav a{font-size:14px;color:var(--text2);text-decoration:none;transition:color .2s}
-.article-nav a:hover{color:var(--accent)}
-
-footer{padding:40px 0;border-top:1px solid var(--border)}
-footer .container{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:16px}
-.footer-left{display:flex;align-items:center;gap:24px}
-.footer-left span{font-family:var(--serif);font-size:18px}
-.footer-left span em{color:var(--accent)}
-.footer-copy{font-size:13px;color:var(--text3)}
-.footer-links{display:flex;gap:28px}
-.footer-links a{font-size:13px;color:var(--text3);text-decoration:none;transition:color .2s}
-.footer-links a:hover{color:var(--text)}
-
-@media(max-width:768px){.nav-links{display:flex;position:fixed;inset:0;background:rgba(10,10,10,.97);backdrop-filter:blur(24px);flex-direction:column;align-items:center;justify-content:center;gap:28px;opacity:0;pointer-events:none;transition:opacity .3s ease;z-index:200}
-  .nav-links.open{opacity:1;pointer-events:auto}
-  .nav-close{display:block;position:absolute;top:24px;right:24px}
-  .nav-links a{font-size:24px;font-weight:500;color:#e8e4de}
-  .burger{display:block;position:relative;z-index:300}
-  .nav-right .nav-cta{display:none}.article-header h1{font-size:28px}
-  .cmp-table{font-size:13px}.cmp-table td,.cmp-table th{padding:10px 8px}}
-</style>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/css/pages.css">
 <script defer data-site-id="d9701d64-9e78-4b73-9726-e4f41593b843" src="https://app.revklik.com/klikapa.js"></script>
 </head>
 <body>

@@ -4,8 +4,10 @@ import type { KlikapaDatabase, WhoamiResponse } from "@revklik/shared";
 import { sql } from "../db";
 import type { PublicApiEnv } from "../middleware/public-auth";
 import { getDateRange } from "../utils";
-import { type MoneyContext, revenueSql } from "./fx";
-import { resolveQueryScope } from "./site-scope";
+import { executePlan, queryPlan, runBatch, type QueryPlan } from "../queries/analytics";
+import { ensureSiteCurrency } from "./currency-backfill";
+import { type MoneyContext, loadUsdRates, revenueSql } from "./fx";
+import { displayCurrency } from "./site-scope";
 import { toCsv } from "./analytics-queries";
 import { avgSessionSecondsSql } from "./session-duration";
 import { canonicalSource, externalReferrerOnly, sourceSql } from "./source-sql";
@@ -23,7 +25,7 @@ import { canonicalSource, externalReferrerOnly, sourceSql } from "./source-sql";
 export interface PublicApiCtx {
 	db: Kysely<KlikapaDatabase>;
 	/** Bindings that tune revenue conversion (FX_USD_IDR). */
-	env?: { FX_USD_IDR?: string };
+	env?: { FX_USD_IDR?: string; DB?: D1Database };
 	userId: string;
 	tokenScopes: string[];
 	tokenSiteId: string | null;
@@ -121,9 +123,64 @@ export async function assertSiteExists(ctx: PublicApiCtx, siteId: string): Promi
 	}
 }
 
+/** The site row every revenue/referrer query needs, read together with the access check. */
+export interface SiteInfo {
+	id: string;
+	domain: string | null;
+	revenue_currency: string | null;
+	revenue_currency_source: string | null;
+}
+
+// Site rows the auth middleware already read in the same D1 batch as the token
+// (null = the caller cannot see that site). Keyed by the request's Kysely.
+const primedSites = new WeakMap<object, Map<string, SiteInfo | null>>();
+
+export function primeSiteInfo(
+	db: Kysely<KlikapaDatabase>,
+	siteId: string,
+	site: SiteInfo | null,
+): void {
+	primedSites.set(db, new Map([[siteId, site]]));
+}
+
+async function loadSiteInfo(ctx: PublicApiCtx, siteId: string): Promise<SiteInfo> {
+	const primed = primedSites.get(ctx.db)?.get(siteId);
+	if (primed === null) throw new PublicApiError(404, "Site not found");
+	if (primed) return primed;
+	const site = await ctx.db
+		.selectFrom("sites")
+		.select(["id", "domain", "revenue_currency", "revenue_currency_source"])
+		.where("id", "=", siteId)
+		.where((eb) =>
+			eb.or([
+				eb("user_id", "=", ctx.userId),
+				eb.exists(
+					eb
+						.selectFrom("team_members")
+						.select("id")
+						.where("site_id", "=", siteId)
+						.where("user_id", "=", ctx.userId)
+						.where("accepted_at", "is not", null),
+				),
+			]),
+		)
+		.executeTakeFirst();
+	if (!site) throw new PublicApiError(404, "Site not found");
+	return site as SiteInfo;
+}
+
 /** The site's revenue currency and today's rates: every revenue sum converts into it. */
-async function moneyFor(ctx: PublicApiCtx, siteId: string): Promise<MoneyContext> {
-	return (await resolveQueryScope(ctx.db, siteId, ctx.env, undefined)).money;
+async function moneyFor(ctx: PublicApiCtx, site: SiteInfo): Promise<MoneyContext> {
+	const [rates, currency] = await Promise.all([
+		loadUsdRates(ctx.db, ctx.env),
+		ensureSiteCurrency(
+			ctx.db,
+			site.id,
+			site.revenue_currency ?? "USD",
+			site.revenue_currency_source,
+		),
+	]);
+	return { currency: displayCurrency(currency, rates), rates };
 }
 
 // Guard trio applied by every site-scoped analytics query.
@@ -132,6 +189,27 @@ async function guardSite(ctx: PublicApiCtx, siteId: string | undefined): Promise
 	assertSiteAllowed(ctx, id);
 	await assertSiteExists(ctx, id);
 	return id;
+}
+
+/** Same guards, but one read returns the site row too (domain, currency). */
+async function guardSiteInfo(ctx: PublicApiCtx, siteId: string | undefined): Promise<SiteInfo> {
+	const id = requireSiteId(siteId);
+	assertSiteAllowed(ctx, id);
+	return loadSiteInfo(ctx, id);
+}
+
+/** Independent reads in one D1 round trip (parallel fallback without a raw D1 binding). */
+function runPlans<const P extends readonly QueryPlan<unknown>[]>(
+	ctx: PublicApiCtx,
+	plans: P,
+): ReturnType<typeof runBatch<P>> {
+	const d1 = ctx.env?.DB;
+	if (d1) return runBatch(d1, plans);
+	return Promise.all(plans.map((p) => executePlan(ctx.db, p))) as ReturnType<typeof runBatch<P>>;
+}
+
+function first<T>(rows: T[]): T | undefined {
+	return rows[0];
 }
 
 // --- Shared SQL fragments ---
@@ -155,26 +233,23 @@ function tsFragments(range: string) {
 export async function queryWhoami(ctx: PublicApiCtx): Promise<WhoamiResponse> {
 	const { db, userId } = ctx;
 
-	const [user, sub, apiKey] = await Promise.all([
-		db
-			.selectFrom("users")
-			.select(["id", "name", "email"])
-			.where("id", "=", userId)
-			.executeTakeFirst(),
-		db
-			.selectFrom("subscriptions")
-			.select(["plan"])
-			.where("user_id", "=", userId)
-			.executeTakeFirst(),
-		db
-			.selectFrom("api_keys")
-			.select(["name", "created_at"])
-			.where("user_id", "=", userId)
-			.where("token_type", "=", ctx.tokenType)
-			.where("scopes", "is not", null)
-			.orderBy("created_at", "desc")
-			.limit(1)
-			.executeTakeFirst(),
+	const [user, sub, apiKey] = await runPlans(ctx, [
+		queryPlan(
+			db.selectFrom("users").select(["id", "name", "email"]).where("id", "=", userId),
+			first,
+		),
+		queryPlan(db.selectFrom("subscriptions").select(["plan"]).where("user_id", "=", userId), first),
+		queryPlan(
+			db
+				.selectFrom("api_keys")
+				.select(["name", "created_at"])
+				.where("user_id", "=", userId)
+				.where("token_type", "=", ctx.tokenType)
+				.where("scopes", "is not", null)
+				.orderBy("created_at", "desc")
+				.limit(1),
+			first,
+		),
 	]);
 
 	if (!user) {
@@ -201,14 +276,7 @@ export async function querySites(ctx: PublicApiCtx) {
 
 	// For site tokens, only return the bound site
 	if (ctx.tokenSiteId) {
-		if (!(await validateSite(db, userId, ctx.tokenSiteId))) {
-			throw new PublicApiError(404, "Site not found");
-		}
-		return db
-			.selectFrom("sites")
-			.select(["id", "name", "domain", "created_at"])
-			.where("id", "=", ctx.tokenSiteId)
-			.execute();
+		return [await querySite(ctx, ctx.tokenSiteId)];
 	}
 
 	// For account tokens, return all user sites (owned + team)
@@ -234,77 +302,106 @@ export async function querySites(ctx: PublicApiCtx) {
 
 export async function querySite(ctx: PublicApiCtx, siteId: string) {
 	assertSiteAllowed(ctx, siteId);
-	if (!(await validateSite(ctx.db, ctx.userId, siteId))) {
-		throw new PublicApiError(404, "Site not found");
-	}
-	return ctx.db
+	const site = await ctx.db
 		.selectFrom("sites")
 		.select(["id", "name", "domain", "created_at"])
 		.where("id", "=", siteId)
+		.where((eb) =>
+			eb.or([
+				eb("user_id", "=", ctx.userId),
+				eb.exists(
+					eb
+						.selectFrom("team_members")
+						.select("id")
+						.where("site_id", "=", siteId)
+						.where("user_id", "=", ctx.userId)
+						.where("accepted_at", "is not", null),
+				),
+			]),
+		)
 		.executeTakeFirst();
+	if (!site) throw new PublicApiError(404, "Site not found");
+	return site;
 }
 
 // --- Analytics ---
 
 export async function queryOverview(ctx: PublicApiCtx, siteId: string | undefined, range: string) {
 	const db = ctx.db;
-	const id = await guardSite(ctx, siteId);
+	const site = await guardSiteInfo(ctx, siteId);
+	const id = site.id;
 
 	const { start } = getDateRange(range);
 	const startIso = start.toISOString();
-	const money = await moneyFor(ctx, id);
+	const money = await moneyFor(ctx, site);
 
-	const [pv, vi, se, bo, du, rev, conv] = await Promise.all([
-		db
-			.selectFrom("events")
-			.select(({ fn }) => [fn.count<number>("id").as("count")])
-			.where("site_id", "=", id)
-			.where("event_type", "=", "pageview")
-			.where("timestamp", ">=", startIso)
-			.executeTakeFirst(),
-		db
-			.selectFrom("events")
-			.select(() => [
-				// Server-reported sales (external_id) belong to a buyer, not a site visit.
-				sql<number>`COUNT(DISTINCT CASE WHEN external_id IS NULL THEN visitor_id END)`.as("count"),
-			])
-			.where("site_id", "=", id)
-			.where("timestamp", ">=", startIso)
-			.executeTakeFirst(),
-		db
-			.selectFrom("sessions")
-			.select(({ fn }) => [fn.count<number>("id").as("count")])
-			.where("site_id", "=", id)
-			.where("started_at", ">=", startIso)
-			.executeTakeFirst(),
-		db
-			.selectFrom("sessions")
-			.select(({ fn }) => [fn.avg<number>("is_bounce").as("avg")])
-			.where("site_id", "=", id)
-			.where("started_at", ">=", startIso)
-			.executeTakeFirst(),
+	const [pv, vi, se, bo, du, rev, conv] = await runPlans(ctx, [
+		queryPlan(
+			db
+				.selectFrom("events")
+				.select(({ fn }) => [fn.count<number>("id").as("count")])
+				.where("site_id", "=", id)
+				.where("event_type", "=", "pageview")
+				.where("timestamp", ">=", startIso),
+			first,
+		),
+		queryPlan(
+			db
+				.selectFrom("events")
+				.select(() => [
+					// Server-reported sales (external_id) belong to a buyer, not a site visit.
+					sql<number>`COUNT(DISTINCT CASE WHEN external_id IS NULL THEN visitor_id END)`.as(
+						"count",
+					),
+				])
+				.where("site_id", "=", id)
+				.where("timestamp", ">=", startIso),
+			first,
+		),
+		queryPlan(
+			db
+				.selectFrom("sessions")
+				.select(({ fn }) => [fn.count<number>("id").as("count")])
+				.where("site_id", "=", id)
+				.where("started_at", ">=", startIso),
+			first,
+		),
+		queryPlan(
+			db
+				.selectFrom("sessions")
+				.select(({ fn }) => [fn.avg<number>("is_bounce").as("avg")])
+				.where("site_id", "=", id)
+				.where("started_at", ">=", startIso),
+			first,
+		),
 		// Session duration: same formula as the dashboard rollup
 		// (queries/analytics.ts) — sessions with ≥2 events carry ended_at.
-		db
-			.selectFrom("sessions")
-			.select(() => [avgSessionSecondsSql.as("avg_duration")])
-			.where("site_id", "=", id)
-			.where("started_at", ">=", startIso)
-			.executeTakeFirst(),
-		db
-			.selectFrom("events")
-			.select(() => [sql<number>`SUM(${revenueSql(money)})`.as("total")])
-			.where("site_id", "=", id)
-			.where("revenue", "!=", 0)
-			.where("timestamp", ">=", startIso)
-			.executeTakeFirst(),
-		db
-			.selectFrom("events")
-			.select(({ fn }) => [fn.count<number>("id").as("count")])
-			.where("site_id", "=", id)
-			.where("event_type", "=", "conversion")
-			.where("timestamp", ">=", startIso)
-			.executeTakeFirst(),
+		queryPlan(
+			db
+				.selectFrom("sessions")
+				.select(() => [avgSessionSecondsSql.as("avg_duration")])
+				.where("site_id", "=", id)
+				.where("started_at", ">=", startIso),
+			first,
+		),
+		queryPlan(
+			db
+				.selectFrom("events")
+				.select(() => [sql<number>`SUM(${revenueSql(money)})`.as("total")])
+				.where("site_id", "=", id)
+				.where("revenue", "!=", 0)
+				.where("timestamp", ">=", startIso),
+			first,
+		),
+		queryPlan(
+			db
+				.selectFrom("events")
+				.select(({ fn }) => [fn.count<number>("id").as("count")])
+				.where("site_id", "=", id)
+				.where("event_type", "=", "conversion")
+				.where("timestamp", ">=", startIso),
+			first,
+		),
 	]);
 
 	return {
@@ -391,18 +488,14 @@ export async function queryReferrers(
 	limit: number,
 ) {
 	const db = ctx.db;
-	const id = await guardSite(ctx, siteId);
+	const site = await guardSiteInfo(ctx, siteId);
+	const id = site.id;
 
 	const { start } = getDateRange(range);
 	const startIso = start.toISOString();
 
 	// Pageviews only (custom events carry no referrer and would inflate "direct"),
 	// and the site's own navigation is not a traffic source.
-	const site = await db
-		.selectFrom("sites")
-		.select("domain")
-		.where("id", "=", id)
-		.executeTakeFirst();
 	const rows = await db
 		.selectFrom("events")
 		.select([
@@ -462,43 +555,49 @@ export async function queryDevices(ctx: PublicApiCtx, siteId: string | undefined
 	const { start } = getDateRange(range);
 	const startIso = start.toISOString();
 
-	const [deviceRows, osRows, browserRows] = await Promise.all([
-		db
-			.selectFrom("sessions")
-			.select([
-				sql<string>`COALESCE(device_type, 'unknown')`.as("device"),
-				({ fn }) => fn.count<number>("visitor_id").distinct().as("visitors"),
-			])
-			.where("site_id", "=", id)
-			.where("started_at", ">=", startIso)
-			.groupBy("device_type")
-			.orderBy("visitors", "desc")
-			.limit(10)
-			.execute(),
-		db
-			.selectFrom("sessions")
-			.select([
-				sql<string>`COALESCE(os, 'unknown')`.as("device"),
-				({ fn }) => fn.count<number>("visitor_id").distinct().as("visitors"),
-			])
-			.where("site_id", "=", id)
-			.where("started_at", ">=", startIso)
-			.groupBy("os")
-			.orderBy("visitors", "desc")
-			.limit(10)
-			.execute(),
-		db
-			.selectFrom("sessions")
-			.select([
-				sql<string>`COALESCE(browser, 'unknown')`.as("device"),
-				({ fn }) => fn.count<number>("visitor_id").distinct().as("visitors"),
-			])
-			.where("site_id", "=", id)
-			.where("started_at", ">=", startIso)
-			.groupBy("browser")
-			.orderBy("visitors", "desc")
-			.limit(10)
-			.execute(),
+	const [deviceRows, osRows, browserRows] = await runPlans(ctx, [
+		queryPlan(
+			db
+				.selectFrom("sessions")
+				.select([
+					sql<string>`COALESCE(device_type, 'unknown')`.as("device"),
+					({ fn }) => fn.count<number>("visitor_id").distinct().as("visitors"),
+				])
+				.where("site_id", "=", id)
+				.where("started_at", ">=", startIso)
+				.groupBy("device_type")
+				.orderBy("visitors", "desc")
+				.limit(10),
+			(rows) => rows,
+		),
+		queryPlan(
+			db
+				.selectFrom("sessions")
+				.select([
+					sql<string>`COALESCE(os, 'unknown')`.as("device"),
+					({ fn }) => fn.count<number>("visitor_id").distinct().as("visitors"),
+				])
+				.where("site_id", "=", id)
+				.where("started_at", ">=", startIso)
+				.groupBy("os")
+				.orderBy("visitors", "desc")
+				.limit(10),
+			(rows) => rows,
+		),
+		queryPlan(
+			db
+				.selectFrom("sessions")
+				.select([
+					sql<string>`COALESCE(browser, 'unknown')`.as("device"),
+					({ fn }) => fn.count<number>("visitor_id").distinct().as("visitors"),
+				])
+				.where("site_id", "=", id)
+				.where("started_at", ">=", startIso)
+				.groupBy("browser")
+				.orderBy("visitors", "desc")
+				.limit(10),
+			(rows) => rows,
+		),
 	]);
 
 	const toEntries = (rows: typeof deviceRows) => {
@@ -519,56 +618,63 @@ export async function queryDevices(ctx: PublicApiCtx, siteId: string | undefined
 
 export async function queryRevenue(ctx: PublicApiCtx, siteId: string | undefined, range: string) {
 	const db = ctx.db;
-	const id = await guardSite(ctx, siteId);
+	const site = await guardSiteInfo(ctx, siteId);
+	const id = site.id;
 
 	const { startIso, tsDate, tsGroup } = tsFragments(range);
-	const money = await moneyFor(ctx, id);
+	const money = await moneyFor(ctx, site);
 
-	const [revBySource, revByCountry, revTs] = await Promise.all([
+	const [revBySource, revByCountry, revTs] = await runPlans(ctx, [
 		// Revenue by source
-		db
-			.selectFrom("events")
-			.select([
-				sourceSql.as("source"),
-				sql<number>`SUM(${revenueSql(money)})`.as("revenue"),
-				sql<number>`COUNT(CASE WHEN revenue > 0 THEN 1 END)`.as("conversions"),
-			])
-			.where("site_id", "=", id)
-			.where("revenue", "!=", 0)
-			.where("timestamp", ">=", startIso)
-			.groupBy(sourceSql)
-			.orderBy("revenue", "desc")
-			.limit(10)
-			.execute(),
+		queryPlan(
+			db
+				.selectFrom("events")
+				.select([
+					sourceSql.as("source"),
+					sql<number>`SUM(${revenueSql(money)})`.as("revenue"),
+					sql<number>`COUNT(CASE WHEN revenue > 0 THEN 1 END)`.as("conversions"),
+				])
+				.where("site_id", "=", id)
+				.where("revenue", "!=", 0)
+				.where("timestamp", ">=", startIso)
+				.groupBy(sourceSql)
+				.orderBy("revenue", "desc")
+				.limit(10),
+			(rows) => rows,
+		),
 		// Revenue by country
-		db
-			.selectFrom("events")
-			.select([
-				sql<string>`COALESCE(country, 'unknown')`.as("country"),
-				sql<number>`SUM(${revenueSql(money)})`.as("revenue"),
-				sql<number>`COUNT(CASE WHEN revenue > 0 THEN 1 END)`.as("conversions"),
-			])
-			.where("site_id", "=", id)
-			.where("revenue", "!=", 0)
-			.where("timestamp", ">=", startIso)
-			.groupBy("country")
-			.orderBy("revenue", "desc")
-			.limit(10)
-			.execute(),
+		queryPlan(
+			db
+				.selectFrom("events")
+				.select([
+					sql<string>`COALESCE(country, 'unknown')`.as("country"),
+					sql<number>`SUM(${revenueSql(money)})`.as("revenue"),
+					sql<number>`COUNT(CASE WHEN revenue > 0 THEN 1 END)`.as("conversions"),
+				])
+				.where("site_id", "=", id)
+				.where("revenue", "!=", 0)
+				.where("timestamp", ">=", startIso)
+				.groupBy("country")
+				.orderBy("revenue", "desc")
+				.limit(10),
+			(rows) => rows,
+		),
 		// Revenue timeseries
-		db
-			.selectFrom("events")
-			.select([
-				tsDate.as("date"),
-				sql<number>`SUM(${revenueSql(money)})`.as("revenue"),
-				sql<number>`COUNT(CASE WHEN revenue > 0 THEN 1 END)`.as("conversions"),
-			])
-			.where("site_id", "=", id)
-			.where("revenue", "!=", 0)
-			.where("timestamp", ">=", startIso)
-			.groupBy(tsGroup)
-			.orderBy("date", "asc")
-			.execute(),
+		queryPlan(
+			db
+				.selectFrom("events")
+				.select([
+					tsDate.as("date"),
+					sql<number>`SUM(${revenueSql(money)})`.as("revenue"),
+					sql<number>`COUNT(CASE WHEN revenue > 0 THEN 1 END)`.as("conversions"),
+				])
+				.where("site_id", "=", id)
+				.where("revenue", "!=", 0)
+				.where("timestamp", ">=", startIso)
+				.groupBy(tsGroup)
+				.orderBy("date", "asc"),
+			(rows) => rows,
+		),
 	]);
 
 	return {
@@ -674,15 +780,17 @@ export async function queryJourneys(
 				: qb,
 		);
 
-	const [recentSessions, profiles] = await Promise.all([
-		sessionsQuery.orderBy("started_at", "desc").limit(limit).execute(),
-		db
-			.selectFrom("visitor_profiles")
-			.select(["visitor_id", "name", "email"])
-			.where("site_id", "=", id)
-			.orderBy("last_seen", "desc")
-			.limit(50)
-			.execute(),
+	const [recentSessions, profiles] = await runPlans(ctx, [
+		queryPlan(sessionsQuery.orderBy("started_at", "desc").limit(limit), (rows) => rows),
+		queryPlan(
+			db
+				.selectFrom("visitor_profiles")
+				.select(["visitor_id", "name", "email"])
+				.where("site_id", "=", id)
+				.orderBy("last_seen", "desc")
+				.limit(50),
+			(rows) => rows,
+		),
 	]);
 
 	const sessionIds = recentSessions.map((s) => s.id);
@@ -700,15 +808,18 @@ export async function queryJourneys(
 	for (let i = 0; i < sessionIds.length; i += BATCH) {
 		batches.push(sessionIds.slice(i, i + BATCH));
 	}
-	const batchResults = await Promise.all(
+	const batchResults = await runPlans(
+		ctx,
 		batches.map((batch) =>
-			db
-				.selectFrom("events")
-				.select(["session_id", "path", "event_type", "name", "timestamp", "revenue", "props"])
-				.where("session_id", "in", batch)
-				.where("site_id", "=", id)
-				.orderBy("timestamp", "asc")
-				.execute(),
+			queryPlan(
+				db
+					.selectFrom("events")
+					.select(["session_id", "path", "event_type", "name", "timestamp", "revenue", "props"])
+					.where("session_id", "in", batch)
+					.where("site_id", "=", id)
+					.orderBy("timestamp", "asc"),
+				(rows) => rows,
+			),
 		),
 	);
 	for (const rows of batchResults) allSessionEvents.push(...rows);
@@ -751,8 +862,9 @@ export async function queryJourneys(
 
 export async function queryCampaigns(ctx: PublicApiCtx, siteId: string | undefined, range: string) {
 	const db = ctx.db;
-	const id = await guardSite(ctx, siteId);
-	const money = await moneyFor(ctx, id);
+	const site = await guardSiteInfo(ctx, siteId);
+	const id = site.id;
+	const money = await moneyFor(ctx, site);
 
 	const { start } = getDateRange(range);
 	const startIso = start.toISOString();

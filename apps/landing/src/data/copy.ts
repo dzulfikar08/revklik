@@ -64,7 +64,7 @@ export const C = {
 		},
 		{
 			title: 'Tanpa Cookie',
-			desc: 'Tidak memakai cookie dan tidak menyimpan data pribadi, jadi tidak perlu banner persetujuan. Sesuai UU PDP.',
+			desc: 'Tidak memakai cookie dan tidak menyimpan data pribadi, jadi tidak perlu banner persetujuan.',
 		},
 	],
 

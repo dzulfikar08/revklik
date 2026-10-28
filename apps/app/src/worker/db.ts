@@ -8,10 +8,11 @@ import {
 } from "kysely";
 import type { KlikapaDatabase } from "@revklik/shared";
 import { BotFilterPlugin } from "./lib/bot-filter-plugin";
+import { SourceStampPlugin } from "./lib/source-stamp-plugin";
 
 export function createDb(d1: D1Database): Kysely<KlikapaDatabase> {
 	return new Kysely<KlikapaDatabase>({
-		plugins: [new BotFilterPlugin()],
+		plugins: [new BotFilterPlugin(), new SourceStampPlugin()],
 		dialect: {
 			createDriver() {
 				const connection = {

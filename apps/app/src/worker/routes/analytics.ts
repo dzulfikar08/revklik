@@ -9,7 +9,7 @@ import type {
 	SiteDashboard,
 	VisitorJourney,
 } from "@revklik/shared";
-import { createDb, sql } from "../db";
+import { sql } from "../db";
 import type { FunnelStep } from "../lib/analytics-queries";
 import {
 	applyFilters,
@@ -82,6 +82,12 @@ const edgeCache =
 		const cache = caches.default;
 		const hit = await cache.match(cacheKey);
 		if (hit) {
+			// A hit skips the handler, so re-check access here (memoized per
+			// request) — a revoked team member must not read the cached copy.
+			const siteId = c.req.query("site_id");
+			if (!(siteId && (await validateSite(c.get("db"), c.get("userId"), siteId)))) {
+				return c.json({ error: "Site not found", success: false }, 404);
+			}
 			return new Response(hit.body, {
 				headers: {
 					"Content-Type": "application/json; charset=utf-8",
@@ -596,6 +602,7 @@ analyticsRoutes.get(
 					({ fn }) => fn.count<number>("visitor_id").distinct().as("visitors"),
 				])
 				.where("site_id", "=", siteId)
+				.where("external_id", "is", null)
 				.where("timestamp", ">=", startIso),
 			filters,
 		)
@@ -840,95 +847,127 @@ analyticsRoutes.get("/stream", async (c) => {
 	if (!site) return c.json({ error: "Site not found", success: false }, 404);
 
 	const d1 = c.env.DB;
+	const signal = c.req.raw.signal;
+
+	const MAX_POLLS = 10;
+	const POLL_MS = 2500;
+	// The online count is recomputed on every 3rd poll (and on the poll after
+	// new events arrive) instead of every poll; the last value is what clients
+	// keep anyway.
+	const COUNT_EVERY = 3;
+
+	let timer: ReturnType<typeof setTimeout> | undefined;
+	let closed = false;
 
 	const stream = new ReadableStream({
-		async start(controller) {
+		start(controller) {
 			const encoder = new TextEncoder();
-			let closed = false;
+
+			const stop = () => {
+				closed = true;
+				clearTimeout(timer);
+				timer = undefined;
+				signal?.removeEventListener("abort", finish);
+			};
+			function finish() {
+				stop();
+				try {
+					controller.close();
+				} catch {}
+			}
 
 			const send = (event: string, data: unknown) => {
 				if (closed) return;
 				try {
 					controller.enqueue(encoder.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`));
 				} catch {
-					closed = true;
+					stop();
 				}
 			};
+
+			if (signal?.aborted) {
+				finish();
+				return;
+			}
+			signal?.addEventListener("abort", finish);
 
 			send("connected", { site_id: siteId, ts: Date.now() });
 
 			let lastTs = new Date().toISOString();
 			let iterations = 0;
+			let countPending = false;
 
 			const poll = async () => {
-				if (closed || iterations >= 10) {
-					if (!closed) {
-						send("close", { reason: "timeout" });
-						try {
-							controller.close();
-						} catch {}
-						closed = true;
-					}
+				if (closed) return;
+				if (iterations >= MAX_POLLS) {
+					send("close", { reason: "timeout" });
+					finish();
 					return;
 				}
 				iterations++;
+				const countDue = countPending || (iterations - 1) % COUNT_EVERY === 0;
 
 				try {
-					const sdb = createDb(d1);
-					const events = await sdb
-						.selectFrom("events")
-						.select([
-							"id",
-							"visitor_id",
-							"event_type",
-							"name",
-							"path",
-							"timestamp",
-							"country",
-							"city",
-							"device_type",
-							"browser",
-						])
-						.where("site_id", "=", siteId)
-						.where("timestamp", ">", lastTs)
-						.orderBy("timestamp", "asc")
-						.limit(50)
-						.execute();
+					const eventsPlan = queryPlan(
+						db
+							.selectFrom("events")
+							.select([
+								"id",
+								"visitor_id",
+								"event_type",
+								"name",
+								"path",
+								"timestamp",
+								"country",
+								"city",
+								"device_type",
+								"browser",
+							])
+							.where("site_id", "=", siteId)
+							.where("timestamp", ">", lastTs)
+							.orderBy("timestamp", "asc")
+							.limit(50),
+						(rows) => rows,
+					);
+					const countPlan = queryPlan(
+						db
+							.selectFrom("events")
+							.select(({ fn }) => fn.count<number>("visitor_id").distinct().as("count"))
+							.where("site_id", "=", siteId)
+							.where("timestamp", ">", new Date(Date.now() - 5 * 60_000).toISOString()),
+						(rows) => rows[0]?.count ?? 0,
+					);
+					const [events, liveCount] = countDue
+						? await runBatch(d1, [eventsPlan, countPlan])
+						: [...(await runBatch(d1, [eventsPlan])), undefined];
 
+					if (closed) return;
+
+					for (const ev of events) {
+						send("visitor", ev);
+					}
 					if (events.length > 0) {
-						for (const ev of events) {
-							send("visitor", ev);
-						}
 						lastTs = events[events.length - 1]?.timestamp ?? lastTs;
 					}
-
-					// Also send live visitor count
-					const liveCount = await sdb
-						.selectFrom("events")
-						.select(({ fn }) => fn.count<number>("visitor_id").distinct().as("count"))
-						.where("site_id", "=", siteId)
-						.where("timestamp", ">", new Date(Date.now() - 5 * 60_000).toISOString())
-						.executeTakeFirst();
-					send("stats", { live_visitors: liveCount?.count ?? 0 });
+					if (liveCount !== undefined) {
+						countPending = false;
+						send("stats", { live_visitors: liveCount });
+					} else if (events.length > 0) {
+						countPending = true;
+					}
 				} catch {
 					/* ignore poll errors */
 				}
 
-				if (!closed) setTimeout(poll, 2500);
+				if (!closed) timer = setTimeout(poll, POLL_MS);
 			};
 
-			setTimeout(poll, 1000);
-
-			// Abort signal cleanup
-			const req = c.req.raw;
-			if (req.signal) {
-				req.signal.addEventListener("abort", () => {
-					closed = true;
-					try {
-						controller.close();
-					} catch {}
-				});
-			}
+			timer = setTimeout(poll, 1000);
+		},
+		cancel() {
+			closed = true;
+			clearTimeout(timer);
+			timer = undefined;
 		},
 	});
 

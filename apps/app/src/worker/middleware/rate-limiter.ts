@@ -47,16 +47,18 @@ export const rateLimiterMiddleware = createMiddleware<PublicApiEnv>(async (c, ne
 	if (!db || !userId) return c.json({ error: "Database unavailable", success: false }, 503);
 
 	// Get user's plan for rate limit tier
-	let plan = "micro";
-	try {
-		const sub = await db
-			.selectFrom("subscriptions")
-			.select(["plan"])
-			.where("user_id", "=", userId)
-			.executeTakeFirst();
-		if (sub?.plan) plan = sub.plan;
-	} catch {
-		/* default to micro */
+	let plan = c.get("plan") ?? "micro";
+	if (c.get("plan") === undefined) {
+		try {
+			const sub = await db
+				.selectFrom("subscriptions")
+				.select(["plan"])
+				.where("user_id", "=", userId)
+				.executeTakeFirst();
+			if (sub?.plan) plan = sub.plan;
+		} catch {
+			/* default to micro */
+		}
 	}
 
 	const limit = getApiRateLimit(plan, isSelfHosted(c.env));

@@ -3,7 +3,7 @@ import type { Compilable, Kysely } from "kysely";
 import type { CreateSitePayload, KlikapaDatabase, Site, SiteWithStats } from "@revklik/shared";
 import { sql } from "../db";
 import { isSelfHosted, isSubscriptionActive } from "../lib/entitlement";
-import { convertAmount, normalizeCurrency, usdRates } from "../lib/fx";
+import { convertAmount, loadUsdRates, normalizeCurrency, usdRates } from "../lib/fx";
 import { getPlanLimits } from "../lib/plans";
 import { purgeSiteRows } from "../lib/purge";
 import { displayCurrency } from "../lib/site-scope";
@@ -48,7 +48,7 @@ siteRoutes.get("/", async (c) => {
 		.where("user_id", "=", userId)
 		.orderBy("created_at", "desc")
 		.execute();
-	const rates = usdRates(c.env);
+	const rates = await loadUsdRates(db, c.env);
 
 	const rangeParam = c.req.query("range") || "7d";
 	let startIso: string;

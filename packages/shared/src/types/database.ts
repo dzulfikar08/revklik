@@ -49,6 +49,8 @@ export interface EventTable {
 	net_revenue: Defaulted<number | null>;
 	/** How net_revenue was obtained. */
 	net_source: Defaulted<"reported" | "rule" | "refund_ratio" | null>;
+	/** Canonical traffic source (lib/source-sql.ts classifySource), stamped at insert; NULL on rows not yet backfilled. */
+	source: Defaulted<string | null>;
 }
 
 export interface SessionTable {
@@ -80,6 +82,8 @@ export interface SessionTable {
 	active_seconds: number | null;
 	/** Cloudflare ASN organization of the first request, kept for reclassification. */
 	as_org: string | null;
+	/** Canonical traffic source of the session's entry, stamped at insert. */
+	source: Defaulted<string | null>;
 }
 
 export interface SiteTable {

@@ -1,8 +1,11 @@
+import { createDb } from "./db";
+import { computedSourceSql } from "./lib/source-sql";
+
 /**
  * Version the live schema must reach. Bump it whenever a step is appended to
  * VERSIONED_STEPS; a DB already at this version costs one SELECT per isolate.
  */
-export const SCHEMA_VERSION = 16;
+export const SCHEMA_VERSION = 17;
 
 const migrated = new WeakSet<D1Database>();
 
@@ -96,7 +99,55 @@ const VERSIONED_STEPS: MigrationStep[] = [
 				"CREATE INDEX IF NOT EXISTS idx_events_revenue_partial ON events(site_id, timestamp) WHERE revenue != 0",
 			),
 	},
+	{ version: 17, run: sourceSchema },
 ];
+
+/** Rows rewritten per backfill statement: far below D1's per-query CPU and row-write limits. */
+const SOURCE_BACKFILL_CHUNK = 2000;
+
+/**
+ * Per-row traffic source: nullable column on events and sessions (metadata-only
+ * ALTER), then the existing SQL classification written into rows that predate it.
+ * Ingest stamps new rows (lib/source-stamp-plugin.ts); reads fall back to computing
+ * the source for any row still NULL, so a skipped or partial backfill only costs speed.
+ */
+async function sourceSchema(d1: D1Database): Promise<void> {
+	await runDdl(d1, "ALTER TABLE events ADD COLUMN source TEXT");
+	await runDdl(d1, "ALTER TABLE sessions ADD COLUMN source TEXT");
+	const expression = computedSourceSql.compile(createDb(d1)).sql;
+	for (const table of ["events", "sessions"]) {
+		try {
+			await backfillSource(d1, table, expression);
+		} catch (err) {
+			console.error(`source backfill stopped on ${table}:`, err);
+		}
+	}
+}
+
+/** Fills `source` where NULL, one rowid-bounded UPDATE per SOURCE_BACKFILL_CHUNK rows; resumable. */
+async function backfillSource(d1: D1Database, table: string, expression: string): Promise<void> {
+	const first = await d1
+		.prepare(`SELECT MIN(rowid) AS lo FROM ${table}`)
+		.all<{ lo: number | null }>();
+	let from = first.results[0]?.lo;
+	while (from !== null && from !== undefined) {
+		// Exclusive upper bound: the rowid one chunk further on; none means this is the last chunk.
+		const edge = await d1
+			.prepare(`SELECT rowid AS r FROM ${table} WHERE rowid >= ? ORDER BY rowid LIMIT 1 OFFSET ?`)
+			.bind(from, SOURCE_BACKFILL_CHUNK)
+			.all<{ r: number }>();
+		const until = edge.results[0]?.r;
+		const bounded = until === undefined ? "" : "AND rowid < ?";
+		const bounds = until === undefined ? [from] : [from, until];
+		await d1
+			.prepare(
+				`UPDATE ${table} SET source = ${expression} WHERE source IS NULL AND rowid >= ? ${bounded}`,
+			)
+			.bind(...bounds)
+			.run();
+		from = until;
+	}
+}
 
 /**
  * Cross-product revenue: payment rail, product slug and net-after-fees on each
