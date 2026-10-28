@@ -12,7 +12,6 @@ import {
 import { accountUsageIncrement } from "../lib/account-usage";
 import { executeBatch } from "../lib/d1-batch";
 import { isSelfHosted } from "../lib/entitlement";
-import { notifySaleEvent, pushCtx, type SaleEventRef } from "../lib/push";
 import { enforceSiteQuota, incrementCachedUsage } from "../lib/subscription-cache";
 import {
 	countryFromTimezone,
@@ -27,7 +26,7 @@ type Variables = { db: Kysely<KlikapaDatabase> };
 
 export const trackRoutes = new Hono<{
 	Variables: Variables;
-	Bindings: { DB: D1Database; SELF_HOSTED?: string; EXPO_ACCESS_TOKEN?: string };
+	Bindings: { DB: D1Database; SELF_HOSTED?: string };
 }>();
 
 /** Events accepted per /track request; larger batches are rejected with 413. */
@@ -282,7 +281,6 @@ trackRoutes.post("/track", async (c) => {
 	// A batch never overshoots the plan: events past the remaining allowance are dropped.
 	const allowance = Math.max(0, enforcement.eventsLimit - enforcement.eventsUsed);
 	let ingested = 0;
-	const sales: SaleEventRef[] = [];
 	for (const payload of payloads) {
 		if (payload.s !== siteId) continue;
 		if (ingested >= allowance) break;
@@ -296,14 +294,9 @@ trackRoutes.post("/track", async (c) => {
 		const eventType = payload.t === "p" ? "pageview" : payload.t === "c" ? "conversion" : "custom";
 		const vid = fingerprint ? resolvedVid : payload.vid;
 
-		const eventId = generateId();
-		if (eventType === "conversion" && revenue && !isBot) {
-			sales.push({ id: eventId, siteId: payload.s });
-		}
-
 		writes.push(
 			db.insertInto("events").values({
-				id: eventId,
+				id: generateId(),
 				site_id: payload.s,
 				session_id: payload.sid,
 				visitor_id: vid,
@@ -434,7 +427,6 @@ trackRoutes.post("/track", async (c) => {
 		await executeBatch(c.env.DB, writes, writes.length);
 	}
 	if (enforcement.ownerId && ingested > 0) incrementCachedUsage(enforcement.ownerId, ingested);
-	for (const sale of sales) notifySaleEvent(c.env, pushCtx(c), sale);
 
 	return c.json(
 		{ success: true, vid: resolvedVid !== first.vid ? resolvedVid : undefined },
@@ -757,7 +749,6 @@ trackRoutes.post("/track/payment", async (c) => {
 			fingerprint: null,
 		})
 		.execute();
-	notifySaleEvent(c.env, pushCtx(c), { id: eventId, siteId });
 
 	await db
 		.insertInto("visitor_profiles")

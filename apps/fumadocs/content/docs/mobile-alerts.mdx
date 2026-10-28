@@ -9,7 +9,7 @@ your products.
 
 ## What triggers an alert
 
-Any stored revenue event that is not zero:
+Any revenue event that is not zero, stored from a verified source:
 
 - a **sale** (positive revenue) shows `New sale · <site name>`
 - a **refund** (negative revenue) shows `Refund · <site name>`
@@ -18,10 +18,11 @@ The message body reads `<product or event name> · <amount> · net <net>`. The a
 event's own currency (IDR without decimals). The `net` part is left out when it equals the gross
 amount or is unknown. Tapping the notification opens the Earnings tab.
 
-Alerts fire from every revenue path: the [server events API](/integrations), the Polar, Stripe,
-Lemon Squeezy, Midtrans, Xendit, DOKU, Mayar and Paywuz webhooks, and conversions with revenue
-sent by the tracker. A retried delivery of the same payment (same `external_id` or provider
-order) never alerts twice.
+Only verified sources alert: the authenticated [server events API](/integrations) (`POST
+/api/v1/events/server`) and the signature-verified Polar, Stripe, Lemon Squeezy, Midtrans, Xendit,
+DOKU, Mayar and Paywuz webhooks. Revenue sent by the browser tracker (`/track`, `/track/payment`)
+never alerts, because anyone who knows a site id can call those endpoints. A retried delivery of
+the same payment (same `external_id` or provider order) never alerts twice.
 
 ## Who gets them
 

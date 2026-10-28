@@ -54,6 +54,8 @@ afterEach(() => {
 	globalThis.fetch = realFetch;
 });
 
+const BROWSER_UA =
+	"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36";
 const tokenA = "ExponentPushToken[aaaaaaaaaaaaaaaaaaaaaa]";
 const tokenB = "ExponentPushToken[bbbbbbbbbbbbbbbbbbbbbb]";
 const tokenC = "ExponentPushToken[cccccccccccccccccccccc]";
@@ -291,6 +293,37 @@ describe("sale alerts", () => {
 			props: {},
 		});
 		expect(sends[0]?.messages[0]?.body).toBe("purchase · IDR\u00a0150,000");
+	});
+
+	it("never alerts from the public tracker endpoints", async () => {
+		const { t, owner } = await setup();
+		await register(t, owner, tokenA);
+		const batch = await t.call("POST", "/api/track", {
+			headers: { "user-agent": BROWSER_UA },
+			body: [
+				{
+					s: "s-push",
+					t: "c",
+					n: "purchase",
+					p: "/checkout",
+					sid: "sid-1",
+					vid: "vid-1",
+					rv: 99,
+					ts: Date.now(),
+				},
+			],
+		});
+		expect(batch.status).toBe(202);
+		const payment = await t.call("POST", "/api/track/payment", {
+			body: { s: "s-push", amount: 49, transaction_id: "trk-1" },
+		});
+		expect(payment.status).toBe(200);
+		await settleWaitUntil();
+		expect(
+			(t.db.query("SELECT COUNT(*) AS n FROM events WHERE revenue > 0").get() as { n: number }).n,
+		).toBe(2);
+		expect(sends).toHaveLength(0);
+		expect((t.db.query("SELECT COUNT(*) AS n FROM push_outbox").get() as { n: number }).n).toBe(0);
 	});
 
 	it("does not push events without revenue or without any device", async () => {
