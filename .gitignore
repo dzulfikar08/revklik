@@ -91,7 +91,6 @@ rw-crews/
 /*.png
 
 # Sibling projects / tool dirs at repo parent (hoisted layout)
-/revklik-landing/
 /.commandcode/
 
 # Database backup exports (kept local + R2; too bulky/PII for git)

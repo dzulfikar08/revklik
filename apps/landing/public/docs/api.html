@@ -1,0 +1,502 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RevKlik Public API — Dokumentasi API Reference</title>
+<meta name="description" content="RevKlik Public API — akses data analytics via REST API. Autentikasi token, rate limiting, endpoint lengkap untuk analytics, sites, dan token management.">
+<meta name="keywords" content="analytics API, REST API, analytics documentation, API reference, RevKlik API, analytics endpoint, scoped tokens">
+<meta name="robots" content="index, follow">
+<link rel="canonical" href="https://revklik.com/docs/api.html">
+<link rel="icon" type="image/webp" sizes="32x32" href="../favicon.webp">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=General+Sans:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --bg:#0c0b0e;--bg2:#100f13;--bg3:#17161b;--bg4:#1e1d23;
+  --text:#e8e4de;--text2:#a8a29e;--text3:#6b6560;--text4:#3d3835;
+  --accent:#d4882a;--accent-dim:rgba(212,136,42,.1);--accent-mid:rgba(212,136,42,.2);
+  --green:#34d399;--green-dim:rgba(52,211,153,.1);
+  --blue:#60a5fa;--blue-dim:rgba(96,165,250,.1);
+  --red:#f87171;--red-dim:rgba(248,113,113,.1);
+  --border:#1f1e24;--border2:#2a2930;
+  --serif:'Instrument Serif',Georgia,serif;
+  --sans:'General Sans',system-ui,sans-serif;
+  --mono:'IBM Plex Mono',monospace;
+}
+html{scroll-behavior:smooth}
+body{background:var(--bg);color:var(--text);font-family:var(--sans);line-height:1.6;-webkit-font-smoothing:antialiased}
+::selection{background:var(--accent);color:var(--text)}
+a{color:inherit;text-decoration:none}
+.container{max-width:960px;margin:0 auto;padding:0 28px}
+
+nav{position:fixed;top:0;left:0;right:0;z-index:100;padding:20px 0;transition:all .35s}
+nav.scrolled{background:rgba(10,10,10,.92);backdrop-filter:blur(20px);padding:14px 0;border-bottom:1px solid var(--border)}
+nav .container{display:flex;align-items:center;justify-content:space-between;max-width:1200px;margin:0 auto;padding:0 28px}
+.logo{font-family:var(--serif);font-size:26px;color:var(--text);text-decoration:none;display:flex;align-items:center;gap:8px}
+.logo em{font-style:italic;color:var(--accent)}
+.logo img{border-radius:6px}
+.nav-links{display:flex;align-items:center;gap:24px}
+.nav-links a{font-size:14px;font-weight:500;color:var(--text2);transition:color .2s}
+.nav-links a:hover{color:var(--text)}
+.nav-cta{font-size:13px;font-weight:600;color:var(--text)!important;background:var(--accent);padding:10px 22px;border-radius:100px;transition:all .25s}
+.nav-cta:hover{filter:brightness(1.15);transform:scale(1.03)}
+.burger{display:none;background:none;border:none;cursor:pointer;color:var(--text);z-index:300}
+
+.page-hero{padding:140px 0 48px;position:relative;background:radial-gradient(ellipse 60% 50% at 50% 0%,rgba(212,136,42,.05) 0%,transparent 60%)}
+.page-hero .eyebrow{font-family:var(--mono);font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--accent);margin-bottom:16px;display:flex;align-items:center;gap:10px}
+.page-hero .eyebrow::before{content:'';width:20px;height:1px;background:var(--accent)}
+.page-hero h1{font-family:var(--serif);font-weight:400;font-size:clamp(36px,5vw,52px);letter-spacing:-.03em;line-height:1.05;margin-bottom:16px}
+.page-hero h1 em{font-style:italic;color:var(--accent)}
+.page-hero p{font-size:17px;color:var(--text2);line-height:1.7;max-width:560px}
+
+/* DOC CONTENT */
+.doc-layout{display:grid;grid-template-columns:220px 1fr;gap:40px;padding-top:8px}
+.toc{position:sticky;top:100px;align-self:start}
+.toc h4{font-family:var(--mono);font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--text3);margin-bottom:16px}
+.toc a{display:block;font-size:13px;color:var(--text3);padding:6px 0 6px 14px;border-left:2px solid var(--border);transition:all .2s;margin-bottom:2px}
+.toc a:hover,.toc a.active{color:var(--accent);border-color:var(--accent)}
+
+.doc-body{min-width:0}
+.doc-section{padding:40px 0;border-top:1px solid var(--border)}
+.doc-section:first-child{border-top:none;padding-top:0}
+.doc-section h2{font-family:var(--serif);font-size:28px;font-weight:400;letter-spacing:-.02em;margin-bottom:12px}
+.doc-section h2 em{font-style:italic;color:var(--accent)}
+.doc-section h3{font-size:18px;font-weight:600;margin:28px 0 10px;letter-spacing:-.01em}
+.doc-section p{font-size:15px;color:var(--text2);line-height:1.7;margin-bottom:16px}
+.doc-section ul,.doc-section ol{color:var(--text2);font-size:15px;line-height:1.8;margin-bottom:16px;padding-left:24px}
+.doc-section li{margin-bottom:4px}
+
+/* CODE */
+.code-block{background:var(--bg3);border:1px solid var(--border2);border-radius:10px;padding:16px 20px;margin:12px 0 20px;overflow-x:auto;position:relative}
+.code-block code{font-family:var(--mono);font-size:13px;color:var(--text2);line-height:1.7;white-space:pre}
+.code-block .hl{color:var(--accent)}
+.code-block .str{color:var(--green)}
+.code-block .kw{color:#ff79c6}
+.code-block .cmt{color:var(--text4);font-style:italic}
+.code-block .method{display:inline-block;font-family:var(--mono);font-size:11px;font-weight:600;padding:2px 10px;border-radius:6px;margin-right:8px;vertical-align:middle}
+.code-block .method.get{background:var(--green-dim);color:var(--green)}
+.code-block .method.post{background:var(--blue-dim);color:var(--blue)}
+.code-block .method.del{background:var(--red-dim);color:var(--red)}
+.code-label{font-family:var(--mono);font-size:11px;color:var(--text3);margin-bottom:6px}
+
+/* PARAMS TABLE */
+.param-table{width:100%;border-collapse:collapse;margin:12px 0 20px;font-size:14px}
+.param-table th{text-align:left;font-family:var(--mono);font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--text3);padding:10px 12px;border-bottom:1px solid var(--border2);font-weight:500}
+.param-table td{padding:10px 12px;border-bottom:1px solid var(--border);color:var(--text2);vertical-align:top}
+.param-table td:first-child{font-family:var(--mono);font-size:13px;color:var(--accent);white-space:nowrap}
+.param-table td code{font-family:var(--mono);font-size:12px;background:var(--bg3);padding:2px 6px;border-radius:4px}
+
+/* BADGES */
+.scope-badge{display:inline-block;font-family:var(--mono);font-size:11px;padding:3px 10px;border-radius:100px;margin-right:4px;margin-bottom:4px}
+.scope-badge.required{background:var(--accent-dim);color:var(--accent);border:1px solid var(--accent-mid)}
+.scope-badge.optional{background:var(--bg3);color:var(--text3);border:1px solid var(--border)}
+
+/* CALLOUT */
+.callout{background:var(--accent-dim);border:1px solid var(--accent-mid);border-radius:10px;padding:16px 20px;margin:16px 0;font-size:14px;color:var(--text2);line-height:1.6}
+.callout strong{color:var(--text)}
+
+footer{padding:40px 0;border-top:1px solid var(--border);margin-top:60px}
+footer .container{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:16px;max-width:1200px}
+.footer-left{display:flex;align-items:center;gap:24px}
+.footer-left span{font-family:var(--serif);font-size:18px;display:flex;align-items:center;gap:8px}
+.footer-left span em{font-style:italic;color:var(--accent)}
+.footer-copy{font-size:13px;color:var(--text3)}
+.footer-links{display:flex;gap:28px}
+.footer-links a{font-size:13px;color:var(--text3);transition:color .2s}
+.footer-links a:hover{color:var(--text)}
+
+.fade-up{opacity:0;transform:translateY(30px);transition:all .7s cubic-bezier(.16,1,.3,1)}
+.fade-up.vis{opacity:1;transform:translateY(0)}
+
+@media(max-width:960px){
+  .doc-layout{grid-template-columns:1fr}
+  .toc{display:none}
+  .nav-links{display:flex;position:fixed;inset:0;background:rgba(10,10,10,.97);backdrop-filter:blur(24px);flex-direction:column;align-items:center;justify-content:center;gap:28px;opacity:0;pointer-events:none;transition:opacity .3s;z-index:200}
+  .nav-links.open{opacity:1;pointer-events:auto}
+  .nav-close{display:block;position:absolute;top:24px;right:24px}
+  .nav-links a{font-size:24px;font-weight:500;color:var(--text)}
+  .burger{display:block;position:relative;z-index:300}
+  .nav-right .nav-cta{display:none}
+}
+@media(max-width:640px){
+  .page-hero{padding:120px 0 36px}
+  .code-block{padding:12px 14px}
+  .code-block code{font-size:12px}
+}
+</style>
+<script defer data-site-id="d9701d64-9e78-4b73-9726-e4f41593b843" src="https://app.revklik.com/klikapa.js"></script>
+</head>
+<body>
+
+<nav id="nav">
+  <div class="container">
+    <a href="../index.html" class="logo"><img src="../revklik.webp" alt="" width="28" height="28">Rev<em>Klik</em></a>
+    <div class="nav-links">
+      <button class="nav-close" onclick="document.querySelector('.nav-links').classList.remove('open')" aria-label="Close"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+      <a href="../index.html">Beranda</a>
+      <a href="../docs.html">Docs</a>
+      <a href="cli.html">CLI</a>
+    </div>
+    <div class="nav-right">
+      <a href="https://app.revklik.com/register" class="nav-cta">Mulai dari $1 &rarr;</a>
+    </div>
+    <button class="burger" onclick="document.querySelector('.nav-links').classList.toggle('open')" aria-label="Menu">
+      <svg width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+    </button>
+  </div>
+</nav>
+
+<section class="page-hero">
+  <div class="container">
+    <div class="fade-up">
+      <div class="eyebrow">API Reference</div>
+      <h1>Public API <em>Documentation</em></h1>
+      <p>Akses data analytics RevKlik secara programatik melalui REST API. Autentikasi dengan scoped tokens, rate-limited per plan, dan response JSON terstandarisasi.</p>
+    </div>
+  </div>
+</section>
+
+<div class="container">
+  <div class="doc-layout">
+
+    <div class="toc">
+      <h4>Daftar Isi</h4>
+      <a href="#auth">Autentikasi</a>
+      <a href="#tokens">Token Types</a>
+      <a href="#scopes">Scopes</a>
+      <a href="#rate-limits">Rate Limits</a>
+      <a href="#whoami">Whoami</a>
+      <a href="#sites">Sites</a>
+      <a href="#analytics">Analytics</a>
+      <a href="#token-mgmt">Token Management</a>
+      <a href="#errors">Error Codes</a>
+      <a href="#sdk-examples">SDK Examples</a>
+    </div>
+
+    <div class="doc-body">
+
+      <!-- AUTH -->
+      <div class="doc-section" id="auth">
+        <h2>Autentikasi <em>&</em> Base URL</h2>
+        <p>Semua request ke Public API harus menyertakan <code>Authorization: Bearer</code> header dengan API token yang valid. Token diawali prefix <code>rvt_</code> (account) atau <code>rv_</code> (site-scoped).</p>
+
+        <h3>Base URL</h3>
+        <div class="code-block"><code>https://app.revklik.com/api/v1</code></div>
+
+        <h3>Contoh Request</h3>
+        <div class="code-block"><code><span class="kw">curl</span> https://app.revklik.com/api/v1/whoami \
+  -H <span class="str">"Authorization: Bearer rvt_your_token_here"</span></code></div>
+
+        <div class="callout">
+          <strong>Token Prefix:</strong> Hanya token <code>rvt_</code> dan <code>rv_</code> yang diterima oleh Public API. Token sesi <code>kp_</code> hanya berlaku di dashboard internal.
+        </div>
+      </div>
+
+      <!-- TOKEN TYPES -->
+      <div class="doc-section" id="tokens">
+        <h2>Token <em>Types</em></h2>
+        <p>RevKlik menyediakan dua jenis API token dengan level akses berbeda:</p>
+
+        <table class="param-table">
+          <tr><th>Prefix</th><th>Tipe</th><th>Akses</th></tr>
+          <tr><td><code>rvt_</code></td><td>Account Token</td><td>Akses ke semua sites dan fitur sesuai scopes yang diberikan.</td></tr>
+          <tr><td><code>rv_</code></td><td>Site Token</td><td>Terbatas ke satu site saja. Default scope: <code>analytics:read</code>, <code>analytics:export</code>.</td></tr>
+        </table>
+
+        <p>Token disimpan sebagai SHA-256 hash di database. Full token hanya ditampilkan sekali saat pembuatan.</p>
+      </div>
+
+      <!-- SCOPES -->
+      <div class="doc-section" id="scopes">
+        <h2>Scopes <em>&amp; Permissions</em></h2>
+        <p>Setiap token memiliki daftar scope yang menentukan endpoint apa saja yang bisa diakses.</p>
+
+        <table class="param-table">
+          <tr><th>Scope</th><th>Akses</th><th>Default</th></tr>
+          <tr><td><code>sites:read</code></td><td>List dan lihat detail sites</td><td>Account</td></tr>
+          <tr><td><code>analytics:read</code></td><td>Query data analytics</td><td>Account &amp; Site</td></tr>
+          <tr><td><code>analytics:export</code></td><td>Export data CSV/JSON</td><td>Account &amp; Site</td></tr>
+          <tr><td><code>tokens:read</code></td><td>List API tokens</td><td>Account</td></tr>
+          <tr><td><code>tokens:write</code></td><td>Create &amp; revoke tokens</td><td>Account</td></tr>
+        </table>
+      </div>
+
+      <!-- RATE LIMITS -->
+      <div class="doc-section" id="rate-limits">
+        <h2>Rate <em>Limits</em></h2>
+        <p>Setiap API key memiliki rate limit per menit berdasarkan plan subscription Anda.</p>
+
+        <table class="param-table">
+          <tr><th>Plan</th><th>Limit</th><th>Max Tokens</th></tr>
+          <tr><td>Free / Micro</td><td>30 req/min</td><td>2</td></tr>
+          <tr><td>Starter</td><td>120 req/min</td><td>5</td></tr>
+          <tr><td>Growth</td><td>300 req/min</td><td>Unlimited</td></tr>
+        </table>
+
+        <h3>Rate Limit Headers</h3>
+        <p>Setiap response menyertakan headers standar:</p>
+        <div class="code-block"><code>X-RateLimit-Limit: 120
+X-RateLimit-Remaining: 87
+X-RateLimit-Reset: 1715800000</code></div>
+
+        <p>Saat limit terlampaui, API mengembalikan <code>429 Too Many Requests</code>.</p>
+      </div>
+
+      <!-- WHOAMI -->
+      <div class="doc-section" id="whoami">
+        <h2>Whoami</h2>
+
+        <h3><span class="method get">GET</span> /whoami</h3>
+        <p>Mendapatkan informasi tentang token yang sedang digunakan, user, dan plan.</p>
+        <p><span class="scope-badge required">sites:read</span></p>
+
+        <div class="code-label">Response</div>
+        <div class="code-block"><code>{
+  <span class="hl">"user"</span>: {
+    <span class="hl">"id"</span>: <span class="str">"abc123"</span>,
+    <span class="hl">"name"</span>: <span class="str">"John Doe"</span>,
+    <span class="hl">"email"</span>: <span class="str">"john@example.com"</span>
+  },
+  <span class="hl">"plan"</span>: <span class="str">"starter"</span>,
+  <span class="hl">"token"</span>: {
+    <span class="hl">"type"</span>: <span class="str">"account"</span>,
+    <span class="hl">"scopes"</span>: [<span class="str">"sites:read"</span>, <span class="str">"analytics:read"</span>, <span class="str">"..."</span>],
+    <span class="hl">"site_id"</span>: null,
+    <span class="hl">"name"</span>: <span class="str">"My CLI Token"</span>,
+    <span class="hl">"created_at"</span>: <span class="str">"2026-05-15T00:00:00Z"</span>
+  }
+}</code></div>
+      </div>
+
+      <!-- SITES -->
+      <div class="doc-section" id="sites">
+        <h2>Sites</h2>
+
+        <h3><span class="method get">GET</span> /sites</h3>
+        <p>Menampilkan daftar semua sites. Account token melihat semua sites; site token hanya melihat site yang terikat.</p>
+        <p><span class="scope-badge required">sites:read</span></p>
+
+        <div class="code-label">Response</div>
+        <div class="code-block"><code>[
+  {
+    <span class="hl">"id"</span>: <span class="str">"site_abc123"</span>,
+    <span class="hl">"name"</span>: <span class="str">"My Website"</span>,
+    <span class="hl">"domain"</span>: <span class="str">"mysite.com"</span>,
+    <span class="hl">"created_at"</span>: <span class="str">"2026-01-15T00:00:00Z"</span>
+  }
+]</code></div>
+
+        <h3><span class="method get">GET</span> /sites/:siteId</h3>
+        <p>Detail satu site berdasarkan ID.</p>
+      </div>
+
+      <!-- ANALYTICS -->
+      <div class="doc-section" id="analytics">
+        <h2>Analytics <em>Endpoints</em></h2>
+        <p>Semua endpoint analytics membutuhkan parameter <code>site_id</code> dan <code>range</code>.</p>
+
+        <h3>Parameter</h3>
+        <table class="param-table">
+          <tr><th>Parameter</th><th>Tipe</th><th>Deskripsi</th></tr>
+          <tr><td>site_id</td><td><code>string</code></td><td>ID site yang ingin di-query. Wajib.</td></tr>
+          <tr><td>range</td><td><code>string</code></td><td>Periode: <code>1h</code>, <code>6h</code>, <code>12h</code>, <code>24h</code>, <code>7d</code>, <code>30d</code>, <code>90d</code></td></tr>
+          <tr><td>limit</td><td><code>number</code></td><td>Jumlah hasil (default 10, max 100). Opsional.</td></tr>
+        </table>
+
+        <p><span class="scope-badge required">analytics:read</span></p>
+
+        <h3>Overview</h3>
+        <p><span class="method get">GET</span> /analytics/overview?site_id=xxx&amp;range=7d</p>
+        <div class="code-label">Response</div>
+        <div class="code-block"><code>{
+  <span class="hl">"pageviews"</span>: 12483,
+  <span class="hl">"visitors"</span>: 3241,
+  <span class="hl">"sessions"</span>: 4812,
+  <span class="hl">"bounceRate"</span>: 0.342,
+  <span class="hl">"avgDuration"</span>: 252,
+  <span class="hl">"revenue"</span>: 2490000,
+  <span class="hl">"conversions"</span>: 87
+}</code></div>
+
+        <h3>Timeseries</h3>
+        <p><span class="method get">GET</span> /analytics/timeseries?site_id=xxx&amp;range=7d</p>
+        <div class="code-label">Response</div>
+        <div class="code-block"><code>[
+  { <span class="hl">"date"</span>: <span class="str">"2026-05-09"</span>, <span class="hl">"pageviews"</span>: 1520, <span class="hl">"visitors"</span>: 412 },
+  { <span class="hl">"date"</span>: <span class="str">"2026-05-10"</span>, <span class="hl">"pageviews"</span>: 1689, <span class="hl">"visitors"</span>: 467 }
+]</code></div>
+
+        <h3>Pages</h3>
+        <p><span class="method get">GET</span> /analytics/pages?site_id=xxx&amp;range=7d&amp;limit=10</p>
+        <div class="code-label">Response</div>
+        <div class="code-block"><code>[
+  { <span class="hl">"path"</span>: <span class="str">"/"</span>, <span class="hl">"pageviews"</span>: 4521, <span class="hl">"visitors"</span>: 1892 },
+  { <span class="hl">"path"</span>: <span class="str">"/pricing"</span>, <span class="hl">"pageviews"</span>: 2104, <span class="hl">"visitors"</span>: 987 }
+]</code></div>
+
+        <h3>Referrers</h3>
+        <p><span class="method get">GET</span> /analytics/referrers?site_id=xxx&amp;range=7d</p>
+
+        <h3>Geo</h3>
+        <p><span class="method get">GET</span> /analytics/geo?site_id=xxx&amp;range=7d</p>
+
+        <h3>Devices</h3>
+        <p><span class="method get">GET</span> /analytics/devices?site_id=xxx&amp;range=7d</p>
+        <div class="code-label">Response</div>
+        <div class="code-block"><code>{
+  <span class="hl">"devices"</span>: [{ <span class="hl">"device"</span>: <span class="str">"Mobile"</span>, <span class="hl">"visitors"</span>: 1823, <span class="hl">"percentage"</span>: 56.2 }],
+  <span class="hl">"os"</span>: [{ <span class="hl">"device"</span>: <span class="str">"iOS"</span>, <span class="hl">"visitors"</span>: 987, <span class="hl">"percentage"</span>: 30.4 }],
+  <span class="hl">"browsers"</span>: [{ <span class="hl">"device"</span>: <span class="str">"Chrome"</span>, <span class="hl">"visitors"</span>: 2456, <span class="hl">"percentage"</span>: 75.7 }]
+}</code></div>
+
+        <h3>Revenue</h3>
+        <p><span class="method get">GET</span> /analytics/revenue?site_id=xxx&amp;range=30d</p>
+
+        <h3>Export</h3>
+        <p><span class="method get">GET</span> /analytics/export?site_id=xxx&amp;range=30d&amp;format=csv&amp;type=events</p>
+        <p><span class="scope-badge required">analytics:export</span></p>
+        <p>Parameter <code>format</code>: <code>csv</code> atau <code>json</code>. Parameter <code>type</code>: <code>events</code>, <code>visitors</code>, atau <code>sessions</code>.</p>
+      </div>
+
+      <!-- TOKEN MANAGEMENT -->
+      <div class="doc-section" id="token-mgmt">
+        <h2>Token <em>Management</em></h2>
+
+        <h3><span class="method get">GET</span> /tokens</h3>
+        <p>Menampilkan daftar semua API tokens (masked).</p>
+        <p><span class="scope-badge required">tokens:read</span></p>
+
+        <h3><span class="method post">POST</span> /tokens</h3>
+        <p>Membuat API token baru.</p>
+        <p><span class="scope-badge required">tokens:write</span></p>
+
+        <div class="code-label">Request Body</div>
+        <div class="code-block"><code>{
+  <span class="hl">"name"</span>: <span class="str">"My CLI Token"</span>,
+  <span class="hl">"type"</span>: <span class="str">"account"</span>,
+  <span class="hl">"scopes"</span>: [<span class="str">"sites:read"</span>, <span class="str">"analytics:read"</span>],
+  <span class="hl">"site_id"</span>: null
+}</code></div>
+
+        <div class="callout">
+          <strong>Important:</strong> Full token hanya ditampilkan pada response saat pembuatan. Token ini tidak bisa dilihat lagi setelahnya. Simpan dengan aman.
+        </div>
+
+        <div class="code-label">Response</div>
+        <div class="code-block"><code>{
+  <span class="hl">"id"</span>: <span class="str">"tok_abc123"</span>,
+  <span class="hl">"token"</span>: <span class="str">"rvt_a1b2c3d4e5f6..."</span>,
+  <span class="hl">"prefix"</span>: <span class="str">"rvt_a1b"</span>,
+  <span class="hl">"name"</span>: <span class="str">"My CLI Token"</span>,
+  <span class="hl">"type"</span>: <span class="str">"account"</span>,
+  <span class="hl">"scopes"</span>: [<span class="str">"sites:read"</span>, <span class="str">"analytics:read"</span>],
+  <span class="hl">"created_at"</span>: <span class="str">"2026-05-15T00:00:00Z"</span>
+}</code></div>
+
+        <h3><span class="method del">DELETE</span> /tokens/:id</h3>
+        <p>Mencabut (revoke) API token. Token yang sudah di-revoke langsung tidak bisa digunakan.</p>
+        <p><span class="scope-badge required">tokens:write</span></p>
+      </div>
+
+      <!-- ERRORS -->
+      <div class="doc-section" id="errors">
+        <h2>Error <em>Codes</em></h2>
+
+        <table class="param-table">
+          <tr><th>Code</th><th>Meaning</th></tr>
+          <tr><td><code>200</code></td><td>Success</td></tr>
+          <tr><td><code>400</code></td><td>Parameter tidak valid atau missing</td></tr>
+          <tr><td><code>401</code></td><td>Token tidak valid, expired, atau revoked</td></tr>
+          <tr><td><code>403</code></td><td>Scope tidak cukup untuk endpoint ini</td></tr>
+          <tr><td><code>404</code></td><td>Resource tidak ditemukan</td></tr>
+          <tr><td><code>429</code></td><td>Rate limit terlampaui. Coba lagi setelah X-RateLimit-Reset.</td></tr>
+          <tr><td><code>500</code></td><td>Server error internal</td></tr>
+        </table>
+
+        <div class="code-label">Error Response Format</div>
+        <div class="code-block"><code>{
+  <span class="hl">"success"</span>: false,
+  <span class="hl">"error"</span>: <span class="str">"Insufficient scope: analytics:export required"</span>
+}</code></div>
+      </div>
+
+      <!-- SDK EXAMPLES -->
+      <div class="doc-section" id="sdk-examples">
+        <h2>SDK <em>Examples</em></h2>
+
+        <h3>JavaScript / Node.js</h3>
+        <div class="code-block"><code><span class="kw">const</span> token = <span class="str">"rvt_your_token_here"</span>;
+<span class="kw">const</span> base = <span class="str">"https://app.revklik.com/api/v1"</span>;
+
+<span class="cmt">// Get analytics overview</span>
+<span class="kw">const</span> res = <span class="kw">await</span> fetch(
+  <span class="str">`${base}/analytics/overview?site_id=SITE_ID&range=7d`</span>,
+  { headers: { <span class="hl">Authorization</span>: <span class="str">`Bearer ${token}`</span> } }
+);
+<span class="kw">const</span> data = <span class="kw">await</span> res.json();
+console.log(data.data);</code></div>
+
+        <h3>Python</h3>
+        <div class="code-block"><code><span class="kw">import</span> requests
+
+TOKEN = <span class="str">"rvt_your_token_here"</span>
+BASE = <span class="str">"https://app.revklik.com/api/v1"</span>
+HEADERS = {<span class="str">"Authorization"</span>: f<span class="str">"Bearer {TOKEN}"</span>}
+
+<span class="cmt"># List sites</span>
+sites = requests.get(f<span class="str">"{BASE}/sites"</span>, headers=HEADERS).json()
+
+<span class="cmt"># Get analytics overview</span>
+params = {<span class="str">"site_id"</span>: <span class="str">"SITE_ID"</span>, <span class="str">"range"</span>: <span class="str">"7d"</span>}
+overview = requests.get(
+    f<span class="str">"{BASE}/analytics/overview"</span>,
+    params=params, headers=HEADERS
+).json()
+print(overview[<span class="str">"data"</span>])</code></div>
+
+        <h3>cURL</h3>
+        <div class="code-block"><code><span class="cmt"># Get timeseries data</span>
+<span class="kw">curl</span> <span class="str">"https://app.revklik.com/api/v1/analytics/timeseries?site_id=SITE_ID&range=30d"</span> \
+  -H <span class="str">"Authorization: Bearer rvt_your_token_here"</span></code></div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<footer>
+  <div class="container">
+    <div class="footer-left">
+      <span><img src="../revklik.webp" alt="" width="20" height="20">Rev<em>Klik</em></span>
+      <span class="footer-copy">&copy; 2026 Joyo Digitama</span>
+    </div>
+    <div class="footer-links">
+      <a href="../index.html">Beranda</a>
+      <a href="../docs.html">Dokumentasi</a>
+      <a href="cli.html">CLI</a>
+      <a href="../privacy.html">Privasi</a>
+      <a href="../terms.html">Ketentuan</a>
+    </div>
+  </div>
+</footer>
+
+<script>
+function toggleMenu(){document.querySelector('.nav-links').classList.toggle('open')}
+const obs=new IntersectionObserver(es=>es.forEach(e=>{if(e.isIntersecting){e.target.classList.add('vis');obs.unobserve(e.target)}}),{threshold:.15});
+document.querySelectorAll('.fade-up').forEach(el=>obs.observe(el));
+window.addEventListener('scroll',()=>{document.getElementById('nav').classList.toggle('scrolled',window.scrollY>40)});
+
+// Active TOC tracking
+const tocLinks=document.querySelectorAll('.toc a');
+const sections=document.querySelectorAll('.doc-section[id]');
+window.addEventListener('scroll',()=>{
+  let current='';
+  sections.forEach(s=>{if(window.scrollY>=s.offsetTop-120)current=s.id});
+  tocLinks.forEach(a=>{a.classList.toggle('active',a.getAttribute('href')==='#'+current)});
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,517 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Blog RevKlik — Insight Analytics untuk Pembangun Produk</title>
+<meta name="description" content="Pelajari strategi analytics, optimasi konversi, dan atribusi revenue untuk SaaS dan produk digital Indonesia.">
+<meta name="robots" content="index, follow">
+<link rel="canonical" href="https://revklik.com/blog.html">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://revklik.com/blog.html">
+<meta property="og:title" content="Blog RevKlik — Insight Analytics untuk Pembangun Produk">
+<meta property="og:description" content="Pelajari strategi analytics, optimasi konversi, dan atribusi revenue untuk SaaS dan produk digital Indonesia.">
+<meta property="og:image" content="https://revklik.com/og-image.webp">
+<meta property="og:site_name" content="RevKlik">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Blog RevKlik — Insight Analytics untuk Pembangun Produk">
+<meta name="twitter:description" content="Strategi analytics, optimasi konversi, dan atribusi revenue untuk SaaS dan produk digital Indonesia.">
+<meta name="twitter:image" content="https://revklik.com/og-image.webp">
+<link rel="icon" type="image/webp" sizes="32x32" href="favicon.webp">
+<link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.webp">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesque:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --bg:#0c0b0e;--bg2:#100f13;--bg3:#17161b;--bg4:#1e1d23;
+  --text:#e8e4de;--text2:#a8a29e;--text3:#6b6560;--text4:#3d3835;
+  --accent:#d4882a;--accent-dim:rgba(212,136,42,.08);--accent-mid:rgba(212,136,42,.18);
+  --green:#34d399;--green-dim:rgba(52,211,153,.08);
+  --border:#1f1e24;--border2:#2a2930;
+  --serif:var(--sans);--sans:'Hanken Grotesque',system-ui,sans-serif;--mono:'IBM Plex Mono',monospace;
+}
+html{scroll-behavior:smooth}
+body{background:var(--bg);color:var(--text);font-family:var(--sans);line-height:1.6;-webkit-font-smoothing:antialiased;overflow-x:hidden}
+::selection{background:var(--accent);color:var(--text)}
+a{color:inherit;text-decoration:none}
+.container{max-width:1200px;margin:0 auto;padding:0 28px}
+
+/* NAV */
+nav{position:fixed;top:0;left:0;right:0;z-index:100;padding:20px 0;background:rgba(10,10,10,.88);backdrop-filter:blur(20px);border-bottom:1px solid var(--border)}
+nav .container{display:flex;align-items:center;justify-content:space-between}
+.logo{font-family:var(--sans);font-weight:600;font-size:26px;color:var(--text);text-decoration:none}
+.logo em{color:var(--accent)}
+.nav-links{display:flex;align-items:center;gap:32px}
+.nav-links a{font-size:14px;font-weight:500;color:var(--text2);text-decoration:none;transition:color .2s}
+.nav-links a:hover{color:var(--text)}
+.nav-cta{font-size:13px;font-weight:600;color:var(--text)!important;background:var(--accent);padding:11px 26px;border-radius:100px;text-decoration:none;transition:all .25s}
+.nav-cta:hover{filter:brightness(1.15);transform:scale(1.02)}
+.burger{display:none;background:none;border:none;cursor:pointer;color:var(--text)}
+.nav-close{display:none;background:none;border:none;cursor:pointer;color:var(--text3);transition:color .2s}
+.nav-close:hover{color:var(--text)}
+
+/* PAGE HERO */
+.page-hero{
+  padding:160px 0 80px;position:relative;
+  background:radial-gradient(ellipse 60% 50% at 50% 0%,rgba(212,136,42,.05) 0%,transparent 60%);
+}
+.page-hero-inner{max-width:640px}
+.page-hero .eyebrow{
+  font-family:var(--mono);font-size:11px;letter-spacing:.12em;text-transform:uppercase;
+  color:var(--accent);margin-bottom:16px;display:flex;align-items:center;gap:10px;
+}
+.page-hero .eyebrow::before{content:'';width:20px;height:1px;background:var(--accent)}
+.page-hero h1{font-family:var(--sans);font-weight:600;font-size:clamp(40px,5.5vw,64px);letter-spacing:-.03em;line-height:1.05;margin-bottom:16px}
+.page-hero h1 em{color:var(--accent)}
+.page-hero p{font-size:18px;color:var(--text2);line-height:1.7;max-width:480px}
+
+/* CATEGORY FILTERS */
+.filters{
+  padding:24px 0;border-bottom:1px solid var(--border);
+  margin-bottom:48px;
+}
+.filter-list{display:flex;gap:8px;flex-wrap:wrap}
+.filter-btn{
+  font-family:var(--mono);font-size:11px;letter-spacing:.06em;text-transform:uppercase;
+  color:var(--text3);background:transparent;border:1px solid var(--border2);
+  padding:8px 18px;border-radius:100px;cursor:pointer;transition:all .2s;
+}
+.filter-btn:hover{color:var(--text2);border-color:var(--text4)}
+.filter-btn.active{color:var(--bg);background:var(--accent);border-color:var(--accent)}
+
+/* FEATURED POST */
+.featured{
+  display:grid;grid-template-columns:1.2fr 1fr;gap:0;
+  border:1px solid var(--border2);border-radius:20px;overflow:hidden;
+  margin-bottom:56px;transition:border-color .3s;
+}
+.featured:hover{border-color:var(--accent-mid)}
+.featured-img{
+  background:var(--bg3);min-height:400px;position:relative;
+  display:flex;align-items:center;justify-content:center;
+}
+.featured-img-bg{
+  position:absolute;inset:0;
+  background:linear-gradient(135deg,rgba(212,136,42,.06) 0%,var(--bg3) 50%,rgba(212,136,42,.03) 100%);
+}
+.featured-img-text{
+  position:relative;font-family:var(--serif);font-size:80px;font-style:italic;
+  color:var(--text4);line-height:1;
+}
+.featured-body{
+  padding:48px 44px;display:flex;flex-direction:column;justify-content:center;
+}
+.featured-badge{
+  display:inline-flex;align-items:center;gap:6px;
+  font-family:var(--mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase;
+  color:var(--accent);background:var(--accent-dim);
+  padding:5px 14px;border-radius:100px;border:1px solid var(--accent-mid);
+  width:fit-content;margin-bottom:20px;
+}
+.featured-body h2{
+  font-family:var(--sans);font-weight:600;font-size:32px;
+  line-height:1.2;letter-spacing:-.02em;margin-bottom:16px;
+  color:var(--text);transition:color .2s;
+}
+.featured:hover h2{color:var(--accent)}
+.featured-body p{font-size:15px;color:var(--text2);line-height:1.7;margin-bottom:24px}
+.featured-meta{font-family:var(--mono);font-size:11px;color:var(--text3);display:flex;gap:16px}
+.featured-link{
+  position:absolute;inset:0;z-index:2;
+}
+
+/* ARTICLE GRID */
+.section-label{
+  font-family:var(--mono);font-size:11px;letter-spacing:.1em;text-transform:uppercase;
+  color:var(--text3);margin-bottom:28px;
+}
+.articles-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:24px;margin-bottom:80px}
+.article-card{
+  border:1px solid var(--border);border-radius:16px;overflow:hidden;
+  transition:all .3s;background:var(--bg);position:relative;
+}
+.article-card:hover{border-color:var(--accent-mid);transform:translateY(-4px)}
+.article-card-img{
+  height:180px;background:var(--bg3);position:relative;
+  display:flex;align-items:center;justify-content:center;
+  background:linear-gradient(160deg,rgba(212,136,42,.04) 0%,var(--bg3) 100%);
+}
+.article-card-img span{
+  font-family:var(--serif);font-size:48px;font-style:italic;color:var(--text4);
+}
+.article-card-body{padding:28px}
+.article-card-tag{
+  font-family:var(--mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase;
+  color:var(--accent);margin-bottom:12px;
+}
+.article-card-title{
+  font-family:var(--serif);font-size:20px;font-weight:400;line-height:1.3;
+  letter-spacing:-.01em;margin-bottom:10px;color:var(--text);transition:color .2s;
+}
+.article-card:hover .article-card-title{color:var(--accent)}
+.article-card-excerpt{font-size:14px;color:var(--text2);line-height:1.6;margin-bottom:16px}
+.article-card-meta{font-family:var(--mono);font-size:11px;color:var(--text3);display:flex;gap:16px}
+.article-card-link{position:absolute;inset:0;z-index:2}
+
+/* NEWSLETTER */
+.newsletter{
+  padding:80px 0;border-top:1px solid var(--border);
+}
+.newsletter-inner{
+  max-width:560px;margin:0 auto;text-align:center;
+}
+.newsletter h3{
+  font-family:var(--serif);font-size:32px;font-weight:400;
+  margin-bottom:12px;letter-spacing:-.02em;
+}
+.newsletter h3 em{color:var(--accent)}
+.newsletter>p{font-size:15px;color:var(--text2);margin-bottom:28px}
+.newsletter-form{display:flex;gap:12px;max-width:440px;margin:0 auto}
+.newsletter-form input{
+  flex:1;font-family:var(--sans);font-size:14px;
+  color:var(--text);background:var(--bg3);
+  border:1px solid var(--border2);border-radius:100px;
+  padding:14px 22px;outline:none;transition:border-color .2s;
+}
+.newsletter-form input::placeholder{color:var(--text3)}
+.newsletter-form input:focus{border-color:var(--accent)}
+.newsletter-form button{
+  font-family:var(--sans);font-size:14px;font-weight:600;
+  color:var(--bg);background:var(--accent);
+  padding:14px 28px;border-radius:100px;border:none;cursor:pointer;
+  transition:all .25s;white-space:nowrap;
+}
+.newsletter-form button:hover{filter:brightness(1.15);transform:scale(1.02)}
+
+/* FOOTER */
+footer{padding:40px 0;border-top:1px solid var(--border)}
+footer .container{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:16px}
+.footer-left{display:flex;align-items:center;gap:24px}
+.footer-left span{font-family:var(--serif);font-size:18px}
+.footer-left span em{color:var(--accent)}
+.footer-copy{font-size:13px;color:var(--text3)}
+.footer-links{display:flex;gap:28px}
+.footer-links a{font-size:13px;color:var(--text3);text-decoration:none;transition:color .2s}
+.footer-links a:hover{color:var(--text)}
+
+/* FADE IN */
+.fade-up{opacity:0;transform:translateY(30px);transition:all .7s cubic-bezier(.16,1,.3,1)}
+.fade-up.vis{opacity:1;transform:translateY(0)}
+.d1{transition-delay:.1s}.d2{transition-delay:.2s}.d3{transition-delay:.3s}
+
+@media(max-width:960px){
+  .featured{grid-template-columns:1fr}
+  .featured-img{min-height:240px}
+  .featured-body{padding:36px 28px}
+  .articles-grid{grid-template-columns:1fr}
+  .nav-links{display:flex;position:fixed;inset:0;background:rgba(10,10,10,.97);backdrop-filter:blur(24px);flex-direction:column;align-items:center;justify-content:center;gap:28px;opacity:0;pointer-events:none;transition:opacity .3s ease;z-index:200}
+  .nav-links.open{opacity:1;pointer-events:auto}
+  .nav-links a{font-size:24px;font-weight:500;color:var(--text)}
+  .nav-close{display:block;position:absolute;top:24px;right:24px}
+  .burger{display:block;position:relative;z-index:300}
+  .nav-cta{display:none}
+  .newsletter-form{flex-direction:column}
+}
+@media(max-width:520px){
+  .page-hero h1{font-size:36px}
+  .featured-body h2{font-size:24px}
+}
+</style>
+<script defer data-site-id="d9701d64-9e78-4b73-9726-e4f41593b843" src="https://app.revklik.com/klikapa.js"></script>
+</head>
+<body>
+
+<nav>
+  <div class="container">
+    <a href="index.html" class="logo"><img src="revklik.webp" alt="" width="28" height="28" style="vertical-align:middle;margin-right:6px;border-radius:6px">Rev<em>Klik</em></a>
+    <div class="nav-links">
+      <button class="nav-close" onclick="document.querySelector('.nav-links').classList.remove('open')" aria-label="Close">
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+      <a href="index.html">Beranda</a>
+      <a href="index.html#features">Fitur</a>
+      <a href="index.html#pricing">Harga</a>
+      <a href="#" style="color:var(--accent)">Blog</a>
+      <a href="https://docs.revklik.com">Docs</a>
+      <a href="https://app.revklik.com/register" class="nav-cta">Coba Gratis &rarr;</a>
+    </div>
+    <button class="burger" onclick="document.querySelector('.nav-links').classList.toggle('open')" aria-label="Menu">
+      <svg width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+    </button>
+  </div>
+</nav>
+
+<section class="page-hero">
+  <div class="container">
+    <div class="page-hero-inner fade-up">
+      <div class="eyebrow">Blog</div>
+      <h1>Insight untuk <em>pembangun</em> produk digital</h1>
+      <p>Strategi analytics, optimasi konversi, dan atribusi revenue. Ditulis untuk founder dan maker Indonesia.</p>
+    </div>
+  </div>
+</section>
+
+<!-- FILTERS -->
+<div class="filters">
+  <div class="container">
+    <div class="filter-list">
+      <button class="filter-btn active" data-filter="all">Semua</button>
+      <button class="filter-btn" data-filter="privasi">Privasi</button>
+      <button class="filter-btn" data-filter="panduan">Panduan</button>
+      <button class="filter-btn" data-filter="teknologi">Teknologi</button>
+      <button class="filter-btn" data-filter="revenue">Revenue</button>
+      <button class="filter-btn" data-filter="panduan">Perbandingan</button>
+    </div>
+  </div>
+</div>
+
+<!-- FEATURED -->
+<div class="container">
+  <div class="featured fade-up" data-cat="teknologi">
+    <a href="blog/analytics-tanpa-cookie.html" class="featured-link" aria-hidden="true"></a>
+    <div class="featured-img">
+      <div class="featured-img-bg"></div>
+      <span class="featured-img-text">An</span>
+    </div>
+    <div class="featured-body">
+      <div class="featured-badge">Artikel Pilihan</div>
+      <h2>Analytics Tanpa Cookie: Kenapa Ini Masa Depan Pelacakan Web</h2>
+      <p>Cookie pihak ketiga sudah mati. Pelajari bagaimana analytics modern bekerja tanpa cookie dan tetap memberikan data yang akurat untuk bisnis Anda.</p>
+      <div class="featured-meta">
+        <span>12 Mei 2026</span>
+        <span>5 menit baca</span>
+        <span>Privasi</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ALL ARTICLES -->
+<div class="container">
+  <div class="section-label fade-up">Semua Artikel</div>
+  <div class="articles-grid" id="articleGrid">
+
+
+    <div class="article-card fade-up d2" data-cat="revenue">
+      <a href="blog/atribusi-pendapatan.html" class="article-card-link" aria-hidden="true"></a>
+      <div class="article-card-img"><span>At</span></div>
+      <div class="article-card-body">
+        <div class="article-card-tag">Analitik</div>
+        <div class="article-card-title">Atribusi Pendapatan: Channel Mana yang Benar-benar Membawa Uang</div>
+        <div class="article-card-excerpt">Laporan trafik tidak menjawab channel mana yang menghasilkan uang. Begini cara atribusi pendapatan bekerja, dan bagaimana kami menghitungnya di RevKlik.</div>
+        <div class="article-card-meta"><span>16 September 2026</span><span>7 menit baca</span></div>
+      </div>
+    </div>
+
+    <div class="article-card fade-up d2" data-cat="privasi">
+      <a href="blog/analytics-tanpa-cookie.html" class="article-card-link" aria-hidden="true"></a>
+      <div class="article-card-img"><span>An</span></div>
+      <div class="article-card-body">
+        <div class="article-card-tag">Privasi</div>
+        <div class="article-card-title">Analytics Tanpa Cookie: Kenapa Ini Masa Depan Pelacakan Web</div>
+        <div class="article-card-excerpt">Cookie pihak ketiga sudah mati. Pelajari bagaimana analytics modern bekerja tanpa cookie dan tetap memberikan data yang akurat untuk bisnis Anda.</div>
+        <div class="article-card-meta"><span>12 Mei 2026</span><span>5 menit baca</span></div>
+      </div>
+    </div>
+
+    <div class="article-card fade-up d3" data-cat="panduan">
+      <a href="blog/funnel-konversi.html" class="article-card-link" aria-hidden="true"></a>
+      <div class="article-card-img"><span>Fu</span></div>
+      <div class="article-card-body">
+        <div class="article-card-tag">Panduan</div>
+        <div class="article-card-title">Cara Membuat Funnel Konversi yang Benar untuk SaaS Indonesia</div>
+        <div class="article-card-excerpt">Panduan langkah demi langkah membangun funnel konversi — identifikasi dropout dan tingkatkan conversion rate.</div>
+        <div class="article-card-meta"><span>8 Mei 2026</span><span>7 menit baca</span></div>
+      </div>
+    </div>
+
+    <div class="article-card fade-up d3" data-cat="revenue">
+      <a href="blog/atribusi-revenue.html" class="article-card-link" aria-hidden="true"></a>
+      <div class="article-card-img"><span>Re</span></div>
+      <div class="article-card-body">
+        <div class="article-card-tag">Revenue</div>
+        <div class="article-card-title">Atribusi Revenue: Dari Mana Uang Anda Benar-Benar Datang</div>
+        <div class="article-card-excerpt">Sebagian besar founder tidak tahu channel mana yang menghasilkan uang. Pelajari membangun sistem atribusi yang akurat.</div>
+        <div class="article-card-meta"><span>28 Apr 2026</span><span>8 menit baca</span></div>
+      </div>
+    </div>
+
+    <div class="article-card fade-up d2" data-cat="panduan">
+      <a href="blog/revklik-vs-google-analytics.html" class="article-card-link" aria-hidden="true"></a>
+      <div class="article-card-img"><span>GA</span></div>
+      <div class="article-card-body">
+        <div class="article-card-tag">Perbandingan</div>
+        <div class="article-card-title">RevKlik vs Google Analytics 4: Mana yang Cocok untuk SaaS Indonesia?</div>
+        <div class="article-card-excerpt">Perbandingan jujur dari script size, latensi, atribusi revenue, privasi, hingga harga — untuk founder yang ingin analytics yang benar-benar berguna.</div>
+        <div class="article-card-meta"><span>14 Mei 2026</span><span>9 menit baca</span></div>
+      </div>
+    </div>
+
+
+
+
+
+
+
+    <div class="article-card fade-up d1" data-cat="privasi">
+      <a href="blog/analytics-patuh-uu-pdp.html" class="article-card-link" aria-hidden="true"></a>
+      <div class="article-card-img"><span>PD</span></div>
+      <div class="article-card-body">
+        <div class="article-card-tag">Privasi &middot; Panduan</div>
+        <div class="article-card-title">Cara Memilih Analytics yang Patuh UU PDP Indonesia (Tanpa Ribet)</div>
+        <div class="article-card-excerpt">UU PDP mengharuskan consent untuk data processing. Panduan praktis memilih analytics tools yang compliant by default.</div>
+        <div class="article-card-meta"><span>16 Mei 2026</span><span>8 menit baca</span></div>
+      </div>
+    </div>
+
+    <div class="article-card fade-up d2" data-cat="panduan">
+      <a href="blog/analytics-untuk-umkm.html" class="article-card-link" aria-hidden="true"></a>
+      <div class="article-card-img"><span>UM</span></div>
+      <div class="article-card-body">
+        <div class="article-card-tag">Panduan &middot; UMKM</div>
+        <div class="article-card-title">Analytics untuk UMKM: Panduan Tracking Website untuk Bisnis Kecil Indonesia</div>
+        <div class="article-card-excerpt">Panduan beginner-friendly untuk UMKM: cara setup analytics sederhana dalam 5 menit dan baca dashboard dengan mudah.</div>
+        <div class="article-card-meta"><span>16 Mei 2026</span><span>9 menit baca</span></div>
+      </div>
+    </div>
+
+
+
+
+    <div class="article-card fade-up d3" data-cat="revenue">
+      <a href="blog/tracking-revenue-shopee-tokopedia.html" class="article-card-link" aria-hidden="true"></a>
+      <div class="article-card-img"><span>MP</span></div>
+      <div class="article-card-body">
+        <div class="article-card-tag">Revenue &middot; Panduan</div>
+        <div class="article-card-title">Cara Tracking Revenue dari Shopee, Tokopedia, dan Website Sendiri</div>
+        <div class="article-card-excerpt">Penjual Indonesia beroperasi di banyak channel. Panduan atribusi revenue lintas marketplace dan website dengan RevKlik.</div>
+        <div class="article-card-meta"><span>16 Mei 2026</span><span>8 menit baca</span></div>
+      </div>
+
+    <div class="article-card fade-up d1" data-cat="panduan">
+      <a href="blog/migration-datafast.html" class="article-card-link" aria-hidden="true"></a>
+      <div class="article-card-img"><span>Df</span></div>
+      <div class="article-card-body">
+        <div class="article-card-tag">Migrasi</div>
+        <div class="article-card-title">Migrasi dari DataFast ke RevKlik &mdash; Lebih Murah, Lebih Lengkap</div>
+        <div class="article-card-excerpt">Panduan migrasi dari DataFast ke RevKlik. Lebih murah (Rp 16.000 vs $9), lebih lengkap (revenue attribution, user journey). Hanya butuh 5 menit.</div>
+        <div class="article-card-meta"><span>14 Mei 2026</span><span>5 menit baca</span></div>
+      </div>
+    </div>
+
+    <div class="article-card fade-up d2" data-cat="panduan">
+      <a href="blog/migration-plausible.html" class="article-card-link" aria-hidden="true"></a>
+      <div class="article-card-img"><span>Pl</span></div>
+      <div class="article-card-body">
+        <div class="article-card-tag">Migrasi</div>
+        <div class="article-card-title">Migrasi dari Plausible ke RevKlik &mdash; 3 Langkah Saja</div>
+        <div class="article-card-excerpt">Panduan lengkap migrasi dari Plausible ke RevKlik. Hanya 3 langkah: export data, swap script, hubungkan webhook. Tanpa downtime, tanpa kehilangan data.</div>
+        <div class="article-card-meta"><span>14 Mei 2026</span><span>5 menit baca</span></div>
+      </div>
+    </div>
+
+    <div class="article-card fade-up d3" data-cat="teknologi">
+      <a href="blog/benchmark-latensi.html" class="article-card-link" aria-hidden="true"></a>
+      <div class="article-card-img"><span>Be</span></div>
+      <div class="article-card-body">
+        <div class="article-card-tag">Benchmark</div>
+        <div class="article-card-title">Benchmark Latensi Analytics: RevKlik vs Google Analytics vs Plausible</div>
+        <div class="article-card-excerpt">Uji latency tracking script secara langsung. Bandingkan kecepatan RevKlik, Google Analytics, dan Plausible dari browser Anda sendiri.</div>
+        <div class="article-card-meta"><span>14 Mei 2026</span><span>4 menit baca</span></div>
+      </div>
+    </div>
+
+    <div class="article-card fade-up d1" data-cat="teknologi">
+      <a href="blog/cloudflare-analytics.html" class="article-card-link" aria-hidden="true"></a>
+      <div class="article-card-img"><span>Cl</span></div>
+      <div class="article-card-body">
+        <div class="article-card-tag">Teknologi</div>
+        <div class="article-card-title">Kenapa Analytics Edge-Native Lebih Cepat dan Lebih Murah</div>
+        <div class="article-card-excerpt">Bandingkan analytics tradisional yang berjalan di server terpusat dengan edge analytics. Lihat mengapa edge-native lebih cepat, lebih murah, dan lebih baik.</div>
+        <div class="article-card-meta"><span>3 Mei 2026</span><span>6 menit baca</span></div>
+      </div>
+    </div>
+
+    <div class="article-card fade-up d2" data-cat="teknologi">
+      <a href="blog/cloudflare-workers-d1.html" class="article-card-link" aria-hidden="true"></a>
+      <div class="article-card-img"><span>D1</span></div>
+      <div class="article-card-body">
+        <div class="article-card-tag">Teknologi</div>
+        <div class="article-card-title">Membangun SaaS dengan Cloudflare Workers + D1: Panduan Lengkap</div>
+        <div class="article-card-excerpt">Panduan teknis membangun aplikasi SaaS multi-tenant menggunakan Cloudflare Workers, D1, dan R2. Biaya infrastruktur kurang dari $5/bulan.</div>
+        <div class="article-card-meta"><span>20 April 2026</span><span>10 menit baca</span></div>
+      </div>
+    </div>
+    </div>
+
+
+  </div>
+</div>
+
+<!-- NEWSLETTER -->
+<section class="newsletter">
+  <div class="container">
+    <div class="newsletter-inner fade-up">
+      <h3>Dapatkan insight <em>langsung ke inbox</em> Anda</h3>
+      <p>Tips analytics dan optimasi konversi untuk SaaS dan produk digital. Tanpa spam, berhenti kapan saja.</p>
+      <form class="newsletter-form" onsubmit="event.preventDefault();this.querySelector('button').textContent='Terdaftar!';this.querySelector('input').disabled=true">
+        <input type="email" placeholder="email@anda.com" required>
+        <button type="submit">Berlangganan</button>
+      </form>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="container">
+    <div class="footer-left">
+      <span><img src="revklik.webp" alt="" width="22" height="22" style="vertical-align:middle;margin-right:8px;border-radius:4px">Rev<em>Klik</em></span>
+      <span class="footer-copy">&copy; 2026 — Analytics untuk pembangun.</span>
+    </div>
+    <div class="footer-links">
+      <a href="privacy.html">Privasi</a>
+      <a href="terms.html">Ketentuan</a>
+      <a href="support.html">Dukungan</a>
+      <a href="https://voltrus.id" target="_blank" rel="noopener">Voltrus.id</a>
+      <a href="https://github.com/dzulfikaratsauri" target="_blank">GitHub</a>
+      <a href="https://twitter.com/revklik" target="_blank">Twitter</a>
+    </div>
+  </div>
+</footer>
+
+<script>
+// Mobile menu
+document.querySelectorAll('.nav-links a').forEach(a=>a.addEventListener('click',()=>document.querySelector('.nav-links').classList.remove('open')));
+
+// Filter
+const btns=document.querySelectorAll('.filter-btn');
+const cards=document.querySelectorAll('.article-card');
+const feat=document.querySelector('.featured');
+
+btns.forEach(btn=>{
+  btn.addEventListener('click',()=>{
+    btns.forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active');
+    const f=btn.dataset.filter;
+    cards.forEach(c=>{
+      if(f==='all'||c.dataset.cat===f){c.style.display=''}
+      else{c.style.display='none'}
+    });
+    if(feat){
+      if(f==='all'||feat.dataset.cat===f){feat.style.display=''}
+      else{feat.style.display='none'}
+    }
+  });
+});
+
+// Fade in on scroll
+const obs=new IntersectionObserver(entries=>{
+  entries.forEach(e=>{if(e.isIntersecting)e.target.classList.add('vis')});
+},{threshold:.1,rootMargin:'0px 0px -20px 0px'});
+document.querySelectorAll('.fade-up').forEach(el=>obs.observe(el));
+</script>
+
+</body>
+</html>

@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Migrasi dari Plausible ke RevKlik — 3 Langkah Saja — RevKlik Blog</title>
+<meta name="description" content="Panduan lengkap migrasi dari Plausible ke RevKlik. Hanya 3 langkah: export data, swap script, hubungkan webhook. Tanpa downtime, tanpa kehilangan data.">
+<meta name="robots" content="index, follow">
+<meta property="og:title" content="Migrasi dari Plausible ke RevKlik — 3 Langkah Saja">
+<meta property="og:description" content="Panduan lengkap migrasi dari Plausible ke RevKlik. Hanya 3 langkah — tanpa downtime, tanpa kehilangan data.">
+<meta property="og:type" content="article">
+<link rel="canonical" href="https://revklik.com/blog/migration-plausible.html">
+<link rel="icon" type="image/webp" sizes="32x32" href="../favicon.webp">
+<link rel="apple-touch-icon" sizes="180x180" href="../apple-touch-icon.webp">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesque:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<script type="application/ld+json">
+{
+  "@context":"https://schema.org",
+  "@type":"BlogPosting",
+  "headline":"Migrasi dari Plausible ke RevKlik — 3 Langkah Saja",
+  "datePublished":"2026-05-14",
+  "dateModified":"2026-05-14",
+  "author":{"@type":"Organization","name":"RevKlik"},
+  "publisher":{"@type":"Organization","name":"RevKlik"},
+  "description":"Panduan lengkap migrasi dari Plausible ke RevKlik. Hanya 3 langkah: export data, swap script, hubungkan webhook. Tanpa downtime, tanpa kehilangan data.",
+  "mainEntityOfPage":"https://revklik.com/blog/migration-plausible.html"
+}
+</script>
+<style>
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
+:root{--bg:#0c0b0e;--bg2:#100f13;--bg3:#17161b;--text:#e8e4de;--text2:#a8a29e;--text3:#6b6560;--accent:#d4882a;--accent-dim:rgba(212,136,42,.1);--accent-mid:rgba(212,136,42,.2);--border:#1f1e24;--border2:#2a2930;--serif:var(--sans);--sans:'Hanken Grotesque',system-ui,sans-serif;--mono:'IBM Plex Mono',monospace}
+html{scroll-behavior:smooth}
+body{background:var(--bg);color:var(--text);font-family:var(--sans);line-height:1.6;-webkit-font-smoothing:antialiased}
+::selection{background:var(--accent);color:var(--text)}
+.container{max-width:1200px;margin:0 auto;padding:0 28px}
+a{color:inherit}
+nav{position:fixed;top:0;left:0;right:0;z-index:100;padding:20px 0;background:rgba(10,10,10,.88);backdrop-filter:blur(20px);border-bottom:1px solid var(--border)}
+nav .container{display:flex;align-items:center;justify-content:space-between}
+.logo{font-family:var(--sans);font-weight:600;font-size:26px;color:var(--text);text-decoration:none}
+.logo em{color:var(--accent)}
+.nav-links{display:flex;align-items:center;gap:32px}
+.nav-links a{font-size:14px;font-weight:500;color:var(--text2);text-decoration:none;transition:color .2s}
+.nav-links a:hover{color:var(--text)}
+.nav-cta{font-size:13px;font-weight:600;color:var(--text)!important;background:var(--accent);padding:11px 26px;border-radius:100px;text-decoration:none}
+
+.article-header{padding:160px 0 60px;text-align:center}
+.article-tag{font-family:var(--mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--accent);margin-bottom:16px}
+.article-header h1{font-family:var(--sans);font-weight:600;font-size:clamp(32px,5vw,52px);letter-spacing:-.03em;line-height:1.1;margin-bottom:20px;max-width:800px;margin-left:auto;margin-right:auto}
+.article-meta{font-family:var(--mono);font-size:12px;color:var(--text3);display:flex;justify-content:center;gap:20px}
+
+.article-body{max-width:720px;margin:0 auto;padding:0 28px 120px}
+.article-body h2{font-family:var(--sans);font-weight:600;font-size:32px;margin:48px 0 20px;letter-spacing:-.02em;line-height:1.2}
+.article-body h3{font-family:var(--sans);font-weight:600;font-size:24px;margin:36px 0 16px;letter-spacing:-.01em}
+.article-body p{font-size:17px;line-height:1.8;color:var(--text2);margin-bottom:24px}
+.article-body ul,.article-body ol{font-size:17px;line-height:1.8;color:var(--text2);margin-bottom:24px;padding-left:24px}
+.article-body li{margin-bottom:8px}
+.article-body blockquote{border-left:3px solid var(--accent);padding:16px 24px;margin:32px 0;background:var(--accent-dim);border-radius:0 8px 8px 0;font-style:italic;color:var(--text);font-size:17px}
+.article-body strong{color:var(--text);font-weight:600}
+.article-body a{color:var(--accent);text-decoration:none;border-bottom:1px solid var(--accent-mid);transition:border-color .2s}
+.article-body a:hover{border-color:var(--accent)}
+.article-body .callout{background:var(--bg3);border:1px solid var(--border);border-radius:12px;padding:24px 28px;margin:32px 0}
+.article-body .callout-title{font-family:var(--mono);font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--accent);margin-bottom:8px}
+.article-body .callout p{margin-bottom:0;font-size:15px}
+.article-body code{font-family:var(--mono);font-size:14px;background:var(--bg3);padding:2px 8px;border-radius:4px;color:var(--accent)}
+.article-body pre{background:var(--bg3);border:1px solid var(--border);border-radius:12px;padding:24px 28px;margin:24px 0;overflow-x:auto}
+.article-body pre code{background:none;padding:0;font-size:13px;line-height:1.7;color:var(--text2)}
+.article-body .code-label{font-family:var(--mono);font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--accent);margin-bottom:8px;margin-top:32px}
+
+.article-body .comparison-table{width:100%;border-collapse:collapse;margin:32px 0;font-size:15px}
+.article-body .comparison-table th,.article-body .comparison-table td{padding:14px 18px;border-bottom:1px solid var(--border);text-align:left}
+.article-body .comparison-table th{font-family:var(--mono);font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--text3);font-weight:500}
+.article-body .comparison-table td{color:var(--text2)}
+.article-body .comparison-table td:first-child{color:var(--text);font-weight:500}
+.article-body .comparison-table tr:last-child td{border-bottom:none}
+.article-body .comparison-table .highlight{color:var(--accent);font-weight:600}
+
+.article-body .step{background:var(--bg3);border:1px solid var(--border);border-radius:16px;padding:32px;margin:28px 0}
+.article-body .step-number{font-family:var(--mono);font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:var(--accent);margin-bottom:12px}
+.article-body .step h3{margin:0 0 12px;font-size:22px}
+.article-body .step p{margin-bottom:16px}
+.article-body .step p:last-child{margin-bottom:0}
+
+.article-body .faq-item{border-bottom:1px solid var(--border);padding:24px 0}
+.article-body .faq-item:first-child{border-top:1px solid var(--border);margin-top:32px}
+.article-body .faq-question{font-family:var(--serif);font-size:19px;color:var(--text);margin-bottom:8px}
+.article-body .faq-answer{color:var(--text2);margin-bottom:0}
+
+.article-nav{border-top:1px solid var(--border);padding:40px 0}
+.article-nav .container{display:flex;justify-content:space-between;flex-wrap:wrap;gap:16px}
+.article-nav a{font-size:14px;color:var(--text2);text-decoration:none;transition:color .2s}
+.article-nav a:hover{color:var(--accent)}
+
+footer{padding:40px 0;border-top:1px solid var(--border)}
+footer .container{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:16px}
+.footer-left{display:flex;align-items:center;gap:24px}
+.footer-left span{font-family:var(--serif);font-size:18px}
+.footer-left span em{color:var(--accent)}
+.footer-copy{font-size:13px;color:var(--text3)}
+.footer-links{display:flex;gap:28px}
+.footer-links a{font-size:13px;color:var(--text3);text-decoration:none;transition:color .2s}
+.footer-links a:hover{color:var(--text)}
+
+@media(max-width:768px){.nav-links{display:flex;position:fixed;inset:0;background:rgba(10,10,10,.97);backdrop-filter:blur(24px);flex-direction:column;align-items:center;justify-content:center;gap:28px;opacity:0;pointer-events:none;transition:opacity .3s ease;z-index:200}
+  .nav-links.open{opacity:1;pointer-events:auto}
+  .nav-close{display:block;position:absolute;top:24px;right:24px}
+  .nav-links a{font-size:24px;font-weight:500;color:#e8e4de}
+  .burger{display:block;position:relative;z-index:300}
+  .nav-right .nav-cta{display:none}.article-header h1{font-size:28px}.article-body pre{padding:16px}.article-body .comparison-table{font-size:13px}.article-body .comparison-table th,.article-body .comparison-table td{padding:10px 12px}}
+</style>
+<script defer data-site-id="d9701d64-9e78-4b73-9726-e4f41593b843" src="https://app.revklik.com/klikapa.js"></script>
+</head>
+<body>
+
+<nav>
+  <div class="container">
+    <a href="../index.html" class="logo">Rev<em>Klik</em></a>
+    <div class="nav-links">
+      <button class="nav-close" onclick="document.querySelector('.nav-links').classList.remove('open')" aria-label="Close"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+      <a href="../index.html">Beranda</a>
+      <a href="../index.html#features">Fitur</a>
+      <a href="../blog.html">Blog</a>
+      <a href="../index.html" class="nav-cta">Mulai dari Rp 16.000 &rarr;</a>
+    </div>
+  </div>
+</nav>
+
+<article>
+  <div class="article-header">
+    <div class="container">
+      <div class="article-tag">Migrasi &bull; Plausible</div>
+      <h1>Migrasi dari Plausible ke RevKlik — 3 Langkah Saja</h1>
+      <div class="article-meta">
+        <span>14 Mei 2026</span>
+        <span>6 menit baca</span>
+        <span>Oleh Tim RevKlik</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="article-body">
+    <p>Plausible adalah analytics yang baik — ringan, tanpa cookie, dan menghormati privasi. Tapi ketika bisnis Anda berkembang, Anda butuh lebih dari sekadar pageview dan bounce rate. Anda butuh tahu <strong>berapa revenue yang dihasilkan setiap halaman</strong>, bagaimana user bergerak melalui funnel, dan di mana mereka dropout.</p>
+
+    <p>RevKlik dibangun untuk menjawab pertanyaan-pertanyaan itu — dan migrasinya hanya butuh 3 langkah sederhana.</p>
+
+    <h2>Kenapa Pindah dari Plausible?</h2>
+
+    <p>Plausible fokus pada kesederhanaan. Itu bagus untuk blog pribadi, tapi untuk SaaS dan produk digital yang sedang bertumbuh, ada beberapa hal penting yang tidak tersedia:</p>
+
+    <ul>
+      <li><strong>Atribusi revenue</strong> — Plausible tidak bisa menghubungkan traffic dengan pembayaran. Anda tidak tahu apakah pengunjung dari Google Ads benar-benar membayar.</li>
+      <li><strong>User journey</strong> — Tidak ada visualisasi alur pengunjung dari halaman pertama hingga konversi.</li>
+      <li><strong>Scroll-depth funnel</strong> — Anda tidak tahu seberapa jauh pengunjung membaca halaman landing Anda.</li>
+    </ul>
+
+    <blockquote>Plausible menjawab "berapa banyak pengunjung?" RevKlik menjawab "berapa banyak revenue?" — dan itu perbedaan yang mengubah keputusan bisnis.</blockquote>
+
+    <h2>3 Langkah Migrasi</h2>
+
+    <div class="step">
+      <div class="step-number">Langkah 1</div>
+      <h3>Export Data Plausible Anda (Opsional)</h3>
+      <p>Jika Anda ingin menyimpan histori data, buka dashboard Plausible &rarr; Settings &rarr; Export Data. Download file CSV yang berisi semua statistik kunjungan Anda.</p>
+      <p>Langkah ini opsional karena <strong>Anda tidak akan kehilangan data selama proses migrasi</strong>. Plausible tetap berjalan selama Anda belum menghapus script-nya.</p>
+    </div>
+
+    <div class="step">
+      <div class="step-number">Langkah 2</div>
+      <h3>Swap Script Plausible dengan RevKlik</h3>
+      <p>Buka kode HTML situs Anda. Cari tag script Plausible yang terlihat seperti ini:</p>
+
+      <div class="code-label">Sebelum (Plausible)</div>
+      <pre><code>&lt;script defer data-domain="domainanda.com"
+  src="https://plausible.io/js/script.js"&gt;&lt;/script&gt;</code></pre>
+
+      <p>Ganti dengan script RevKlik:</p>
+
+      <div class="code-label">Sesudah (RevKlik)</div>
+      <pre><code>&lt;script defer data-site-id="YOUR-SITE-ID"
+  src="https://app.revklik.com/klikapa.js"&gt;&lt;/script&gt;</code></pre>
+
+      <p>Itu saja. Satu baris dihapus, satu baris ditambahkan. Deploy perubahan ini dan RevKlik mulai mengumpulkan data dalam hitungan detik.</p>
+    </div>
+
+    <div class="step">
+      <div class="step-number">Langkah 3</div>
+      <h3>Hubungkan Polar Webhook</h3>
+      <p>Ini adalah langkah yang membuat RevKlik berbeda dari Plausible. Di dashboard RevKlik, buka halaman <strong>Integrations</strong> dan tambahkan webhook endpoint untuk payment processor Anda.</p>
+      <p>Masuk ke dashboard Polar &rarr; Settings &rarr; Webhooks &rarr; Add endpoint.</p>
+      <p>Setelah terhubung, setiap pembayaran otomatis diatribusikan ke sumber traffic yang benar. <strong>Selesai.</strong></p>
+    </div>
+
+    <h2>Plausible vs RevKlik: Perbandingan Lengkap</h2>
+
+    <table class="comparison-table">
+      <thead>
+        <tr>
+          <th>Fitur</th>
+          <th>Plausible</th>
+          <th>RevKlik</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Harga mulai</td>
+          <td>$9/bulan (10K pageview)</td>
+          <td class="highlight">Rp 16.000/bulan (50K event)</td>
+        </tr>
+        <tr>
+          <td>Atribusi revenue</td>
+          <td>Tidak ada</td>
+          <td class="highlight">Ya (webhook)</td>
+        </tr>
+        <tr>
+          <td>User journey</td>
+          <td>Tidak ada</td>
+          <td class="highlight">Visualisasi lengkap</td>
+        </tr>
+        <tr>
+          <td>Funnel konversi</td>
+          <td>Goal sederhana</td>
+          <td class="highlight">Multi-step + scroll-depth</td>
+        </tr>
+        <tr>
+          <td>Script size</td>
+          <td>&lt;1 KB</td>
+          <td>~4 KB (gzip)</td>
+        </tr>
+        <tr>
+          <td>Tanpa cookie</td>
+          <td>Ya</td>
+          <td>Ya</td>
+        </tr>
+        <tr>
+          <td>GDPR compliant</td>
+          <td>Ya</td>
+          <td>Ya</td>
+        </tr>
+        <tr>
+          <td>Infrastruktur</td>
+          <td>Self-hosted atau cloud</td>
+          <td class="highlight">Edge global (300+ lokasi)</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h2>Bisa Jalankan Keduanya Bersamaan?</h2>
+
+    <p>Ya. Jika Anda ingin membandingkan data selama masa transisi, cukup tambahkan script RevKlik <strong>di samping</strong> script Plausible. Keduanya ringan dan tidak akan memperlambat situs Anda secara signifikan.</p>
+
+    <div class="code-label">Keduanya berjalan bersamaan</div>
+    <pre><code>&lt;!-- Plausible (sementara) --&gt;
+&lt;script defer data-domain="domainanda.com"
+  src="https://plausible.io/js/script.js"&gt;&lt;/script&gt;
+
+&lt;!-- RevKlik --&gt;
+&lt;script defer data-site-id="YOUR-SITE-ID"
+  src="https://app.revklik.com/klikapa.js"&gt;&lt;/script&gt;</code></pre>
+
+    <p>Setelah Anda yakin data RevKlik akurat (biasanya 2-3 hari), hapus script Plausible.</p>
+
+    <h2>FAQ</h2>
+
+    <div class="faq-item">
+      <div class="faq-question">Apakah saya akan kehilangan data histori?</div>
+      <p class="faq-answer">Tidak. Data lama Anda di Plausible tetap ada. RevKlik mulai mengumpulkan data baru sejak script diinstal. Jika Anda ingin mengimpor histori, export CSV dari Plausible bisa digunakan sebagai referensi.</p>
+    </div>
+
+    <div class="faq-item">
+      <div class="faq-question">Apakah saya bisa menjalankan Plausible dan RevKlik bersamaan?</div>
+      <p class="faq-answer">Ya. Kedua script berjalan secara independen dan tidak saling mengganggu. Keduanya ringan: Plausible di bawah 1 KB, RevKlik sekitar 4 KB (gzip). Jalankan keduanya selama masa transisi lalu hapus Plausible ketika Anda sudah nyaman.</p>
+    </div>
+
+    <div class="faq-item">
+      <div class="faq-question">Bagaimana dengan kepatuhan GDPR?</div>
+      <p class="faq-answer">Kedua platform sudah compliant dengan GDPR. RevKlik juga compliant dengan UU PDP Indonesia. Tidak ada cookie yang digunakan, tidak ada data pribadi yang dikumpulkan, dan semua data diproses di jaringan edge global.</p>
+    </div>
+
+    <div class="faq-item">
+      <div class="faq-question">Berapa lama proses migrasi?</div>
+      <p class="faq-answer">Kurang dari 5 menit. Swap script (1 menit) + hubungkan webhook (2 menit) + deploy (1 menit). Data mulai mengalir segera setelah deploy.</p>
+    </div>
+
+    <div class="faq-item">
+      <div class="faq-question">Apakah RevKlik bisa self-hosted seperti Plausible?</div>
+      <p class="faq-answer">RevKlik berjalan sebagai managed service di jaringan edge global — artinya Anda tidak perlu mengelola server sendiri. Keuntungannya: latensi lebih rendah, uptime lebih tinggi, dan biaya infrastruktur ditanggung oleh kami.</p>
+    </div>
+
+    <div class="callout">
+      <div class="callout-title">Coba RevKlik</div>
+      <p>Analytics dengan atribusi revenue, user journey, dan funnel — semua tanpa cookie. <a href="../index.html">Mulai sekarang</a>. Migrasi hanya butuh 3 langkah.</p>
+    </div>
+  </div>
+</article>
+
+<div class="article-nav">
+  <div class="container">
+    <a href="../blog.html">&larr; Semua Artikel</a>
+    <a href="migration-datafast.html">Migrasi dari DataFast ke RevKlik &rarr;</a>
+  </div>
+</div>
+
+<footer>
+  <div class="container">
+    <div class="footer-left">
+      <span><img src="../revklik.webp" alt="" width="22" height="22" style="vertical-align:middle;margin-right:8px;border-radius:4px">Rev<em>Klik</em></span>
+      <span class="footer-copy">&copy; 2026 — Analytics untuk pembangun.</span>
+    </div>
+    <div class="footer-links">
+      <a href="../privacy.html">Privasi</a>
+      <a href="../terms.html">Ketentuan</a>
+      <a href="../support.html">Dukungan</a>
+    </div>
+  </div>
+</footer>
+
+</body>
+</html>

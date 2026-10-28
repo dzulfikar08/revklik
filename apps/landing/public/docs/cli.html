@@ -1,0 +1,499 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RevKlik CLI — Terminal Analytics Tool</title>
+<meta name="description" content="RevKlik CLI — akses analytics dari terminal. Install via npm, login dengan API token, dan query analytics data langsung dari command line.">
+<meta name="keywords" content="analytics CLI, terminal analytics, npm CLI, command line analytics, RevKlik CLI, @revklik/cli, analytics terminal tool">
+<meta name="robots" content="index, follow">
+<link rel="canonical" href="https://revklik.com/docs/cli.html">
+<link rel="icon" type="image/webp" sizes="32x32" href="../favicon.webp">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=General+Sans:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --bg:#0c0b0e;--bg2:#100f13;--bg3:#17161b;--bg4:#1e1d23;
+  --text:#e8e4de;--text2:#a8a29e;--text3:#6b6560;--text4:#3d3835;
+  --accent:#d4882a;--accent-dim:rgba(212,136,42,.1);--accent-mid:rgba(212,136,42,.2);
+  --green:#34d399;--green-dim:rgba(52,211,153,.1);
+  --blue:#60a5fa;--blue-dim:rgba(96,165,250,.1);
+  --red:#f87171;--red-dim:rgba(248,113,113,.1);
+  --border:#1f1e24;--border2:#2a2930;
+  --serif:'Instrument Serif',Georgia,serif;
+  --sans:'General Sans',system-ui,sans-serif;
+  --mono:'IBM Plex Mono',monospace;
+}
+html{scroll-behavior:smooth}
+body{background:var(--bg);color:var(--text);font-family:var(--sans);line-height:1.6;-webkit-font-smoothing:antialiased}
+::selection{background:var(--accent);color:var(--text)}
+a{color:inherit;text-decoration:none}
+.container{max-width:960px;margin:0 auto;padding:0 28px}
+
+nav{position:fixed;top:0;left:0;right:0;z-index:100;padding:20px 0;transition:all .35s}
+nav.scrolled{background:rgba(10,10,10,.92);backdrop-filter:blur(20px);padding:14px 0;border-bottom:1px solid var(--border)}
+nav .container{display:flex;align-items:center;justify-content:space-between;max-width:1200px;margin:0 auto;padding:0 28px}
+.logo{font-family:var(--serif);font-size:26px;color:var(--text);text-decoration:none;display:flex;align-items:center;gap:8px}
+.logo em{font-style:italic;color:var(--accent)}
+.logo img{border-radius:6px}
+.nav-links{display:flex;align-items:center;gap:24px}
+.nav-links a{font-size:14px;font-weight:500;color:var(--text2);transition:color .2s}
+.nav-links a:hover{color:var(--text)}
+.nav-cta{font-size:13px;font-weight:600;color:var(--text)!important;background:var(--accent);padding:10px 22px;border-radius:100px;transition:all .25s}
+.nav-cta:hover{filter:brightness(1.15);transform:scale(1.03)}
+.burger{display:none;background:none;border:none;cursor:pointer;color:var(--text);z-index:300}
+
+.page-hero{padding:140px 0 48px;position:relative;background:radial-gradient(ellipse 60% 50% at 50% 0%,rgba(212,136,42,.05) 0%,transparent 60%)}
+.page-hero .eyebrow{font-family:var(--mono);font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--accent);margin-bottom:16px;display:flex;align-items:center;gap:10px}
+.page-hero .eyebrow::before{content:'';width:20px;height:1px;background:var(--accent)}
+.page-hero h1{font-family:var(--serif);font-weight:400;font-size:clamp(36px,5vw,52px);letter-spacing:-.03em;line-height:1.05;margin-bottom:16px}
+.page-hero h1 em{font-style:italic;color:var(--accent)}
+.page-hero p{font-size:17px;color:var(--text2);line-height:1.7;max-width:560px}
+
+.doc-layout{display:grid;grid-template-columns:220px 1fr;gap:40px;padding-top:8px}
+.toc{position:sticky;top:100px;align-self:start}
+.toc h4{font-family:var(--mono);font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--text3);margin-bottom:16px}
+.toc a{display:block;font-size:13px;color:var(--text3);padding:6px 0 6px 14px;border-left:2px solid var(--border);transition:all .2s;margin-bottom:2px}
+.toc a:hover,.toc a.active{color:var(--accent);border-color:var(--accent)}
+
+.doc-body{min-width:0}
+.doc-section{padding:40px 0;border-top:1px solid var(--border)}
+.doc-section:first-child{border-top:none;padding-top:0}
+.doc-section h2{font-family:var(--serif);font-size:28px;font-weight:400;letter-spacing:-.02em;margin-bottom:12px}
+.doc-section h2 em{font-style:italic;color:var(--accent)}
+.doc-section h3{font-size:18px;font-weight:600;margin:28px 0 10px;letter-spacing:-.01em}
+.doc-section p{font-size:15px;color:var(--text2);line-height:1.7;margin-bottom:16px}
+.doc-section ul{color:var(--text2);font-size:15px;line-height:1.8;margin-bottom:16px;padding-left:24px}
+.doc-section li{margin-bottom:4px}
+
+.code-block{background:var(--bg3);border:1px solid var(--border2);border-radius:10px;padding:16px 20px;margin:12px 0 20px;overflow-x:auto;position:relative}
+.code-block code{font-family:var(--mono);font-size:13px;color:var(--text2);line-height:1.7;white-space:pre}
+.code-block .hl{color:var(--accent)}
+.code-block .str{color:var(--green)}
+.code-block .kw{color:#ff79c6}
+.code-block .cmt{color:var(--text4);font-style:italic}
+.code-block .out{color:var(--text3)}
+.code-block .prompt{color:var(--green)}
+.code-label{font-family:var(--mono);font-size:11px;color:var(--text3);margin-bottom:6px}
+
+/* COMMAND TABLE */
+.cmd-table{width:100%;border-collapse:collapse;margin:12px 0 20px;font-size:14px}
+.cmd-table th{text-align:left;font-family:var(--mono);font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--text3);padding:10px 12px;border-bottom:1px solid var(--border2);font-weight:500}
+.cmd-table td{padding:10px 12px;border-bottom:1px solid var(--border);color:var(--text2);vertical-align:top}
+.cmd-table td:first-child{font-family:var(--mono);font-size:13px;color:var(--accent);white-space:nowrap}
+
+/* CALLOUT */
+.callout{background:var(--accent-dim);border:1px solid var(--accent-mid);border-radius:10px;padding:16px 20px;margin:16px 0;font-size:14px;color:var(--text2);line-height:1.6}
+.callout strong{color:var(--text)}
+.callout.blue{background:var(--blue-dim);border-color:rgba(96,165,250,.2)}
+
+/* TERMINAL */
+.terminal{background:#0d0d0d;border:1px solid var(--border);border-radius:12px;overflow:hidden;margin:16px 0 24px}
+.terminal-bar{display:flex;align-items:center;gap:8px;padding:14px 20px;border-bottom:1px solid rgba(255,255,255,.06)}
+.terminal-bar .dot{width:10px;height:10px;border-radius:50%}
+.terminal-bar .dot:nth-child(1){background:#ff5f57}
+.terminal-bar .dot:nth-child(2){background:#ffbd2e}
+.terminal-bar .dot:nth-child(3){background:#28c840}
+.terminal-bar .fname{font-family:var(--mono);font-size:12px;color:rgba(255,255,255,.2);margin-left:12px}
+.terminal-body{padding:20px;font-family:var(--mono);font-size:13px;line-height:1.8;color:var(--text2)}
+.terminal-body .prompt{color:var(--green)}
+.terminal-body .cmd{color:var(--accent)}
+.terminal-body .out{color:var(--text3)}
+.terminal-body .hl{color:var(--text)}
+
+footer{padding:40px 0;border-top:1px solid var(--border);margin-top:60px}
+footer .container{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:16px;max-width:1200px}
+.footer-left{display:flex;align-items:center;gap:24px}
+.footer-left span{font-family:var(--serif);font-size:18px;display:flex;align-items:center;gap:8px}
+.footer-left span em{font-style:italic;color:var(--accent)}
+.footer-copy{font-size:13px;color:var(--text3)}
+.footer-links{display:flex;gap:28px}
+.footer-links a{font-size:13px;color:var(--text3);transition:color .2s}
+.footer-links a:hover{color:var(--text)}
+
+.fade-up{opacity:0;transform:translateY(30px);transition:all .7s cubic-bezier(.16,1,.3,1)}
+.fade-up.vis{opacity:1;transform:translateY(0)}
+
+@media(max-width:960px){
+  .doc-layout{grid-template-columns:1fr}
+  .toc{display:none}
+  .nav-links{display:flex;position:fixed;inset:0;background:rgba(10,10,10,.97);backdrop-filter:blur(24px);flex-direction:column;align-items:center;justify-content:center;gap:28px;opacity:0;pointer-events:none;transition:opacity .3s;z-index:200}
+  .nav-links.open{opacity:1;pointer-events:auto}
+  .nav-close{display:block;position:absolute;top:24px;right:24px}
+  .nav-links a{font-size:24px;font-weight:500;color:var(--text)}
+  .burger{display:block;position:relative;z-index:300}
+  .nav-right .nav-cta{display:none}
+}
+@media(max-width:640px){
+  .page-hero{padding:120px 0 36px}
+  .terminal-body{font-size:12px}
+}
+</style>
+<script defer data-site-id="d9701d64-9e78-4b73-9726-e4f41593b843" src="https://app.revklik.com/klikapa.js"></script>
+</head>
+<body>
+
+<nav id="nav">
+  <div class="container">
+    <a href="../index.html" class="logo"><img src="../revklik.webp" alt="" width="28" height="28">Rev<em>Klik</em></a>
+    <div class="nav-links">
+      <button class="nav-close" onclick="document.querySelector('.nav-links').classList.remove('open')" aria-label="Close"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+      <a href="../index.html">Beranda</a>
+      <a href="../docs.html">Docs</a>
+      <a href="api.html">API</a>
+    </div>
+    <div class="nav-right">
+      <a href="https://app.revklik.com/register" class="nav-cta">Mulai dari $1 &rarr;</a>
+    </div>
+    <button class="burger" onclick="document.querySelector('.nav-links').classList.toggle('open')" aria-label="Menu">
+      <svg width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+    </button>
+  </div>
+</nav>
+
+<section class="page-hero">
+  <div class="container">
+    <div class="fade-up">
+      <div class="eyebrow">CLI Tool</div>
+      <h1>RevKlik <em>CLI</em></h1>
+      <p>Akses analytics dari terminal Anda. Install via npm, login dengan API token, dan query data analytics langsung dari command line — atau pipe ke jq untuk pipeline otomatis.</p>
+    </div>
+  </div>
+</section>
+
+<div class="container">
+  <div class="doc-layout">
+    <div class="toc">
+      <h4>Daftar Isi</h4>
+      <a href="#install">Instalasi</a>
+      <a href="#login">Login</a>
+      <a href="#whoami">Whoami</a>
+      <a href="#sites">Sites</a>
+      <a href="#analytics">Analytics</a>
+      <a href="#tokens">Tokens</a>
+      <a href="#global-flags">Global Flags</a>
+      <a href="#env-vars">Environment Variables</a>
+      <a href="#config">Config File</a>
+    </div>
+
+    <div class="doc-body">
+
+      <!-- INSTALL -->
+      <div class="doc-section" id="install">
+        <h2>Instalasi</h2>
+        <p>Install CLI secara global via npm. Butuh Node.js 18+.</p>
+
+        <div class="code-block"><code><span class="prompt">$</span> <span class="cmd">npm install -g @revklik/cli</span></code></div>
+
+        <p>Setelah install, perintah <code>revklik</code> tersedia di terminal Anda.</p>
+
+        <div class="code-block"><code><span class="prompt">$</span> <span class="cmd">revklik --version</span>
+<span class="out">1.2.0</span>
+
+<span class="prompt">$</span> <span class="cmd">revklik --help</span>
+<span class="out">RevKlik CLI — Analytics from your terminal
+
+Commands:
+  revklik login              Authenticate with API token
+  revklik whoami             Show current auth info
+  revklik sites list         List your sites
+  revklik analytics overview Show analytics summary
+  revklik analytics events   Raw event log
+  revklik analytics timeseries  Time series data
+  revklik analytics pages    Top pages
+  revklik analytics referrers  Traffic sources
+  revklik analytics geo      Geo breakdown
+  revklik analytics journeys  Customer journey summaries
+  revklik analytics export   Export data (CSV/JSON)
+  revklik tokens list        List API tokens
+  revklik tokens create      Create new token
+  revklik tokens revoke      Revoke a token
+
+Flags:
+  --json     Output raw JSON
+  --verbose  Debug output
+  --help     Show help</span></code></div>
+      </div>
+
+      <!-- LOGIN -->
+      <div class="doc-section" id="login">
+        <h2>Login</h2>
+        <p>Autentikasi menggunakan API token dari dashboard RevKlik. Buat token di <a href="https://app.revklik.com/settings/api-tokens" style="color:var(--accent)">Settings &gt; API Tokens</a>.</p>
+
+        <h3>Dengan Token</h3>
+        <div class="code-block"><code><span class="prompt">$</span> <span class="cmd">revklik login --token rvt_a1b2c3d4e5f6...</span>
+<span class="out">Token saved to ~/.config/revklik/config.json
+Logged in as john@example.com (starter plan)</span></code></div>
+
+        <h3>Interactive Login</h3>
+        <div class="code-block"><code><span class="prompt">$</span> <span class="cmd">revklik login</span>
+<span class="out">Enter your API token: ****
+Token saved. Logged in as john@example.com</span></code></div>
+
+        <div class="callout">
+          <strong>Tip:</strong> Buat account token (<code>rvt_</code>) dengan scope <code>sites:read</code> dan <code>analytics:read</code> untuk CLI. Jangan gunakan session token <code>kp_</code>.
+        </div>
+      </div>
+
+      <!-- WHOAMI -->
+      <div class="doc-section" id="whoami">
+        <h2>Whoami</h2>
+        <p>Tampilkan informasi tentang token yang sedang aktif.</p>
+
+        <div class="code-block"><code><span class="prompt">$</span> <span class="cmd">revklik whoami</span>
+<span class="out">User:    John Doe (john@example.com)
+Plan:    starter
+Token:   My CLI Token (account)
+Scopes:  sites:read, analytics:read, analytics:export
+Created: 2026-05-15</span></code></div>
+      </div>
+
+      <!-- SITES -->
+      <div class="doc-section" id="sites">
+        <h2>Sites</h2>
+
+        <h3>revklik sites list</h3>
+        <p>Tampilkan semua sites yang terdaftar di akun Anda.</p>
+
+        <div class="code-block"><code><span class="prompt">$</span> <span class="cmd">revklik sites list</span>
+<span class="out">  ID             Name              Domain
+  ────────────── ───────────────── ──────────────────
+  site_abc123    My Website        mysite.com
+  site_def456    Blog              blog.mysite.com</span></code></div>
+
+        <div class="code-block"><code><span class="prompt">$</span> <span class="cmd">revklik sites list --json</span>
+<span class="out">[{"id":"site_abc123","name":"My Website","domain":"mysite.com","created_at":"2026-01-15T00:00:00Z"}]</span></code></div>
+      </div>
+
+      <!-- ANALYTICS -->
+      <div class="doc-section" id="analytics">
+        <h2>Analytics</h2>
+
+        <h3>Overview</h3>
+        <div class="code-block"><code><span class="prompt">$</span> <span class="cmd">revklik analytics overview --site site_abc123 --range 7d</span>
+<span class="out">  Pageviews     12,483     Visitors     3,241
+  Sessions      4,812      Bounce Rate  34.2%
+  Avg Duration  4m 12s     Revenue      Rp 2,490,000
+  Conversions   87</span></code></div>
+
+        <h3>Timeseries</h3>
+        <div class="code-block"><code><span class="prompt">$</span> <span class="cmd">revklik analytics timeseries --site site_abc123 --range 7d</span>
+<span class="out">  Date        Pageviews  Visitors
+  ─────────── ────────── ─────────
+  2026-05-09  1,520      412
+  2026-05-10  1,689      467
+  2026-05-11  2,104      589
+  2026-05-12  1,823      501
+  2026-05-13  1,956      534
+  2026-05-14  2,341      623
+  2026-05-15  1,050      315</span></code></div>
+
+        <h3>Top Pages</h3>
+        <div class="code-block"><code><span class="prompt">$</span> <span class="cmd">revklik analytics pages --site site_abc123 --range 30d</span>
+<span class="out">  Path           Pageviews  Visitors
+  ────────────── ────────── ─────────
+  /              4,521      1,892
+  /pricing       2,104      987
+  /docs          1,823      756
+  /blog          1,456      634
+  /register      1,203      489</span></code></div>
+
+        <h3>Referrers</h3>
+        <div class="code-block"><code><span class="prompt">$</span> <span class="cmd">revklik analytics referrers --site site_abc123 --range 7d</span></code></div>
+
+        <h3>Geo</h3>
+        <div class="code-block"><code><span class="prompt">$</span> <span class="cmd">revklik analytics geo --site site_abc123 --range 7d</span>
+<span class="out">  Country        Region         City          Visitors
+  ────────────── ────────────── ───────────── ─────────
+  Indonesia      Jakarta        Jakarta       1,245
+  Indonesia      Jawa Barat     Bandung       412
+  Singapore      Central        Singapore     289
+  Malaysia       Kuala Lumpur   KL            156</span></code></div>
+
+        <h3>Export</h3>
+        <div class="code-block"><code><span class="prompt">$</span> <span class="cmd">revklik analytics export --site site_abc123 --range 30d --format csv --type events</span>
+<span class="out">Exported to analytics_events_2026-05-15.csv</span></code></div>
+
+        <h3>Events</h3>
+        <p>Query raw event log dengan filter type. Lihat setiap pageview, conversion, dan custom event yang tercatat.</p>
+
+        <div class="code-block"><code><span class="prompt">$</span> <span class="cmd">revklik analytics events --site site_abc123 --range 7d --limit 10</span>
+<span class="out">Events — 7d
+
+  Time              Type       Path              Visitor    Country    Revenue
+  ───────────────── ────────── ───────────────── ────────── ────────── ────────
+  2026-05-20 04:04  pageview   /                 643a004e   ID         -
+  2026-05-20 03:58  conversion /checkout         a1b2c3d4   ID         $24.00
+  2026-05-20 03:55  pageview   /pricing          643a004e   ID         -
+  2026-05-20 03:50  custom     /signup           e5f6a7b8   SG         -
+  2026-05-20 03:45  pageview   /                 c9d0e1f2   US         -
+
+  Total: 1482 events | Pageviews: 156 | Conversions: 12 | Custom: 89 | Revenue: $288.00</span></code></div>
+
+        <div class="code-block"><code><span class="cmt"># Filter by event type</span>
+<span class="prompt">$</span> <span class="cmd">revklik analytics events --site site_abc123 --type conversion --range 30d</span>
+
+<span class="cmt"># Output JSON for pipeline</span>
+<span class="prompt">$</span> <span class="cmd">revklik analytics events --site site_abc123 --json --limit 100</span></code></div>
+
+        <table>
+          <thead><tr><th>Flag</th><th>Description</th><th>Default</th></tr></thead>
+          <tbody>
+            <tr><td><code>--type</code></td><td>Filter: pageview, conversion, custom, all</td><td><code>all</code></td></tr>
+            <tr><td><code>--limit</code></td><td>Max events to show</td><td><code>50</code></td></tr>
+            <tr><td><code>--range</code></td><td>Date range (24h, 7d, 30d, 90d)</td><td><code>7d</code></td></tr>
+          </tbody>
+        </table>
+
+        <h3>Customer Journey Summaries</h3>
+        <p>Lihat ringkasan perjalanan pelanggan — siapa yang paling engaged, dari mana mereka datang, dan siapa yang worth untuk di-follow up. Sort berdasarkan steps, revenue, source, device, atau date.</p>
+
+        <div class="code-block"><code><span class="prompt">$</span> <span class="cmd">revklik analytics journeys --site site_abc123 --sort steps --limit 10</span>
+<span class="out">Customer Journeys — 7d
+
+  Visitor        Steps  Source          Device   Revenue  Date              Country
+  ────────────── ────── ─────────────── ──────── ──────── ───────────────── ────────
+  John Doe *     16     google          desktop  $24.00   2026-05-17 02:09  ID
+  7177428f-cac   10     direct          desktop  $0.00    2026-05-19 08:44  ID
+  8885accf-772   10     direct          desktop  $0.00    2026-05-17 12:26  ID
+  Jane Smith *   5      facebook        mobile   $12.50   2026-05-17 18:38  SE
+  2a6084bf-2af   2      facebook        desktop  $0.00    2026-05-19 08:46  US
+
+  Total: 10 journeys | Avg steps: 5.0 | Revenue: $36.50 | Converting: 2</span></code></div>
+
+        <div class="code-block"><code><span class="cmt"># Sort by revenue to find highest-value visitors</span>
+<span class="prompt">$</span> <span class="cmd">revklik analytics journeys --site site_abc123 --sort revenue --range 30d</span>
+
+<span class="cmt"># Output JSON for pipeline automation</span>
+<span class="prompt">$</span> <span class="cmd">revklik analytics journeys --site site_abc123 --json --limit 5</span></code></div>
+
+        <table class="cmd-table">
+          <tr><th>Flag</th><th>Deskripsi</th><th>Default</th></tr>
+          <tr><td><code>--sort</code></td><td>Sort by: steps, revenue, source, device, date</td><td><code>steps</code></td></tr>
+          <tr><td><code>--limit</code></td><td>Max journeys to show (max 100)</td><td><code>20</code></td></tr>
+          <tr><td><code>--range</code></td><td>Date range: 24h, 7d, 30d, 90d</td><td><code>7d</code></td></tr>
+        </table>
+
+        <h3>JSON Pipeline</h3>
+        <div class="callout blue">
+          <strong>Power user tip:</strong> Gunakan flag <code>--json</code> dan pipe ke <code>jq</code> untuk filtering, atau ke script untuk automasi.
+        </div>
+
+        <div class="code-block"><code><span class="cmt"># Get bounce rate only</span>
+<span class="prompt">$</span> <span class="cmd">revklik analytics overview --site site_abc123 --range 7d --json | jq .bounceRate</span>
+<span class="out">0.342</span>
+
+<span class="cmt"># Top 3 pages by visitors</span>
+<span class="prompt">$</span> <span class="cmd">revklik analytics pages --site site_abc123 --range 7d --json | jq 'sort_by(-.visitors) | .[0:3]'</span>
+
+<span class="cmt"># Export to file</span>
+<span class="prompt">$</span> <span class="cmd">revklik analytics overview --site site_abc123 --range 30d --json > overview.json</span></code></div>
+      </div>
+
+      <!-- TOKENS -->
+      <div class="doc-section" id="tokens">
+        <h2>Tokens</h2>
+
+        <h3>revklik tokens list</h3>
+        <div class="code-block"><code><span class="prompt">$</span> <span class="cmd">revklik tokens list</span>
+<span class="out">  ID            Prefix    Name             Type      Scopes                Last Used
+  ────────────── ───────── ───────────────── ───────── ────────────────────── ────────────
+  tok_abc123     rvt_a1b   My CLI Token     account   sites:read, analytics  2 hours ago
+  tok_def456     rv_x2y3   Site Tracker     site      analytics:read         Never</span></code></div>
+
+        <h3>revklik tokens create</h3>
+        <div class="code-block"><code><span class="prompt">$</span> <span class="cmd">revklik tokens create --name "CI Pipeline" --type account</span>
+<span class="out">  Token created!
+  ID:      tok_ghi789
+  Token:   rvt_f4g5h6i7j8k9...
+
+  ⚠ Save this token now — it won't be shown again.</span></code></div>
+
+        <h3>revklik tokens revoke</h3>
+        <div class="code-block"><code><span class="prompt">$</span> <span class="cmd">revklik tokens revoke tok_ghi789</span>
+<span class="out">Token tok_ghi789 revoked.</span></code></div>
+      </div>
+
+      <!-- GLOBAL FLAGS -->
+      <div class="doc-section" id="global-flags">
+        <h2>Global <em>Flags</em></h2>
+
+        <table class="cmd-table">
+          <tr><th>Flag</th><th>Deskripsi</th></tr>
+          <tr><td><code>--json</code></td><td>Output raw JSON (machine-readable). Cocok untuk pipe ke jq atau script.</td></tr>
+          <tr><td><code>--verbose</code></td><td>Tampilkan debug info: URL, headers, response time.</td></tr>
+          <tr><td><code>--help</code></td><td>Tampilkan help untuk command apapun.</td></tr>
+          <tr><td><code>--version</code></td><td>Tampilkan versi CLI.</td></tr>
+        </table>
+      </div>
+
+      <!-- ENV VARS -->
+      <div class="doc-section" id="env-vars">
+        <h2>Environment <em>Variables</em></h2>
+
+        <table class="cmd-table">
+          <tr><th>Variable</th><th>Deskripsi</th><th>Default</th></tr>
+          <tr><td><code>REVKLIK_TOKEN</code></td><td>API token (skip login). Berguna untuk CI/CD.</td><td>—</td></tr>
+          <tr><td><code>REVKLIK_API_BASE</code></td><td>Custom API base URL. Untuk self-hosted.</td><td><code>https://app.revklik.com/api</code></td></tr>
+        </table>
+
+        <h3>CI/CD Example</h3>
+        <div class="code-block"><code><span class="cmt"># GitHub Actions</span>
+<span class="kw">env:</span>
+  <span class="hl">REVKLIK_TOKEN</span>: <span class="str">${{ secrets.REVKLIK_API_TOKEN }}</span>
+
+<span class="kw">steps:</span>
+  - <span class="kw">run:</span> <span class="cmd">npx @revklik/cli analytics overview --site $SITE_ID --range 24h --json</span></code></div>
+      </div>
+
+      <!-- CONFIG -->
+      <div class="doc-section" id="config">
+        <h2>Config <em>File</em></h2>
+        <p>CLI menyimpan konfigurasi di <code>~/.config/revklik/config.json</code>.</p>
+
+        <div class="code-block"><code>{
+  <span class="hl">"token"</span>: <span class="str">"rvt_a1b2c3d4e5f6..."</span>,
+  <span class="hl">"apiBase"</span>: <span class="str">"https://app.revklik.com/api"</span>
+}</code></div>
+
+        <p>Untuk mengganti token, jalankan <code>revklik login</code> lagi. Token lama akan ditimpa.</p>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<footer>
+  <div class="container">
+    <div class="footer-left">
+      <span><img src="../revklik.webp" alt="" width="20" height="20">Rev<em>Klik</em></span>
+      <span class="footer-copy">&copy; 2026 Joyo Digitama</span>
+    </div>
+    <div class="footer-links">
+      <a href="../index.html">Beranda</a>
+      <a href="../docs.html">Dokumentasi</a>
+      <a href="api.html">API Reference</a>
+      <a href="../privacy.html">Privasi</a>
+      <a href="../terms.html">Ketentuan</a>
+    </div>
+  </div>
+</footer>
+
+<script>
+function toggleMenu(){document.querySelector('.nav-links').classList.toggle('open')}
+const obs=new IntersectionObserver(es=>es.forEach(e=>{if(e.isIntersecting){e.target.classList.add('vis');obs.unobserve(e.target)}}),{threshold:.15});
+document.querySelectorAll('.fade-up').forEach(el=>obs.observe(el));
+window.addEventListener('scroll',()=>{document.getElementById('nav').classList.toggle('scrolled',window.scrollY>40)});
+
+const tocLinks=document.querySelectorAll('.toc a');
+const sections=document.querySelectorAll('.doc-section[id]');
+window.addEventListener('scroll',()=>{
+  let current='';
+  sections.forEach(s=>{if(window.scrollY>=s.offsetTop-120)current=s.id});
+  tocLinks.forEach(a=>{a.classList.toggle('active',a.getAttribute('href')==='#'+current)});
+});
+</script>
+</body>
+</html>

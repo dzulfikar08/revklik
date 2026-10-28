@@ -1,0 +1,42 @@
+---
+import { C } from '../data/copy';
+import { TRACKER_URL } from '../data/site';
+const snippet = `<script defer data-site-id="your-site-id" src="${TRACKER_URL}"></scr` + `ipt>`;
+const steps = [
+  { title: C.step1_title, desc: C.step1_desc, tag: '2 menit' },
+  { title: C.step2_title, desc: C.step2_desc, tag: '~4KB gzip' },
+  { title: C.step3_title, desc: C.step3_desc, tag: C.step3_tag },
+];
+---
+<section class="how" id="cara-pasang" data-section="how-it-works">
+  <div class="container">
+    <div class="how-head">
+      <div class="fade-up">
+        <div class="section-eyebrow">{C.how_eyebrow}</div>
+        <h2><Fragment set:html={C.how_title} /></h2>
+      </div>
+      <p class="fade-up d1">{C.how_desc}</p>
+    </div>
+    <div class="steps-grid">
+      {steps.map((s, i) => (
+        <div class={`step-card fade-up d${i + 1}`}>
+          <h4>{s.title}</h4>
+          <p>{s.desc}</p>
+          <span class="step-tag">{s.tag}</span>
+        </div>
+      ))}
+    </div>
+    <div class="snippet-wrap fade-up d2">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:10px">
+        <span style="font-family:var(--mono);font-size:11px;color:var(--text3)">Pasang sebelum &lt;/head&gt;</span>
+      </div>
+      <div class="snippet-box">
+        <code>&lt;script defer data-site-id="<span style="color:var(--text3)">your-site-id</span>" src="{TRACKER_URL}"&gt;&lt;/script&gt;</code>
+        <button data-copy-snippet={snippet} data-copied={C.code_copied}>{C.code_copy}</button>
+      </div>
+      <div style="margin-top:14px;">
+        <a href="https://docs.revklik.com" style="font-family:var(--mono);font-size:12px;color:var(--accent);text-decoration:none;letter-spacing:.04em;">{C.code_docs}</a>
+      </div>
+    </div>
+  </div>
+</section>

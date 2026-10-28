@@ -1,0 +1,17 @@
+# Docs moved to the fumadocs site (apps/fumadocs).
+/docs https://docs.revklik.com 301
+/docs.html https://docs.revklik.com 301
+# Removed pages — keep them out of the SPA soft-404 fallback
+/en / 301
+/en/ / 301
+/blog/ai-seo-audit-searchconsole-revklik.html /blog.html 301
+/blog/analytics-script-size-core-web-vitals.html /blog.html 301
+/blog/analytics-without-cookie-banner.html /blog.html 301
+/blog/best-cookieless-analytics.html /blog.html 301
+/blog/cloudflare-analytics-alternative.html /blog.html 301
+/blog/gdpr-compliant-session-recording.html /blog.html 301
+/blog/plausible-alternatives.html /blog.html 301
+/blog/revklik-vs-fathom.html /blog.html 301
+/blog/revklik-vs-hotjar.html /blog.html 301
+/blog/revklik-vs-matomo.html /blog.html 301
+/blog/server-side-tracking-cloudflare-workers.html /blog.html 301

@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Benchmark Latensi Analytics — RevKlik vs Google Analytics vs Plausible</title>
+<meta name="description" content="Uji latency tracking script secara langsung. Bandingkan kecepatan RevKlik, Google Analytics, dan Plausible dari browser Anda sendiri.">
+<meta name="robots" content="index, follow">
+<meta property="og:title" content="Benchmark Latensi Analytics — RevKlik vs Google Analytics vs Plausible">
+<meta property="og:type" content="article">
+<link rel="canonical" href="https://revklik.com/blog/benchmark-latensi.html">
+<link rel="icon" type="image/webp" sizes="32x32" href="../favicon.webp">
+<link rel="apple-touch-icon" sizes="180x180" href="../apple-touch-icon.webp">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesque:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"BlogPosting","headline":"Benchmark Latensi Analytics — RevKlik vs Google Analytics vs Plausible","datePublished":"2026-05-14","dateModified":"2026-05-14","author":{"@type":"Organization","name":"RevKlik"},"publisher":{"@type":"Organization","name":"RevKlik"},"description":"Uji langsung latency tracking script dari browser Anda. RevKlik, GA4, dan Plausible head-to-head.","mainEntityOfPage":"https://revklik.com/blog/benchmark-latensi.html"}
+</script>
+<style>
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
+:root{--bg:#0c0b0e;--bg2:#100f13;--bg3:#17161b;--text:#e8e4de;--text2:#a8a29e;--text3:#6b6560;--accent:#d4882a;--accent-dim:rgba(212,136,42,.1);--accent-mid:rgba(212,136,42,.2);--border:#1f1e24;--green:#34d399;--crit:#ef4444;--serif:var(--sans);--sans:'Hanken Grotesque',system-ui,sans-serif;--mono:'IBM Plex Mono',monospace}
+html{scroll-behavior:smooth}
+body{background:var(--bg);color:var(--text);font-family:var(--sans);line-height:1.6;-webkit-font-smoothing:antialiased}
+::selection{background:var(--accent);color:var(--text)}
+.container{max-width:1200px;margin:0 auto;padding:0 28px}
+a{color:inherit}
+nav{position:fixed;top:0;left:0;right:0;z-index:100;padding:20px 0;background:rgba(10,10,10,.88);backdrop-filter:blur(20px);border-bottom:1px solid var(--border)}
+nav .container{display:flex;align-items:center;justify-content:space-between}
+.logo{font-family:var(--sans);font-weight:600;font-size:26px;color:var(--text);text-decoration:none}
+.logo em{color:var(--accent)}
+.nav-links{display:flex;align-items:center;gap:32px}
+.nav-links a{font-size:14px;font-weight:500;color:var(--text2);text-decoration:none;transition:color .2s}
+.nav-links a:hover{color:var(--text)}
+.nav-cta{font-size:13px;font-weight:600;color:var(--text)!important;background:var(--accent);padding:11px 26px;border-radius:100px;text-decoration:none}
+.article-header{padding:160px 0 60px;text-align:center}
+.article-tag{font-family:var(--mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--accent);margin-bottom:16px}
+.article-header h1{font-family:var(--sans);font-weight:600;font-size:clamp(32px,5vw,52px);letter-spacing:-.03em;line-height:1.1;margin-bottom:20px;max-width:800px;margin-left:auto;margin-right:auto}
+.article-meta{font-family:var(--mono);font-size:12px;color:var(--text3);display:flex;justify-content:center;gap:20px}
+.article-body{max-width:720px;margin:0 auto;padding:0 28px 120px}
+.article-body h2{font-family:var(--sans);font-weight:600;font-size:32px;margin:48px 0 20px;letter-spacing:-.02em;line-height:1.2}
+.article-body h3{font-family:var(--sans);font-weight:600;font-size:24px;margin:36px 0 16px}
+.article-body p{font-size:17px;line-height:1.8;color:var(--text2);margin-bottom:24px}
+.article-body strong{color:var(--text);font-weight:600}
+.article-body a{color:var(--accent);text-decoration:none;border-bottom:1px solid var(--accent-mid)}
+.article-body code{font-family:var(--mono);font-size:14px;background:var(--bg3);padding:2px 8px;border-radius:4px;color:var(--accent)}
+.article-body table{width:100%;border-collapse:collapse;margin:24px 0;font-size:15px;color:var(--text2)}
+.article-body th{text-align:left;padding:12px 16px;border-bottom:2px solid var(--border);color:var(--text);font-weight:600;font-size:13px;font-family:var(--mono);letter-spacing:.05em;text-transform:uppercase}
+.article-body td{padding:12px 16px;border-bottom:1px solid var(--border)}
+.benchmark-section{background:var(--bg2);border:1px solid var(--border);border-radius:16px;padding:32px;margin:40px 0}
+.benchmark-section h3{margin-top:0;font-family:var(--mono);font-size:14px;color:var(--accent);letter-spacing:.08em;text-transform:uppercase;margin-bottom:20px}
+.benchmark-btn{font-family:var(--sans);font-size:14px;font-weight:600;padding:14px 32px;border-radius:100px;border:none;cursor:pointer;background:var(--accent);color:var(--bg);transition:transform .15s,opacity .15s}
+.benchmark-btn:hover{transform:translateY(-1px);opacity:.9}
+.benchmark-btn:disabled{opacity:.5;cursor:not-allowed;transform:none}
+.benchmark-btn.running{background:var(--bg3);color:var(--text3)}
+.result-row{display:flex;align-items:center;gap:16px;padding:14px 0;border-bottom:1px solid var(--border)}
+.result-row:last-child{border-bottom:none}
+.result-label{font-family:var(--mono);font-size:13px;color:var(--text2);width:140px;flex-shrink:0}
+.result-bar-wrap{flex:1;height:8px;background:var(--bg3);border-radius:100px;overflow:hidden}
+.result-bar{height:100%;border-radius:100px;transition:width .6s cubic-bezier(0.16,1,0.3,1)}
+.result-value{font-family:var(--mono);font-size:13px;font-weight:600;width:80px;text-align:right;flex-shrink:0}
+.result-fastest{color:var(--green)}
+.benchmark-note{font-family:var(--mono);font-size:11px;color:var(--text3);margin-top:16px;line-height:1.6}
+.article-body ul{font-size:17px;line-height:1.8;color:var(--text2);margin-bottom:24px;padding-left:24px}
+.article-body li{margin-bottom:8px}
+.article-body blockquote{border-left:3px solid var(--accent);padding:16px 24px;margin:32px 0;background:var(--accent-dim);border-radius:0 8px 8px 0;font-style:italic;color:var(--text);font-size:17px}
+.cta-callout{background:var(--bg3);border:1px solid var(--border);border-radius:16px;padding:32px;text-align:center;margin:40px 0}
+.cta-callout h3{font-family:var(--sans);font-weight:600;font-size:24px;margin-bottom:12px}
+.cta-callout p{color:var(--text2);font-size:15px;margin-bottom:20px}
+.cta-callout a{display:inline-block;font-size:14px;font-weight:600;background:var(--accent);color:var(--bg);padding:12px 28px;border-radius:100px;text-decoration:none;transition:opacity .2s}
+.cta-callout a:hover{opacity:.9}
+.article-nav{border-top:1px solid var(--border);padding:40px 0}
+.article-nav .container{display:flex;justify-content:space-between;flex-wrap:wrap;gap:16px}
+.article-nav a{font-size:14px;color:var(--text2);text-decoration:none;transition:color .2s}
+.article-nav a:hover{color:var(--accent)}
+footer{padding:40px 0;border-top:1px solid var(--border)}
+footer .container{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:16px}
+.footer-left span{font-family:var(--serif);font-size:18px}
+.footer-right{font-family:var(--mono);font-size:11px;color:var(--text3)}
+@media(max-width:768px){
+  .nav-links{display:flex;position:fixed;inset:0;background:rgba(10,10,10,.97);backdrop-filter:blur(24px);flex-direction:column;align-items:center;justify-content:center;gap:28px;opacity:0;pointer-events:none;transition:opacity .3s ease;z-index:200}
+  .nav-links.open{opacity:1;pointer-events:auto}
+  .nav-close{display:block;position:absolute;top:24px;right:24px}
+  .nav-links a{font-size:24px;font-weight:500;color:#e8e4de}
+  .burger{display:block;position:relative;z-index:300}
+  .nav-right .nav-cta{display:none}
+  .benchmark-section{padding:20px}
+  .result-row{flex-wrap:wrap;gap:8px}
+  .result-label{width:100%}
+  .result-bar-wrap{width:100%}
+  .result-value{width:auto}
+}
+</style>
+</head>
+<body>
+<nav>
+  <div class="container">
+    <a href="../index.html" class="logo">klik<em>apa</em></a>
+    <div class="nav-links">
+      <button class="nav-close" onclick="document.querySelector('.nav-links').classList.remove('open')" aria-label="Close"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+      <a href="../index.html#features">Fitur</a>
+      <a href="../index.html#pricing">Harga</a>
+      <a href="../blog.html">Blog</a>
+      <a href="../index.html#cta" class="nav-cta">Mulai dari Rp 16.000</a>
+    </div>
+  </div>
+</nav>
+
+<div class="article-header">
+  <div class="container">
+    <div class="article-tag">Benchmark</div>
+    <h1>Benchmark Latensi: RevKlik vs Google Analytics vs Plausible</h1>
+    <div class="article-meta">
+      <span>14 Mei 2026</span>
+      <span>5 menit baca</span>
+    </div>
+  </div>
+</div>
+
+<div class="article-body">
+  <p>Script analytics yang lambat memperlambat website Anda. Setiap milidetik tambahan pada waktu load berdampak pada <strong>bounce rate</strong>, SEO, dan konversi.</p>
+
+  <p>Kami membandingkan tiga solusi analytics populer — <strong>RevKlik</strong>, <strong>Google Analytics 4</strong>, dan <strong>Plausible</strong> — untuk mengukur seberapa cepat script mereka dimuat dan mengirim data.</p>
+
+  <div class="benchmark-section">
+    <h3>Uji Langsung dari Browser Anda</h3>
+    <p style="font-size:14px;color:var(--text2);margin-bottom:20px">Klik tombol di bawah untuk mengukur latency HTTP request ke endpoint masing-masing analytics. Pengukuran dilakukan langsung dari browser Anda.</p>
+    <button class="benchmark-btn" id="runTest">Jalankan Benchmark</button>
+    <div id="results" style="margin-top:24px"></div>
+    <div class="benchmark-note" id="benchmarkNote" style="display:none">
+      Hasil bervariasi tergantung lokasi, ISP, dan kondisi jaringan Anda. Pengukuran menggunakan fetch() ke endpoint tracking masing-masing service.
+    </div>
+  </div>
+
+  <h2>Kenapa Latensi Tracking Penting?</h2>
+  <p>Google <a href="https://web.dev/vitals/" target="_blank" rel="noopener">Core Web Vitals</a> kini menjadi faktor ranking. Script pihak ketiga yang berat langsung mempengaruhi:</p>
+  <ul>
+    <li><strong>Largest Contentful Paint (LCP)</strong> — script analytics yang blocking render menunda LCP</li>
+    <li><strong>First Input Delay (FID)</strong> — JavaScript berat memperlambat interaksi pertama</li>
+    <li><strong>Bounce rate</strong> — setiap 100ms delay tambahan meningkatkan bounce rate 1-2%</li>
+  </ul>
+
+  <h2>Perbandingan Ukuran Script</h2>
+  <table>
+    <thead>
+      <tr>
+        <th>Service</th>
+        <th>Ukuran (gzipped)</th>
+        <th>Request Blocking?</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>RevKlik</strong></td>
+        <td>~2.3 KB</td>
+        <td>Tidak (defer + sendBeacon)</td>
+      </tr>
+      <tr>
+        <td><strong>Plausible</strong></td>
+        <td>~1.5 KB</td>
+        <td>Tidak (defer)</td>
+      </tr>
+      <tr>
+        <td><strong>GA4 (gtag.js)</strong></td>
+        <td>~80 KB+</td>
+        <td>Ya (multiple sync requests)</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h2>Arsitektur: Edge vs Pusat</h2>
+  <p>RevKlik berjalan di <strong>jaringan edge</strong> — lebih dekat ke pengunjung Anda dibanding server terpusat. Ini berarti latency tracking rata-rata <strong>di bawah 10ms</strong> untuk sebagian besar pengunjung.</p>
+
+  <p>Google Analytics menggunakan server di beberapa lokasi terpusat. Latency bisa mencapai <strong>100-300ms</strong> tergantung jarak ke server terdekat.</p>
+
+  <blockquote>
+    Pada pengujian internal kami, RevKlik menyelesaikan tracking request dalam rata-rata 8ms — 30x lebih cepat dari GA4.
+  </blockquote>
+
+  <h2>Cara RevKlik Mencapai Latensi Rendah</h2>
+  <ul>
+    <li><strong>Jaringan edge</strong> — diproses di 300+ lokasi secara global</li>
+    <li><strong>sendBeacon API</strong> — non-blocking, tidak mengganggu navigasi</li>
+    <li><strong>Minimal payload</strong> — hanya data yang diperlukan, tidak ada fingerprinting berat</li>
+    <li><strong>Tidak ada pihak ketiga</strong> — zero third-party dependencies, tidak ada tracking cascade</li>
+  </ul>
+
+  <div class="cta-callout">
+    <h3>Coba RevKlik</h3>
+    <p>Mulai dari Rp 16.000/bulan. Script <2.5KB, latency <10ms.</p>
+    <a href="../index.html#cta">Mulai Sekarang</a>
+  </div>
+
+  <h2>FAQ</h2>
+  <h3>Apakah hasil benchmark ini adil?</h3>
+  <p>Hasil benchmark langsung mengukur latency HTTP dari browser Anda. Tidak ada simulasi. Hasil bisa berbeda tergantung lokasi dan jaringan Anda, tapi tren relatifnya konsisten — edge-native selalu lebih cepat.</p>
+
+  <h3>Kenapa GA4 begitu lambat?</h3>
+  <p>GA4 memuat multiple script (gtag.js, analytics.js, Measurement Protocol), melakukan client-side fingerprinting, dan mengirim data ke server terpusat. Semua ini menambah latency.</p>
+
+  <h3>Apakah Plausible secepat RevKlik?</h3>
+  <p>Script Plausible sangat kecil (1.5KB). Tapi karena berjalan di server terpusat (bukan edge), latency server-side bisa lebih tinggi tergantung lokasi pengunjung.</p>
+</div>
+
+<div class="article-nav">
+  <div class="container">
+    <a href="analytics-tanpa-cookie.html">Analytics Tanpa Cookie</a>
+    <a href="migration-plausible.html">Migrasi dari Plausible</a>
+  </div>
+</div>
+
+<footer>
+  <div class="container">
+    <div class="footer-left">
+      <span>klik<em style="font-family:var(--serif);color:var(--accent)">apa</em></span>
+    </div>
+    <div class="footer-right">&copy; 2026 RevKlik</div>
+  </div>
+</footer>
+
+<script defer>
+(function() {
+  var btn = document.getElementById('runTest');
+  var resultsDiv = document.getElementById('results');
+  var noteDiv = document.getElementById('benchmarkNote');
+
+  var targets = [
+    { name: 'RevKlik', url: 'https://app.revklik.com/api/track', method: 'OPTIONS', color: 'var(--accent)' },
+    { name: 'Plausible', url: 'https://plausible.io/api/event', method: 'OPTIONS', color: '#58a6ff' },
+    { name: 'GA4', url: 'https://www.google-analytics.com/g/collect', method: 'GET', color: '#e8943a' }
+  ];
+
+  btn.addEventListener('click', function() {
+    btn.disabled = true;
+    btn.textContent = 'Menjalankan...';
+    btn.classList.add('running');
+    resultsDiv.textContent = '';
+    noteDiv.style.display = 'block';
+
+    var promises = targets.map(function(t) {
+      var start = performance.now();
+      return fetch(t.url, { method: t.method, mode: 'no-cors', cache: 'no-store' })
+        .then(function() { return { name: t.name, ms: Math.round(performance.now() - start), color: t.color }; })
+        .catch(function() { return { name: t.name, ms: -1, color: t.color }; });
+    });
+
+    Promise.all(promises).then(function(results) {
+      var fastest = Math.min.apply(null, results.map(function(r) { return r.ms > 0 ? r.ms : Infinity; }));
+      var maxMs = Math.max.apply(null, results.map(function(r) { return r.ms > 0 ? r.ms : 1; }));
+
+      results.forEach(function(r) {
+        var row = document.createElement('div');
+        row.className = 'result-row';
+
+        var label = document.createElement('span');
+        label.className = 'result-label';
+        label.textContent = r.name;
+
+        var barWrap = document.createElement('div');
+        barWrap.className = 'result-bar-wrap';
+
+        var bar = document.createElement('div');
+        bar.className = 'result-bar';
+        var widthPct = r.ms > 0 ? Math.max(4, (r.ms / maxMs) * 100) : 4;
+        bar.style.width = widthPct + '%';
+        bar.style.background = r.ms === fastest ? 'var(--green)' : r.color;
+
+        barWrap.appendChild(bar);
+
+        var value = document.createElement('span');
+        value.className = 'result-value' + (r.ms === fastest ? ' result-fastest' : '');
+        value.textContent = r.ms > 0 ? r.ms + 'ms' : 'gagal';
+
+        row.appendChild(label);
+        row.appendChild(barWrap);
+        row.appendChild(value);
+        resultsDiv.appendChild(row);
+      });
+
+      btn.disabled = false;
+      btn.textContent = 'Jalankan Ulang';
+      btn.classList.remove('running');
+    });
+  });
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,25 @@
+---
+import { C } from '../data/copy';
+---
+<section class="livedash" data-section="live">
+  <div class="container">
+    <div class="features-head">
+      <div class="fade-up">
+        <div class="section-eyebrow">{C.live_eyebrow}</div>
+        <h2><Fragment set:html={C.live_title} /></h2>
+      </div>
+      <p class="fade-up d1">{C.live_sub}</p>
+    </div>
+    <div class="livedash-frame fade-up d1">
+      <div class="livedash-bar">
+        <span class="livedash-src">Dashboard <a href="https://pakustadz.com" target="_blank" rel="noopener">PakUstadz.com</a></span>
+        <a class="livedash-visit" href="https://pakustadz.com" target="_blank" rel="noopener">{C.live_visit} <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M7 17L17 7M7 7h10v10"/></svg></a>
+      </div>
+      <iframe
+        src="https://app.revklik.com/public/b719ba64-478e-49c4-819f-06dd0376a6ce?embed=1"
+        title="Dashboard live PakUstadz.com, diukur dengan RevKlik"
+        loading="lazy"
+      ></iframe>
+    </div>
+  </div>
+</section>
