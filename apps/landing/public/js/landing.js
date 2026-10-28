@@ -20,7 +20,7 @@
     if (!api || !api.getVisitorId) return;
     var url;
     try { url = new URL(a.href, location.href); } catch { return; }
-    if (url.hostname !== APP_HOST || !/^\/(register|login)\/?$/.test(url.pathname)) return;
+    if (url.hostname !== APP_HOST || !/^\/(register|login)?\/?$/.test(url.pathname)) return;
     url.searchParams.set('rk_vid', api.getVisitorId());
     url.searchParams.set('rk_sid', api.getSessionId());
     a.href = url.toString();

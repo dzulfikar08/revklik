@@ -6,12 +6,27 @@ import { MESSAGES } from "./i18n-messages";
 afterEach(() => {
 	localStorage.clear();
 	vi.unstubAllGlobals();
+	window.history.replaceState(null, "", "/");
 });
 
 describe("detectLocale", () => {
 	it("prefers the stored toggle choice", () => {
 		localStorage.setItem("kp_locale", "id");
 		expect(detectLocale()).toBe("id");
+	});
+
+	it("takes ?lang over the stored choice and remembers it", () => {
+		localStorage.setItem("kp_locale", "id");
+		window.history.replaceState(null, "", "/register?lang=en");
+		expect(detectLocale()).toBe("en");
+		expect(localStorage.getItem("kp_locale")).toBe("en");
+	});
+
+	it("follows ?lang in the demo embed without overwriting the visitor's choice", () => {
+		localStorage.setItem("kp_locale", "id");
+		window.history.replaceState(null, "", "/demo?embed=1&lang=en");
+		expect(detectLocale()).toBe("en");
+		expect(localStorage.getItem("kp_locale")).toBe("id");
 	});
 
 	it("falls back to an Indonesian browser language", () => {

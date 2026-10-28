@@ -14,9 +14,9 @@ const { c } = Astro.props;
         <span class="frame-badge">{c.live_badge}</span>
       </div>
       <div class="frame-body">
-        <p class="frame-status" data-frame-status>{c.live_loading} <a href={DEMO_URL} target="_blank" rel="noopener">{c.live_open}</a></p>
+        <p class="frame-status" data-frame-status>{c.live_loading} <a href={`${DEMO_URL}?lang=${c.lang}`} target="_blank" rel="noopener">{c.live_open}</a></p>
         <iframe
-          src={`${DEMO_URL}?embed=1`}
+          src={`${DEMO_URL}?embed=1&lang=${c.lang}`}
           title={c.live_iframe_title}
           loading="lazy"
         ></iframe>

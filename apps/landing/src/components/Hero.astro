@@ -1,6 +1,6 @@
 ---
 import type { Copy } from '../data/copy';
-import { REGISTER_URL } from '../data/site';
+import { appLink, REGISTER_URL } from '../data/site';
 interface Props {
 	c: Copy;
 }
@@ -13,7 +13,7 @@ const [plain, money] = c.hero_title;
       <h1>{plain}<span class="hl">{money}</span></h1>
       <p class="lede">{c.hero_sub}</p>
       <div class="hero-actions">
-        <a href={REGISTER_URL} class="btn btn-primary" data-cta data-revklik-goal="register_click" data-revklik-goal-location="hero">{c.hero_cta1}</a>
+        <a href={appLink(REGISTER_URL, c.lang)} class="btn btn-primary" data-cta data-revklik-goal="register_click" data-revklik-goal-location="hero">{c.hero_cta1}</a>
         <a href="#pricing" class="btn btn-ghost" data-cta data-revklik-goal="pricing_click" data-revklik-goal-location="hero">{c.hero_cta2}</a>
       </div>
       <p class="fine">{c.hero_note}</p>

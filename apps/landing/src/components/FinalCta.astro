@@ -1,6 +1,6 @@
 ---
 import type { Copy } from '../data/copy';
-import { REGISTER_URL } from '../data/site';
+import { appLink, REGISTER_URL } from '../data/site';
 interface Props {
 	c: Copy;
 }
@@ -13,7 +13,7 @@ const { c } = Astro.props;
         <h2>{c.cta_title}</h2>
         <p>{c.cta_desc}</p>
       </div>
-      <a href={REGISTER_URL} class="btn btn-primary" data-cta data-revklik-goal="register_click" data-revklik-goal-location="footer_cta">{c.cta_btn}</a>
+      <a href={appLink(REGISTER_URL, c.lang)} class="btn btn-primary" data-cta data-revklik-goal="register_click" data-revklik-goal-location="footer_cta">{c.cta_btn}</a>
     </div>
   </div>
 </section>

@@ -1,6 +1,6 @@
 ---
 import type { Copy, Locale } from '../data/copy';
-import { LOGIN_URL, REGISTER_URL } from '../data/site';
+import { appLink, LOGIN_URL, REGISTER_URL } from '../data/site';
 import BrandMark from './BrandMark.astro';
 
 interface Props {
@@ -36,10 +36,10 @@ const options = [
           >{o.label}</a>
         ))}
       </div>
-      <a href={REGISTER_URL} class="btn btn-primary menu-cta" data-cta data-revklik-goal="register_click" data-revklik-goal-location="nav_menu">{c.nav_cta}</a>
+      <a href={appLink(REGISTER_URL, c.lang)} class="btn btn-primary menu-cta" data-cta data-revklik-goal="register_click" data-revklik-goal-location="nav_menu">{c.nav_cta}</a>
     </div>
-    <a href={LOGIN_URL} class="nav-link nav-login">{c.nav_login}</a>
-    <a href={REGISTER_URL} class="btn btn-primary btn-sm nav-cta" data-cta data-revklik-goal="register_click" data-revklik-goal-location="nav">{c.nav_cta}</a>
+    <a href={appLink(LOGIN_URL, c.lang)} class="nav-link nav-login">{c.nav_login}</a>
+    <a href={appLink(REGISTER_URL, c.lang)} class="btn btn-primary btn-sm nav-cta" data-cta data-revklik-goal="register_click" data-revklik-goal-location="nav">{c.nav_cta}</a>
     <button type="button" class="menu-btn" aria-expanded="false" aria-controls="site-menu">{c.nav_menu}</button>
   </nav>
 </header>

@@ -13,10 +13,24 @@ export type { MessageKey };
 
 const STORAGE_KEY = "kp_locale";
 
+const isLocale = (value: unknown): value is Locale => value === "en" || value === "id";
+
+/**
+ * `?lang=` (links from revklik.com) wins and is remembered, except inside the
+ * landing's demo embed, which must not change the visitor's own app language.
+ */
 export const detectLocale = (): Locale => {
 	try {
+		const params = new URLSearchParams(window.location.search);
+		const fromUrl = params.get("lang");
+		if (isLocale(fromUrl)) {
+			if (params.get("embed") !== "1") {
+				localStorage.setItem(STORAGE_KEY, fromUrl);
+			}
+			return fromUrl;
+		}
 		const stored = localStorage.getItem(STORAGE_KEY);
-		if (stored === "en" || stored === "id") {
+		if (isLocale(stored)) {
 			return stored;
 		}
 	} catch {

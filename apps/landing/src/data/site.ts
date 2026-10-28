@@ -8,6 +8,13 @@ export const LOGIN_URL = 'https://app.revklik.com';
 export const REGISTER_URL = 'https://app.revklik.com/register';
 export const SUPPORT_EMAIL = 'support@revklik.com';
 
+/** App links carry the page language so sign-up continues in it (app reads `?lang=`). */
+export function appLink(url: string, lang: string): string {
+	const u = new URL(url);
+	u.searchParams.set('lang', lang);
+	return u.toString();
+}
+
 export type Plan = {
 	id: 'micro' | 'starter' | 'growth';
 	name: string;

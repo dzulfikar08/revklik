@@ -1,6 +1,6 @@
 ---
 import type { Copy } from '../data/copy';
-import { getPlans, registerUrl, SUPPORT_EMAIL } from '../data/site';
+import { appLink, getPlans, registerUrl, SUPPORT_EMAIL } from '../data/site';
 interface Props {
 	c: Copy;
 }
@@ -25,7 +25,7 @@ const plans = getPlans(c);
           <ul class="plan-feats">
             {plan.features.map((f) => <li>{f}</li>)}
           </ul>
-          <a href={registerUrl(plan)} class={`btn plan-cta ${plan.highlight ? 'btn-primary' : 'btn-ghost'}`} data-cta data-revklik-goal="register_click" data-revklik-goal-plan={plan.name}>{c.plan_cta}</a>
+          <a href={appLink(registerUrl(plan), c.lang)} class={`btn plan-cta ${plan.highlight ? 'btn-primary' : 'btn-ghost'}`} data-cta data-revklik-goal="register_click" data-revklik-goal-plan={plan.name}>{c.plan_cta}</a>
         </article>
       ))}
     </div>
