@@ -1,7 +1,7 @@
 # Contributing to RevKlik
 
 Thanks for helping. RevKlik is licensed under [AGPL-3.0-only](LICENSE); by contributing you agree
-that your contribution is released under the same license.
+that your contribution is released under the same license, and you must also sign the [CLA](CLA.md) (below).
 
 ## Before you start
 
@@ -58,3 +58,16 @@ bun run fmt                       # oxfmt (tabs, double quotes)
 - Commit messages follow the existing history (`feat(scope): ...`, `fix(scope): ...`,
   `chore(scope): ...`).
 - Update the README or docs when behavior or configuration changes.
+
+## Contributor License Agreement
+
+RevKlik is AGPL-3.0, and the owner (JoyoDigitama) also distributes it under other terms, including through
+Apple's App Store, whose terms are not compatible with the AGPL unless the owner holds the rights to every line.
+So every contributor must sign the [CLA](CLA.md) before a pull request can be merged.
+
+You keep the copyright in your contribution; the CLA gives JoyoDigitama a perpetual, irrevocable license to
+distribute it under any terms. To sign, comment on your pull request:
+
+> I have read the CLA Document and I hereby sign the CLA
+
+A bot records your signature once; it covers all your later contributions. Questions: security@revklik.com.
