@@ -1,4 +1,4 @@
-import { describe, expect, it } from "bun:test";
+import { afterAll, beforeAll, describe, expect, it, setSystemTime } from "bun:test";
 import { Database } from "bun:sqlite";
 import { createApp } from "../app";
 import { makeD1 } from "../lib/test-harness";
@@ -46,6 +46,10 @@ function seedEvents(db: Database): void {
 }
 
 describe("GET /api/public/:token/live", () => {
+	// Midday at the site's +7h offset: "3 hours ago" must still be the site's today.
+	beforeAll(() => setSystemTime(new Date("2026-10-28T05:00:00.000Z")));
+	afterAll(() => setSystemTime());
+
 	it("serves live stats for an enabled public dashboard and 404s otherwise", async () => {
 		const db = new Database(":memory:");
 		createPublicTables(db);
