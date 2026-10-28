@@ -3,13 +3,19 @@
  * Seed visitors and sessions from existing events data.
  * Run after seed.ts (which seeds events).
  */
-const SITE_ID = "92f66934-e8d8-40ca-8058-3f8b4d899697";
+const SITE_ID = process.env.SITE_ID ?? "";
+if (!SITE_ID) {
+	console.error("Set SITE_ID to the site UUID to seed: SITE_ID=<uuid> bun scripts/seed-vs.ts");
+	process.exit(1);
+}
+// D1 database name from wrangler.jsonc (hosted default; override for your own database).
+const DB_NAME = process.env.D1_DATABASE ?? "klikapa-db";
 const remote = process.argv.includes("--remote");
 const flag = remote ? "--remote" : "--local";
 
 async function d1query(sql: string): Promise<Array<Record<string, unknown>>> {
 	const p = Bun.spawnSync({
-		cmd: ["npx", "wrangler", "d1", "execute", "klikapa-db", flag, "--command", sql, "--json"],
+		cmd: ["npx", "wrangler", "d1", "execute", DB_NAME, flag, "--command", sql, "--json"],
 		stdout: "pipe",
 		stderr: "pipe",
 	});
@@ -98,7 +104,7 @@ async function seed() {
 		console.log(`Batch ${Math.floor(i / BATCH) + 1}/${Math.ceil(allLines.length / BATCH)}...`);
 		for (let retry = 0; retry < 3; retry++) {
 			try {
-				await Bun.$`npx wrangler d1 execute klikapa-db ${flag} --file ${file}`.quiet();
+				await Bun.$`npx wrangler d1 execute ${DB_NAME} ${flag} --file ${file}`.quiet();
 				break;
 			} catch {
 				if (retry < 2) {

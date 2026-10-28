@@ -6,6 +6,7 @@ import { useId, useState } from "react";
 
 import { LocaleToggle } from "@/components/locale-toggle";
 import { openBilling } from "@/lib/billing-nav";
+import { isSelfHosted } from "@/lib/instance-config";
 import { useT } from "@/lib/i18n";
 import { fetchSites, isSubscriptionInactive } from "@/lib/legacy/api";
 import type { SiteWithStats } from "@/lib/legacy/api";
@@ -232,15 +233,17 @@ const SitesOverviewPage = () => {
 						>
 							<ChartColumn aria-hidden /> {t("portfolio.nav")}
 						</Link>
-						<Link
-							to="/analytics/billing"
-							className={buttonVariants({
-								className: "pointer-coarse:h-10 h-8",
-								variant: "outline",
-							})}
-						>
-							<CreditCard aria-hidden /> {t("billing.title")}
-						</Link>
+						{isSelfHosted() ? null : (
+							<Link
+								to="/analytics/billing"
+								className={buttonVariants({
+									className: "pointer-coarse:h-10 h-8",
+									variant: "outline",
+								})}
+							>
+								<CreditCard aria-hidden /> {t("billing.title")}
+							</Link>
+						)}
 						<Button className="pointer-coarse:h-10 h-8" onClick={() => setManageOpen(true)}>
 							<Plus aria-hidden /> {t("sites.addBtn")}
 						</Button>

@@ -2,6 +2,7 @@ import { Hono } from "hono";
 import type { CreateTokenRequest, CreateTokenResponse, TokenInfo } from "@revklik/shared";
 import { DEFAULT_ACCOUNT_SCOPES, DEFAULT_SITE_SCOPES, SCOPES } from "@revklik/shared";
 import type { PublicApiEnv } from "../../middleware/public-auth";
+import { isSelfHosted } from "../../lib/entitlement";
 import { requireScope } from "../../middleware/scope-validator";
 import { generateApiKey, generateId, hashToken } from "../../utils";
 
@@ -118,7 +119,7 @@ v1TokensRoutes.post("/", requireScope("tokens:write"), async (c) => {
 		/* default to free */
 	}
 
-	const maxTokens = PLAN_TOKEN_LIMITS[plan] ?? 2;
+	const maxTokens = isSelfHosted(c.env) ? Infinity : (PLAN_TOKEN_LIMITS[plan] ?? 2);
 
 	const existingCount = await db
 		.selectFrom("api_keys")

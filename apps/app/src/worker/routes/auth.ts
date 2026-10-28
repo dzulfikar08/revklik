@@ -13,6 +13,8 @@ import {
 	RESET_REQUEST_POLICY,
 	VERIFY_RESEND_POLICY,
 } from "../lib/attempt-limit";
+import { appUrl } from "../lib/app-url";
+import { isSelfHosted } from "../lib/entitlement";
 import { sendEmail, sendNewSignupAlert } from "../lib/email";
 import { PLANS } from "../lib/plans";
 import { issueSessionToken, refreshSessionExpiry } from "../lib/session";
@@ -87,10 +89,11 @@ async function sendVerificationEmail(
 			created_at: new Date().toISOString(),
 		})
 		.execute();
-	const link = `${env.APP_URL || "https://app.revklik.com"}/verify-email?token=${token}`;
+	const link = `${appUrl(env)}/verify-email?token=${token}`;
 	await sendEmail(
 		{
 			to: user.email,
+			from: env.EMAIL_FROM,
 			subject: "RevKlik — confirm your email",
 			html: `<p>Confirm this address for your RevKlik account:</p><p><a href="${link}">Verify email</a> (valid 48 hours).</p>`,
 			text: `Confirm your RevKlik email (valid 48 hours): ${link}`,
@@ -141,17 +144,25 @@ authRoutes.post("/register", async (c) => {
 	);
 	if (superAdminEmail && role !== "super_admin") {
 		c.executionCtx.waitUntil(
-			sendNewSignupAlert(superAdminEmail, { name, email, via: "password" }, c.env.EMAIL),
+			sendNewSignupAlert(
+				superAdminEmail,
+				{ name, email, via: "password" },
+				c.env.EMAIL,
+				c.env.EMAIL_FROM,
+			),
 		);
 	}
 
-	try {
-		await recordReferralSignup(db, ref ?? c.req.query("ref"), userId);
-	} catch (err) {
-		console.error("[auth] referral tracking failed:", err);
-	}
+	// Self-hosted installs have no referral program and no trials.
+	if (!isSelfHosted(c.env)) {
+		try {
+			await recordReferralSignup(db, ref ?? c.req.query("ref"), userId);
+		} catch (err) {
+			console.error("[auth] referral tracking failed:", err);
+		}
 
-	await startTrial(db, userId);
+		await startTrial(db, userId);
+	}
 
 	return c.json(
 		{
@@ -238,11 +249,12 @@ authRoutes.post("/forgot-password", async (c) => {
 				created_at: new Date().toISOString(),
 			})
 			.execute();
-		const link = `${c.env.APP_URL || "https://app.revklik.com"}/reset-password?token=${token}`;
+		const link = `${appUrl(c.env)}/reset-password?token=${token}`;
 		c.executionCtx.waitUntil(
 			sendEmail(
 				{
 					to: user.email,
+					from: c.env.EMAIL_FROM,
 					subject: "RevKlik — reset your password",
 					html: `<p>Someone asked to reset the password for this RevKlik account.</p><p><a href="${link}">Choose a new password</a> (link valid for 1 hour, single use).</p><p>If it wasn't you, ignore this email.</p>`,
 					text: `Reset your RevKlik password (valid 1 hour): ${link}`,
@@ -547,11 +559,13 @@ authRoutes.get("/google/callback", async (c) => {
 				created_at: new Date().toISOString(),
 			})
 			.execute();
-		await startTrial(db, userId);
-		try {
-			await recordReferralSignup(db, oauth.ref, userId);
-		} catch (err) {
-			console.error("[auth] referral tracking failed:", err);
+		if (!isSelfHosted(c.env)) {
+			await startTrial(db, userId);
+			try {
+				await recordReferralSignup(db, oauth.ref, userId);
+			} catch (err) {
+				console.error("[auth] referral tracking failed:", err);
+			}
 		}
 		if (superAdminEmail && !isSuperAdmin) {
 			c.executionCtx.waitUntil(
@@ -559,6 +573,7 @@ authRoutes.get("/google/callback", async (c) => {
 					superAdminEmail,
 					{ name, email: googleEmail, via: "google" },
 					c.env.EMAIL,
+					c.env.EMAIL_FROM,
 				),
 			);
 		}
@@ -590,6 +605,7 @@ authRoutes.get("/me", async (c) => {
 				role: user.role,
 				email_verified: !!user.email_verified_at,
 			},
+			self_hosted: isSelfHosted(c.env),
 		},
 		success: true,
 	});

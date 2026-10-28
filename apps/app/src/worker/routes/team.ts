@@ -1,5 +1,6 @@
 import { Hono } from "hono";
 import { sql } from "../db";
+import { appUrl } from "../lib/app-url";
 import { sendEmail } from "../lib/email";
 import type { Env } from "../types";
 import { generateId } from "../utils";
@@ -134,11 +135,12 @@ teamRoutes.post("/invite", async (c) => {
 	await sendEmail(
 		{
 			to: invitee.email,
+			from: c.env.EMAIL_FROM,
 			subject: `RevKlik — You've been invited to ${site.name}`,
 			html: `<div style="font-family: sans-serif; max-width: 480px; margin: 0 auto; padding: 24px; background: #0a0a0a; color: #e8e4de; border-radius: 12px;">
       <h2 style="color: #d4882a; margin: 0 0 12px;">Team Invitation</h2>
       <p style="line-height: 1.6;">${escapeHtml(inviter?.name ?? "Someone")} invited you to collaborate on <strong>${escapeHtml(site.name)}</strong> as <strong>${validRole}</strong>. Sign in to accept or decline.</p>
-      <a href="https://app.revklik.com/" style="display: inline-block; margin-top: 12px; padding: 10px 20px; background: #d4882a; color: #0a0a0a; text-decoration: none; border-radius: 6px; font-weight: 600;">Review invitation</a>
+      <a href="${appUrl(c.env)}/" style="display: inline-block; margin-top: 12px; padding: 10px 20px; background: #d4882a; color: #0a0a0a; text-decoration: none; border-radius: 6px; font-weight: 600;">Review invitation</a>
     </div>`,
 		},
 		emailBinding,

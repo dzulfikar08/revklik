@@ -19,7 +19,7 @@ export class RevKlikClient {
 
 	constructor(options: RevKlikClientOptions) {
 		this.token = options.token;
-		this.baseUrl = options.baseUrl || "https://klikapa.dzulfikar-at.workers.dev";
+		this.baseUrl = options.baseUrl || "https://app.revklik.com";
 	}
 
 	async request<T>(

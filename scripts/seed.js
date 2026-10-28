@@ -5,7 +5,13 @@
  *
  * Usage: bun run seed.ts [--remote]
  */
-const SITE_ID = "92f66934-e8d8-40ca-8058-3f8b4d899697";
+const SITE_ID = process.env.SITE_ID ?? "";
+if (!SITE_ID) {
+	console.error("Set SITE_ID to the site UUID to seed: SITE_ID=<uuid> bun scripts/seed.js");
+	process.exit(1);
+}
+// D1 database name from wrangler.jsonc (hosted default; override for your own database).
+const DB_NAME = process.env.D1_DATABASE ?? "klikapa-db";
 // --- Data pools ---
 const PATHS = [
 	"/",
@@ -396,15 +402,15 @@ for (const { visitor, sessions, pageviews, revenue } of visitorMap.values()) {
 async function seed(remote) {
 	const flag = remote ? "--remote" : "--local";
 	const _cmd = (sql) =>
-		`npx wrangler d1 execute klikapa-db ${flag} --command "${sql.replace(/"/g, '\\"')}"`;
+		`npx wrangler d1 execute ${DB_NAME} ${flag} --command "${sql.replace(/"/g, '\\"')}"`;
 	console.log(
 		`Seeding ${allEvents.length} events, ${allSessions.length} sessions, ${allVisitors.length} visitors...`,
 	);
 	// Clear existing data for this site
 	console.log("Clearing existing data...");
-	await Bun.$`npx wrangler d1 execute klikapa-db ${flag} --command "DELETE FROM events WHERE site_id = '${SITE_ID}'"`.quiet();
-	await Bun.$`npx wrangler d1 execute klikapa-db ${flag} --command "DELETE FROM sessions WHERE site_id = '${SITE_ID}'"`.quiet();
-	await Bun.$`npx wrangler d1 execute klikapa-db ${flag} --command "DELETE FROM visitor_profiles WHERE site_id = '${SITE_ID}'"`.quiet();
+	await Bun.$`npx wrangler d1 execute ${DB_NAME} ${flag} --command "DELETE FROM events WHERE site_id = '${SITE_ID}'"`.quiet();
+	await Bun.$`npx wrangler d1 execute ${DB_NAME} ${flag} --command "DELETE FROM sessions WHERE site_id = '${SITE_ID}'"`.quiet();
+	await Bun.$`npx wrangler d1 execute ${DB_NAME} ${flag} --command "DELETE FROM visitor_profiles WHERE site_id = '${SITE_ID}'"`.quiet();
 	// Batch insert using SQL file
 	console.log("Generating SQL file...");
 	const lines = [];
@@ -435,7 +441,7 @@ async function seed(remote) {
 		console.log(`Events batch ${batchNum}/${totalBatches}...`);
 		for (let retry = 0; retry < 3; retry++) {
 			try {
-				await Bun.$`npx wrangler d1 execute klikapa-db ${flag} --file ${file}`.quiet();
+				await Bun.$`npx wrangler d1 execute ${DB_NAME} ${flag} --file ${file}`.quiet();
 				break;
 			} catch {
 				if (retry < 2) {

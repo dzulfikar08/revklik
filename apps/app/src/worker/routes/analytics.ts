@@ -23,6 +23,7 @@ import {
 	validateSite,
 } from "../lib/analytics-queries";
 import { planRequiredBody } from "../lib/plan-gate";
+import { isSelfHosted } from "../lib/entitlement";
 import { requirePlanForSite } from "../lib/plans";
 import {
 	getChannelBreakdown,
@@ -49,7 +50,10 @@ import { resolveQueryScope } from "../lib/site-scope";
 import { getDateRange } from "../utils";
 
 type Variables = { db: Kysely<KlikapaDatabase>; userId: string; retentionFloor?: string };
-type AnalyticsEnv = { Variables: Variables; Bindings: { DB: D1Database; FX_USD_IDR?: string } };
+type AnalyticsEnv = {
+	Variables: Variables;
+	Bindings: { DB: D1Database; FX_USD_IDR?: string; SELF_HOSTED?: string };
+};
 
 export const analyticsRoutes = new Hono<AnalyticsEnv>();
 
@@ -747,7 +751,7 @@ analyticsRoutes.get(
 		const site = await validateSite(db, userId, siteId);
 		if (!site) return c.json({ error: "Site not found", success: false }, 404);
 
-		const planCheck = await requirePlanForSite(db, userId, siteId, 2);
+		const planCheck = await requirePlanForSite(db, userId, siteId, 2, isSelfHosted(c.env));
 		if (!planCheck.allowed) return c.json(planRequiredBody("growth", planCheck.plan), 403);
 
 		const { start } = rangeFor(c, range);
@@ -795,7 +799,7 @@ analyticsRoutes.get("/recordings", async (c) => {
 	const site = await validateSite(db, userId, siteId);
 	if (!site) return c.json({ error: "Site not found", success: false }, 404);
 
-	const planCheck = await requirePlanForSite(db, userId, siteId, 2);
+	const planCheck = await requirePlanForSite(db, userId, siteId, 2, isSelfHosted(c.env));
 	if (!planCheck.allowed) return c.json(planRequiredBody("growth", planCheck.plan), 403);
 
 	const { start } = rangeFor(c, range);
@@ -849,7 +853,7 @@ analyticsRoutes.get("/recordings/:id", async (c) => {
 	const site = await validateSite(db, userId, row.site_id);
 	if (!site) return c.json({ error: "Not found", success: false }, 404);
 
-	const planCheck = await requirePlanForSite(db, userId, row.site_id, 2);
+	const planCheck = await requirePlanForSite(db, userId, row.site_id, 2, isSelfHosted(c.env));
 	if (!planCheck.allowed) return c.json(planRequiredBody("growth", planCheck.plan), 403);
 
 	let events: Array<{

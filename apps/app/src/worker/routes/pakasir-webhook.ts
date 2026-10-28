@@ -7,7 +7,7 @@ import {
 	activatePakasirPayment,
 	findPakasirOrder,
 	verifyWithPakasir,
-	PAKASIR_PROJECT,
+	pakasirProject,
 } from "../lib/pakasir";
 
 // Subset of the Pakasir webhook payload read by this handler.
@@ -40,7 +40,7 @@ pakasirWebhookRoutes.post("/", async (c) => {
 	}
 
 	const { amount, order_id, project, status, payment_method, completed_at } = body;
-	if (project !== PAKASIR_PROJECT) return c.json({ error: "Invalid project" }, 400);
+	if (project !== pakasirProject(c.env)) return c.json({ error: "Invalid project" }, 400);
 	if (typeof amount !== "number" || typeof order_id !== "string") {
 		return c.json({ error: "Invalid payload" }, 400);
 	}
@@ -50,14 +50,16 @@ pakasirWebhookRoutes.post("/", async (c) => {
 		return c.json({ success: true, note: "Payment not completed" });
 	}
 
-	const order = await findPakasirOrder(db, order_id);
+	const order = await findPakasirOrder(db, order_id, pakasirProject(c.env));
 	if (!order) return c.json({ error: "Unknown order" }, 404);
 	if (order.status !== "pending") {
 		return c.json({ success: true, activated: false, alreadyProcessed: true });
 	}
 	if (order.amount !== amount) return c.json({ error: "Amount mismatch" }, 400);
 
-	const tx = await verifyWithPakasir(apiKey, order_id, amount).catch(() => null);
+	const tx = await verifyWithPakasir(apiKey, order_id, amount, pakasirProject(c.env)).catch(
+		() => null,
+	);
 	if (!tx || tx.status !== "completed" || tx.amount !== amount) {
 		return c.json({ error: "Verification failed" }, 401);
 	}

@@ -1,9 +1,9 @@
 /**
- * Client for the production revklik (klikapa) Worker API.
+ * Client for the revklik (klikapa) Worker API.
  *
- * The analytics UI reads live data from the deployed backend at
- * app.revklik.com — same D1 (klikapa-db), same routes the old dashboard
- * uses. Auth is a klikapa session token sent as a Bearer header; responses
+ * The analytics UI reads live data from the deployed backend (app.revklik.com
+ * for the hosted product, the serving origin when self-hosted), same routes
+ * the old dashboard uses. Auth is a klikapa session token sent as a Bearer header; responses
  * use the `{ success, data, error }` envelope.
  *
  * The token comes from klikapa's own auth: email+password (/auth/login,
@@ -11,7 +11,26 @@
  * the root route captures). It is cached in memory and localStorage.
  */
 
-const API_BASE: string = import.meta.env.VITE_LEGACY_API_BASE ?? "https://app.revklik.com/api";
+const HOSTED_API_BASE = "https://app.revklik.com/api";
+
+/**
+ * Where the API lives: VITE_LEGACY_API_BASE when set at build time; else the
+ * origin serving the SPA (the worker serves both, which is how self-hosted
+ * installs work); else the hosted API (dev servers, native shells, tests).
+ */
+const defaultApiBase = (): string => {
+	if (typeof window === "undefined") {
+		return HOSTED_API_BASE;
+	}
+	const { protocol, hostname, origin } = window.location;
+	const servedByWorker =
+		(protocol === "https:" || protocol === "http:") &&
+		hostname !== "localhost" &&
+		hostname !== "127.0.0.1";
+	return servedByWorker ? `${origin}/api` : HOSTED_API_BASE;
+};
+
+const API_BASE: string = import.meta.env.VITE_LEGACY_API_BASE ?? defaultApiBase();
 export const LEGACY_API_BASE = API_BASE;
 
 // Dev-only escape hatch: inject a pre-existing klikapa token via env instead

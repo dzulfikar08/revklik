@@ -3,7 +3,7 @@ import { createMiddleware } from "hono/factory";
 import type { Kysely } from "kysely";
 import type { KlikapaDatabase } from "@revklik/shared";
 import type { Env } from "../types";
-import { INGEST_GRACE_MS, isSubscriptionActive } from "./entitlement";
+import { INGEST_GRACE_MS, isSelfHosted, isSubscriptionActive } from "./entitlement";
 import { accessibleSiteOwner, PLANS, type PlanTier, requirePlanForSite } from "./plans";
 
 type GateEnv = Env;
@@ -56,6 +56,8 @@ export async function checkPlan(
 	required: GatedPlan,
 	resolveResource?: ResourceSiteResolver,
 ): Promise<Response | null> {
+	// Self-hosted: every plan gate is open (and the body is left unparsed).
+	if (isSelfHosted(c.env)) return null;
 	const target = await requestSiteId(c, resolveResource);
 	if (target.conflict) {
 		return c.json({ success: false, error: "Request names more than one site" }, 400);
@@ -148,7 +150,7 @@ export function graceDaysRemaining(periodEnd: string | null, now = Date.now()): 
  * caller. A super-admin caller always passes.
  */
 export const requireActiveSubscription = createMiddleware<GateEnv>(async (c, next) => {
-	if (c.req.method !== "GET") return next();
+	if (c.req.method !== "GET" || isSelfHosted(c.env)) return next();
 	const db = c.get("db");
 	const userId = c.get("userId");
 	// Only a site the caller belongs to lends its owner's subscription.

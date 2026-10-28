@@ -4,6 +4,7 @@ import { backupDatabase } from "./backup";
 import { syncAllAppStoreConnect } from "./lib/appstoreconnect";
 import { reclassifyRecentBots } from "./lib/bot-reclassify";
 import { inferSiteCurrencies } from "./lib/currency-backfill";
+import { isSelfHosted } from "./lib/entitlement";
 import { refreshFxRates } from "./lib/fx";
 import { purgeExpiredRows } from "./lib/purge";
 import { carryOverPakasirOrders } from "./migrations";
@@ -22,7 +23,8 @@ export default {
 			await backupDatabase(env);
 			// Runs after the dump; a no-op unless RETENTION_HARD_DELETE_DAYS is set.
 			if (env.DB) {
-				await carryOverPakasirOrders(env.DB);
+				// Pakasir orders are RevKlik's own subscription billing: hosted only.
+				if (!isSelfHosted(env)) await carryOverPakasirOrders(env.DB);
 				await refreshFxRates(createDb(env.DB)).catch((err) =>
 					console.error("FX refresh failed:", err),
 				);

@@ -5,6 +5,7 @@ import ReactDOM from "react-dom/client";
 import Loader from "./components/loader";
 import { parseNext } from "./lib/auth-search";
 import { registerBillingOpener } from "./lib/billing-nav";
+import { initInstanceConfig } from "./lib/instance-config";
 import { registerSessionExpiredHandler } from "./lib/session-nav";
 import { routeTree } from "./routeTree.gen";
 import { queryClient } from "./utils/query-client";
@@ -59,5 +60,6 @@ if (!rootElement) {
 
 if (!rootElement.innerHTML) {
 	const root = ReactDOM.createRoot(rootElement);
-	root.render(<RouterProvider router={router} />);
+	// Self-hosted instances hide pricing and upgrade UI: know which kind this is first.
+	void initInstanceConfig().then(() => root.render(<RouterProvider router={router} />));
 }

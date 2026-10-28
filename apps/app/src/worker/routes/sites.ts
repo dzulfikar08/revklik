@@ -2,7 +2,7 @@ import { Hono } from "hono";
 import type { Kysely } from "kysely";
 import type { CreateSitePayload, KlikapaDatabase, Site, SiteWithStats } from "@revklik/shared";
 import { sql } from "../db";
-import { isSubscriptionActive } from "../lib/entitlement";
+import { isSelfHosted, isSubscriptionActive } from "../lib/entitlement";
 import { normalizeCurrency, revenueSql, usdRates } from "../lib/fx";
 import { getPlanLimits } from "../lib/plans";
 import { purgeSiteRows } from "../lib/purge";
@@ -15,7 +15,7 @@ type Variables = { db: Kysely<KlikapaDatabase>; userId: string };
 
 export const siteRoutes = new Hono<{
 	Variables: Variables;
-	Bindings: { FX_USD_IDR?: string; DB: D1Database };
+	Bindings: { FX_USD_IDR?: string; DB: D1Database; SELF_HOSTED?: string };
 }>();
 
 /**
@@ -138,7 +138,7 @@ siteRoutes.post("/", async (c) => {
 		.select(["role"])
 		.where("id", "=", userId)
 		.executeTakeFirst();
-	if (user?.role !== "super_admin") {
+	if (user?.role !== "super_admin" && !isSelfHosted(c.env)) {
 		const sub = await db
 			.selectFrom("subscriptions")
 			.select(["plan", "status", "current_period_end"])

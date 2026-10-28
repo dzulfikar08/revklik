@@ -16,6 +16,7 @@ import {
 import { authErrorMessage } from "@/lib/auth-errors";
 import { afterAuthTarget, googleAuthUrl } from "@/lib/auth-search";
 import type { AuthSearch } from "@/lib/auth-search";
+import { isSelfHosted } from "@/lib/instance-config";
 import { planLabel } from "@/lib/legacy/billing";
 import { clearSignupIntent, rememberRef, rememberSignupPlan, signupRef } from "@/lib/signup-intent";
 
@@ -170,10 +171,13 @@ export const AuthForm = ({ mode, search }: { mode: AuthMode; search: AuthSearch 
 	// one line saying so; plain sign-up and ?plan=growth share the trial line.
 	let description = t("auth.signIn.desc");
 	if (signUp) {
-		description =
-			plan && plan !== "growth"
-				? t("auth.signUp.descPlan", { plan: planLabel(plan) })
-				: t("auth.signUp.desc");
+		if (isSelfHosted()) {
+			description = t("auth.signUp.descSelfHosted");
+		} else if (plan && plan !== "growth") {
+			description = t("auth.signUp.descPlan", { plan: planLabel(plan) });
+		} else {
+			description = t("auth.signUp.desc");
+		}
 	}
 
 	const continueWithGoogle = () => {

@@ -52,6 +52,7 @@ import {
 	requirePlanTier,
 	type ResourceSiteResolver,
 } from "./lib/plan-gate";
+import { isSelfHosted } from "./lib/entitlement";
 import { refreshSessionExpiry } from "./lib/session";
 import type { Env } from "./types";
 import { hashToken } from "./utils";
@@ -110,11 +111,33 @@ const adminMiddleware = createMiddleware<Env>(async (c, next) => {
 	await next();
 });
 
+/**
+ * 404 on routes that only exist for RevKlik's own hosted billing (plans,
+ * checkout, Polar/Pakasir subscription webhooks, referral payouts) when the
+ * instance runs with SELF_HOSTED=1.
+ */
+const hostedOnly = (feature: string) =>
+	createMiddleware<Env>(async (c, next) => {
+		if (!isSelfHosted(c.env)) return next();
+		return c.json(
+			{ error: `${feature} is disabled on self-hosted instances`, success: false },
+			404,
+		);
+	});
+
 export function createApp(): Hono<Env> {
 	const app = new Hono<Env>().basePath("/api");
 	app.use(cors());
 
-	app.get("/", (c) => c.json({ message: "klikapa", version: "0.7.0", success: true }));
+	// Public instance config the SPA reads at startup (self_hosted hides pricing/upgrade UI).
+	app.get("/", (c) =>
+		c.json({
+			message: "klikapa",
+			version: "0.7.0",
+			self_hosted: isSelfHosted(c.env),
+			success: true,
+		}),
+	);
 	app.get("/health", (c) => c.json({ status: "ok", build: "native-auth-v2", success: true }));
 	app.route("/docs", docsRoutes);
 
@@ -191,6 +214,7 @@ export function createApp(): Hono<Env> {
 	app.route("/webhooks/stripe", stripeWebhookRoutes);
 	app.route("/webhooks/lemonsqueezy", lemonsqueezyWebhookRoutes);
 	app.route("/webhooks/polar", polarWebhookRoutes);
+	app.use("/webhooks/pakasir/*", hostedOnly("Pakasir billing"));
 	app.route("/webhooks/pakasir", pakasirWebhookRoutes);
 	app.route("/webhooks/paywuz", paywuzWebhookRoutes);
 	app.route("/webhooks/mayar", mayarWebhookRoutes);
@@ -209,8 +233,9 @@ export function createApp(): Hono<Env> {
 		} catch {}
 		siteId = siteId || c.req.query("site_id") || "";
 
-		let isFull = false;
-		if (siteId) {
+		// Self-hosted installs have no plan tiers: everyone gets the full script.
+		let isFull = isSelfHosted(c.env);
+		if (siteId && !isFull) {
 			try {
 				const d1 = c.env.DB;
 				if (d1) {
@@ -239,9 +264,20 @@ export function createApp(): Hono<Env> {
 	});
 
 	// Billing webhook (no auth — Polar calls this)
+	app.use("/billing/webhook/*", hostedOnly("Billing"));
 	app.route("/billing/webhook", billingWebhookRoutes);
 
 	app.use("/billing/*", authMiddleware);
+	// /billing/subscription stays (it reports the unlimited self-hosted plan); /alerts
+	// and /test-email are email preferences, not billing.
+	for (const path of [
+		"/billing/plans",
+		"/billing/checkout/*",
+		"/billing/pakasir/*",
+		"/billing/cancel",
+	]) {
+		app.use(path, hostedOnly("Billing"));
+	}
 	app.route("/billing", billingRoutes);
 
 	app.use("/team/*", authMiddleware);
@@ -272,6 +308,7 @@ export function createApp(): Hono<Env> {
 	app.use("/predictions/*", requirePlanTier("growth"));
 	app.route("/predictions", predictionsRoutes);
 
+	app.use("/affiliates/*", hostedOnly("The referral program"));
 	app.use("/affiliates/*", authMiddleware);
 	app.route("/affiliates", affiliateRoutes);
 

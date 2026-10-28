@@ -2,7 +2,7 @@ import type { Kysely } from "kysely";
 import type { KlikapaDatabase } from "@revklik/shared";
 import { getAccountEventsUsed, usageMonth } from "./account-usage";
 import { isIngestAllowed, isSubscriptionActive, type SubscriptionState } from "./entitlement";
-import { getPlanLimits } from "./plans";
+import { getPlanLimits, UNLIMITED } from "./plans";
 
 interface CachedSiteOwner {
 	ownerId: string;
@@ -25,7 +25,6 @@ const ACTIVE_TTL_MS = 60_000;
 const INACTIVE_TTL_MS = 10_000;
 const USAGE_TTL_MS = 60_000;
 const MAX_CACHE_SIZE = 10_000;
-const UNLIMITED = 999_999_999;
 
 export interface SiteEnforcementResult {
 	allowed: boolean;
@@ -119,9 +118,10 @@ export async function enforceSiteQuota(
 	db: Kysely<KlikapaDatabase>,
 	siteId: string,
 	requirePremium?: boolean,
+	selfHosted = false,
 ): Promise<SiteEnforcementResult> {
 	try {
-		return await enforceSiteQuotaOrThrow(db, siteId, requirePremium);
+		return await enforceSiteQuotaOrThrow(db, siteId, requirePremium, selfHosted);
 	} catch (err) {
 		// Fail open: a DB hiccup must not silently drop a customer's traffic.
 		console.error(`[quota] site ${siteId}: enforcement failed, ingesting anyway:`, err);
@@ -139,6 +139,7 @@ async function enforceSiteQuotaOrThrow(
 	db: Kysely<KlikapaDatabase>,
 	siteId: string,
 	requirePremium?: boolean,
+	selfHosted = false,
 ): Promise<SiteEnforcementResult> {
 	const now = Date.now();
 	const cached = siteOwnerCache.get(siteId);
@@ -156,7 +157,7 @@ async function enforceSiteQuotaOrThrow(
 			periodEnd: "",
 		};
 	}
-	if (meta.superAdmin) {
+	if (meta.superAdmin || selfHosted) {
 		return {
 			allowed: true,
 			plan: "growth",

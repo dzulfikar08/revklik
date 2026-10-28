@@ -8,7 +8,12 @@ import type { PlanTier } from "./plans";
 // Pakasir (QRIS payment links) — docs: https://pakasir.com/p/docs
 // Checkout URLs: https://app.pakasir.com/pay/{project}/{amount}?order_id=...
 // Webhook: POST with { amount, order_id, project, status, payment_method, completed_at }
-export const PAKASIR_PROJECT = "revklik";
+export const DEFAULT_PAKASIR_PROJECT = "revklik";
+
+/** Pakasir project slug that owns the checkout pages: PAKASIR_PROJECT, else the hosted default. */
+export function pakasirProject(env: { PAKASIR_PROJECT?: string }): string {
+	return env.PAKASIR_PROJECT?.trim() || DEFAULT_PAKASIR_PROJECT;
+}
 export const PAKASIR_API = "https://app.pakasir.com/api";
 
 // IDR prices — must match the landing page and the paywall exactly.
@@ -29,8 +34,13 @@ export function newPakasirOrderId(userId: string, now = Date.now()): string {
 	return `RVK-${userId.slice(0, 8)}-${now.toString(36).toUpperCase()}${tail.toUpperCase()}`;
 }
 
-export function pakasirCheckoutUrl(amount: number, orderId: string, successUrl: string): string {
-	return `https://app.pakasir.com/pay/${PAKASIR_PROJECT}/${amount}?order_id=${orderId}&redirect=${encodeURIComponent(successUrl)}&qris_only=1`;
+export function pakasirCheckoutUrl(
+	project: string,
+	amount: number,
+	orderId: string,
+	successUrl: string,
+): string {
+	return `https://app.pakasir.com/pay/${project}/${amount}?order_id=${orderId}&redirect=${encodeURIComponent(successUrl)}&qris_only=1`;
 }
 
 export type PakasirOrderRow = KlikapaDatabase["pakasir_orders"];
@@ -54,6 +64,7 @@ export async function createPakasirOrder(
 export async function findPakasirOrder(
 	db: Kysely<KlikapaDatabase>,
 	orderId: string,
+	project: string,
 ): Promise<PakasirOrderRow | undefined> {
 	const row = await db
 		.selectFrom("pakasir_orders")
@@ -76,7 +87,7 @@ export async function findPakasirOrder(
 			user_id: legacy.user_id,
 			plan: legacy.plan,
 			amount,
-			checkout_url: `https://app.pakasir.com/pay/${PAKASIR_PROJECT}/${amount}?order_id=${orderId}&qris_only=1`,
+			checkout_url: `https://app.pakasir.com/pay/${project}/${amount}?order_id=${orderId}&qris_only=1`,
 			status: "pending",
 			created_at: legacy.updated_at,
 			processed_at: null,
@@ -212,9 +223,10 @@ export async function verifyWithPakasir(
 	apiKey: string,
 	orderId: string,
 	amount: number,
+	project: string,
 ): Promise<PakasirTransaction | null> {
 	if (!apiKey) return null;
-	const url = `${PAKASIR_API}/transactiondetail?project=${PAKASIR_PROJECT}&amount=${amount}&order_id=${encodeURIComponent(orderId)}&api_key=${encodeURIComponent(apiKey)}`;
+	const url = `${PAKASIR_API}/transactiondetail?project=${encodeURIComponent(project)}&amount=${amount}&order_id=${encodeURIComponent(orderId)}&api_key=${encodeURIComponent(apiKey)}`;
 	const res = await fetch(url);
 	if (!res.ok) return null;
 	const json = (await res.json()) as { transaction?: PakasirTransaction };
