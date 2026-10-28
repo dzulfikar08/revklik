@@ -1,0 +1,213 @@
+RevKlik Analytics — Complete Setup Guide (for humans and AI agents)
+=================================================================
+
+RevKlik is a privacy-first, revenue-focused web analytics platform.
+This document is the canonical setup reference. It is plain text on purpose,
+so coding agents (Claude Code, Cursor, Copilot, etc.) can fetch and follow it.
+
+Canonical tracker URL: https://app.revklik.com/klikapa.js
+Dashboard: https://app.revklik.com
+Human docs: https://docs.revklik.com
+
+------------------------------------------------------------------
+1. INSTALL (required, one step)
+------------------------------------------------------------------
+
+Add this script tag to every HTML page, before the closing </head>:
+
+<script defer data-site-id="YOUR_SITE_ID" src="https://app.revklik.com/klikapa.js"></script>
+
+Replace YOUR_SITE_ID with the Site ID from your dashboard (format: UUID).
+Do NOT self-host or change the URL. The script is <1KB, deferred, non-blocking.
+
+Optional: enable heatmap & session replay by adding data-heatmap="true":
+
+<script defer data-site-id="YOUR_SITE_ID" data-heatmap="true" src="https://app.revklik.com/klikapa.js"></script>
+
+------------------------------------------------------------------
+2. AUTOMATIC TRACKING (zero config)
+------------------------------------------------------------------
+
+Once installed, RevKlik tracks with no further code:
+
+- Pageviews on every page load
+- Single-Page App (SPA) route changes — history.pushState /
+  history.replaceState / popstate are patched automatically
+- Scroll depth milestones: 25%, 50%, 75%, 90%
+- Clicks on <a>, <button>, and any element with a data-track attribute
+- Time on page (heartbeat events while the tab is visible)
+- Device, browser, OS, screen size, language, timezone, country
+- UTM parameters: utm_source, utm_medium, utm_campaign, utm_term,
+  utm_content (captured on landing, attributed to the visitor journey)
+
+------------------------------------------------------------------
+3. DECLARATIVE TRACKING (HTML attributes, no JavaScript)
+------------------------------------------------------------------
+
+3a. Named section views — add data-section to major sections:
+
+<section data-section="hero">...</section>
+<section data-section="features">...</section>
+<section data-section="pricing">...</section>
+
+Fires event "scroll_section" with the section name when the section
+enters the viewport.
+
+3b. Element visibility — add data-revklik-scroll (threshold 0-1):
+
+<img data-revklik-scroll="0.5" ...>
+
+Fires event "scroll_depth" when the element becomes 50% visible.
+
+3c. Conversion goals — add data-revklik-goal to any clickable element:
+
+<a href="/register" data-revklik-goal="register_click">Sign up</a>
+<button data-revklik-goal="checkout_click" data-revklik-goal-plan="pro">Buy</button>
+<button data-revklik-goal="purchase" data-revklik-goal-value="9.99">Purchase</button>
+
+- data-revklik-goal       : goal name (required)
+- data-revklik-goal-value : numeric revenue value (optional)
+- data-revklik-goal-*     : any extra properties, e.g. -plan="pro"
+  becomes property plan="pro"
+
+Fires a conversion when the element is clicked. No JavaScript needed.
+
+------------------------------------------------------------------
+4. JAVASCRIPT API (optional)
+------------------------------------------------------------------
+
+The script exposes a global `klikapa` object (available after the
+deferred script loads):
+
+klikapa.track(name, props, revenue)
+    Track a custom event.
+    klikapa.track('signup', { plan: 'pro' });
+    klikapa.track('video_play', { video: 'demo' }, 0);
+
+klikapa.conversion(name, revenue, props)
+    Track a conversion with revenue (in major currency units or cents,
+    be consistent).
+    klikapa.conversion('purchase', 49.00, { product: 'Pro' });
+
+klikapa.pageview()
+    Manually send a pageview (rarely needed — SPA navigation is
+    tracked automatically).
+
+klikapa.identify(data)
+    Attach identity data (e.g. email) to this visitor.
+    klikapa.identify({ email: 'user@example.com' });
+
+klikapa.getSessionId()      -> current session ID (string)
+klikapa.getUtmSource()      -> utm_source of the landing URL ("")
+klikapa.getUtmMedium()      -> utm_medium of the landing URL ("")
+klikapa.getUtmCampaign()    -> utm_campaign of the landing URL ("")
+
+Example wiring after a successful checkout:
+
+<script>
+  klikapa.conversion('purchase', 49.00, { product: 'Pro' });
+</script>
+
+------------------------------------------------------------------
+5. REVENUE ATTRIBUTION (server-side, optional)
+------------------------------------------------------------------
+
+To connect revenue to visitor journeys (Polar supported today, more
+payment providers coming):
+
+1. In the RevKlik dashboard, open the site -> Import page -> Polar.
+2. Copy the webhook URL shown there (it ends in /api/billing/webhook).
+3. In Polar: polar.sh/settings -> Webhooks -> Add Endpoint -> paste
+   the URL.
+4. Select events: order.created, subscription.created, order.paid.
+
+New orders then sync automatically. Past orders can be imported
+one-time on the same page with a Polar Organization Access Token.
+
+------------------------------------------------------------------
+6. LIVE WIDGET (optional)
+------------------------------------------------------------------
+
+Show live RevKlik numbers directly on the tracked website:
+visitors online now, visitors today (resets at midnight in the
+site's timezone, set in the dashboard), and the all-time total.
+Aggregate counts only — no cookies, no personal data.
+
+1. In the dashboard: Settings -> Live Widget -> Enable Widget.
+   This mints a widget token (format: UUID).
+2. Add the widget script to the page where the numbers should
+   appear (usually the footer), before </body>:
+
+Bubble (floating pill in the corner, expands on click):
+
+<script async data-widget-token="YOUR_WIDGET_TOKEN"
+  src="https://app.revklik.com/klikapa-live.js"></script>
+
+Inline badge (renders into the page flow):
+
+<script async data-widget-token="YOUR_WIDGET_TOKEN"
+  data-mode="badge" src="https://app.revklik.com/klikapa-live.js"></script>
+
+By default the badge renders where the script tag sits. To place
+it anywhere else, add <span data-klikapa-live-target></span> and
+the badge renders inside that element.
+
+Options (attributes on the script tag):
+
+- data-widget-token : required, from Settings -> Live Widget
+- data-mode         : "bubble" (default) | "badge"
+- data-position     : bubble corner, br (default) | bl | tr | tl
+- data-show         : which numbers to show, e.g. "online,today"
+                      (default: online,today,total)
+
+Behavior: refreshes every 30 seconds (pauses in hidden tabs),
+styles itself via Shadow DOM so it cannot clash with the host
+site, and follows the visitor's light/dark preference.
+
+Public JSON endpoint (what the widget fetches):
+
+GET https://app.revklik.com/api/widgets/live/YOUR_WIDGET_TOKEN
+
+  { "data": { "online_now": 1, "visitors_today": 42,
+              "total_visitors": 1337, "updated_at": "..." },
+    "success": true }
+
+Developer hook: window.klikapaLiveUpdate = (stats) => { ... }
+receives the latest stats object after every refresh.
+
+Agents: skip this section unless the user explicitly asks for the
+live widget AND provides a widget token — enabling it requires
+dashboard access (Settings -> Live Widget).
+
+------------------------------------------------------------------
+7. VERIFY THE INSTALL
+------------------------------------------------------------------
+
+1. Load any page of the site with the script installed.
+2. Open the site in the RevKlik dashboard -> Realtime view.
+3. Your pageview should appear within seconds.
+4. If nothing appears:
+   - Confirm the script src is exactly https://app.revklik.com/klikapa.js
+   - Confirm data-site-id matches the Site ID shown in the dashboard
+   - Check the browser console for errors
+   - Check that no Content-Security-Policy blocks app.revklik.com
+     (script-src needs app.revklik.com, connect-src needs
+     app.revklik.com)
+5. If the live widget is installed: the badge/bubble should appear
+   within a second and match GET .../api/widgets/live/<token>.
+
+------------------------------------------------------------------
+8. AGENT PROMPT TEMPLATE
+------------------------------------------------------------------
+
+Paste this into your AI coding agent to install RevKlik correctly
+(replace YOUR_SITE_ID):
+
+Install RevKlik analytics on this website.
+
+Site ID: YOUR_SITE_ID
+
+Fetch and follow the full setup guide, then implement it:
+https://revklik.com/docs.txt
+
+End of document.

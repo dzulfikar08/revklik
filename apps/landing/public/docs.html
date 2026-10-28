@@ -1,0 +1,392 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dokumentasi — RevKlik</title>
+<meta name="description" content="Dokumentasi RevKlik — panduan setup, tracking, atribusi revenue, dan integrasi.">
+<meta name="robots" content="index, follow">
+<link rel="canonical" href="https://revklik.com/docs.html">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://revklik.com/docs.html">
+<meta property="og:title" content="Dokumentasi — RevKlik">
+<meta property="og:description" content="Dokumentasi RevKlik — panduan setup, tracking, atribusi revenue, dan integrasi.">
+<meta property="og:image" content="https://revklik.com/og-image.webp">
+<meta property="og:site_name" content="RevKlik">
+<link rel="icon" type="image/webp" sizes="32x32" href="favicon.webp">
+<link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.webp">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=General+Sans:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --bg:#0c0b0e;--bg2:#100f13;--bg3:#17161b;--bg4:#1e1d23;
+  --text:#e8e4de;--text2:#a8a29e;--text3:#6b6560;--text4:#3d3835;
+  --accent:#d4882a;--accent-dim:rgba(212,136,42,.1);--accent-mid:rgba(212,136,42,.2);
+  --green:#34d399;--green-dim:rgba(52,211,153,.1);
+  --border:#1f1e24;--border2:#2a2930;
+  --serif:'Instrument Serif',Georgia,serif;
+  --sans:'General Sans',system-ui,sans-serif;
+  --mono:'IBM Plex Mono',monospace;
+}
+html{scroll-behavior:smooth}
+body{background:var(--bg);color:var(--text);font-family:var(--sans);line-height:1.6;-webkit-font-smoothing:antialiased}
+::selection{background:var(--accent);color:var(--text)}
+a{color:inherit;text-decoration:none}
+.container{max-width:1200px;margin:0 auto;padding:0 28px}
+
+/* NAV */
+nav{position:fixed;top:0;left:0;right:0;z-index:100;padding:20px 0;transition:all .35s}
+nav.scrolled{background:rgba(10,10,10,.92);backdrop-filter:blur(20px);padding:14px 0;border-bottom:1px solid var(--border)}
+nav .container{display:flex;align-items:center;justify-content:space-between}
+.logo{font-family:var(--serif);font-size:26px;color:var(--text);text-decoration:none;display:flex;align-items:center;gap:8px}
+.logo em{font-style:italic;color:var(--accent)}
+.logo img{border-radius:6px}
+.nav-links{display:flex;align-items:center;gap:32px}
+.nav-links a{font-size:14px;font-weight:500;color:var(--text2);text-decoration:none;transition:color .2s}
+.nav-links a:hover{color:var(--text)}
+.nav-right{display:flex;align-items:center;gap:12px}
+.nav-cta{font-size:13px;font-weight:600;color:var(--text)!important;background:var(--accent);padding:11px 26px;border-radius:100px;text-decoration:none;transition:all .25s}
+.nav-cta:hover{filter:brightness(1.15);transform:scale(1.03)}
+.burger{display:none;background:none;border:none;cursor:pointer;color:var(--text);z-index:300}
+
+/* PAGE HERO */
+.page-hero{padding:140px 0 64px;position:relative;background:radial-gradient(ellipse 60% 50% at 50% 0%,rgba(212,136,42,.05) 0%,transparent 60%)}
+.page-hero-inner{max-width:640px}
+.page-hero .eyebrow{font-family:var(--mono);font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--accent);margin-bottom:16px;display:flex;align-items:center;gap:10px}
+.page-hero .eyebrow::before{content:'';width:20px;height:1px;background:var(--accent)}
+.page-hero h1{font-family:var(--serif);font-weight:400;font-size:clamp(36px,5vw,56px);letter-spacing:-.03em;line-height:1.05;margin-bottom:16px}
+.page-hero h1 em{font-style:italic;color:var(--accent)}
+.page-hero p{font-size:17px;color:var(--text2);line-height:1.7;max-width:480px}
+
+/* DOCS GRID */
+.docs-grid{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+.doc-card{background:var(--bg);border:1px solid var(--border);border-radius:16px;padding:32px;transition:all .3s;position:relative}
+.doc-card:hover{border-color:var(--accent-mid);transform:translateY(-4px)}
+.doc-icon{width:44px;height:44px;border-radius:12px;background:var(--accent-dim);display:flex;align-items:center;justify-content:center;color:var(--accent);margin-bottom:20px}
+.doc-card h3{font-family:var(--serif);font-size:22px;font-weight:400;margin-bottom:8px;letter-spacing:-.02em}
+.doc-card h3 em{font-style:italic;color:var(--accent)}
+.doc-card p{font-size:14px;color:var(--text2);line-height:1.7;margin-bottom:16px}
+.doc-link{font-family:var(--mono);font-size:12px;color:var(--accent);display:inline-flex;align-items:center;gap:6px;transition:gap .2s}
+.doc-card:hover .doc-link{gap:10px}
+.doc-tag{display:inline-block;font-family:var(--mono);font-size:10px;letter-spacing:.06em;text-transform:uppercase;padding:4px 10px;border-radius:6px;margin-bottom:16px}
+.doc-tag.setup{background:var(--accent-dim);color:var(--accent)}
+.doc-tag.tracking{background:var(--green-dim);color:var(--green)}
+.doc-tag.api{background:rgba(96,165,250,.1);color:#60a5fa}
+.doc-tag.guide{background:rgba(168,162,158,.1);color:var(--text2)}
+
+/* CODE BLOCK */
+.code-snippet{background:var(--bg3);border:1px solid var(--border2);border-radius:10px;padding:16px 20px;margin:12px 0 0;overflow-x:auto}
+.code-snippet code{font-family:var(--mono);font-size:13px;color:var(--text2);line-height:1.6}
+.code-snippet code .hl{color:var(--accent)}
+.code-snippet code .str{color:var(--green)}
+
+/* QUICK START */
+.quickstart{border:1px solid var(--border);border-radius:16px;overflow:hidden}
+.quickstart-header{background:var(--bg3);padding:20px 28px;display:flex;align-items:center;gap:12px;border-bottom:1px solid var(--border)}
+.quickstart-header .dot{width:10px;height:10px;border-radius:50%}
+.quickstart-body{padding:28px}
+.step-list{display:flex;flex-direction:column;gap:24px}
+.step{display:flex;gap:16px;align-items:flex-start}
+.step-num{width:28px;height:28px;border-radius:8px;background:var(--accent-dim);color:var(--accent);font-family:var(--mono);font-size:12px;font-weight:600;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:2px}
+.step-content h4{font-size:15px;font-weight:600;margin-bottom:4px}
+.step-content p{font-size:14px;color:var(--text2);line-height:1.6}
+.step-content code{font-family:var(--mono);font-size:13px;background:var(--bg3);padding:2px 8px;border-radius:6px;color:var(--accent)}
+
+/* FOOTER */
+footer{padding:40px 0;border-top:1px solid var(--border)}
+footer .container{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:16px}
+.footer-left{display:flex;align-items:center;gap:24px}
+.footer-left span{font-family:var(--serif);font-size:18px;display:flex;align-items:center;gap:8px}
+.footer-left span em{font-style:italic;color:var(--accent)}
+.footer-copy{font-size:13px;color:var(--text3)}
+.footer-links{display:flex;gap:28px}
+.footer-links a{font-size:13px;color:var(--text3);text-decoration:none;transition:color .2s}
+.footer-links a:hover{color:var(--text)}
+
+/* FADE */
+.fade-up{opacity:0;transform:translateY(30px);transition:all .7s cubic-bezier(.16,1,.3,1)}
+.fade-up.vis{opacity:1;transform:translateY(0)}
+
+/* SECTION */
+.section{padding:56px 0;border-top:1px solid var(--border)}
+.section-head{margin-bottom:36px}
+.section-head h2{font-family:var(--serif);font-weight:400;font-size:clamp(24px,3vw,36px);letter-spacing:-.025em;margin-bottom:8px}
+.section-head h2 em{font-style:italic;color:var(--accent)}
+.section-head p{color:var(--text2);font-size:15px}
+
+/* MOBILE NAV */
+@media(max-width:960px){
+  .nav-links{display:flex;position:fixed;inset:0;background:rgba(10,10,10,.97);backdrop-filter:blur(24px);flex-direction:column;align-items:center;justify-content:center;gap:28px;opacity:0;pointer-events:none;transition:opacity .3s ease;z-index:200}
+  .nav-links.open{opacity:1;pointer-events:auto}
+  .nav-close{display:block;position:absolute;top:24px;right:24px}
+  .nav-links a{font-size:24px;font-weight:500;color:var(--text)}
+  .burger{display:block;position:relative;z-index:300}
+  .nav-right .nav-cta{display:none}
+}
+@media(max-width:640px){
+  .page-hero{padding:120px 0 48px}
+  .docs-grid{grid-template-columns:1fr}
+  .footer-links{gap:16px;flex-wrap:wrap}
+}
+</style>
+<script defer data-site-id="d9701d64-9e78-4b73-9726-e4f41593b843" src="https://app.revklik.com/klikapa.js"></script>
+</head>
+<body>
+
+<nav id="nav">
+  <div class="container">
+    <a href="index.html" class="logo"><img src="revklik.webp" alt="" width="28" height="28">Rev<em>Klik</em></a>
+    <div class="nav-links">
+      <button class="nav-close" onclick="document.querySelector('.nav-links').classList.remove('open')" aria-label="Close"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+      <a href="index.html">Beranda</a>
+      <a href="index.html#features">Fitur</a>
+      <a href="index.html#pricing">Harga</a>
+      <a href="blog.html">Blog</a>
+      <a href="docs/api.html">API</a>
+      <a href="docs/cli.html">CLI</a>
+    </div>
+    <div class="nav-right">
+      <a href="https://app.revklik.com/register" class="nav-cta">Mulai dari $1 &rarr;</a>
+    </div>
+    <button class="burger" onclick="toggleMenu()" aria-label="Menu">
+      <svg width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+    </button>
+  </div>
+</nav>
+
+<section class="page-hero">
+  <div class="container">
+    <div class="page-hero-inner fade-up">
+      <div class="eyebrow">Dokumentasi</div>
+      <h1>Semua yang perlu Anda <em>ketahui</em></h1>
+      <p>Dari setup pertama hingga atribusi revenue lanjutan — panduan lengkap untuk memaksimalkan RevKlik.</p>
+    </div>
+  </div>
+</section>
+
+<!-- QUICK START -->
+<div class="section" style="border-top:none">
+  <div class="container">
+    <div class="section-head fade-up">
+      <h2>Quick <em>Start</em></h2>
+      <p>Aktifkan analytics dalam 2 menit.</p>
+    </div>
+    <div class="quickstart fade-up">
+      <div class="quickstart-header">
+        <div class="dot" style="background:#ff5f57"></div>
+        <div class="dot" style="background:#febc2e"></div>
+        <div class="dot" style="background:#28c840"></div>
+        <span style="font-family:var(--mono);font-size:12px;color:var(--text3);margin-left:8px">setup.html</span>
+      </div>
+      <div class="quickstart-body">
+        <div class="step-list">
+          <div class="step">
+            <div class="step-num">1</div>
+            <div class="step-content">
+              <h4>Daftar di dashboard</h4>
+              <p>Buat akun di <code>app.revklik.com/register</code> dan dapatkan Site ID unik Anda.</p>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num">2</div>
+            <div class="step-content">
+              <h4>Tambahkan script tag</h4>
+              <p>Salin satu baris ini sebelum <code>&lt;/head&gt;</code> di semua halaman HTML Anda:</p>
+              <div class="code-snippet"><code><span class="hl">&lt;script</span> defer data-site-id=<span class="str">"YOUR_SITE_ID"</span><br>&nbsp;&nbsp;src=<span class="str">"https://app.revklik.com/klikapa.js"</span><span class="hl">&gt;&lt;/script&gt;</span></code></div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num">3</div>
+            <div class="step-content">
+              <h4>Tambahkan section tracking (opsional)</h4>
+              <p>Tambahkan atribut <code>data-section="name"</code> ke setiap section utama untuk scroll depth tracking:</p>
+              <div class="code-snippet"><code><span class="hl">&lt;section</span> data-section=<span class="str">"hero"</span><span class="hl">&gt;</span>...<span class="hl">&lt;/section&gt;</span><br><span class="hl">&lt;section</span> data-section=<span class="str">"pricing"</span><span class="hl">&gt;</span>...<span class="hl">&lt;/section&gt;</span></code></div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num">4</div>
+            <div class="step-content">
+              <h4>Tampilkan angka live di website (opsional)</h4>
+              <p>Aktifkan di <code>Settings &rarr; Live Widget</code> di dashboard, lalu tempel snippet ini sebelum <code>&lt;/body&gt;</code> untuk menampilkan pengunjung online, pengunjung hari ini, dan total:</p>
+              <div class="code-snippet"><code><span class="hl">&lt;script</span> async data-widget-token=<span class="str">"YOUR_WIDGET_TOKEN"</span><br>&nbsp;&nbsp;src=<span class="str">"https://app.revklik.com/klikapa-live.js"</span><span class="hl">&gt;&lt;/script&gt;</span></code></div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num">5</div>
+            <div class="step-content">
+              <h4>Selesai!</h4>
+              <p>Data mulai mengalir dalam hitungan detik. Buka dashboard untuk melihat analytics real-time.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- DOCS CARDS -->
+<div class="section">
+  <div class="container">
+    <div class="section-head fade-up">
+      <h2>Panduan <em>lengkap</em></h2>
+      <p>Pelajari setiap fitur RevKlik secara detail.</p>
+    </div>
+    <div class="docs-grid">
+
+      <a href="blog/analytics-tanpa-cookie.html" class="doc-card fade-up">
+        <div class="doc-icon">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+        </div>
+        <span class="doc-tag tracking">Privacy</span>
+        <h3>Analytics <em>Tanpa Cookie</em></h3>
+        <p>Pahami bagaimana RevKlik melacak pengunjung tanpa cookie, tetap mematuhi GDPR dan UU PDP, dengan akurasi 85-90%.</p>
+        <span class="doc-link">Baca panduan &rarr;</span>
+      </a>
+
+      <a href="blog/atribusi-revenue.html" class="doc-card fade-up">
+        <div class="doc-icon">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 1v22M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>
+        </div>
+        <span class="doc-tag api">Revenue</span>
+        <h3>Atribusi <em>Revenue</em></h3>
+        <p>Hubungkan Polar ke RevKlik. Lacak sumber UTM, kampanye, dan halaman mana yang menghasilkan uang.</p>
+        <span class="doc-link">Baca panduan &rarr;</span>
+      </a>
+
+      <a href="blog/funnel-konversi.html" class="doc-card fade-up">
+        <div class="doc-icon">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 4h16l-4 8 4 8H4l4-8-4-8z"/></svg>
+        </div>
+        <span class="doc-tag tracking">Funnel</span>
+        <h3>Funnel <em>Konversi</em></h3>
+        <p>Buat conversion funnel untuk melihat di mana pengunjung drop-off dan optimalkan setiap tahap user journey.</p>
+        <span class="doc-link">Baca panduan &rarr;</span>
+      </a>
+
+      <a href="blog/migration-plausible.html" class="doc-card fade-up">
+        <div class="doc-icon">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M16 3h5v5M4 20L21 3M21 16v5h-5M15 15l6 6M4 4l5 5"/></svg>
+        </div>
+        <span class="doc-tag guide">Migration</span>
+        <h3>Migrasi dari <em>Plausible</em></h3>
+        <p>Panduan langkah demi langkah untuk berpindah dari Plausible ke RevKlik tanpa kehilangan data historis.</p>
+        <span class="doc-link">Baca panduan &rarr;</span>
+      </a>
+
+      <a href="blog/migration-datafast.html" class="doc-card fade-up">
+        <div class="doc-icon">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M16 3h5v5M4 20L21 3M21 16v5h-5M15 15l6 6M4 4l5 5"/></svg>
+        </div>
+        <span class="doc-tag guide">Migration</span>
+        <h3>Migrasi dari <em>DataFast</em></h3>
+        <p>Pindah dari DataFast ke RevKlik dengan fitur atribusi revenue dan tracking yang lebih lengkap.</p>
+        <span class="doc-link">Baca panduan &rarr;</span>
+      </a>
+
+      <a href="docs/api.html" class="doc-card fade-up">
+        <div class="doc-icon">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"/></svg>
+        </div>
+        <span class="doc-tag api">API</span>
+        <h3>Public API <em>Reference</em></h3>
+        <p>Akses data analytics secara programatik. REST API dengan scoped tokens, rate limiting, dan response JSON terstandarisasi.</p>
+        <span class="doc-link">Baca dokumentasi &rarr;</span>
+      </a>
+
+      <a href="docs/cli.html" class="doc-card fade-up">
+        <div class="doc-icon">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>
+        </div>
+        <span class="doc-tag api">CLI</span>
+        <h3>RevKlik <em>CLI</em></h3>
+        <p>Analytics dari terminal Anda. Install via npm, query data, dan pipe ke jq untuk pipeline otomatis.</p>
+        <span class="doc-link">Baca panduan &rarr;</span>
+      </a>
+
+      <a href="docs/hermes-daily-analytics.html" class="doc-card fade-up">
+        <div class="doc-icon">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 2a10 10 0 0110 10c0 5.523-4.477 10-10 10"/><path d="M12 2a10 10 0 00-7 17"/><circle cx="12" cy="12" r="4"/><path d="M21 12h-3"/><path d="M3 12h3"/></svg>
+        </div>
+        <span class="doc-tag guide">Automation</span>
+        <h3>Daily Report dengan <em>Hermes Agent</em></h3>
+        <p>Otomatisasi laporan analytics harian menggunakan Hermes AI Agent + RevKlik CLI + Google Search Console. Laporan dikirim ke Telegram setiap pagi.</p>
+        <span class="doc-link">Baca panduan &rarr;</span>
+      </a>
+
+      <a href="blog/benchmark-latensi.html" class="doc-card fade-up">
+        <div class="doc-icon">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+        </div>
+        <span class="doc-tag api">Performance</span>
+        <h3>Benchmark <em>Latensi</em></h3>
+        <p>Perbandingan performa script tracking RevKlik vs Google Analytics vs Plausible — ukuran, latensi, dan dampak ke LCP.</p>
+        <span class="doc-link">Baca panduan &rarr;</span>
+      </a>
+
+      <a href="blog/revklik-vs-google-analytics.html" class="doc-card fade-up">
+        <div class="doc-icon">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M6 18L18 6M6 6l12 12"/></svg>
+        </div>
+        <span class="doc-tag guide">Comparison</span>
+        <h3>RevKlik vs <em>Google Analytics 4</em></h3>
+        <p>Perbandingan lengkap — script size, atribusi revenue, privasi, dashboard, dan harga. Untuk founder yang butuh jawaban cepat.</p>
+        <span class="doc-link">Baca panduan &rarr;</span>
+      </a>
+
+    </div>
+  </div>
+</div>
+
+<!-- API REFERENCE PREVIEW -->
+<div class="section" style="background:var(--bg2)">
+  <div class="container">
+    <div class="section-head fade-up">
+      <h2>API <em>Reference</em></h2>
+      <p>Contoh kode untuk custom events dan conversion tracking.</p>
+    </div>
+    <div class="docs-grid fade-up" style="grid-template-columns:1fr 1fr 1fr">
+      <div class="doc-card" style="padding:24px">
+        <span class="doc-tag api">JS SDK</span>
+        <h3 style="font-size:18px">Custom <em>Events</em></h3>
+        <div class="code-snippet" style="margin-top:12px"><code><span class="hl">klikapa</span>.track(<span class="str">'signup'</span>, {<br>&nbsp;&nbsp;plan: <span class="str">'pro'</span>,<br>&nbsp;&nbsp;method: <span class="str">'google'</span><br>});</code></div>
+      </div>
+      <div class="doc-card" style="padding:24px">
+        <span class="doc-tag api">JS SDK</span>
+        <h3 style="font-size:18px">Conversion <em>Tracking</em></h3>
+        <div class="code-snippet" style="margin-top:12px"><code><span class="hl">klikapa</span>.conversion(<br>&nbsp;&nbsp;<span class="str">'purchase'</span>,<br>&nbsp;&nbsp;49000,<br>&nbsp;&nbsp;{ product: <span class="str">'Pro'</span> }<br>);</code></div>
+      </div>
+      <div class="doc-card" style="padding:24px">
+        <span class="doc-tag api">JS SDK</span>
+        <h3 style="font-size:18px">Identify <em>User</em></h3>
+        <div class="code-snippet" style="margin-top:12px"><code><span class="hl">klikapa</span>.identify({<br>&nbsp;&nbsp;email: <span class="str">'user@mail.com'</span>,<br>&nbsp;&nbsp;plan: <span class="str">'growth'</span><br>});</code></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<footer>
+  <div class="container">
+    <div class="footer-left">
+      <span><img src="revklik.webp" alt="" width="20" height="20">Rev<em>Klik</em></span>
+      <span class="footer-copy">&copy; 2025 Joyo Digitama</span>
+    </div>
+    <div class="footer-links">
+      <a href="privacy.html">Privasi</a>
+      <a href="terms.html">Ketentuan</a>
+      <a href="support.html">Dukungan</a>
+      <a href="https://github.com/dzulfikaratsauri" target="_blank">GitHub</a>
+      <a href="https://twitter.com/revklik" target="_blank">Twitter</a>
+    </div>
+  </div>
+</footer>
+
+<script>
+function toggleMenu(){document.querySelector('.nav-links').classList.toggle('open')}
+const obs=new IntersectionObserver(es=>es.forEach(e=>{if(e.isIntersecting){e.target.classList.add('vis');obs.unobserve(e.target)}}),{threshold:.15});
+document.querySelectorAll('.fade-up').forEach(el=>obs.observe(el));
+window.addEventListener('scroll',()=>{document.getElementById('nav').classList.toggle('scrolled',window.scrollY>40)});
+</script>
+</body>
+</html>

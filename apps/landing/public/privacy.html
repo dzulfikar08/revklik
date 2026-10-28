@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Kebijakan Privasi — RevKlik</title>
+<meta name="description" content="Kebijakan privasi RevKlik. Pelajari bagaimana kami melindungi data Anda dan menghormati hak privasi Anda.">
+<link rel="canonical" href="https://revklik.com/privacy.html">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://revklik.com/privacy.html">
+<meta property="og:title" content="Kebijakan Privasi — RevKlik">
+<meta property="og:description" content="Kebijakan privasi RevKlik. Pelajari bagaimana kami melindungi data Anda dan menghormati hak privasi Anda.">
+<meta property="og:site_name" content="RevKlik">
+<link rel="icon" type="image/webp" sizes="32x32" href="favicon.webp">
+<link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.webp">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=General+Sans:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --bg:#0c0b0e;--bg2:#100f13;--bg3:#17161b;--bg4:#1e1d23;
+  --text:#e8e4de;--text2:#a8a29e;--text3:#6b6560;--text4:#3d3835;
+  --accent:#d4882a;--accent-dim:rgba(212,136,42,.1);--accent-mid:rgba(212,136,42,.2);
+  --green:#34d399;--green-dim:rgba(52,211,153,.1);
+  --border:#1f1e24;--border2:#2a2930;
+  --serif:'Instrument Serif',Georgia,serif;
+  --sans:'General Sans',system-ui,sans-serif;
+  --mono:'IBM Plex Mono',monospace;
+}
+html{scroll-behavior:smooth}
+body{background:var(--bg);color:var(--text);font-family:var(--sans);line-height:1.6;-webkit-font-smoothing:antialiased}
+::selection{background:var(--accent);color:var(--text)}
+a{color:inherit;text-decoration:none}
+.container{max-width:1200px;margin:0 auto;padding:0 28px}
+
+/* NAV */
+nav{position:fixed;top:0;left:0;right:0;z-index:100;padding:20px 0;transition:all .35s}
+nav.scrolled{background:rgba(10,10,10,.92);backdrop-filter:blur(20px);padding:14px 0;border-bottom:1px solid var(--border)}
+nav .container{display:flex;align-items:center;justify-content:space-between}
+.logo{font-family:var(--serif);font-size:26px;color:var(--text);text-decoration:none;display:flex;align-items:center;gap:8px}
+.logo em{font-style:italic;color:var(--accent)}
+.logo img{border-radius:6px}
+.nav-links{display:flex;align-items:center;gap:32px}
+.nav-links a{font-size:14px;font-weight:500;color:var(--text2);text-decoration:none;transition:color .2s}
+.nav-links a:hover{color:var(--text)}
+.nav-right{display:flex;align-items:center;gap:12px}
+.nav-cta{font-size:13px;font-weight:600;color:var(--text)!important;background:var(--accent);padding:11px 26px;border-radius:100px;text-decoration:none;transition:all .25s}
+.nav-cta:hover{filter:brightness(1.15);transform:scale(1.03)}
+.burger{display:none;background:none;border:none;cursor:pointer;color:var(--text);z-index:300}
+
+/* PAGE HERO */
+.page-hero{padding:140px 0 64px;position:relative;background:radial-gradient(ellipse 60% 50% at 50% 0%,rgba(212,136,42,.05) 0%,transparent 60%)}
+.page-hero-inner{max-width:640px}
+.page-hero .eyebrow{font-family:var(--mono);font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--accent);margin-bottom:16px;display:flex;align-items:center;gap:10px}
+.page-hero .eyebrow::before{content:'';width:20px;height:1px;background:var(--accent)}
+.page-hero h1{font-family:var(--serif);font-weight:400;font-size:clamp(36px,5vw,56px);letter-spacing:-.03em;line-height:1.05;margin-bottom:16px}
+.page-hero h1 em{font-style:italic;color:var(--accent)}
+.page-hero p{font-size:17px;color:var(--text2);line-height:1.7;max-width:480px}
+
+/* LAST UPDATED */
+.last-updated{font-family:var(--mono);font-size:12px;color:var(--text3);letter-spacing:.04em;margin-top:20px;padding-top:16px;border-top:1px solid var(--border);display:inline-block}
+
+/* PROSE SECTIONS */
+.section{padding:56px 0;border-top:1px solid var(--border)}
+.prose{max-width:720px}
+.prose h3{font-family:var(--serif);font-weight:400;font-size:clamp(22px,2.5vw,30px);letter-spacing:-.02em;margin-bottom:16px;color:var(--text)}
+.prose h3 em{font-style:italic;color:var(--accent)}
+.prose p{font-size:15px;color:var(--text2);line-height:1.8;margin-bottom:16px}
+.prose p:last-child{margin-bottom:0}
+.prose ul{list-style:none;margin-bottom:16px;display:flex;flex-direction:column;gap:10px}
+.prose ul li{font-size:15px;color:var(--text2);line-height:1.7;padding-left:20px;position:relative}
+.prose ul li::before{content:'';position:absolute;left:0;top:10px;width:6px;height:6px;border-radius:50%;background:var(--accent-dim);border:1.5px solid var(--accent)}
+.prose a{color:var(--accent);font-weight:500;transition:opacity .2s}
+.prose a:hover{opacity:.8}
+
+/* FOOTER */
+footer{padding:40px 0;border-top:1px solid var(--border)}
+footer .container{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:16px}
+.footer-left{display:flex;align-items:center;gap:24px}
+.footer-left span{font-family:var(--serif);font-size:18px;display:flex;align-items:center;gap:8px}
+.footer-left span em{font-style:italic;color:var(--accent)}
+.footer-copy{font-size:13px;color:var(--text3)}
+.footer-links{display:flex;gap:28px}
+.footer-links a{font-size:13px;color:var(--text3);text-decoration:none;transition:color .2s}
+.footer-links a:hover{color:var(--text)}
+
+/* FADE */
+.fade-up{opacity:0;transform:translateY(30px);transition:all .7s cubic-bezier(.16,1,.3,1)}
+.fade-up.vis{opacity:1;transform:translateY(0)}
+
+/* MOBILE NAV */
+@media(max-width:960px){
+  .nav-links{display:flex;position:fixed;inset:0;background:rgba(10,10,10,.97);backdrop-filter:blur(24px);flex-direction:column;align-items:center;justify-content:center;gap:28px;opacity:0;pointer-events:none;transition:opacity .3s ease;z-index:200}
+  .nav-links.open{opacity:1;pointer-events:auto}
+  .nav-close{display:block;position:absolute;top:24px;right:24px}
+  .nav-links a{font-size:24px;font-weight:500;color:var(--text)}
+  .burger{display:block;position:relative;z-index:300}
+  .nav-right .nav-cta{display:none}
+}
+@media(max-width:640px){
+  .page-hero{padding:120px 0 48px}
+  .footer-links{gap:16px;flex-wrap:wrap}
+  .prose{max-width:100%}
+}
+</style>
+<script defer data-site-id="d9701d64-9e78-4b73-9726-e4f41593b843" src="https://app.revklik.com/klikapa.js"></script>
+</head>
+<body>
+
+<nav id="nav">
+  <div class="container">
+    <a href="index.html" class="logo"><img src="revklik.webp" alt="" width="28" height="28">Rev<em>Klik</em></a>
+    <div class="nav-links">
+      <button class="nav-close" onclick="document.querySelector('.nav-links').classList.remove('open')" aria-label="Close"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+      <a href="index.html">Beranda</a>
+      <a href="index.html#features">Fitur</a>
+      <a href="index.html#pricing">Harga</a>
+      <a href="blog.html">Blog</a>
+    </div>
+    <div class="nav-right">
+      <a href="https://app.revklik.com/register" class="nav-cta">Mulai dari $1 &rarr;</a>
+    </div>
+    <button class="burger" onclick="toggleMenu()" aria-label="Menu">
+      <svg width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+    </button>
+  </div>
+</nav>
+
+<section class="page-hero">
+  <div class="container">
+    <div class="page-hero-inner fade-up">
+      <div class="eyebrow">Kebijakan Privasi</div>
+      <h1>Privasi Anda <em>prioritas kami</em></h1>
+      <p>Kami berkomitmen melindungi data Anda. Kebijakan ini menjelaskan apa yang kami kumpulkan, mengapa, dan bagaimana Anda dapat mengontrol informasi Anda.</p>
+      <div class="last-updated">Terakhir diperbarui: 14 Mei 2026</div>
+    </div>
+  </div>
+</section>
+
+<!-- Ringkasan -->
+<div class="section">
+  <div class="container">
+    <div class="prose fade-up">
+      <h3>Ringkasan</h3>
+      <p>RevKlik adalah platform analytics revenue-first yang dirancang untuk SaaS dan produk digital Indonesia. Kami membangun layanan dengan prinsip privasi dari awal &mdash; mengumpulkan data minimum yang diperlukan untuk memberikan insight bermakna, dan tidak pernah menjual data Anda kepada pihak ketiga.</p>
+      <p>Kebijakan ini berlaku untuk semua layanan RevKlik termasuk situs web, dashboard, aplikasi mobile, dan script tracking. Dengan menggunakan layanan kami, Anda menyetujui praktik yang dijelaskan dalam kebijakan ini.</p>
+    </div>
+  </div>
+</div>
+
+<!-- Data yang Kami Kumpulkan -->
+<div class="section">
+  <div class="container">
+    <div class="prose fade-up">
+      <h3>Data yang Kami <em>Kumpulkan</em></h3>
+      <p>Secara default, RevKlik hanya mengumpulkan data yang diperlukan untuk menyediakan layanan analytics. Kami tidak mengumpulkan data pribadi secara otomatis. Berikut data yang kami proses:</p>
+      <ul>
+        <li><strong>Pageview</strong> &mdash; URL halaman, referrer, dan timestamp kunjungan untuk memahami traffic situs Anda.</li>
+        <li><strong>Event</strong> &mdash; Interaksi pengunjung yang Anda tentukan sendiri (klik, scroll, konversi) melalui API tracking kami.</li>
+        <li><strong>Informasi perangkat</strong> &mdash; Tipe browser, sistem operasi, ukuran layar, dan bahasa untuk analisis kompatibilitas.</li>
+        <li><strong>Data geografis</strong> &mdash; Negara dan kota berdasarkan alamat IP, yang kami anonimkan dan tidak menyimpan secara mentah.</li>
+        <li><strong>Data atribusi</strong> &mdash; Parameter UTM, sumber traffic, dan data kampanye untuk membantu Anda memahami asal pengunjung.</li>
+      </ul>
+      <p>Kami tidak mengumpulkan nama, alamat email, nomor telepon, atau data pribadi lainnya dari pengunjung situs Anda kecuali Anda secara eksplisit mengirimkannya melalui event kustom.</p>
+    </div>
+  </div>
+</div>
+
+<!-- Cookie -->
+<div class="section">
+  <div class="container">
+    <div class="prose fade-up">
+      <h3>Cookie</h3>
+      <p>RevKlik menyediakan opsi <strong>tracking tanpa cookie</strong> (cookieless) yang dapat Anda aktifkan di pengaturan situs. Dalam mode cookieless, kami menggunakan teknik fingerprinting berbasis hash yang tidak menyimpan identifier permanen di browser pengunjung.</p>
+      <p>Jika Anda memilih mode dengan cookie, kami hanya menggunakan cookie first-party yang bersifat teknis &mdash; bukan cookie pelacakan lintas situs. Cookie ini digunakan untuk:</p>
+      <ul>
+        <li>Mengidentifikasi sesi pengunjung secara anonim</li>
+        <li>Menghubungkan pageview dalam satu sesi untuk membangun user journey</li>
+        <li>Menyimpan preferensi consent pengunjung</li>
+      </ul>
+      <p>Kami tidak menggunakan cookie pihak ketiga untuk iklan atau pelacakan lintas situs. Atribusi cookieless kami mencapai akurasi 85&ndash;90% dibandingkan metode berbasis cookie tradisional.</p>
+    </div>
+  </div>
+</div>
+
+<!-- Data Pihak Ketiga -->
+<div class="section">
+  <div class="container">
+    <div class="prose fade-up">
+      <h3>Data <em>Pihak Ketiga</em></h3>
+      <p>Untuk menyediakan layanan yang andal dan cepat, kami menggunakan layanan pihak ketiga berikut:</p>
+      <ul>
+        <li><strong>Cloudflare</strong> &mdash; Kami menggunakan infrastruktur edge global untuk hosting dan pengiriman script tracking. Cloudflare memproses data sesuai dengan kebijakan privasi mereka sendiri dan kami memastikan bahwa data Anda tetap terlindungi di jaringan mereka.</li>
+        <li><strong>Polar</strong> &mdash; Jika Anda menghubungkan webhook pembayaran, data transaksi diproses oleh penyedia pembayaran Anda. Kami hanya menerima dan menyimpan metadata yang diperlukan untuk atribusi revenue (ID transaksi, jumlah, dan timestamp). Kami tidak menyimpan detail kartu kredit atau informasi pembayaran sensitif.</li>
+      </ul>
+      <p>Kami tidak membagikan data Anda dengan pihak ketiga lainnya untuk tujuan pemasaran atau penjualan. Semua sub-processor wajib mematuhi perjanjian pemrosesan data yang setara dengan standar privasi kami.</p>
+    </div>
+  </div>
+</div>
+
+<!-- Penyimpanan Data -->
+<div class="section">
+  <div class="container">
+    <div class="prose fade-up">
+      <h3>Penyimpanan <em>Data</em></h3>
+      <p>Data analytics Anda disimpan di infrastruktur edge global dengan enkripsi saat transit dan saat diam (at rest). Kami menyimpan data Anda selama akun Anda aktif dan berlangganan.</p>
+      <p>Jika akun Anda dinonaktifkan atau dihapus, kami akan:</p>
+      <ul>
+        <li>Menghapus semua data analytics dalam waktu 30 hari</li>
+        <li>Menghentikan semua script tracking yang terkait dengan situs Anda</li>
+        <li>Meminta penghapusan data dari cache edge di seluruh lokasi global</li>
+      </ul>
+      <p>Anda dapat meminta penghapusan data kapan saja melalui dashboard atau dengan menghubungi tim kami. Kami memproses permintaan penghapusan dalam waktu maksimal 14 hari kerja.</p>
+    </div>
+  </div>
+</div>
+
+<!-- Hak Anda -->
+<div class="section">
+  <div class="container">
+    <div class="prose fade-up">
+      <h3>Hak <em>Anda</em></h3>
+      <p>Sesuai dengan GDPR (General Data Protection Regulation) dan UU PDP (Undang-Undang Perlindungan Data Pribadi) Indonesia, Anda memiliki hak-hak berikut atas data Anda:</p>
+      <ul>
+        <li><strong>Hak akses</strong> &mdash; Anda dapat meminta salinan semua data yang kami simpan tentang Anda atau situs Anda kapan saja.</li>
+        <li><strong>Hak ekspor</strong> &mdash; Export data analytics Anda dalam format CSV atau JSON langsung dari dashboard, kapan saja tanpa batasan.</li>
+        <li><strong>Hak penghapusan</strong> &mdash; Anda berhak meminta penghapusan seluruh data Anda dari sistem kami, termasuk data analytics dan informasi akun.</li>
+        <li><strong>Hak koreksi</strong> &mdash; Jika data yang kami simpan tidak akurat, Anda dapat meminta perbaikan atau pembaruan.</li>
+        <li><strong>Hak portabilitas</strong> &mdash; Anda dapat memindahkan data Anda ke platform lain dalam format yang terstruktur dan dapat dibaca mesin.</li>
+        <li><strong>Hak keberatan</strong> &mdash; Anda dapat menolak pemrosesan data tertentu yang tidak diperlukan untuk menyediakan layanan inti.</li>
+      </ul>
+      <p>Untuk menggunakan hak-hak di atas, silakan hubungi kami melalui <a href="mailto:support@revklik.app">support@revklik.app</a> atau kunjungi halaman <a href="support.html">Dukungan</a> kami.</p>
+    </div>
+  </div>
+</div>
+
+<!-- Perubahan -->
+<div class="section">
+  <div class="container">
+    <div class="prose fade-up">
+      <h3>Perubahan <em>Kebijakan</em></h3>
+      <p>Kami dapat memperbarui kebijakan privasi ini dari waktu ke waktu untuk mencerminkan perubahan dalam layanan kami atau persyaratan hukum yang berlaku. Ketika kami melakukan perubahan material, kami akan:</p>
+      <ul>
+        <li>Mengirim notifikasi melalui email ke alamat yang terdaftar di akun Anda</li>
+        <li>Menampilkan pemberitahuan di dashboard RevKlik saat Anda login</li>
+        <li>Memperbarui tanggal "Terakhir diperbarui" di bagian atas halaman ini</li>
+      </ul>
+      <p>Penggunaan layanan kami yang berkelanjutan setelah perubahan kebijakan berarti Anda menyetujui versi yang diperbarui. Kami menyarankan Anda untuk meninjau kebijakan ini secara berkala.</p>
+    </div>
+  </div>
+</div>
+
+<!-- Kontak -->
+<div class="section">
+  <div class="container">
+    <div class="prose fade-up">
+      <h3>Kontak</h3>
+      <p>Jika Anda memiliki pertanyaan, kekhawatiran, atau permintaan terkait kebijakan privasi ini atau cara kami menangani data Anda, kami siap membantu.</p>
+      <p>Email: <a href="mailto:support@revklik.app">support@revklik.app</a><br>
+      Halaman dukungan: <a href="support.html">support.html</a></p>
+      <p>Tim kami biasanya merespons dalam waktu 24 jam pada hari kerja. Untuk permintaan mendesak terkait privasi, harap sebutkan "Privacy Request" di subjek email Anda.</p>
+    </div>
+  </div>
+</div>
+
+<footer>
+  <div class="container">
+    <div class="footer-left">
+      <span><img src="revklik.webp" alt="" width="22" height="22" style="border-radius:4px">Rev<em>Klik</em></span>
+      <span class="footer-copy">&copy; 2026 &mdash; Analytics untuk pembangun.</span>
+    </div>
+    <div class="footer-links">
+      <a href="privacy.html">Privasi</a>
+      <a href="terms.html">Ketentuan</a>
+      <a href="support.html">Dukungan</a>
+      <a href="#">GitHub</a>
+      <a href="#">Twitter</a>
+    </div>
+  </div>
+</footer>
+
+<script>
+// Nav scroll
+const nav=document.getElementById('nav');
+window.addEventListener('scroll',()=>nav.classList.toggle('scrolled',window.scrollY>50));
+
+// Mobile menu
+function toggleMenu(){document.querySelector('.nav-links').classList.toggle('open')}
+document.querySelectorAll('.nav-links a').forEach(a=>a.addEventListener('click',()=>document.querySelector('.nav-links').classList.remove('open')));
+
+// Fade in
+const obs=new IntersectionObserver(e=>{e.forEach(el=>{if(el.isIntersecting)el.target.classList.add('vis')})},{threshold:.08,rootMargin:'0px 0px -30px 0px'});
+document.querySelectorAll('.fade-up').forEach(el=>obs.observe(el));
+</script>
+</body>
+</html>

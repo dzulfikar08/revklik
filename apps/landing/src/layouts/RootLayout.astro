@@ -1,0 +1,98 @@
+---
+import SiteFooter from '../components/SiteFooter.astro';
+import SiteHeader from '../components/SiteHeader.astro';
+import '../styles/global.css';
+
+const SITE_ID = 'd9701d64-9e78-4b73-9726-e4f41593b843';
+const TRACKER = 'https://app.revklik.com/klikapa.js';
+const canonical = 'https://revklik.com/';
+
+const meta = {
+	title: 'RevKlik — Analytics yang Menunjukkan Channel Penghasil Uang',
+	description: 'Analytics website yang mencocokkan pembayaran Midtrans, Xendit, DOKU, dan Mayar dengan sumber traffic-nya. Tanpa cookie, satu baris script. Trial 7 hari tanpa kartu kredit, lalu mulai Rp 16.000/bulan via QRIS.',
+	ogTitle: 'RevKlik — Tahu Channel Mana yang Menghasilkan Uang',
+	ogDescription: 'Atribusi pendapatan untuk website Indonesia. Trial 7 hari tanpa kartu kredit, lalu mulai Rp 16.000/bulan via QRIS.',
+};
+
+const jsonLdApp = {
+	'@context': 'https://schema.org',
+	'@type': 'SoftwareApplication',
+	name: 'RevKlik',
+	url: 'https://revklik.com',
+	applicationCategory: 'BusinessApplication',
+	operatingSystem: 'Web',
+	description: 'Analytics website dengan atribusi pendapatan: real-time, tanpa cookie, terhubung ke Midtrans, Xendit, DOKU, dan Mayar.',
+	offers: [
+		{ '@type': 'Offer', name: 'Micro', price: '16000', priceCurrency: 'IDR', description: 'Hingga 10.000 event per bulan, 1 situs' },
+		{ '@type': 'Offer', name: 'Starter', price: '64000', priceCurrency: 'IDR', description: 'Hingga 100.000 event per bulan, 3 situs' },
+		{ '@type': 'Offer', name: 'Growth', price: '192000', priceCurrency: 'IDR', description: 'Hingga 500.000 event per bulan, 10 situs' },
+	],
+	featureList: ['Atribusi Pendapatan', 'Dashboard Real-Time', 'Sumber Traffic & UTM', 'Heatmap', 'Rekaman Sesi', 'Server MCP', 'Tanpa Cookie', 'Pembayaran QRIS'],
+};
+const jsonLdOrg = {
+	'@context': 'https://schema.org',
+	'@type': 'Organization',
+	name: 'RevKlik',
+	url: 'https://revklik.com',
+	logo: 'https://revklik.com/revklik.webp',
+	description: 'Layanan analytics website simpel dari Joyo Digitama.',
+	parentOrganization: { '@type': 'Organization', name: 'Joyo Digitama', url: 'https://voltrus.id' },
+};
+const jsonLdFaq = {
+	'@context': 'https://schema.org',
+	'@type': 'FAQPage',
+	mainEntity: [
+		{ '@type': 'Question', name: 'Apa itu "event"?', acceptedAnswer: { '@type': 'Answer', text: 'Setiap pageview, event kustom, dan konversi dihitung sebagai satu event. Satu pengunjung yang membuka 3 halaman dihitung 3 event.' } },
+		{ '@type': 'Question', name: 'Apakah saya perlu memasang banner cookie?', acceptedAnswer: { '@type': 'Answer', text: 'Tidak. RevKlik tidak memakai cookie dan tidak menyimpan data pribadi, jadi situs Anda tidak perlu banner persetujuan.' } },
+		{ '@type': 'Question', name: 'Bagaimana cara pembayarannya?', acceptedAnswer: { '@type': 'Answer', text: 'Pembayaran via QRIS. Setelah pembayaran terkonfirmasi, paket Anda aktif otomatis.' } },
+		{ '@type': 'Question', name: 'Bisa berhenti langganan kapan saja?', acceptedAnswer: { '@type': 'Answer', text: 'Bisa. Tidak ada kontrak dan tidak ada biaya tersembunyi. Cukup jangan perpanjang bulan berikutnya.' } },
+		{ '@type': 'Question', name: 'Apakah ada paket gratis?', acceptedAnswer: { '@type': 'Answer', text: 'Tidak ada paket gratis permanen. Setiap akun baru mendapat trial 7 hari dengan semua fitur Growth, tanpa kartu kredit. Setelah itu paket termurah Rp 16.000 per bulan.' } },
+	],
+};
+---
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{meta.title}</title>
+<meta name="description" content={meta.description}>
+<meta name="keywords" content="analytics indonesia, analytics website, statistik pengunjung website, analytics tanpa cookie, analytics murah, alternatif google analytics, tracking pengunjung website, web analytics indonesia, analytics UMKM, analytic sederhana">
+<meta name="robots" content="index, follow, max-snippet:-1, max-image-preview:large">
+<meta name="author" content="RevKlik">
+<link rel="canonical" href={canonical}>
+<link rel="icon" type="image/webp" sizes="32x32" href="/favicon.webp">
+<link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.webp">
+
+<meta property="og:type" content="website">
+<meta property="og:url" content={canonical}>
+<meta property="og:title" content={meta.ogTitle}>
+<meta property="og:description" content={meta.ogDescription}>
+<meta property="og:image" content="https://revklik.com/og-image.webp">
+<meta property="og:site_name" content="RevKlik">
+<meta property="og:locale" content="id_ID">
+
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content={meta.ogTitle}>
+<meta name="twitter:description" content={meta.ogDescription}>
+<meta name="twitter:image" content="https://revklik.com/og-image.webp">
+
+<script type="application/ld+json" set:html={JSON.stringify(jsonLdApp)} />
+<script type="application/ld+json" set:html={JSON.stringify(jsonLdOrg)} />
+<script type="application/ld+json" set:html={JSON.stringify(jsonLdFaq)} />
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesque:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+
+<script is:inline defer data-site-id={SITE_ID} src={TRACKER}></script>
+<script is:inline defer src="/js/landing.js"></script>
+</head>
+<body>
+<SiteHeader />
+<main>
+	<slot />
+</main>
+<SiteFooter />
+</body>
+</html>

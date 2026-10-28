@@ -1,0 +1,12 @@
+---
+import { C } from '../data/copy';
+import { REGISTER_URL } from '../data/site';
+---
+<section class="cta" data-section="cta">
+  <div class="cta-deco">RevKlik</div>
+  <div class="container">
+    <h2 class="fade-up"><Fragment set:html={C.cta_title} /></h2>
+    <p class="fade-up d1">{C.cta_desc}</p>
+    <a href={REGISTER_URL} class="btn-accent fade-up d2" data-revklik-goal="register_click" data-revklik-goal-location="footer_cta">{C.cta_btn}</a>
+  </div>
+</section>
