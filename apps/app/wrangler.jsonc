@@ -7,6 +7,9 @@
 	"main": "src/worker/index.ts",
 	"compatibility_date": "2025-05-25",
 	"compatibility_flags": ["nodejs_compat"],
+	// Run next to the D1 primary (APAC/SIN) instead of the visitor's colo: Indonesian
+	// ISPs often land on SYD/MRS, and every sequential D1 query then pays ~200ms RTT.
+	"placement": { "mode": "smart" },
 	"assets": {
 		"directory": "./dist/client",
 		"not_found_handling": "single-page-application",
