@@ -20,12 +20,6 @@ export const C = {
 	hero_cta1: 'Coba gratis 7 hari',
 	hero_cta2: 'Lihat harga',
 	hero_note: 'Tanpa kartu kredit. Bayar via QRIS setelah trial.',
-	specs_label: 'Ringkasan teknis',
-	specs: [
-		{ val: '~4KB', lbl: 'ukuran script (gzip)' },
-		{ val: '0', lbl: 'cookie' },
-		{ val: '5 menit', lbl: 'waktu setup' },
-	],
 
 	live_title: 'Seperti ini dashboard Anda nanti.',
 	live_sub:

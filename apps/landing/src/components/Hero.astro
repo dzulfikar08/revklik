@@ -4,7 +4,7 @@ import { REGISTER_URL } from '../data/site';
 const [plain, money] = C.hero_title;
 ---
 <section class="hero" data-section="hero">
-  <div class="wrap hero-grid">
+  <div class="wrap">
     <div class="hero-copy">
       <h1>{plain}<span class="hl">{money}</span></h1>
       <p class="lede">{C.hero_sub}</p>
@@ -14,10 +14,5 @@ const [plain, money] = C.hero_title;
       </div>
       <p class="fine">{C.hero_note}</p>
     </div>
-    <dl class="specs" aria-label={C.specs_label}>
-      {C.specs.map((s) => (
-        <div class="spec"><dt>{s.lbl}</dt><dd>{s.val}</dd></div>
-      ))}
-    </dl>
   </div>
 </section>

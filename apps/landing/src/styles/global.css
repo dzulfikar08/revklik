@@ -416,15 +416,20 @@ p {
 .hero {
 	padding-block: 40px 32px;
 }
-.hero-grid {
-	display: grid;
-	gap: 36px;
+.hero-copy {
+	max-width: 46rem;
+	margin-inline: auto;
+	text-align: center;
+}
+.hero-copy h1 {
+	text-wrap: balance;
 }
 .hero-copy .lede {
 	max-width: 38rem;
-	margin-top: 20px;
+	margin: 20px auto 0;
 	color: var(--muted);
 	font-size: 1.0625rem;
+	text-wrap: pretty;
 }
 .hero-actions {
 	display: flex;
@@ -437,35 +442,10 @@ p {
 	color: var(--muted);
 	font-size: 0.875rem;
 }
-.specs {
-	background: var(--card);
-	border-radius: var(--r-lg);
-	box-shadow: var(--ring);
-	overflow: hidden;
-}
-.spec {
-	display: flex;
-	align-items: baseline;
-	justify-content: space-between;
-	gap: 16px;
-	padding: 16px 20px;
-}
-.spec + .spec {
-	border-top: 1px solid var(--border);
-}
-.spec dt {
-	color: var(--muted);
-	font-size: 0.9375rem;
-}
-.spec dd {
-	font-size: 1.5rem;
-	font-weight: 600;
-	letter-spacing: -0.02em;
-	font-variant-numeric: tabular-nums;
-}
 @media (min-width: 640px) {
 	.hero-actions {
 		flex-direction: row;
+		justify-content: center;
 	}
 	.hero-copy .lede {
 		font-size: 1.1875rem;
@@ -473,12 +453,7 @@ p {
 }
 @media (min-width: 900px) {
 	.hero {
-		padding-block: 88px 72px;
-	}
-	.hero-grid {
-		grid-template-columns: minmax(0, 7fr) minmax(0, 4fr);
-		gap: 64px;
-		align-items: end;
+		padding-block: 96px 112px;
 	}
 }
 
