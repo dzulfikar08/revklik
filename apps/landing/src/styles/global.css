@@ -839,32 +839,26 @@ p {
 	color: var(--text);
 	text-underline-offset: 4px;
 }
-@media (min-width: 720px) {
-	.plan {
-		grid-template-columns: minmax(0, 1fr) minmax(0, 1.25fr);
-		grid-template-areas:
-			'id feats'
-			'price feats'
-			'cta feats';
-		grid-template-rows: auto auto 1fr;
-		column-gap: 40px;
-		padding: 28px;
+@media (min-width: 900px) {
+	.plans {
+		grid-template-columns: repeat(3, minmax(0, 1fr));
+		gap: 16px;
 	}
-	.plan-cta {
+	/* Subgrid rows keep name, price, CTA and feature lists aligned across the three cards. */
+	.plan {
+		grid-row: span 4;
+		grid-template-rows: subgrid;
+		grid-template-areas: 'id' 'price' 'cta' 'feats';
+		gap: 20px;
+		padding: 28px 24px;
+	}
+	.plan-price {
 		align-self: end;
 	}
-}
-@media (min-width: 1100px) {
-	.plan {
-		grid-template-columns: minmax(0, 1.1fr) minmax(0, 0.95fr) minmax(0, 1.6fr) auto;
-		grid-template-areas: 'id price feats cta';
-		grid-template-rows: auto;
-		align-items: center;
-		column-gap: 40px;
-	}
-	.plan-cta {
-		width: auto;
-		min-width: 11.5rem;
+	.plan-feats {
+		padding-top: 20px;
+		border-top: 1px solid var(--border);
+		align-content: start;
 	}
 }
 @media (min-width: 900px) {
