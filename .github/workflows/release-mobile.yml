@@ -1,0 +1,280 @@
+# Signed store builds of the RevKlik mobile app (apps/native): an Android App Bundle (optionally uploaded to the Google
+# Play internal track) and an iOS IPA (optionally uploaded to TestFlight). Free GitHub-hosted runners, no EAS.
+#
+# Manual only (Actions tab -> "Release mobile" -> Run workflow). Both jobs are bound to the `release` environment, which
+# holds the signing secrets (environment secrets, so no other workflow can read them) and should require approval and be
+# limited to main. The jobs only run in dzulfikar08/revklik, so a fork cannot reach for secrets of the same names.
+# Secrets and setup: apps/native/README.md.
+name: Release mobile
+
+on:
+  workflow_dispatch:
+    inputs:
+      android:
+        description: "Build the signed Android AAB"
+        type: boolean
+        default: true
+      play_upload:
+        description: "Upload the AAB to the Google Play internal track (needs PLAY_SERVICE_ACCOUNT_JSON)"
+        type: boolean
+        default: false
+      play_status:
+        description: "Release status on Play (draft = finish it in Play Console; a never-released app needs draft)"
+        type: choice
+        options: [draft, completed]
+        default: draft
+      ios:
+        description: "Build the signed iOS IPA"
+        type: boolean
+        default: true
+      testflight_upload:
+        description: "Upload the IPA to App Store Connect / TestFlight"
+        type: boolean
+        default: false
+      xcode_version:
+        description: "Xcode version for maxim-lobanov/setup-xcode (e.g. 26.x or latest-stable)"
+        type: string
+        default: latest-stable
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-mobile
+  cancel-in-progress: false
+
+jobs:
+  android:
+    name: Android AAB
+    if: github.repository == 'dzulfikar08/revklik' && inputs.android
+    runs-on: ubuntu-latest
+    timeout-minutes: 150
+    environment: release
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Free disk space
+        run: sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/share/boost /usr/local/lib/node_modules/.cache "$AGENT_TOOLSDIRECTORY/CodeQL"
+
+      - uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
+        with:
+          distribution: temurin
+          java-version: "17"
+      # CVE-2026-91403: see mobile.yml.
+      - name: Distrust eMudhra in the JDK (CVE-2026-91403)
+        run: |
+          store="$RUNNER_TEMP/cacerts"
+          cp -L "$JAVA_HOME/lib/security/cacerts" "$store" && chmod 600 "$store"
+          for alias in $("$JAVA_HOME/bin/keytool" -list -keystore "$store" -storepass changeit | grep -i emsign | cut -d, -f1); do
+            "$JAVA_HOME/bin/keytool" -delete -keystore "$store" -storepass changeit -alias "$alias"
+          done
+          if "$JAVA_HOME/bin/keytool" -list -keystore "$store" -storepass changeit | grep -qi emsign; then echo "emSign still trusted" >&2; exit 1; fi
+          echo "JAVA_TOOL_OPTIONS=-Djavax.net.ssl.trustStore=$store -Djavax.net.ssl.trustStorePassword=changeit" >> "$GITHUB_ENV"
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "24"
+
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: 1.4.4 # keep in sync with "packageManager" in package.json
+
+      - name: Cache bun packages
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.bun/install/cache
+          key: bun-${{ runner.os }}-${{ hashFiles('bun.lock') }}
+          restore-keys: bun-${{ runner.os }}-
+
+      - uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # v6.4.0
+        with:
+          cache-read-only: false
+
+      # R8 on a release build runs out of the template's 2 GB heap.
+      - name: Gradle JVM settings
+        run: |
+          mkdir -p ~/.gradle
+          cat >> ~/.gradle/gradle.properties <<'EOF2'
+          org.gradle.jvmargs=-Xmx6g -XX:MaxMetaspaceSize=1g -XX:+UseParallelGC
+          org.gradle.parallel=true
+          org.gradle.caching=true
+          EOF2
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      # keystore.properties sits next to the keystore, outside android/ (expo prebuild --clean wipes android/).
+      - name: Restore release keystore and Firebase config
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          STORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          GOOGLE_SERVICES_JSON_BASE64: ${{ secrets.GOOGLE_SERVICES_JSON_BASE64 }}
+        run: |
+          for v in KEYSTORE_BASE64 STORE_PASSWORD KEY_ALIAS KEY_PASSWORD GOOGLE_SERVICES_JSON_BASE64; do
+            [ -n "${!v}" ] || { echo "::error::missing secret for $v (see apps/native/README.md)"; exit 1; }
+          done
+          mkdir -p apps/native/keystore
+          printf '%s' "$KEYSTORE_BASE64" | base64 -d > apps/native/keystore/revklik-release.jks
+          umask 077
+          {
+            echo "storeFile=apps/native/keystore/revklik-release.jks"
+            echo "storePassword=$STORE_PASSWORD"
+            echo "keyAlias=$KEY_ALIAS"
+            echo "keyPassword=$KEY_PASSWORD"
+          } > apps/native/keystore/keystore.properties
+          printf '%s' "$GOOGLE_SERVICES_JSON_BASE64" | base64 -d > apps/native/google-services.json
+
+      - name: Build AAB (prebuild + bundleRelease)
+        env:
+          MINIFY: "1"
+        run: scripts/mobile/build-android.sh aab
+
+      - name: Checksums
+        run: |
+          for f in dist/revklik.aab dist/mapping.txt; do
+            [ -f "$f" ] && { ls -la "$f"; sha256sum "$f" | tee -a "$GITHUB_STEP_SUMMARY"; }
+          done
+          true
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: revklik-android-${{ github.run_number }}
+          path: |
+            dist/revklik.aab
+            dist/mapping.txt
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Upload to Google Play (internal track)
+        if: inputs.play_upload
+        uses: r0adkll/upload-google-play@e738b9dd8f2476ea806d921b64aacd24f34515a5 # v1.1.5
+        with:
+          serviceAccountJsonPlainText: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+          packageName: com.joyodigitama.revklik
+          releaseFiles: dist/revklik.aab
+          mappingFile: dist/mapping.txt
+          track: internal
+          status: ${{ inputs.play_status }}
+
+      - name: Remove signing material
+        if: always()
+        run: rm -rf apps/native/keystore apps/native/google-services.json
+
+  ios:
+    name: iOS IPA
+    if: github.repository == 'dzulfikar08/revklik' && inputs.ios
+    runs-on: macos-latest
+    timeout-minutes: 120
+    environment: release
+    env:
+      XCODE_VERSION: ${{ inputs.xcode_version || 'latest-stable' }}
+      ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+      ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: maxim-lobanov/setup-xcode@ed7a3b1fda3918c0306d1b724322adc0b8cc0a90 # v1.7.0
+        with:
+          xcode-version: ${{ env.XCODE_VERSION }}
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "24"
+
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: 1.4.4 # keep in sync with "packageManager" in package.json
+
+      - name: Cache bun and CocoaPods downloads
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.bun/install/cache
+            ~/Library/Caches/CocoaPods
+          key: ios-${{ runner.os }}-${{ hashFiles('bun.lock') }}
+          restore-keys: ios-${{ runner.os }}-
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      # altool and asc-ci-profile.py read the key from ~/.appstoreconnect/private_keys (mode 600).
+      - name: Install App Store Connect API key
+        env:
+          ASC_KEY_BASE64: ${{ secrets.ASC_KEY_BASE64 }}
+        run: |
+          for v in ASC_KEY_ID ASC_ISSUER_ID ASC_KEY_BASE64; do
+            [ -n "${!v}" ] || { echo "::error::missing secret for $v (see apps/native/README.md)"; exit 1; }
+          done
+          umask 077
+          mkdir -p ~/.appstoreconnect/private_keys
+          printf '%s' "$ASC_KEY_BASE64" | base64 --decode > ~/.appstoreconnect/private_keys/AuthKey_${ASC_KEY_ID}.p8
+          chmod 600 ~/.appstoreconnect/private_keys/AuthKey_${ASC_KEY_ID}.p8
+          echo "ASC_KEY_PATH=$HOME/.appstoreconnect/private_keys/AuthKey_${ASC_KEY_ID}.p8" >> "$GITHUB_ENV"
+
+      # The archive and export sign manually: automatic export needs a cloud-managed distribution certificate, which an
+      # API key may not create. So the Apple Distribution identity comes from a .p12 in a temporary keychain and the
+      # App Store profile (with Push Notifications enabled on the App ID) from the API.
+      - name: Import distribution certificate and fetch the App Store profile
+        env:
+          P12_BASE64: ${{ secrets.IOS_DIST_CERT_P12_BASE64 }}
+          P12_PASSWORD: ${{ secrets.IOS_DIST_CERT_PASSWORD }}
+        run: |
+          for v in P12_BASE64 P12_PASSWORD; do
+            [ -n "${!v}" ] || { echo "::error::missing secret for $v (see apps/native/README.md)"; exit 1; }
+          done
+          kc="$RUNNER_TEMP/release.keychain-db"
+          kcpass="$(uuidgen)"
+          printf '%s' "$P12_BASE64" | base64 --decode > "$RUNNER_TEMP/dist.p12"
+          security create-keychain -p "$kcpass" "$kc"
+          security set-keychain-settings -lut 21600 "$kc"
+          security unlock-keychain -p "$kcpass" "$kc"
+          security import "$RUNNER_TEMP/dist.p12" -k "$kc" -P "$P12_PASSWORD" -T /usr/bin/codesign -T /usr/bin/security
+          security set-key-partition-list -S apple-tool:,apple: -s -k "$kcpass" "$kc" > /dev/null
+          security list-keychains -d user -s "$kc" $(security list-keychains -d user | tr -d '"')
+          rm -f "$RUNNER_TEMP/dist.p12"
+          security find-identity -v -p codesigning "$kc" | sed 's/^ *[0-9]*) [0-9A-F]* //'
+          serial="$(security find-certificate -a -c 'Apple Distribution' -p "$kc" | openssl x509 -noout -serial | cut -d= -f2 | head -1)"
+          mkdir -p "$HOME/Library/Developer/Xcode/UserData/Provisioning Profiles"
+          out="$(python3 scripts/ios/asc-ci-profile.py com.joyodigitama.revklik "$serial" "$RUNNER_TEMP/store.mobileprovision" PUSH_NOTIFICATIONS)"
+          uuid="$(cut -f1 <<<"$out")"
+          cp "$RUNNER_TEMP/store.mobileprovision" "$HOME/Library/Developer/Xcode/UserData/Provisioning Profiles/$uuid.mobileprovision"
+          echo "EXPORT_PROFILE=$(cut -f2 <<<"$out")" >> "$GITHUB_ENV"
+
+      - name: Build IPA
+        env:
+          UPLOAD: ${{ inputs.testflight_upload && '--upload' || '' }}
+        run: scripts/mobile/build-ios.sh ipa $UPLOAD
+
+      - name: Checksum
+        run: shasum -a 256 dist/RevKlik.ipa | tee -a "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload IPA artifact
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: revklik-ios-${{ github.run_number }}
+          path: dist/RevKlik.ipa
+          if-no-files-found: error
+          retention-days: 30
+
+      # The logs hold signing and Pods output but no secrets (the key is only passed as a path).
+      - name: Upload build logs
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: revklik-ios-logs-${{ github.run_number }}
+          path: build/ios/*.log
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: Remove signing material
+        if: always()
+        run: |
+          rm -f ~/.appstoreconnect/private_keys/AuthKey_*.p8
+          security delete-keychain "$RUNNER_TEMP/release.keychain-db" 2>/dev/null || true

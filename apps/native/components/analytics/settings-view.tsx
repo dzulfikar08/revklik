@@ -4,6 +4,7 @@ import { Alert, ScrollView, Switch, Text, TouchableOpacity, View } from "react-n
 import { StyleSheet, useUnistyles } from "react-native-unistyles";
 
 import { Panel, PanelBody } from "@/components/analytics/ui";
+import { NotificationsSection, PlanSection } from "@/components/push-settings";
 import { Button, Input, Row } from "@/components/ui";
 import { useActiveSite } from "@/lib/active-site";
 import { authSignOut } from "@/lib/auth";
@@ -13,7 +14,7 @@ import {
 	fetchEmailReports,
 	updateEmailReport,
 } from "@/lib/klikapa/analytics-settings";
-import { fetchSites, getLegacyUser, LEGACY_API_BASE, LegacyApiError } from "@/lib/klikapa/api";
+import { fetchSites, getLegacyUser, API_URL, LegacyApiError } from "@/lib/klikapa/api";
 import type { LegacyUser, SiteWithStats } from "@/lib/klikapa/api";
 import {
 	fetchTeam,
@@ -321,8 +322,11 @@ export const SettingsView = () => {
 				<Row label="Role" value={user?.role ?? "—"} />
 			</Panel>
 
+			<NotificationsSection />
+			<PlanSection />
+
 			<Panel title="Data source">
-				<Row label="API" value={LEGACY_API_BASE} />
+				<Row label="API" value={API_URL} />
 				<Row label="Active site" value={siteDomain} />
 				<Row label="Mode" value="live" />
 			</Panel>
@@ -342,7 +346,7 @@ export const SettingsView = () => {
 	);
 };
 
-const styles = StyleSheet.create((theme) => ({
+const styles = StyleSheet.create((theme, rt) => ({
 	freqAdd: {
 		marginLeft: "auto",
 	},
@@ -417,6 +421,7 @@ const styles = StyleSheet.create((theme) => ({
 		gap: 10,
 		padding: 12,
 		paddingBottom: 32,
+		paddingTop: 12 + rt.insets.top,
 	},
 	pageSub: {
 		color: theme.colors.mutedForeground,

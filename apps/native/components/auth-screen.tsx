@@ -1,5 +1,4 @@
 import { Ionicons } from "@expo/vector-icons";
-import * as Linking from "expo-linking";
 import * as WebBrowser from "expo-web-browser";
 import { useState } from "react";
 import { KeyboardAvoidingView, ScrollView, Text, View } from "react-native";
@@ -8,7 +7,7 @@ import { z } from "zod";
 
 import { Button, Input } from "@/components/ui";
 import { authCompleteGoogle, authRegister, authSignIn, useAuth } from "@/lib/auth";
-import { GOOGLE_AUTH_URL, LegacyApiError } from "@/lib/klikapa/api";
+import { GOOGLE_AUTH_URL, GOOGLE_CALLBACK_URL, LegacyApiError } from "@/lib/klikapa/api";
 
 type Mode = "sign-in" | "sign-up";
 
@@ -21,28 +20,20 @@ const signUpSchema = signInSchema.extend({
 	name: z.string().trim().min(1, "Name is required"),
 });
 
+const CANCELLED = "cancelled";
+
 /**
- * Google OAuth capture. The in-app auth session resolves when the browser
- * lands on a URL for this app; a `#token=…` fragment is parsed exactly like
- * the web root route. Today the klikapa worker redirects to the *web app*
- * instead of the app scheme, so openAuthSessionAsync never resolves with a
- * usable URL — the button surfaces that as a friendly hint until the server
- * gains a client-supplied post-auth redirect (see GOOGLE_AUTH_URL in
- * lib/klikapa/api.ts for the exact server need).
+ * Google OAuth. GET /auth/google?redirect_to=revklik://auth/callback sends the
+ * browser to `revklik://auth/callback#token=<session>`; the in-app auth
+ * session resolves with that URL and the fragment carries the token.
  */
 const continueWithGoogle = async (): Promise<void> => {
-	const callbackUrl = Linking.createURL("auth");
-	const result = await WebBrowser.openAuthSessionAsync(GOOGLE_AUTH_URL, callbackUrl);
-	if (result.type !== "success" || !result.url) {
-		throw new Error("cancelled");
+	const result = await WebBrowser.openAuthSessionAsync(GOOGLE_AUTH_URL, GOOGLE_CALLBACK_URL);
+	if (result.type !== "success") {
+		throw new Error(CANCELLED);
 	}
-	const hashIndex = result.url.indexOf("#token=");
-	if (hashIndex === -1) {
-		throw new Error("no-token");
-	}
-	const token = decodeURIComponent(
-		result.url.slice(hashIndex + "#token=".length).split("&")[0] ?? "",
-	);
+	const fragment = result.url.split("#")[1] ?? "";
+	const token = new URLSearchParams(fragment).get("token");
 	if (!token) {
 		throw new Error("no-token");
 	}
@@ -103,9 +94,9 @@ export const AuthScreen = () => {
 			await continueWithGoogle();
 		} catch (error) {
 			setGoogleHint(
-				error instanceof Error && error.message === "cancelled"
+				error instanceof Error && error.message === CANCELLED
 					? null
-					: "Google sign-in needs the server to redirect back to the app — use email and password for now.",
+					: "Google sign-in didn't complete — try again or use email and password.",
 			);
 		}
 		setPending(false);

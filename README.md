@@ -33,7 +33,7 @@ database, a tracking script of about 4 KB, and a dashboard in English and Bahasa
 | `apps/app`                      | The Worker (Hono + Kysely over D1), tracker scripts, Capacitor shell        |
 | `apps/web`                      | Dashboard SPA (TanStack Router/Query, Tailwind v4), served as Worker assets |
 | `apps/fumadocs`, `apps/landing` | Docs site and marketing site (Astro)                                        |
-| `apps/native`                   | Native app shell                                                            |
+| `apps/native`                   | RevKlik mobile app (Expo, iOS + Android): sale push alerts and earnings     |
 | `packages/shared`               | D1 and API types                                                            |
 | `packages/sdk`, `packages/cli`  | `@revklik/sdk` and `@revklik/cli`                                           |
 | `packages/{config,env,ui}`      | Shared tsconfig, typed env loader, UI kit                                   |

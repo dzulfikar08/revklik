@@ -1,0 +1,147 @@
+# Compiles the RevKlik mobile app (apps/native, Expo) on free GitHub-hosted runners: no EAS, no secrets, nothing
+# signed or uploaded to a store. Proves that `expo prebuild` + Gradle (Android) and `expo prebuild` + CocoaPods +
+# xcodebuild (iOS Simulator) still produce a working project. The signed store builds are release-mobile.yml.
+#
+# The Android APK is signed with the Expo template's debug key (no keystore here), so it installs for testing, but it
+# has no google-services.json and therefore cannot receive push notifications.
+name: Mobile
+
+on:
+  pull_request:
+    paths:
+      - "apps/native/**"
+      - "scripts/mobile/**"
+      - "bun.lock"
+      - ".github/workflows/mobile.yml"
+  push:
+    branches: [main]
+    paths:
+      - "apps/native/**"
+      - "scripts/mobile/**"
+      - "bun.lock"
+      - ".github/workflows/mobile.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: mobile-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  android:
+    name: Android APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Free disk space
+        run: sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/share/boost /usr/local/lib/node_modules/.cache "$AGENT_TOOLSDIRECTORY/CodeQL"
+
+      - uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
+        with:
+          distribution: temurin
+          java-version: "17"
+      # CVE-2026-91403: eight eMudhra intermediates were compromised (forged TLS certificates for any host). Gradle
+      # fetches dependencies over TLS, so the JVMs use a copy of the JDK's cacerts without the emSign hierarchy.
+      # Drop this step once the pinned JDK is a fixed release.
+      - name: Distrust eMudhra in the JDK (CVE-2026-91403)
+        run: |
+          store="$RUNNER_TEMP/cacerts"
+          cp -L "$JAVA_HOME/lib/security/cacerts" "$store" && chmod 600 "$store"
+          for alias in $("$JAVA_HOME/bin/keytool" -list -keystore "$store" -storepass changeit | grep -i emsign | cut -d, -f1); do
+            "$JAVA_HOME/bin/keytool" -delete -keystore "$store" -storepass changeit -alias "$alias"
+          done
+          if "$JAVA_HOME/bin/keytool" -list -keystore "$store" -storepass changeit | grep -qi emsign; then echo "emSign still trusted" >&2; exit 1; fi
+          echo "JAVA_TOOL_OPTIONS=-Djavax.net.ssl.trustStore=$store -Djavax.net.ssl.trustStorePassword=changeit" >> "$GITHUB_ENV"
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "24"
+
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: 1.4.4 # keep in sync with "packageManager" in package.json
+
+      - name: Cache bun packages
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.bun/install/cache
+          key: bun-${{ runner.os }}-${{ hashFiles('bun.lock') }}
+          restore-keys: bun-${{ runner.os }}-
+
+      - uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # v6.4.0
+        with:
+          cache-read-only: ${{ github.ref != 'refs/heads/main' }}
+
+      - name: Gradle JVM settings
+        run: |
+          mkdir -p ~/.gradle
+          cat >> ~/.gradle/gradle.properties <<'EOF2'
+          org.gradle.jvmargs=-Xmx6g -XX:MaxMetaspaceSize=1g -XX:+UseParallelGC
+          org.gradle.parallel=true
+          org.gradle.caching=true
+          EOF2
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Build APK (prebuild + assembleRelease)
+        run: scripts/mobile/build-android.sh apk
+
+      - name: Upload APK
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: revklik-android-apk
+          path: dist/revklik.apk
+          if-no-files-found: error
+          retention-days: 7
+
+  ios:
+    name: iOS Simulator build
+    runs-on: macos-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: maxim-lobanov/setup-xcode@ed7a3b1fda3918c0306d1b724322adc0b8cc0a90 # v1.7.0
+        with:
+          xcode-version: latest-stable
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "24"
+
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: 1.4.4 # keep in sync with "packageManager" in package.json
+
+      - name: Cache bun and CocoaPods downloads
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.bun/install/cache
+            ~/Library/Caches/CocoaPods
+          key: ios-${{ runner.os }}-${{ hashFiles('bun.lock') }}
+          restore-keys: ios-${{ runner.os }}-
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Build for the iOS Simulator (prebuild + pod install + xcodebuild, unsigned)
+        run: scripts/mobile/build-ios.sh simulator
+
+      - name: Upload build logs
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: revklik-ios-sim-logs
+          path: build/ios/*.log
+          if-no-files-found: ignore
+          retention-days: 7

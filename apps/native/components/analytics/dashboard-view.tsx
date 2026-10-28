@@ -686,7 +686,7 @@ export const DashboardView = () => {
 	);
 };
 
-const styles = StyleSheet.create((theme) => ({
+const styles = StyleSheet.create((theme, rt) => ({
 	barGlyph: {
 		fontSize: 14,
 	},
@@ -826,6 +826,7 @@ const styles = StyleSheet.create((theme) => ({
 		gap: 10,
 		padding: 12,
 		paddingBottom: 32,
+		paddingTop: 12 + rt.insets.top,
 	},
 	rangeLabel: {
 		color: theme.colors.mutedForeground,

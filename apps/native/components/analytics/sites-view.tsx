@@ -429,7 +429,7 @@ export const SitesView = () => {
 	);
 };
 
-const styles = StyleSheet.create((theme) => ({
+const styles = StyleSheet.create((theme, rt) => ({
 	activeDot: {
 		borderRadius: 999,
 		height: 8,
@@ -543,6 +543,7 @@ const styles = StyleSheet.create((theme) => ({
 		gap: 12,
 		padding: 12,
 		paddingBottom: 32,
+		paddingTop: 12 + rt.insets.top,
 	},
 	pageSub: {
 		color: theme.colors.mutedForeground,

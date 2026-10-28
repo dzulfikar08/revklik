@@ -4,20 +4,16 @@
  * `{ success, data, error }` envelope, same LegacyApiError semantics —
  * with expo-secure-store instead of localStorage for session persistence.
  */
-import { env } from "@revklik/env/native";
 import * as SecureStore from "expo-secure-store";
 import { fetch as expoFetch } from "expo/fetch";
 import { AppState } from "react-native";
 
-export const KLIKAPA_API_URL: string =
-	env.EXPO_PUBLIC_KLIKAPA_API_URL ?? "https://app.revklik.com/api";
-export const LEGACY_API_BASE = KLIKAPA_API_URL;
+import { API_URL, DEV_TOKEN } from "../env";
 
-// Dev-only escape hatch: inject a pre-existing klikapa token via env instead
-// of minting one. Never applied in production builds.
-const ENV_TOKEN: string | undefined = __DEV__
-	? process.env.EXPO_PUBLIC_KLIKAPA_API_TOKEN
-	: undefined;
+export { API_URL };
+
+// Dev-only escape hatch (see lib/env.ts); undefined in production builds.
+const ENV_TOKEN: string | undefined = DEV_TOKEN;
 
 const TOKEN_KEY = "kp_token";
 const USER_KEY = "kp_user";
@@ -346,7 +342,7 @@ export class LegacyApiError extends Error {
  * ("Invalid credentials", "Email taken", …) to the form.
  */
 const authRequest = async (path: string, body: Record<string, string>): Promise<LegacyUser> => {
-	const res = await fetch(`${KLIKAPA_API_URL}${path}`, {
+	const res = await fetch(`${API_URL}${path}`, {
 		body: JSON.stringify(body),
 		headers: { "Content-Type": "application/json" },
 		method: "POST",
@@ -375,20 +371,17 @@ export const legacyRegister = (
 	password: string,
 ): Promise<LegacyUser> => authRequest("/auth/register", { email, name, password });
 
+/** Deep link the Worker redirects to after Google OAuth (scheme registered in app.json). */
+export const GOOGLE_CALLBACK_URL = "revklik://auth/callback";
+
 /**
- * Start URL for the klikapa Google OAuth flow.
- *
- * BLOCKED server-side (do not hack around): the production worker's
- * `/auth/google` hard-redirects back to the web app (`/#token=…` on the
- * revklik web origin), so an in-app browser session can never hand the
- * token to this app. The worker needs a client-supplied post-auth redirect
- * — e.g. honor `?redirect_to=<urlencoded app callback>` on GET /auth/google
- * or add a native OAuth entry that 302s to the app scheme
- * `revklik-new://auth/callback#token=…`. Until then Google sign-in stays
- * web-only; see components/sign-in.tsx for the capture attempt that lights
- * up automatically once the redirect exists.
+ * Start URL for the Google OAuth flow. GET /auth/google honors `redirect_to`
+ * when its scheme is in the Worker's NATIVE_REDIRECT_SCHEMES (routes/auth.ts)
+ * and finishes with a 302 to `revklik://auth/callback#token=<session>`.
  */
-export const GOOGLE_AUTH_URL = `${KLIKAPA_API_URL}/auth/google`;
+export const GOOGLE_AUTH_URL = `${API_URL}/auth/google?redirect_to=${encodeURIComponent(
+	GOOGLE_CALLBACK_URL,
+)}`;
 
 /**
  * Complete a Google OAuth flow that landed back in the app with
@@ -396,7 +389,7 @@ export const GOOGLE_AUTH_URL = `${KLIKAPA_API_URL}/auth/google`;
  * resolve the profile via GET /auth/me, then persist token + user.
  */
 export const completeGoogleSignIn = async (token: string): Promise<LegacyUser> => {
-	const res = await fetch(`${KLIKAPA_API_URL}/auth/me`, {
+	const res = await fetch(`${API_URL}/auth/me`, {
 		headers: { Authorization: `Bearer ${token}` },
 	});
 	const json = (await res.json().catch(() => null)) as {
@@ -422,7 +415,7 @@ export const legacySignOut = async (): Promise<void> => {
 	const token = cachedToken ?? (await readStore(TOKEN_KEY));
 	if (token) {
 		try {
-			await fetch(`${KLIKAPA_API_URL}/auth/logout`, {
+			await fetch(`${API_URL}/auth/logout`, {
 				headers: { Authorization: `Bearer ${token}` },
 				method: "POST",
 			});
@@ -432,9 +425,11 @@ export const legacySignOut = async (): Promise<void> => {
 	}
 	legacyLogout();
 };
-export const legacyFetch = async <T>(path: string, opts?: RequestInit): Promise<T> => {
+
+/** Authenticated request; a 401 drops the dead token and signs the app out. */
+const authedRequest = async (path: string, opts?: RequestInit): Promise<Response> => {
 	const token = await getToken();
-	const res = await fetch(`${KLIKAPA_API_URL}${path}`, {
+	const res = await fetch(`${API_URL}${path}`, {
 		...opts,
 		headers: {
 			"Content-Type": "application/json",
@@ -447,6 +442,12 @@ export const legacyFetch = async <T>(path: string, opts?: RequestInit): Promise<
 		legacyLogout();
 		throw new LegacyApiError("Session expired — sign in again", 401);
 	}
+	return res;
+};
+
+/** Envelope endpoints: `{ success, data, error }`. */
+export const legacyFetch = async <T>(path: string, opts?: RequestInit): Promise<T> => {
+	const res = await authedRequest(path, opts);
 	if (!res.ok) {
 		throw new LegacyApiError(`Request failed (${res.status})`, res.status);
 	}
@@ -459,6 +460,16 @@ export const legacyFetch = async <T>(path: string, opts?: RequestInit): Promise<
 		throw new LegacyApiError(json.error || "Request failed", res.status);
 	}
 	return json.data as T;
+};
+
+/** Endpoints that answer with a bare JSON body and `{ error, success:false }` on failure (push). */
+export const bareFetch = async <T>(path: string, opts?: RequestInit): Promise<T> => {
+	const res = await authedRequest(path, opts);
+	const json = (await res.json().catch(() => null)) as (T & { error?: string }) | null;
+	if (!res.ok || json === null) {
+		throw new LegacyApiError(json?.error || `Request failed (${res.status})`, res.status);
+	}
+	return json;
 };
 
 /* ------------------------------ active site ------------------------------- */
@@ -604,7 +615,7 @@ export const connectSSE = (siteId: string, onEvent: (event: LiveEvent) => void):
 			return;
 		}
 		try {
-			const res = await expoFetch(`${KLIKAPA_API_URL}/analytics/stream?site_id=${siteId}`, {
+			const res = await expoFetch(`${API_URL}/analytics/stream?site_id=${siteId}`, {
 				headers: { Authorization: `Bearer ${token}` },
 			});
 			if (!res.ok || !res.body) {
