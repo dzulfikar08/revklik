@@ -1,0 +1,3 @@
+# The landing-page demo dashboard is fixture data: keep it out of search results.
+/demo
+  X-Robots-Tag: noindex, nofollow

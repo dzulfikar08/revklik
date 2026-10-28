@@ -127,6 +127,7 @@ function RootComponent() {
 		notFound ||
 		pathname.startsWith("/analytics") ||
 		pathname.startsWith("/public") ||
+		pathname.startsWith("/demo") ||
 		pathname === "/login" ||
 		pathname === "/register" ||
 		pathname === "/reset-password" ||

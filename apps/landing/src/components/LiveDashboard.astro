@@ -1,6 +1,6 @@
 ---
 import { C } from '../data/copy';
-const PUBLIC_URL = 'https://app.revklik.com/public/b719ba64-478e-49c4-819f-06dd0376a6ce';
+const DEMO_URL = 'https://app.revklik.com/demo';
 ---
 <section class="live" data-section="live">
   <div class="wrap">
@@ -10,13 +10,13 @@ const PUBLIC_URL = 'https://app.revklik.com/public/b719ba64-478e-49c4-819f-06dd0
     </div>
     <div class="frame">
       <div class="frame-bar">
-        <a class="frame-title" href={PUBLIC_URL} target="_blank" rel="noopener">{C.live_caption}</a>
-        <a class="link-ext" href="https://pakustadz.com" target="_blank" rel="noopener">{C.live_visit}<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M7 17L17 7M7 7h10v10"/></svg></a>
+        <p class="frame-title">{C.live_caption}</p>
+        <span class="frame-badge">{C.live_badge}</span>
       </div>
       <div class="frame-body">
-        <p class="frame-status" data-frame-status>{C.live_loading} <a href={PUBLIC_URL} target="_blank" rel="noopener">{C.live_open}</a></p>
+        <p class="frame-status" data-frame-status>{C.live_loading} <a href={DEMO_URL} target="_blank" rel="noopener">{C.live_open}</a></p>
         <iframe
-          src={`${PUBLIC_URL}?embed=1`}
+          src={`${DEMO_URL}?embed=1`}
           title={C.live_iframe_title}
           loading="lazy"
         ></iframe>

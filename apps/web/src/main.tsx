@@ -35,6 +35,7 @@ registerSessionExpiredHandler(() => {
 	void router.navigate({ search: next ? { next } : {}, to: "/login" });
 });
 
+const DEMO_PATH = /^\/demo\/?$/u;
 const SITE_DASHBOARD = /^\/analytics\/([^/]+)\/?$/u;
 
 // On a site dashboard, billing opens as that dashboard's view (the site
@@ -61,5 +62,7 @@ if (!rootElement) {
 if (!rootElement.innerHTML) {
 	const root = ReactDOM.createRoot(rootElement);
 	// Self-hosted instances hide pricing and upgrade UI: know which kind this is first.
-	void initInstanceConfig().then(() => root.render(<RouterProvider router={router} />));
+	// /demo is a fixture that never reads the flag, so it renders without any request.
+	const ready = DEMO_PATH.test(window.location.pathname) ? Promise.resolve() : initInstanceConfig();
+	void ready.then(() => root.render(<RouterProvider router={router} />));
 }

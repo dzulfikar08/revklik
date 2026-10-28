@@ -27,14 +27,14 @@ export const C = {
 		{ val: '5 menit', lbl: 'waktu setup' },
 	],
 
-	live_title: 'Bukan mockup. Ini dashboard PakUstadz.com.',
+	live_title: 'Seperti ini dashboard Anda nanti.',
 	live_sub:
-		'Dashboard publik PakUstadz.com, salah satu situs yang diukur dengan RevKlik. Kunjungi situsnya, lalu lihat datanya bergerak di sini.',
-	live_caption: 'Dashboard PakUstadz.com',
+		'Ini toko online fiktif dengan data contoh. Tampilan dan cara kerjanya sama dengan dashboard yang Anda dapat setelah script terpasang. Coba ganti rentang waktunya.',
+	live_caption: 'Toko Kopi Senja (tokokopisenja.id)',
+	live_badge: 'Data contoh',
 	live_open: 'Buka dashboard penuh',
-	live_visit: 'Kunjungi PakUstadz.com',
 	live_loading: 'Memuat dashboard...',
-	live_iframe_title: 'Dashboard live PakUstadz.com, diukur dengan RevKlik',
+	live_iframe_title: 'Dashboard contoh Toko Kopi Senja, toko fiktif dengan data contoh',
 
 	feat_title: 'Dari klik pertama sampai transaksi.',
 	feat_desc:

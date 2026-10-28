@@ -509,9 +509,13 @@ p {
 	font-weight: 600;
 	text-decoration: none;
 }
-.frame-title:hover {
-	text-decoration: underline;
-	text-underline-offset: 4px;
+.frame-badge {
+	padding: 2px 8px;
+	border: 1px solid var(--border);
+	border-radius: var(--r-sm);
+	color: var(--muted);
+	font-size: 0.8125rem;
+	font-weight: 500;
 }
 .frame-body {
 	position: relative;
