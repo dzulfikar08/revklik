@@ -6,7 +6,7 @@ import { computedSourceSql } from "./lib/source-sql";
  * Version the live schema must reach. Bump it whenever a step is appended to
  * VERSIONED_STEPS; a DB already at this version costs one SELECT per isolate.
  */
-export const SCHEMA_VERSION = 18;
+export const SCHEMA_VERSION = 19;
 
 const migrated = new WeakSet<D1Database>();
 
@@ -102,6 +102,8 @@ const VERSIONED_STEPS: MigrationStep[] = [
 	},
 	{ version: 17, run: sourceSchema },
 	{ version: 18, run: probeBotBackfill },
+	// v18 ran on D1 with an expression tree past its depth limit and flagged nothing.
+	{ version: 19, run: probeBotBackfill },
 ];
 
 /** Rows rewritten per backfill statement: far below D1's per-query CPU and row-write limits. */
@@ -143,12 +145,10 @@ async function probeBotBackfill(d1: D1Database): Promise<void> {
 		"utm_content",
 	];
 	const markers = PROBE_MARKERS.map((m) => `'${m.replaceAll("'", "''")}'`);
-	const matches = columns
-		.map((col) => {
-			const text = `lower(replace(replace(COALESCE(${col}, ''), '%20', ' '), '+', ' '))`;
-			return markers.map((m) => `instr(${text}, ${m}) > 0`).join(" OR ");
-		})
-		.join(" OR ");
+	// One concatenated haystack keeps the expression tree shallow: D1 rejects
+	// trees deeper than 100, which a per-column OR chain exceeds.
+	const haystack = `lower(replace(replace(${columns.map((col) => `COALESCE(${col}, '')`).join(" || char(10) || ")}, '%20', ' '), '+', ' '))`;
+	const matches = markers.map((m) => `instr(${haystack}, ${m}) > 0`).join(" OR ");
 	try {
 		const first = await d1
 			.prepare("SELECT MIN(rowid) AS lo FROM events")
