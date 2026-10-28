@@ -116,6 +116,26 @@ const endpoints = [
 	},
 	{
 		method: "GET",
+		path: "/api/portfolio/revenue",
+		auth: true,
+		desc: "Gross vs net revenue across all your sites, by product and payment rail",
+		query: "from(YYYY-MM-DD), to(YYYY-MM-DD), currency",
+	},
+	{
+		method: "GET",
+		path: "/api/fee-rules",
+		auth: true,
+		desc: "Effective payment fee rules per rail (defaults merged with your overrides)",
+	},
+	{
+		method: "PUT",
+		path: "/api/fee-rules",
+		auth: true,
+		desc: "Save fee rules; applies to events ingested afterwards",
+		body: "{ rules: [{ rail, percent_bps, fixed_amount?, fixed_currency? } | { rail, reset: true }] }",
+	},
+	{
+		method: "GET",
 		path: "/api/ai-insights",
 		auth: true,
 		desc: "AI insights",

@@ -213,26 +213,32 @@ polarWebhookRoutes.post("/", async (c) => {
 
 	// The idempotency key is the order id, shared with the server events API, so an
 	// order seen through both paths (or twice through this one) books once.
-	const result = await recordServerEvent(db, site, {
-		siteId,
-		name: isRefund ? "refund" : "purchase_polar",
-		revenue: isRefund ? -amount : amount,
-		currency,
-		externalId: isRefund ? `${orderId}:refund` : orderId,
-		source: "polar",
-		props: {
-			polar_order_id: orderId,
-			product: productName,
-			billing_reason: data.billing_reason,
-			...(customerEmail ? { email: customerEmail } : {}),
+	const result = await recordServerEvent(
+		db,
+		site,
+		{
+			siteId,
+			name: isRefund ? "refund" : "purchase_polar",
+			revenue: isRefund ? -amount : amount,
+			currency,
+			externalId: isRefund ? `${orderId}:refund` : orderId,
+			source: "polar",
+			rail: "polar",
+			props: {
+				polar_order_id: orderId,
+				product: productName,
+				billing_reason: data.billing_reason,
+				...(customerEmail ? { email: customerEmail } : {}),
+			},
+			occurredAt: data.created_at || attributes.created_at || null,
+			visitorId: metadata.revklik_visitor_id || null,
+			sessionId: metadata.revklik_session_id || null,
+			utmSource: metadata.utm_source || null,
+			utmMedium: metadata.utm_medium || null,
+			utmCampaign: metadata.utm_campaign || null,
 		},
-		occurredAt: data.created_at || attributes.created_at || null,
-		visitorId: metadata.revklik_visitor_id || null,
-		sessionId: metadata.revklik_session_id || null,
-		utmSource: metadata.utm_source || null,
-		utmMedium: metadata.utm_medium || null,
-		utmCampaign: metadata.utm_campaign || null,
-	});
+		c.env,
+	);
 	if (result.duplicate) return c.json({ success: true, duplicate: true });
 
 	if (customerEmail) {

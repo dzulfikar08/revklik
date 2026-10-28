@@ -65,6 +65,51 @@ returns `"duplicate": true` and books nothing. Pass `visitor_id` (the
 sale to that visitor's source and campaign. A `revenue` of `0` is stored as a
 plain event, not a conversion.
 
+### Rail, product and net revenue
+
+Three optional fields feed the cross-product [portfolio view](#portfolio-revenue):
+
+| Field | Meaning |
+| --- | --- |
+| `rail` | Payment rail, lowercase: `apple`, `google_play`, `polar`, `doku`, `pakasir`, `stripe`, `lemonsqueezy`, `midtrans`, `xendit`, `mayar`, `paywuz`, `manual`. Defaults from `source` (`app_store*` → `apple`, `google*` → `google_play`, `polar*` → `polar`, ...), else the source itself. |
+| `product` | Product slug, up to 80 characters. Defaults to `props.product`, then `props.app`. |
+| `net_revenue` | What you keep, in the same currency and sign as `revenue`, never larger in size. Send it only when the source knows the real proceeds (for example Apple's developer proceeds). |
+
+Without `net_revenue`, RevKlik computes the net when the event is stored: the
+fee is `|revenue| × percent + fixed amount` (the fixed amount is converted into
+the event currency), and `net = max(0, |revenue| − fee)` with the sign of
+`revenue`. A refund (`<id>:refund`) without `net_revenue` keeps the net/gross
+ratio of the original sale. Each event records how its net was obtained
+(`reported`, `rule` or `refund_ratio`). Nets are stored at ingest and never
+recomputed when you edit a rule later.
+
+Built-in fees (editable per rail on the Portfolio page, or `GET`/`PUT
+/api/fee-rules` with a dashboard session): `apple` 15%, `google_play` 15%,
+`polar` 4% + 0.40 USD, `stripe` 2.9% + 0.30 USD, `doku` 0.7%, `pakasir` 0.7%,
+every other rail 0%. Events stored before this feature have no net and count
+as net = gross.
+
+### Portfolio revenue
+
+```bash
+curl "https://<your-revklik-host>/api/v1/portfolio/revenue?from=2026-10-01&to=2026-10-31&currency=IDR" \
+  -H "Authorization: Bearer rvt_..."
+```
+
+Needs an account token (`rvt_`) with `analytics:read`; a site token only sees
+its own site. It covers every site you own or have accepted a team seat on,
+excludes bot traffic, and converts each sale at today's rates into `currency`
+(default: your most common site currency). `from` and `to` are inclusive UTC
+days (default: the last 30 days). The `data` object holds:
+
+- `currency`, `from`, `to`
+- `totals`: `gross`, `net`, `sales` (revenue > 0), `refunds` (revenue < 0), `refund_amount`
+- `by_site`, `by_product`, `by_rail`, `daily`: `gross`, `net` and `sales` per group
+- `recent`: the 20 newest revenue events with `revenue`, `net_revenue`, `currency`,
+  `converted_gross`, `converted_net` and `occurred_at`
+
+The same data is available to AI agents as the `portfolio_revenue` MCP tool.
+
 For Polar, put `revklik_visitor_id` and `revklik_session_id` in the checkout
 metadata. RevKlik books `order.paid` and `order.refunded` once per order, using
 the order's net amount (after discounts, before tax).

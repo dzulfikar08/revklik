@@ -2,6 +2,7 @@ import type { Kysely } from "kysely";
 import type { KlikapaDatabase } from "@revklik/shared";
 import { sql } from "../db";
 import { generateId } from "../utils";
+import { normalizeRail, railFromSource, resolveNet, resolveProduct } from "./fees";
 import { eventCurrency, MAX_REVENUE, resolveEventTimestamp } from "./ingest";
 
 /** One revenue (or revenue-less) event reported by a trusted server. */
@@ -24,6 +25,12 @@ export interface ServerEventInput {
 	utmSource?: string | null;
 	utmMedium?: string | null;
 	utmCampaign?: string | null;
+	/** Payment rail ("apple", "polar", ...); defaults from `source`. */
+	rail?: string | null;
+	/** Product slug; defaults from props.product, then props.app. */
+	product?: string | null;
+	/** Real proceeds in `revenue`'s currency and sign, when the source knows them. */
+	netRevenue?: number | null;
 }
 
 export interface ServerEventResult {
@@ -57,6 +64,7 @@ export async function recordServerEvent(
 	db: Kysely<KlikapaDatabase>,
 	site: ServerEventSite,
 	input: ServerEventInput,
+	env?: { FX_USD_IDR?: string },
 ): Promise<ServerEventResult> {
 	if (!Number.isFinite(input.revenue) || Math.abs(input.revenue) > MAX_REVENUE) {
 		throw new RangeError("revenue must be a finite number within 1e9");
@@ -145,6 +153,17 @@ export async function recordServerEvent(
 	const ts = resolveEventTimestamp(input.occurredAt, Date.now(), Number.POSITIVE_INFINITY);
 	const eventId = generateId();
 	const eventType = eventTypeFor(input.revenue);
+	const currency = eventCurrency(input.currency, input.props, site.revenue_currency);
+	const rail = normalizeRail(input.rail) ?? railFromSource(input.source);
+	const net = await resolveNet(db, {
+		siteId: site.id,
+		rail,
+		revenue: input.revenue,
+		currency,
+		externalId: input.externalId,
+		reportedNet: input.netRevenue,
+		env,
+	});
 
 	try {
 		await db
@@ -166,7 +185,11 @@ export async function recordServerEvent(
 				utm_term: null,
 				utm_content: null,
 				revenue: input.revenue,
-				currency: eventCurrency(input.currency, input.props, site.revenue_currency),
+				currency,
+				rail,
+				product: resolveProduct(input.product, input.props),
+				net_revenue: net.net_revenue,
+				net_source: net.net_source,
 				payment_provider: input.source,
 				props: JSON.stringify({
 					external_id: input.externalId,

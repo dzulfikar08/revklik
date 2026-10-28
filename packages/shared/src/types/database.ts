@@ -41,6 +41,14 @@ export interface EventTable {
 	is_bot: Defaulted<number>;
 	/** Idempotency key of server-side events (Apple transactionId, Polar order id). */
 	external_id: string | null;
+	/** Payment rail ("apple", "polar", "doku", ...) of a server-reported sale. */
+	rail: Defaulted<string | null>;
+	/** Product slug the sale belongs to. */
+	product: Defaulted<string | null>;
+	/** What the merchant keeps, same currency and sign as revenue; NULL on legacy rows. */
+	net_revenue: Defaulted<number | null>;
+	/** How net_revenue was obtained. */
+	net_source: Defaulted<"reported" | "rule" | "refund_ratio" | null>;
 }
 
 export interface SessionTable {
@@ -153,6 +161,16 @@ export interface FxRateTable {
 	as_of: string;
 }
 
+/** Owner-specific payment fee for one rail; overrides the built-in default. */
+export interface FeeRuleTable {
+	user_id: string;
+	rail: string;
+	percent_bps: number;
+	fixed_amount: number;
+	fixed_currency: string | null;
+	updated_at: number | null;
+}
+
 export interface PaymentProviderTable {
 	id: string;
 	site_id: string;
@@ -255,6 +273,7 @@ export interface KlikapaDatabase {
 	integrations: IntegrationTable;
 	crawler_hits: CrawlerHitTable;
 	fx_rates: FxRateTable;
+	fee_rules: FeeRuleTable;
 	webhook_events: WebhookEventTable;
 	ai_insights: AiInsightTable;
 	subscriptions: SubscriptionTable;

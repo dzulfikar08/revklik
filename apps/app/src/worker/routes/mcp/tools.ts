@@ -15,6 +15,7 @@ export const CANONICAL_TOOL_NAMES = [
 	"geo_breakdown",
 	"device_breakdown",
 	"revenue_breakdown",
+	"portfolio_revenue",
 	"campaigns",
 	"visitor_journeys",
 	"gsc_queries",
@@ -123,6 +124,26 @@ export const TOOL_DEFS: ToolDef[] = [
 			"Revenue by traffic source, by country, and over time (revenue events only). REST: GET /api/v1/analytics/revenue",
 		scope: "analytics:read",
 		inputSchema: siteArgs(),
+	},
+	{
+		name: "portfolio_revenue",
+		description:
+			"Cross-product revenue: gross vs net-after-fees totals, by site, product and payment rail, daily, and the 20 newest sales, across all sites you own or are a team member of, converted into one currency. REST: GET /api/v1/portfolio/revenue",
+		scope: "analytics:read",
+		inputSchema: {
+			type: "object",
+			properties: {
+				from: { type: "string", description: "First day, YYYY-MM-DD (default: 29 days before to)" },
+				to: {
+					type: "string",
+					description: "Last day, inclusive, YYYY-MM-DD (default: today, UTC)",
+				},
+				currency: {
+					type: "string",
+					description: "ISO 4217 code to convert into (default: your most common site currency)",
+				},
+			},
+		},
 	},
 	{
 		name: "campaigns",

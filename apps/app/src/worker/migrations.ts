@@ -2,7 +2,7 @@
  * Version the live schema must reach. Bump it whenever a step is appended to
  * VERSIONED_STEPS; a DB already at this version costs one SELECT per isolate.
  */
-export const SCHEMA_VERSION = 13;
+export const SCHEMA_VERSION = 14;
 
 const migrated = new WeakSet<D1Database>();
 
@@ -85,7 +85,33 @@ const VERSIONED_STEPS: MigrationStep[] = [
 				"CREATE TABLE IF NOT EXISTS fx_rates (currency TEXT PRIMARY KEY, per_usd REAL NOT NULL, as_of TEXT NOT NULL)",
 			),
 	},
+	{ version: 14, run: revenueAggregationSchema },
 ];
+
+/**
+ * Cross-product revenue: payment rail, product slug and net-after-fees on each
+ * event (nullable metadata-only ALTERs), plus per-owner fee rules overriding
+ * the built-in defaults in lib/fees.ts.
+ */
+async function revenueAggregationSchema(d1: D1Database): Promise<void> {
+	for (const statement of [
+		"ALTER TABLE events ADD COLUMN rail TEXT",
+		"ALTER TABLE events ADD COLUMN product TEXT",
+		"ALTER TABLE events ADD COLUMN net_revenue REAL",
+		"ALTER TABLE events ADD COLUMN net_source TEXT",
+		`CREATE TABLE IF NOT EXISTS fee_rules (
+      user_id TEXT NOT NULL,
+      rail TEXT NOT NULL,
+      percent_bps INTEGER NOT NULL,
+      fixed_amount REAL NOT NULL DEFAULT 0,
+      fixed_currency TEXT,
+      updated_at INTEGER,
+      PRIMARY KEY (user_id, rail)
+    )`,
+	]) {
+		await runDdl(d1, statement);
+	}
+}
 
 const CHECKOUT_STATUSES = "('open', 'expired', 'confirmed', 'succeeded', 'failed')";
 

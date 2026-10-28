@@ -21,7 +21,9 @@ import { importRoutes } from "./routes/import";
 import { integrationRoutes } from "./routes/integrations";
 import { shopeeRoutes } from "./routes/marketplace-shopee";
 import { tokopediaRoutes } from "./routes/marketplace-tokopedia";
+import { feeRuleRoutes } from "./routes/fee-rules";
 import { paymentProviderRoutes } from "./routes/payment-providers";
+import { portfolioRoutes } from "./routes/portfolio";
 import { predictionsRoutes } from "./routes/predictions";
 import { pushTokenRoutes } from "./routes/push-tokens";
 import { segmentRoutes } from "./routes/segments";
@@ -156,6 +158,13 @@ export function createApp(): Hono<Env> {
 	app.use("/analytics/*", requireActiveSubscription);
 	app.use("/analytics/funnel", requirePlanTier("starter"));
 	app.route("/analytics", analyticsRoutes);
+
+	app.use("/portfolio/*", authMiddleware);
+	app.use("/portfolio/*", requireActiveSubscription);
+	app.route("/portfolio", portfolioRoutes);
+
+	app.use("/fee-rules/*", authMiddleware);
+	app.route("/fee-rules", feeRuleRoutes);
 
 	app.use("/ai-insights/*", authMiddleware);
 	app.use("/ai-insights/*", requireActiveSubscription);

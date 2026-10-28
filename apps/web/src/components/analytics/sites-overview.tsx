@@ -1,7 +1,7 @@
 import { Button, buttonVariants } from "@revklik/ui/components/button";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
-import { Code2, CreditCard, Globe, Loader2, Plus } from "lucide-react";
+import { ChartColumn, Code2, CreditCard, Globe, Loader2, Plus } from "lucide-react";
 import { useId, useState } from "react";
 
 import { LocaleToggle } from "@/components/locale-toggle";
@@ -223,6 +223,15 @@ const SitesOverviewPage = () => {
 					<LocaleToggle className="sm:order-last" />
 					<div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
 						<RangePills rangeKey={rangeKey} onRange={setRangeKey} />
+						<Link
+							to="/analytics/portfolio"
+							className={buttonVariants({
+								className: "pointer-coarse:h-10 h-8",
+								variant: "outline",
+							})}
+						>
+							<ChartColumn aria-hidden /> {t("portfolio.nav")}
+						</Link>
 						<Link
 							to="/analytics/billing"
 							className={buttonVariants({

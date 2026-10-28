@@ -1,4 +1,5 @@
 import { Hono } from "hono";
+import { webhookRevenueFields } from "../lib/fees";
 import type { Kysely } from "kysely";
 import type { KlikapaDatabase } from "@revklik/shared";
 import { sql } from "../db";
@@ -167,6 +168,12 @@ paywuzWebhookRoutes.post("/", async (c) => {
 	).toLowerCase();
 	const eventId = generateId();
 
+	const revenueFields = await webhookRevenueFields(db, {
+		siteId,
+		rail: "paywuz",
+		revenue: amount,
+		currency: "IDR",
+	});
 	await db
 		.insertInto("events")
 		.values({
@@ -192,6 +199,7 @@ paywuzWebhookRoutes.post("/", async (c) => {
 			browser: null,
 			os: null,
 			revenue: amount,
+			...revenueFields,
 			payment_provider: "paywuz",
 			payment_method: method,
 			currency: "IDR",

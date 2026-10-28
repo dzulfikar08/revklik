@@ -1,4 +1,5 @@
 import { Hono } from "hono";
+import { webhookRevenueFields } from "../lib/fees";
 import type { Kysely } from "kysely";
 import type { KlikapaDatabase } from "@revklik/shared";
 import { sql } from "../db";
@@ -184,6 +185,12 @@ midtransWebhookRoutes.post("/", async (c) => {
 		: new Date().toISOString();
 
 	const eventId = generateId();
+	const revenueFields = await webhookRevenueFields(db, {
+		siteId,
+		rail: "midtrans",
+		revenue: amount,
+		currency: "IDR",
+	});
 	await db
 		.insertInto("events")
 		.values({
@@ -209,6 +216,7 @@ midtransWebhookRoutes.post("/", async (c) => {
 			browser: null,
 			os: null,
 			revenue: amount,
+			...revenueFields,
 			payment_provider: "midtrans",
 			payment_method: mappedMethod,
 			currency: "IDR",

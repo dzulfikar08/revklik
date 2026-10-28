@@ -9,7 +9,7 @@ import { CANONICAL_TOOL_NAMES, TOOL_DEFS } from "./tools";
 describe("tool registry", () => {
 	test("registry matches CANONICAL_TOOL_NAMES exactly, in order", () => {
 		expect(TOOL_DEFS.map((d) => d.name)).toEqual([...CANONICAL_TOOL_NAMES]);
-		expect(TOOL_DEFS).toHaveLength(13);
+		expect(TOOL_DEFS).toHaveLength(14);
 	});
 
 	test("all tool names are snake_case", () => {

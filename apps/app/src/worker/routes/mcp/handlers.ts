@@ -24,6 +24,7 @@ import {
 	requireScopeOn,
 	toCsv,
 } from "../../lib/public-api-queries";
+import { PortfolioQueryError, queryPortfolioRevenue } from "../../lib/portfolio";
 import { getToolDef, type ToolName } from "./tools";
 
 export type ToolCallOutcome =
@@ -84,6 +85,19 @@ export const TOOL_HANDLERS: Record<ToolName, ToolHandler> = {
 		queryDevices(ctx, resolveSiteId(ctx, a.site_id), strArg(a, "range") ?? "7d"),
 	revenue_breakdown: async (ctx, a) =>
 		queryRevenue(ctx, resolveSiteId(ctx, a.site_id), strArg(a, "range") ?? "7d"),
+	portfolio_revenue: async (ctx, a) => {
+		try {
+			return await queryPortfolioRevenue(
+				ctx.db,
+				ctx.userId,
+				{ from: strArg(a, "from"), to: strArg(a, "to"), currency: strArg(a, "currency") },
+				{ env: ctx.env, onlySiteId: ctx.tokenSiteId },
+			);
+		} catch (e) {
+			if (e instanceof PortfolioQueryError) throw new PublicApiError(400, e.message);
+			throw e;
+		}
+	},
 	campaigns: async (ctx, a) =>
 		queryCampaigns(ctx, resolveSiteId(ctx, a.site_id), strArg(a, "range") ?? "7d"),
 	visitor_journeys: async (ctx, a) =>

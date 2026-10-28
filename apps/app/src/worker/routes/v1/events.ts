@@ -9,6 +9,7 @@ import {
 	publicApiCtx,
 	publicApiErrorResponse,
 } from "../../lib/public-api-queries";
+import { isValidReportedNet, MAX_RAIL_LENGTH, normalizeRail } from "../../lib/fees";
 import { recordServerEvent } from "../../lib/server-events";
 
 export const v1EventsRoutes = new Hono<PublicApiEnv>();
@@ -16,6 +17,7 @@ export const v1EventsRoutes = new Hono<PublicApiEnv>();
 const MAX_ID_LENGTH = 200;
 const MAX_NAME_LENGTH = 100;
 const MAX_PROPS_BYTES = 4096;
+const MAX_PRODUCT_LENGTH = 80;
 
 /** A string field, trimmed, within `max` characters; undefined when absent. */
 function optionalString(
@@ -41,8 +43,11 @@ function requiredString(body: Record<string, unknown>, key: string, max: number)
 /**
  * POST /events/server: a trusted server reports a purchase, renewal or refund.
  * Body: { site_id, name, revenue, currency?, external_id, source?, props?,
- * occurred_at?, visitor_id?, session_id?, utm_source?, utm_medium?, utm_campaign? }.
- * `revenue` is in major units and negative for refunds. Idempotent on
+ * occurred_at?, visitor_id?, session_id?, utm_source?, utm_medium?, utm_campaign?,
+ * rail?, product?, net_revenue? }.
+ * `revenue` is in major units and negative for refunds. `net_revenue` (same
+ * currency and sign, |net| <= |revenue|) is what the merchant keeps; without it
+ * RevKlik computes the net from the owner's fee rule for `rail`. Idempotent on
  * (site_id, external_id): a repeat returns duplicate:true with the original event.
  */
 v1EventsRoutes.post("/server", requireScope(SCOPES.EVENTS_WRITE), async (c) => {
@@ -68,6 +73,25 @@ v1EventsRoutes.post("/server", requireScope(SCOPES.EVENTS_WRITE), async (c) => {
 		const revenue = typeof body.revenue === "string" ? Number(body.revenue) : body.revenue;
 		if (typeof revenue !== "number" || !Number.isFinite(revenue) || Math.abs(revenue) > 1e9) {
 			throw new PublicApiError(400, "revenue must be a number between -1e9 and 1e9");
+		}
+
+		const rawRail = optionalString(body, "rail", MAX_RAIL_LENGTH);
+		const rail = rawRail === undefined ? undefined : normalizeRail(rawRail);
+		if (rail === null) {
+			throw new PublicApiError(400, "rail must be lowercase letters, digits, _ . or -");
+		}
+
+		let netRevenue: number | undefined;
+		if (body.net_revenue !== undefined && body.net_revenue !== null && body.net_revenue !== "") {
+			const net =
+				typeof body.net_revenue === "string" ? Number(body.net_revenue) : body.net_revenue;
+			if (typeof net !== "number" || !isValidReportedNet(revenue, net)) {
+				throw new PublicApiError(
+					400,
+					"net_revenue must be a number with the sign of revenue and no larger in size",
+				);
+			}
+			netRevenue = net;
 		}
 
 		let props: Record<string, unknown> | undefined;
@@ -98,21 +122,29 @@ v1EventsRoutes.post("/server", requireScope(SCOPES.EVENTS_WRITE), async (c) => {
 			.where("id", "=", siteId)
 			.executeTakeFirstOrThrow();
 
-		const result = await recordServerEvent(ctx.db, site, {
-			siteId,
-			name,
-			revenue,
-			currency: optionalString(body, "currency", 3),
-			externalId,
-			source: optionalString(body, "source", 40) ?? "server",
-			props,
-			occurredAt,
-			visitorId: optionalString(body, "visitor_id", MAX_ID_LENGTH),
-			sessionId: optionalString(body, "session_id", MAX_ID_LENGTH),
-			utmSource: optionalString(body, "utm_source", 100),
-			utmMedium: optionalString(body, "utm_medium", 100),
-			utmCampaign: optionalString(body, "utm_campaign", 200),
-		});
+		const result = await recordServerEvent(
+			ctx.db,
+			site,
+			{
+				siteId,
+				name,
+				revenue,
+				currency: optionalString(body, "currency", 3),
+				externalId,
+				source: optionalString(body, "source", 40) ?? "server",
+				props,
+				occurredAt,
+				visitorId: optionalString(body, "visitor_id", MAX_ID_LENGTH),
+				sessionId: optionalString(body, "session_id", MAX_ID_LENGTH),
+				utmSource: optionalString(body, "utm_source", 100),
+				utmMedium: optionalString(body, "utm_medium", 100),
+				utmCampaign: optionalString(body, "utm_campaign", 200),
+				rail,
+				product: optionalString(body, "product", MAX_PRODUCT_LENGTH),
+				netRevenue,
+			},
+			ctx.env,
+		);
 
 		return c.json({
 			success: true,
