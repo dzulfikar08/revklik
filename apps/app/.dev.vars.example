@@ -22,6 +22,11 @@ SUPER_ADMIN_EMAIL=you@example.com
 # Hard-delete raw analytics older than N days (default: keep forever)
 # RETENTION_HARD_DELETE_DAYS=365
 
+# --- Phone sale alerts ---------------------------------------------------------
+# Expo push access token. Alerts to the RevKlik mobile app work without it; set it only
+# when "enhanced push security" is enabled for the Expo project.
+# EXPO_ACCESS_TOKEN=
+
 # --- Marketplaces (optional integrations) -----------------------------------
 # SHOPEE_PARTNER_ID=
 # SHOPEE_SHOP_ID=

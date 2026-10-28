@@ -6,6 +6,7 @@ import { reclassifyRecentBots } from "./lib/bot-reclassify";
 import { inferSiteCurrencies } from "./lib/currency-backfill";
 import { isSelfHosted } from "./lib/entitlement";
 import { refreshFxRates } from "./lib/fx";
+import { pruneOutbox, runPushCron } from "./lib/push";
 import { purgeExpiredRows } from "./lib/purge";
 import { carryOverPakasirOrders } from "./migrations";
 import type { Bindings } from "./types";
@@ -33,7 +34,13 @@ export default {
 				);
 				const purged = await purgeExpiredRows(env.DB, env.RETENTION_HARD_DELETE_DAYS);
 				if (purged > 0) console.log(`Retention purge: ${purged} rows deleted`);
+				await pruneOutbox(env).catch((err) => console.error("Push outbox prune failed:", err));
 			}
+			return;
+		}
+		if (controller.cron === "*/5 * * * *") {
+			// Sale alerts: retry failed sends, then read Expo receipts and drop dead devices.
+			if (env.DB) await runPushCron(env);
 			return;
 		}
 		if (controller.cron === "15 * * * *") {

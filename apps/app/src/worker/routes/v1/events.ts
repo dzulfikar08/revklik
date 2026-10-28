@@ -10,6 +10,7 @@ import {
 	publicApiErrorResponse,
 } from "../../lib/public-api-queries";
 import { isValidReportedNet, MAX_RAIL_LENGTH, normalizeRail } from "../../lib/fees";
+import { notifySaleEvent, pushCtx } from "../../lib/push";
 import { recordServerEvent } from "../../lib/server-events";
 
 export const v1EventsRoutes = new Hono<PublicApiEnv>();
@@ -145,6 +146,8 @@ v1EventsRoutes.post("/server", requireScope(SCOPES.EVENTS_WRITE), async (c) => {
 			},
 			ctx.env,
 		);
+
+		if (!result.duplicate) notifySaleEvent(c.env, pushCtx(c), { id: result.eventId, siteId });
 
 		return c.json({
 			success: true,

@@ -49,6 +49,8 @@ export type Bindings = {
 	SELF_HOSTED?: string;
 	// Hard-delete raw analytics older than N days (unset = never; default off)
 	RETENTION_HARD_DELETE_DAYS?: string;
+	// Expo push access token; only needed when "enhanced push security" is on for the EAS project
+	EXPO_ACCESS_TOKEN?: string;
 	// IDR per 1 USD for revenue conversion (default 16000)
 	FX_USD_IDR?: string;
 };

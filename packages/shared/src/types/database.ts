@@ -278,7 +278,9 @@ export interface KlikapaDatabase {
 	ai_insights: AiInsightTable;
 	subscriptions: SubscriptionTable;
 	team_members: TeamMemberTable;
-	push_tokens: PushTokenTable;
+	push_devices: PushDeviceTable;
+	push_prefs: PushPrefTable;
+	push_outbox: PushOutboxTable;
 	payment_providers: PaymentProviderTable;
 	webhook_logs: WebhookLogTable;
 	segments: SegmentTable;
@@ -466,12 +468,39 @@ export interface TeamMemberTable {
 	accepted_at: string | null;
 }
 
-export interface PushTokenTable {
+export interface PushDeviceTable {
 	id: string;
 	user_id: string;
-	device_token: string;
+	/** `ExponentPushToken[...]`; unique, the last user to register it owns it. */
+	expo_token: string;
 	platform: string;
+	locale: string | null;
+	app_version: string | null;
 	created_at: string;
+	last_seen_at: string;
+}
+
+export interface PushPrefTable {
+	user_id: string;
+	/** 1/0: alert on every sale. */
+	sales: number;
+	/** 1/0: alert on every refund. */
+	refunds: number;
+	updated_at: string;
+}
+
+export interface PushOutboxTable {
+	id: string;
+	user_id: string;
+	event_id: string;
+	/** JSON `{ title, body, data }` of the Expo message, minus the recipient token. */
+	payload: string;
+	status: "queued" | "sent" | "failed";
+	attempts: number;
+	/** JSON `[{ t: ticketId, d: deviceId }]` of accepted sends, until their receipts are read. */
+	tickets_json: string | null;
+	created_at: string;
+	sent_at: string | null;
 }
 
 export interface SearchConsoleDataTable {

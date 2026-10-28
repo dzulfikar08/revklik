@@ -25,7 +25,7 @@ import { feeRuleRoutes } from "./routes/fee-rules";
 import { paymentProviderRoutes } from "./routes/payment-providers";
 import { portfolioRoutes } from "./routes/portfolio";
 import { predictionsRoutes } from "./routes/predictions";
-import { pushTokenRoutes } from "./routes/push-tokens";
+import { pushRoutes } from "./routes/push";
 import { segmentRoutes } from "./routes/segments";
 import { shareRoutes } from "./routes/share";
 import { publicLiveRoutes } from "./routes/public-live";
@@ -284,8 +284,9 @@ export function createApp(): Hono<Env> {
 	app.use("/team/invite", requirePlanTier("growth"));
 	app.route("/team", teamRoutes);
 
-	app.use("/push-tokens/*", authMiddleware);
-	app.route("/push-tokens", pushTokenRoutes);
+	// Not subscription-gated: a lapsed user still hears about money arriving.
+	app.use("/push/*", authMiddleware);
+	app.route("/push", pushRoutes);
 
 	app.use("/segments/*", authMiddleware);
 	app.use("/segments/*", requirePlanTier("starter", ["POST"]));

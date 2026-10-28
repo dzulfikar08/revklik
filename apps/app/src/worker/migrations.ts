@@ -2,7 +2,7 @@
  * Version the live schema must reach. Bump it whenever a step is appended to
  * VERSIONED_STEPS; a DB already at this version costs one SELECT per isolate.
  */
-export const SCHEMA_VERSION = 14;
+export const SCHEMA_VERSION = 15;
 
 const migrated = new WeakSet<D1Database>();
 
@@ -86,6 +86,7 @@ const VERSIONED_STEPS: MigrationStep[] = [
 			),
 	},
 	{ version: 14, run: revenueAggregationSchema },
+	{ version: 15, run: pushAlertsSchema },
 ];
 
 /**
@@ -108,6 +109,51 @@ async function revenueAggregationSchema(d1: D1Database): Promise<void> {
       updated_at INTEGER,
       PRIMARY KEY (user_id, rail)
     )`,
+	]) {
+		await runDdl(d1, statement);
+	}
+}
+
+/**
+ * Sale alerts to the phone app: Expo push devices (one token = one row, owned by
+ * whoever signed in last), per-user sale/refund toggles, and the outbox that makes
+ * delivery retryable and idempotent per (user, event). Replaces the never-used
+ * push_tokens table.
+ */
+async function pushAlertsSchema(d1: D1Database): Promise<void> {
+	for (const statement of [
+		"DROP TABLE IF EXISTS push_tokens",
+		`CREATE TABLE IF NOT EXISTS push_devices (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      expo_token TEXT NOT NULL,
+      platform TEXT NOT NULL,
+      locale TEXT,
+      app_version TEXT,
+      created_at TEXT NOT NULL,
+      last_seen_at TEXT NOT NULL
+    )`,
+		"CREATE UNIQUE INDEX IF NOT EXISTS idx_push_devices_token ON push_devices(expo_token)",
+		"CREATE INDEX IF NOT EXISTS idx_push_devices_user ON push_devices(user_id)",
+		`CREATE TABLE IF NOT EXISTS push_prefs (
+      user_id TEXT PRIMARY KEY,
+      sales INTEGER NOT NULL DEFAULT 1,
+      refunds INTEGER NOT NULL DEFAULT 1,
+      updated_at TEXT NOT NULL
+    )`,
+		`CREATE TABLE IF NOT EXISTS push_outbox (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      event_id TEXT NOT NULL,
+      payload TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'queued',
+      attempts INTEGER NOT NULL DEFAULT 0,
+      tickets_json TEXT,
+      created_at TEXT NOT NULL,
+      sent_at TEXT
+    )`,
+		"CREATE UNIQUE INDEX IF NOT EXISTS idx_push_outbox_user_event ON push_outbox(user_id, event_id)",
+		"CREATE INDEX IF NOT EXISTS idx_push_outbox_status ON push_outbox(status, created_at)",
 	]) {
 		await runDdl(d1, statement);
 	}
@@ -734,25 +780,6 @@ async function baselineSchema(d1: D1Database): Promise<void> {
 			.run();
 	} catch {
 		/* index may already exist */
-	}
-
-	// Push tokens for mobile notifications
-	try {
-		await d1
-			.prepare(`CREATE TABLE IF NOT EXISTS push_tokens (
-      id TEXT PRIMARY KEY,
-      user_id TEXT NOT NULL,
-      device_token TEXT NOT NULL,
-      platform TEXT NOT NULL,
-      created_at TEXT NOT NULL DEFAULT (datetime('now'))
-    )`)
-			.run();
-		await d1.batch([
-			d1.prepare("CREATE INDEX IF NOT EXISTS idx_pt_user ON push_tokens(user_id)"),
-			d1.prepare("CREATE UNIQUE INDEX IF NOT EXISTS idx_pt_token ON push_tokens(device_token)"),
-		]);
-	} catch {
-		/* table may already exist */
 	}
 
 	// Revenue analytics index for fast revenue breakdown queries

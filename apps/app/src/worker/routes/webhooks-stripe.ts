@@ -4,9 +4,12 @@ import type { Kysely } from "kysely";
 import type { KlikapaDatabase } from "@revklik/shared";
 import { sql } from "../db";
 import { mapStripePaymentMethod, verifyStripeSignature } from "../lib/webhook-utils";
+import { notifySaleEvent, pushCtx } from "../lib/push";
+import type { Bindings } from "../types";
 import { generateId } from "../utils";
 
 export const stripeWebhookRoutes = new Hono<{
+	Bindings: Bindings;
 	Variables: { db: Kysely<KlikapaDatabase> };
 }>();
 
@@ -196,6 +199,8 @@ stripeWebhookRoutes.post("/", async (c) => {
 			fingerprint: null,
 		})
 		.execute();
+
+	notifySaleEvent(c.env, pushCtx(c), { id: eventId, siteId });
 
 	await db
 		.insertInto("visitor_profiles")

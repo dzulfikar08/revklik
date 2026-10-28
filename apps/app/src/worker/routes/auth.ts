@@ -301,6 +301,8 @@ authRoutes.post("/reset-password", async (c) => {
 	// A reset means the old credentials may be known: every session and API
 	// token (kp_, rvt_, rv_) dies, as does every other outstanding reset link.
 	await db.deleteFrom("api_keys").where("user_id", "=", userId).execute();
+	// Sale alerts follow the session: a phone must sign in again to keep receiving them.
+	await db.deleteFrom("push_devices").where("user_id", "=", userId).execute();
 	await db
 		.deleteFrom("password_resets")
 		.where("user_id", "=", userId)
@@ -533,6 +535,7 @@ authRoutes.get("/google/callback", async (c) => {
 				.execute();
 			if (takeover) {
 				await db.deleteFrom("api_keys").where("user_id", "=", userId).execute();
+				await db.deleteFrom("push_devices").where("user_id", "=", userId).execute();
 				console.warn(
 					`[auth] google sign-in took over unverified account ${userId}: password and tokens cleared`,
 				);

@@ -1,0 +1,58 @@
+---
+title: Mobile sale alerts
+description: "Get a push notification on your phone for every sale and refund across all your sites, with per-account toggles and a test button."
+---
+
+The RevKlik mobile app (iOS and Android) pings your phone the moment money moves, for **every
+site you own or have been invited to**, in one place. It also has an earnings view across all of
+your products.
+
+## What triggers an alert
+
+Any stored revenue event that is not zero:
+
+- a **sale** (positive revenue) shows `New sale · <site name>`
+- a **refund** (negative revenue) shows `Refund · <site name>`
+
+The message body reads `<product or event name> · <amount> · net <net>`. The amount is in the
+event's own currency (IDR without decimals). The `net` part is left out when it equals the gross
+amount or is unknown. Tapping the notification opens the Earnings tab.
+
+Alerts fire from every revenue path: the [server events API](/integrations), the Polar, Stripe,
+Lemon Squeezy, Midtrans, Xendit, DOKU, Mayar and Paywuz webhooks, and conversions with revenue
+sent by the tracker. A retried delivery of the same payment (same `external_id` or provider
+order) never alerts twice.
+
+## Who gets them
+
+The site owner and every team member who accepted their invitation, as long as that person has
+signed in on the app (which registers the phone) and has the matching toggle on. Alerts are not
+gated on your plan: a lapsed account still hears about money arriving.
+
+## Turning alerts on and off
+
+In the app, **Settings** has two switches, **Sales** and **Refunds** (both on by default), and a
+**Send test notification** button that pushes to every phone signed in to your account. Signing
+out removes that phone.
+
+## Self-hosting
+
+Alerts go through the [Expo push service](https://docs.expo.dev/push-notifications/overview/),
+which relays to Apple and Google with the credentials of the app's Expo project. Nothing to
+configure for the default setup. If you enable "enhanced push security" on the Expo project, set
+the `EXPO_ACCESS_TOKEN` secret on the Worker. The Worker's `*/5 * * * *` cron trigger retries
+failed sends and removes phones that no longer accept pushes, so keep it in your wrangler config.
+
+## API
+
+All endpoints take a session token (`Authorization: Bearer kp_...`).
+
+| Method and path            | Body                                                                          | Result                               |
+| -------------------------- | ----------------------------------------------------------------------------- | ------------------------------------ |
+| `POST /api/push/devices`   | `{ "expo_token", "platform": "ios" \| "android", "locale?", "app_version?" }` | `{ "success": true }`                |
+| `DELETE /api/push/devices` | `{ "expo_token" }`                                                            | `{ "success": true }`                |
+| `GET /api/push/prefs`      |                                                                               | `{ "sales": true, "refunds": true }` |
+| `PUT /api/push/prefs`      | `{ "sales?": boolean, "refunds?": boolean }`                                  | the saved prefs                      |
+| `POST /api/push/test`      |                                                                               | `{ "sent", "tickets" }`              |
+
+Registering a token that another account used before moves it to the current account.

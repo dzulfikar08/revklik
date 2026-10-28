@@ -105,9 +105,18 @@ export async function seedSiteWithSessionKey(
 	return { token, siteId: "s1" };
 }
 
+const pendingWaitUntil = new Set<Promise<unknown>>();
+
+/** Resolves once every promise handed to testExecCtx.waitUntil has settled. */
+export async function settleWaitUntil(): Promise<void> {
+	while (pendingWaitUntil.size > 0) await Promise.all(pendingWaitUntil);
+}
+
 export const testExecCtx = {
 	waitUntil: (p: Promise<unknown>) => {
-		void p.catch(() => {});
+		const settled = p.catch(() => {});
+		pendingWaitUntil.add(settled);
+		void settled.finally(() => pendingWaitUntil.delete(settled));
 	},
 	passThroughOnException: () => {},
 	abort: () => {},

@@ -1,6 +1,7 @@
 import { Hono } from "hono";
 import type { Kysely } from "kysely";
 import type { KlikapaDatabase } from "@revklik/shared";
+import { notifySaleEvent, pushCtx } from "../lib/push";
 import { recordServerEvent } from "../lib/server-events";
 import { verifyStandardWebhook } from "../lib/standard-webhooks";
 import type { Env } from "../types";
@@ -240,6 +241,7 @@ polarWebhookRoutes.post("/", async (c) => {
 		c.env,
 	);
 	if (result.duplicate) return c.json({ success: true, duplicate: true });
+	notifySaleEvent(c.env, pushCtx(c), { id: result.eventId, siteId });
 
 	if (customerEmail) {
 		await db
