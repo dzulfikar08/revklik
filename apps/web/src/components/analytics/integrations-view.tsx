@@ -384,7 +384,7 @@ const PAYMENT_PROVIDERS: ProviderMeta[] = [
 					</li>
 					<li>
 						Set the notification URL to{" "}
-						<code className="text-foreground">https://app.revklik.com/api/webhooks/doku</code> and
+						<code className="text-foreground">{`${WORKER_ORIGIN}/api/webhooks/doku`}</code> and
 						save.
 					</li>
 				</ol>

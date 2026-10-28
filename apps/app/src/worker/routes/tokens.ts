@@ -2,10 +2,11 @@ import { Hono } from "hono";
 import type { Kysely } from "kysely";
 import type { KlikapaDatabase } from "@revklik/shared";
 import { DEFAULT_ACCOUNT_SCOPES, DEFAULT_SITE_SCOPES, SCOPES } from "@revklik/shared";
+import { isSelfHosted } from "../lib/entitlement";
 import { generateApiKey, generateId, hashToken } from "../utils";
 
 type Variables = { db: Kysely<KlikapaDatabase>; userId: string };
-type TokensEnv = { Variables: Variables; Bindings: { DB: D1Database } };
+type TokensEnv = { Variables: Variables; Bindings: { DB: D1Database; SELF_HOSTED?: string } };
 
 export const tokenRoutes = new Hono<TokensEnv>();
 
@@ -120,7 +121,7 @@ tokenRoutes.post("/", async (c) => {
 		/* default to free */
 	}
 
-	const maxTokens = PLAN_TOKEN_LIMITS[plan] ?? 2;
+	const maxTokens = isSelfHosted(c.env) ? Infinity : (PLAN_TOKEN_LIMITS[plan] ?? 2);
 
 	const existingCount = await db
 		.selectFrom("api_keys")

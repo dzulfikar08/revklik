@@ -14,6 +14,7 @@ const en = {
 	"auth.signIn.desc": "Sign in to your RevKlik dashboard",
 	"auth.signUp.title": "Create your account",
 	"auth.signUp.desc": "Try the Growth plan free for 7 days. No card needed.",
+	"auth.signUp.descSelfHosted": "Create your account on this RevKlik instance.",
 	"auth.signUp.descPlan":
 		"You start with 7 free days of Growth, no card needed. Switch to {plan} whenever you like.",
 	"auth.name": "Name",
@@ -274,6 +275,7 @@ const id: Record<BaseKey, string> = {
 	"auth.signIn.desc": "Masuk ke dashboard RevKlik kamu",
 	"auth.signUp.title": "Buat akun RevKlik",
 	"auth.signUp.desc": "Coba paket Growth gratis 7 hari, tanpa kartu kredit.",
+	"auth.signUp.descSelfHosted": "Buat akun di instance RevKlik ini.",
 	"auth.signUp.descPlan":
 		"Kamu mulai dengan 7 hari Growth gratis, tanpa kartu kredit. Pindah ke paket {plan} kapan saja.",
 	"auth.name": "Nama",

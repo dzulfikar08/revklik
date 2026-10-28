@@ -11,6 +11,7 @@ import {
 } from "../lib/ingest";
 import { accountUsageIncrement } from "../lib/account-usage";
 import { executeBatch } from "../lib/d1-batch";
+import { isSelfHosted } from "../lib/entitlement";
 import { enforceSiteQuota, incrementCachedUsage } from "../lib/subscription-cache";
 import {
 	countryFromTimezone,
@@ -23,7 +24,10 @@ import {
 
 type Variables = { db: Kysely<KlikapaDatabase> };
 
-export const trackRoutes = new Hono<{ Variables: Variables; Bindings: { DB: D1Database } }>();
+export const trackRoutes = new Hono<{
+	Variables: Variables;
+	Bindings: { DB: D1Database; SELF_HOSTED?: string };
+}>();
 
 /** Events accepted per /track request; larger batches are rejected with 413. */
 export const MAX_TRACK_BATCH = 50;
@@ -207,7 +211,7 @@ trackRoutes.post("/track", async (c) => {
 	if (!site) return c.json({ error: "Invalid site_id", success: false }, 400);
 
 	// Subscription + quota enforcement
-	const enforcement = await enforceSiteQuota(db, siteId);
+	const enforcement = await enforceSiteQuota(db, siteId, false, isSelfHosted(c.env));
 	if (!enforcement.allowed) {
 		return c.json(
 			{
@@ -437,7 +441,7 @@ trackRoutes.post("/identify", async (c) => {
 	if (!siteId || !payload.vid)
 		return c.json({ error: "site_id and visitor_id required", success: false }, 400);
 
-	const enforcement = await enforceSiteQuota(db, siteId);
+	const enforcement = await enforceSiteQuota(db, siteId, false, isSelfHosted(c.env));
 	if (!enforcement.allowed) {
 		return c.json({ success: true, reason: enforcement.reason }, { status: 202 });
 	}
@@ -496,7 +500,7 @@ trackRoutes.post("/track/heatmap", async (c) => {
 		.executeTakeFirst();
 	if (!site) return c.json({ error: "Invalid site_id", success: false }, 400);
 
-	const enforcement = await enforceSiteQuota(db, siteId, true);
+	const enforcement = await enforceSiteQuota(db, siteId, true, isSelfHosted(c.env));
 	if (!enforcement.allowed) {
 		return c.json({ success: true, reason: enforcement.reason }, { status: 202 });
 	}
@@ -567,7 +571,7 @@ trackRoutes.post("/track/recording", async (c) => {
 		.executeTakeFirst();
 	if (!site) return c.json({ error: "Invalid site_id", success: false }, 400);
 
-	const enforcement = await enforceSiteQuota(db, siteId, true);
+	const enforcement = await enforceSiteQuota(db, siteId, true, isSelfHosted(c.env));
 	if (!enforcement.allowed) {
 		return c.json({ success: true, reason: enforcement.reason }, { status: 202 });
 	}
@@ -653,7 +657,7 @@ trackRoutes.post("/track/payment", async (c) => {
 		.executeTakeFirst();
 	if (!site) return c.json({ error: "Invalid site_id", success: false }, 400);
 
-	const enforcement = await enforceSiteQuota(db, siteId);
+	const enforcement = await enforceSiteQuota(db, siteId, false, isSelfHosted(c.env));
 	if (!enforcement.allowed) {
 		return c.json(
 			{

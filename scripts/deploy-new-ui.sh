@@ -7,10 +7,15 @@
 #
 # Rollback: `bunx wrangler rollback` in apps/app.
 #
+# WRANGLER_CONFIG (relative to apps/app, default wrangler.jsonc) picks the
+# wrangler config; self-hosters point it at their copy of wrangler.example.jsonc.
+#
 # Preflight gates: typecheck + lint + tests for worker and web UI run before
 # anything is built or uploaded — a failing check aborts the deploy.
 #
 set -euo pipefail
+
+WRANGLER_CONFIG="${WRANGLER_CONFIG:-wrangler.jsonc}"
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
@@ -41,6 +46,6 @@ cd "$ROOT/apps/app"
 # dist/klikapa artifact — without this cleanup `wrangler deploy` silently
 # uploads that stale worker instead of bundling src/worker.
 rm -rf .wrangler/deploy dist/klikapa
-bunx wrangler deploy
+bunx wrangler deploy --config "$WRANGLER_CONFIG"
 
 echo "==> Done. Rollback if needed: cd apps/app && bunx wrangler rollback"

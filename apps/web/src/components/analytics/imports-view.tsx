@@ -5,6 +5,7 @@ import { Copy, DollarSign, Snowflake } from "lucide-react";
 import { useState } from "react";
 import type { ReactNode } from "react";
 import { toast } from "sonner";
+import { isSelfHosted } from "@/lib/instance-config";
 import { WORKER_ORIGIN, importOneDollarStats, importPolarOrders } from "@/lib/legacy/integrations";
 import type { OdsImportResult, PolarImportResult } from "@/lib/legacy/integrations";
 
@@ -26,7 +27,8 @@ const PolarPanel = ({ siteId }: { siteId: string }) => {
 	const [importing, setImporting] = useState(false);
 	const [copied, setCopied] = useState(false);
 
-	const webhookUrl = `${WORKER_ORIGIN}/api/billing/webhook`;
+	// Hosted keeps its existing URL; the billing webhook does not exist on self-hosted installs.
+	const webhookUrl = `${WORKER_ORIGIN}${isSelfHosted() ? "/api/webhooks/polar" : "/api/billing/webhook"}`;
 
 	const run = async () => {
 		setImporting(true);

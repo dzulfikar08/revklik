@@ -1,0 +1,49 @@
+# Checks for every push and pull request. No secrets: safe for forks.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: 1.4.4 # keep in sync with "packageManager" in package.json
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      # Worker, shared, sdk, cli and the web UI (vite build + tsc).
+      - name: Typecheck
+        run: bun run typecheck
+
+      - name: Lint
+        run: bun run lint
+
+      - name: Worker tests
+        run: bun test
+
+      - name: Web UI tests
+        run: bun run test
+        working-directory: apps/web
+
+      - name: Build SPA
+        run: bunx vite build
+        working-directory: apps/web

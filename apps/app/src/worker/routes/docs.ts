@@ -1,6 +1,7 @@
 import { Hono } from "hono";
+import { appUrl } from "../lib/app-url";
 
-export const docsRoutes = new Hono();
+export const docsRoutes = new Hono<{ Bindings: { APP_URL?: string } }>();
 
 const endpoints = [
 	{
@@ -299,7 +300,7 @@ docsRoutes.get("/", (c) => {
   <div class="wrap">
     <h1>KlikApa API</h1>
     <p class="sub">Privacy-first analytics platform. All authenticated endpoints require <code>Authorization: Bearer &lt;token&gt;</code></p>
-    <div class="base"><strong>Base URL:</strong> <code>https://app.revklik.com/api</code></div>
+    <div class="base"><strong>Base URL:</strong> <code>${appUrl(c.env)}/api</code></div>
     <h2>Authentication</h2>
     <p style="font-size:14px;color:#a8a29e;line-height:1.6;margin-bottom:16px;">
       Obtain a token via <code>POST /auth/register</code> or <code>POST /auth/login</code>.
@@ -350,7 +351,7 @@ docsRoutes.get("/openapi.json", (c) => {
 			version: "1.0.0",
 			description: "Privacy-first analytics platform API",
 		},
-		servers: [{ url: "https://app.revklik.com/api" }],
+		servers: [{ url: `${appUrl(c.env)}/api` }],
 		components: {
 			securitySchemes: { bearerAuth: { type: "http", scheme: "bearer" } },
 		},

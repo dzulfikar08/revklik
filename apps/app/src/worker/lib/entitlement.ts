@@ -11,6 +11,34 @@ export interface SubscriptionState {
 	current_period_end: string | null;
 }
 
+/**
+ * SELF_HOSTED=1 (or "true") turns the instance into a fully unlocked install:
+ * every account is entitled to everything, forever, and RevKlik's own billing
+ * (plans, checkout, trials, referral payouts) is switched off. Unset = hosted.
+ */
+export function isSelfHosted(env: { SELF_HOSTED?: string } | undefined): boolean {
+	const raw = env?.SELF_HOSTED?.trim().toLowerCase();
+	return raw === "1" || raw === "true";
+}
+
+/** What every account holds on a self-hosted instance: top tier, active, no period end. */
+export const SELF_HOSTED_ENTITLEMENT: SubscriptionState = {
+	plan: "growth",
+	status: "active",
+	current_period_end: null,
+};
+
+/**
+ * The subscription an entitlement check must evaluate: the stored row when
+ * hosted, the unlimited self-hosted entitlement otherwise (even without a row).
+ */
+export function effectiveSubscription<T extends SubscriptionState>(
+	sub: T | null | undefined,
+	selfHosted: boolean,
+): T | SubscriptionState | null | undefined {
+	return selfHosted ? SELF_HOSTED_ENTITLEMENT : sub;
+}
+
 function periodEndMs(sub: SubscriptionState): number | null {
 	if (!sub.current_period_end) return null;
 	const ms = new Date(sub.current_period_end).getTime();

@@ -1,0 +1,62 @@
+{
+	// Template for a self-hosted RevKlik. Copy it, fill in the placeholders, deploy:
+	//
+	//   cp wrangler.example.jsonc wrangler.selfhost.jsonc      (gitignored)
+	//   WRANGLER_CONFIG=wrangler.selfhost.jsonc ../../scripts/deploy-new-ui.sh
+	//
+	// Full walkthrough: README.md > "Self-host on Cloudflare".
+	// wrangler.jsonc next to this file is the hosted revklik.com config; do not reuse it.
+	"$schema": "../node_modules/wrangler/config-schema.json",
+	"name": "revklik",
+	// Omit account_id when you are logged in with `wrangler login` to a single account,
+	// or set CLOUDFLARE_ACCOUNT_ID in the environment.
+	// "account_id": "<YOUR_CLOUDFLARE_ACCOUNT_ID>",
+	"main": "src/worker/index.ts",
+	"compatibility_date": "2025-05-25",
+	"compatibility_flags": ["nodejs_compat"],
+	"assets": {
+		"directory": "./dist/client",
+		"not_found_handling": "single-page-application",
+		"binding": "ASSETS",
+		"run_worker_first": ["/api/*"],
+	},
+	"d1_databases": [
+		{
+			"binding": "DB",
+			// `bunx wrangler d1 create revklik-db` prints the id.
+			"database_name": "revklik-db",
+			"database_id": "<YOUR_D1_DATABASE_ID>",
+		},
+	],
+	"ai": {
+		"binding": "AI",
+	},
+	// Optional: nightly SQL dump of the database (cron "0 3 * * *"). Create the bucket with
+	// `bunx wrangler r2 bucket create revklik-backups`, then uncomment.
+	// "r2_buckets": [{ "binding": "BACKUP_BUCKET", "bucket_name": "revklik-backups" }],
+	//
+	// Optional: transactional email (verification, password reset, invitations, reports).
+	// Needs Cloudflare Email Service on a domain you own; set EMAIL_FROM to an address on it.
+	// "send_email": [{ "name": "EMAIL" }],
+	"triggers": {
+		// 03:00 backup (+ opt-in retention purge), 18:00 App Store Connect sync,
+		// :15 hourly bot reclassification of recent sessions.
+		"crons": ["0 3 * * *", "0 18 * * *", "15 * * * *"],
+	},
+	"vars": {
+		// Fully unlocked: no plans, limits, trials, checkout or referral program.
+		"SELF_HOSTED": "1",
+		// Public origin of this deployment, no trailing slash. Used in emailed links.
+		"APP_URL": "https://analytics.example.com",
+		// Email of the account that becomes super_admin when it registers.
+		"SUPER_ADMIN_EMAIL": "you@example.com",
+		// Sender for transactional email (an address on your Email Service domain).
+		// "EMAIL_FROM": "RevKlik <noreply@example.com>",
+		// IDR per 1 USD when converting revenue (default 16000; refreshed daily from FX rates).
+		// "FX_USD_IDR": "16000",
+		// Hard-delete raw analytics older than N days (unset = keep forever).
+		// "RETENTION_HARD_DELETE_DAYS": "365",
+	},
+	// Optional custom domain:
+	// "routes": [{ "pattern": "analytics.example.com", "custom_domain": true }],
+}

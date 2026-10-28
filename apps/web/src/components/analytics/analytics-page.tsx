@@ -51,6 +51,7 @@ import {
 import { useT } from "@/lib/i18n";
 import type { MessageKey } from "@/lib/i18n";
 import { openBilling } from "@/lib/billing-nav";
+import { isSelfHosted } from "@/lib/instance-config";
 import { parsePlan, planLabel } from "@/lib/legacy/billing";
 import type { PlanTier } from "@/lib/legacy/billing";
 
@@ -145,7 +146,10 @@ const NavTabs = ({
 	className?: string;
 }) => {
 	const isAdmin = getLegacyUser()?.role === "super_admin";
-	const tabs = NAV_TABS.filter((t) => t.key !== "admin" || isAdmin);
+	const selfHosted = isSelfHosted();
+	const tabs = NAV_TABS.filter(
+		(t) => (t.key !== "admin" || isAdmin) && (t.key !== "billing" || !selfHosted),
+	);
 	return (
 		<nav
 			role="tablist"

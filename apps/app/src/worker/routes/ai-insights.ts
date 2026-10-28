@@ -18,12 +18,13 @@ import {
 import { executeBatch } from "../lib/d1-batch";
 import { planRequiredBody } from "../lib/plan-gate";
 import { resolveQueryScope } from "../lib/site-scope";
+import { isSelfHosted } from "../lib/entitlement";
 import { requirePlanForSite } from "../lib/plans";
 import { generateId, getDateRange } from "../utils";
 
 type Variables = { db: Kysely<KlikapaDatabase>; userId: string };
 type Env = {
-	Bindings: { DB: D1Database; AI?: AiBinding; FX_USD_IDR?: string };
+	Bindings: { DB: D1Database; AI?: AiBinding; FX_USD_IDR?: string; SELF_HOSTED?: string };
 	Variables: Variables;
 };
 
@@ -67,7 +68,7 @@ aiInsightsRoutes.get("/", async (c) => {
 	const site = await validateSite(db, userId, siteId);
 	if (!site) return c.json({ error: "Site not found", success: false }, 404);
 
-	const planCheck = await requirePlanForSite(db, userId, siteId, 2);
+	const planCheck = await requirePlanForSite(db, userId, siteId, 2, isSelfHosted(c.env));
 	if (!planCheck.allowed) return c.json(planRequiredBody("growth", planCheck.plan), 403);
 
 	const now = new Date().toISOString();
@@ -168,7 +169,7 @@ aiInsightsRoutes.post("/refresh", async (c) => {
 	const site = await validateSite(db, userId, siteId);
 	if (!site) return c.json({ error: "Site not found", success: false }, 404);
 
-	const planCheck = await requirePlanForSite(db, userId, siteId, 2);
+	const planCheck = await requirePlanForSite(db, userId, siteId, 2, isSelfHosted(c.env));
 	if (!planCheck.allowed) return c.json(planRequiredBody("growth", planCheck.plan), 403);
 
 	// Delete cached insights for this site + range

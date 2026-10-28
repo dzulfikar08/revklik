@@ -1,9 +1,10 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, redirect } from "@tanstack/react-router";
 import { ArrowLeft } from "lucide-react";
 
 import { BillingView } from "@/components/analytics/billing-view";
 import { LocaleToggle } from "@/components/locale-toggle";
 import { useT } from "@/lib/i18n";
+import { isSelfHosted } from "@/lib/instance-config";
 import { parseCheckoutResult, parsePlan } from "@/lib/legacy/billing";
 import type { CheckoutResult, PlanTier } from "@/lib/legacy/billing";
 
@@ -25,6 +26,12 @@ export const Route = createFileRoute("/analytics/billing")({
 		if (plan) out.plan = plan;
 		if (checkout) out.checkout = checkout;
 		return out;
+	},
+	// No billing on self-hosted instances.
+	beforeLoad: () => {
+		if (isSelfHosted()) {
+			throw redirect({ to: "/analytics" });
+		}
 	},
 	component: BillingPage,
 	head: () => ({ meta: [{ title: "Billing · RevKlik" }] }),

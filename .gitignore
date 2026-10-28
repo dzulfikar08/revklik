@@ -18,13 +18,16 @@ apps/web/src/routeTree.gen.ts
 local.db
 local.db-*
 
-# Environment variables
+# Environment variables and secrets (never commit; keep *.example templates)
 .env
-.env.local
-.env.development.local
-.env.test.local
-.env.production.local
-.env*.local
+.env.*
+!.env.example
+.dev.vars
+.dev.vars.*
+!.dev.vars.example
+
+# Self-hosted wrangler config (copy of apps/app/wrangler.example.jsonc)
+wrangler.selfhost.jsonc
 
 # Logs
 logs

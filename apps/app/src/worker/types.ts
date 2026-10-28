@@ -26,6 +26,8 @@ export type Bindings = {
 	POLAR_GROWTH_PRODUCT_ID?: string;
 	// Pakasir (QRIS)
 	PAKASIR_API_KEY?: string;
+	// Pakasir project slug that owns the checkout pages (default "revklik")
+	PAKASIR_PROJECT?: string;
 	// Google OAuth (auth + GSC)
 	GOOGLE_CLIENT_ID?: string;
 	GOOGLE_CLIENT_SECRET?: string;
@@ -38,8 +40,13 @@ export type Bindings = {
 	TOKOPEDIA_FS_ID?: string;
 	// Admin bootstrap
 	SUPER_ADMIN_EMAIL?: string;
-	// Public app origin for emailed links (default https://app.revklik.com)
+	// Public app origin for emailed links and checkout returns (default https://app.revklik.com)
 	APP_URL?: string;
+	// Sender of transactional email (default "RevKlik <noreply@revklik.com>")
+	EMAIL_FROM?: string;
+	// "1" or "true": fully unlocked self-hosted install. No plans, limits, trials,
+	// checkout or referral payouts. Unset = hosted RevKlik behavior.
+	SELF_HOSTED?: string;
 	// Hard-delete raw analytics older than N days (unset = never; default off)
 	RETENTION_HARD_DELETE_DAYS?: string;
 	// IDR per 1 USD for revenue conversion (default 16000)

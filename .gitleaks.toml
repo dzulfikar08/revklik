@@ -1,0 +1,13 @@
+title = "RevKlik gitleaks config"
+
+[extend]
+useDefault = true
+
+# Both files build throwaway fixtures at test time (a PEM wrapper around a freshly generated
+# key, a made-up Stripe webhook secret). No real credential is involved.
+[[allowlists]]
+description = "Test fixtures with fake credentials"
+paths = [
+  '''apps/app/src/worker/lib/gsc-service-account\.test\.ts''',
+  '''apps/app/src/worker/routes/review-fixes\.test\.ts''',
+]

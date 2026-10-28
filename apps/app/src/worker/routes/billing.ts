@@ -1,8 +1,9 @@
 import { Hono } from "hono";
+import { appUrl } from "../lib/app-url";
 import type { PlanTier } from "../lib/plans";
 import { getFeatures, getPlanLimits, PLANS } from "../lib/plans";
 import { getAccountEventsUsed } from "../lib/account-usage";
-import { isTrialExpired } from "../lib/entitlement";
+import { isSelfHosted, isTrialExpired } from "../lib/entitlement";
 import {
 	activatePakasirPayment,
 	createPakasirOrder,
@@ -11,6 +12,7 @@ import {
 	newPakasirOrderId,
 	PAKASIR_PRICES,
 	pakasirCheckoutUrl,
+	pakasirProject,
 	verifyWithPakasir,
 } from "../lib/pakasir";
 import { usdRates } from "../lib/fx";
@@ -26,6 +28,9 @@ let polarProductsCache: {
 	cachedAt: number;
 } | null = null;
 const POLAR_PRODUCTS_TTL = 5 * 60_000;
+
+// Period end reported for the self-hosted entitlement (it never lapses).
+const SELF_HOSTED_PERIOD_END = "9999-12-31T00:00:00.000Z";
 
 // A QRIS payment page is only worth resuming for a day.
 const PENDING_ORDER_WINDOW_MS = 86_400_000;
@@ -51,8 +56,9 @@ billingRoutes.get("/subscription", async (c) => {
 		.where("user_id", "=", userId)
 		.executeTakeFirst();
 
-	const plan = (sub?.plan ?? "micro") as PlanTier;
-	const limits = getPlanLimits(plan);
+	const selfHosted = isSelfHosted(c.env);
+	const plan = (selfHosted ? "growth" : (sub?.plan ?? "micro")) as PlanTier;
+	const limits = getPlanLimits(plan, selfHosted);
 
 	const [eventsUsed, siteCount] = await Promise.all([
 		getAccountEventsUsed(db, userId),
@@ -70,6 +76,29 @@ billingRoutes.get("/subscription", async (c) => {
 		},
 		sites: { used: Number(siteCount?.cnt ?? 0), limit: limits.sites },
 	};
+
+	// Self-hosted: one unlimited, never-expiring entitlement; no orders, no trial.
+	if (selfHosted) {
+		return c.json({
+			data: {
+				id: "",
+				user_id: userId,
+				plan: "growth" as const,
+				status: "active" as const,
+				current_period_start: new Date().toISOString(),
+				current_period_end: SELF_HOSTED_PERIOD_END,
+				cancel_at_period_end: false,
+				polar_subscription_id: null,
+				polar_customer_id: null,
+				usage,
+				trial_days_remaining: null,
+				trial_expired: false,
+				pending_order: null,
+				self_hosted: true,
+			},
+			success: true,
+		});
+	}
 
 	const pending = await latestPendingPakasirOrder(
 		db,
@@ -268,7 +297,7 @@ billingRoutes.post("/checkout", async (c) => {
 					...(visitor_id ? { klikapa_visitor_id: visitor_id } : {}),
 					...(session_id ? { klikapa_session_id: session_id } : {}),
 				},
-				success_url: `https://app.revklik.com/?checkout=success`,
+				success_url: `${appUrl(c.env)}/?checkout=success`,
 			}),
 		});
 
@@ -338,8 +367,8 @@ billingRoutes.post("/checkout/pakasir", async (c) => {
 	if (!user) return c.json({ error: "User not found", success: false }, 404);
 
 	const orderId = newPakasirOrderId(userId);
-	const successUrl = `https://app.revklik.com/?checkout=pakasir_success&plan=${plan}`;
-	const checkoutUrl = pakasirCheckoutUrl(amount, orderId, successUrl);
+	const successUrl = `${appUrl(c.env)}/?checkout=pakasir_success&plan=${plan}`;
+	const checkoutUrl = pakasirCheckoutUrl(pakasirProject(c.env), amount, orderId, successUrl);
 
 	// The pending order lives in its own table: an active or trialing
 	// subscription keeps its status until the webhook confirms payment.
@@ -369,7 +398,7 @@ billingRoutes.post("/pakasir/verify", async (c) => {
 
 	const body = await c.req.json<{ order_id?: string }>().catch(() => ({}) as { order_id?: string });
 	const order = body.order_id
-		? await findPakasirOrder(db, body.order_id)
+		? await findPakasirOrder(db, body.order_id, pakasirProject(c.env))
 		: await latestPendingPakasirOrder(db, userId);
 	if (!order || order.user_id !== userId) {
 		return c.json({ data: { status: "no_pending_order" }, success: true });
@@ -378,7 +407,12 @@ billingRoutes.post("/pakasir/verify", async (c) => {
 		return c.json({ data: { status: "active", plan: order.plan }, success: true });
 	}
 
-	const tx = await verifyWithPakasir(apiKey, order.order_id, order.amount).catch(() => null);
+	const tx = await verifyWithPakasir(
+		apiKey,
+		order.order_id,
+		order.amount,
+		pakasirProject(c.env),
+	).catch(() => null);
 	if (!tx || tx.status !== "completed" || tx.amount !== order.amount) {
 		return c.json({ data: { status: "pending" }, success: true });
 	}
@@ -489,6 +523,7 @@ billingRoutes.post("/test-email", async (c) => {
 	const ok = await sendEmail(
 		{
 			to: user.email,
+			from: c.env.EMAIL_FROM,
 			subject: "RevKlik — Email alerts active",
 			html: `<div style="font-family: sans-serif; max-width: 480px; margin: 0 auto; padding: 24px; background: #0a0a0a; color: #e8e4de; border-radius: 12px;">
       <h2 style="color: #d4882a; margin: 0 0 12px;">Email Alerts Active</h2>

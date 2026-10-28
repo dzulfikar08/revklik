@@ -1,4 +1,5 @@
 import { createMiddleware } from "hono/factory";
+import { isSelfHosted } from "../lib/entitlement";
 import { getApiRateLimit } from "../lib/plans";
 import type { PublicApiEnv } from "./public-auth";
 
@@ -58,7 +59,7 @@ export const rateLimiterMiddleware = createMiddleware<PublicApiEnv>(async (c, ne
 		/* default to micro */
 	}
 
-	const limit = getApiRateLimit(plan);
+	const limit = getApiRateLimit(plan, isSelfHosted(c.env));
 	const authHeader = c.req.header("Authorization") ?? "";
 	const tokenPrefix = authHeader.slice(7, 14); // Use first 7 chars of token as key
 

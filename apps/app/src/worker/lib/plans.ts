@@ -27,7 +27,19 @@ export const PLANS = {
 
 export type PlanTier = keyof typeof PLANS;
 
-export function getPlanLimits(plan: string) {
+/** Limits of a self-hosted instance: nothing is capped. */
+export const UNLIMITED = 999_999_999;
+export const SELF_HOSTED_LIMITS = {
+	name: "Self-hosted",
+	price: 0,
+	events_per_month: UNLIMITED,
+	sites: UNLIMITED,
+	retention_days: UNLIMITED,
+	tier: PLANS.growth.tier,
+} as const;
+
+export function getPlanLimits(plan: string, selfHosted = false) {
+	if (selfHosted) return SELF_HOSTED_LIMITS;
 	return PLANS[plan as PlanTier] ?? PLANS.micro;
 }
 
@@ -35,7 +47,8 @@ export function hasPremiumFeatures(plan: string): boolean {
 	return (PLANS[plan as PlanTier]?.tier ?? 0) >= 2;
 }
 
-export function getApiRateLimit(plan: string): number {
+export function getApiRateLimit(plan: string, selfHosted = false): number {
+	if (selfHosted) return 6000;
 	const limits: Record<string, number> = {
 		micro: 30,
 		starter: 120,
@@ -82,7 +95,7 @@ export function getFeatures(tier: PlanTier): string[] {
 
 import type { Kysely } from "kysely";
 import type { KlikapaDatabase } from "@revklik/shared";
-import { isSubscriptionActive } from "./entitlement";
+import { effectiveSubscription, isSubscriptionActive } from "./entitlement";
 
 /**
  * Tier check against the caller's own subscription. Super admins always pass;
@@ -92,7 +105,10 @@ export async function requirePlan(
 	db: Kysely<KlikapaDatabase>,
 	userId: string,
 	requiredTier: number,
+	selfHosted = false,
 ): Promise<{ allowed: boolean; plan: string }> {
+	// Self-hosted: the entitlement is the top tier for everyone, no lookup needed.
+	if (selfHosted) return evaluate(effectiveSubscription(undefined, true), requiredTier);
 	const user = await db
 		.selectFrom("users")
 		.select(["role"])
@@ -105,6 +121,13 @@ export async function requirePlan(
 		.select(["plan", "status", "current_period_end"])
 		.where("user_id", "=", userId)
 		.executeTakeFirst();
+	return evaluate(sub, requiredTier);
+}
+
+function evaluate(
+	sub: { plan: string; status: string; current_period_end: string | null } | null | undefined,
+	requiredTier: number,
+): { allowed: boolean; plan: string } {
 	if (!sub) return { allowed: requiredTier <= PLANS.micro.tier, plan: "micro" };
 	const tier = PLANS[sub.plan as PlanTier]?.tier ?? 0;
 	return { allowed: isSubscriptionActive(sub) && tier >= requiredTier, plan: sub.plan };
@@ -147,7 +170,9 @@ export async function requirePlanForSite(
 	userId: string,
 	siteId: string | null | undefined,
 	requiredTier: number,
+	selfHosted = false,
 ): Promise<{ allowed: boolean; plan: string }> {
+	if (selfHosted) return requirePlan(db, userId, requiredTier, true);
 	const ownerId = await accessibleSiteOwner(db, userId, siteId);
 	if (!ownerId || ownerId === userId) return requirePlan(db, userId, requiredTier);
 	const caller = await db

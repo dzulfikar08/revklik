@@ -1,0 +1,40 @@
+# Local dev / secret template. Copy to apps/app/.dev.vars (gitignored) for `bun run dev`.
+# In production set secrets with `bunx wrangler secret put <NAME>`, plain values in the
+# "vars" block of your wrangler config. Everything is optional unless marked required.
+
+# --- Instance ---------------------------------------------------------------
+# 1 = fully unlocked self-hosted install (no plans, limits, trials, checkout, referrals)
+SELF_HOSTED=1
+# REQUIRED for self-hosting: public origin, no trailing slash (emailed links, API docs)
+APP_URL=http://localhost:8787
+# Registering with this email makes the account super_admin (admin panel, user management)
+SUPER_ADMIN_EMAIL=you@example.com
+# Sender of transactional email (default: RevKlik <noreply@revklik.com>, only valid on hosted)
+# EMAIL_FROM=RevKlik <noreply@example.com>
+
+# --- Sign in with Google (also Search Console connect) ----------------------
+# GOOGLE_CLIENT_ID=
+# GOOGLE_CLIENT_SECRET=
+
+# --- Revenue -----------------------------------------------------------------
+# IDR per 1 USD for revenue conversion (default 16000)
+# FX_USD_IDR=16000
+# Hard-delete raw analytics older than N days (default: keep forever)
+# RETENTION_HARD_DELETE_DAYS=365
+
+# --- Marketplaces (optional integrations) -----------------------------------
+# SHOPEE_PARTNER_ID=
+# SHOPEE_SHOP_ID=
+# TOKOPEDIA_CLIENT_ID=
+# TOKOPEDIA_CLIENT_SECRET=
+# TOKOPEDIA_FS_ID=
+
+# --- RevKlik's own hosted billing (ignored when SELF_HOSTED=1) ---------------
+# POLAR_ACCESS_TOKEN=
+# POLAR_ORG_ID=
+# POLAR_WEBHOOK_SECRET=
+# POLAR_MICRO_PRODUCT_ID=
+# POLAR_STARTER_PRODUCT_ID=
+# POLAR_GROWTH_PRODUCT_ID=
+# PAKASIR_API_KEY=
+# PAKASIR_PROJECT=revklik
