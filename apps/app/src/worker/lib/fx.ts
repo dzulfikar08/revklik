@@ -163,13 +163,18 @@ export const USD_MONEY: MoneyContext = { currency: "USD", rates: usdRates() };
 /**
  * SQL factor that converts a row's revenue into ctx.currency, keyed on the
  * row's currency column (NULL/empty/unknown = USD).
+ *
+ * Codes and factors are inlined as literals, not bound: one CASE over every
+ * known currency is ~90 parameters and D1 refuses more than 100 per query, so a
+ * query converting two columns (gross and net) would fail. Only three-letter
+ * codes and finite factors are emitted, so the literals can't carry SQL.
  */
 export function fxFactorSql(ctx: MoneyContext, currencyColumn = "currency"): RawBuilder<number> {
 	const toRate = ctx.rates[ctx.currency] ?? 1;
 	const branches = Object.entries(ctx.rates)
-		.filter(([code]) => code !== "USD")
-		.map(([code, rate]) => sql`WHEN ${code} THEN ${toRate / rate}`);
-	return sql<number>`(CASE UPPER(COALESCE(NULLIF(${sql.ref(currencyColumn)}, ''), 'USD')) ${sql.join(branches, sql` `)} ELSE ${toRate} END)`;
+		.filter(([code, rate]) => code !== "USD" && /^[A-Z]{3}$/.test(code) && Number.isFinite(toRate / rate))
+		.map(([code, rate]) => sql`WHEN ${sql.lit(code)} THEN ${sql.lit(toRate / rate)}`);
+	return sql<number>`(CASE UPPER(COALESCE(NULLIF(${sql.ref(currencyColumn)}, ''), 'USD')) ${sql.join(branches, sql` `)} ELSE ${sql.lit(Number.isFinite(toRate) ? toRate : 1)} END)`;
 }
 
 /** `revenue` converted into ctx.currency, ready to SUM. */

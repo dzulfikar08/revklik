@@ -15,6 +15,9 @@ export interface D1Like {
 	batch: (stmts: Array<{ run: () => Promise<unknown> }>) => Promise<unknown[]>;
 }
 
+/** D1 refuses a statement with more bound parameters than this; bun:sqlite allows far more. */
+const D1_MAX_BOUND_PARAMS = 100;
+
 /**
  * bun:sqlite-backed D1 stand-in for tests. prepare() is lazy — D1 compiles
  * statements at execution time, so `CREATE INDEX` may sit in a batch ahead of
@@ -27,13 +30,20 @@ export function makeD1(db: Database): D1Like {
 			let stmt: ReturnType<Database["prepare"]> | null = null;
 			const get = () => (stmt ??= db.prepare(sql));
 			return {
-				bind: (...params: unknown[]) => ({
-					all: async () => ({ results: get().all(...(params as never[])) }),
-					run: async () => {
-						get().run(...(params as never[]));
-						return { success: true };
-					},
-				}),
+				bind: (...params: unknown[]) => {
+					if (params.length > D1_MAX_BOUND_PARAMS) {
+						throw new Error(
+							`D1_ERROR: too many SQL variables (${params.length} > ${D1_MAX_BOUND_PARAMS}): SQLITE_ERROR`,
+						);
+					}
+					return {
+						all: async () => ({ results: get().all(...(params as never[])) }),
+						run: async () => {
+							get().run(...(params as never[]));
+							return { success: true };
+						},
+					};
+				},
 				run: async (...params: unknown[]) => {
 					get().run(...(params as never[]));
 					return { success: true };
