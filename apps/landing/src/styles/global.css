@@ -462,7 +462,7 @@ p {
 	padding-bottom: 64px;
 }
 .frame {
-	margin-top: 32px;
+	margin-top: 0;
 	padding: 8px;
 	background: var(--card);
 	border-radius: var(--r-xl);
@@ -528,6 +528,12 @@ p {
 	height: 540px;
 	border: 0;
 	background: transparent;
+}
+.frame-note {
+	margin-top: 12px;
+	color: var(--muted);
+	font-size: 0.875rem;
+	text-align: center;
 }
 @media (min-width: 900px) {
 	.live {

@@ -21,9 +21,7 @@ export const C = {
 	hero_cta2: 'Lihat harga',
 	hero_note: 'Tanpa kartu kredit. Bayar via QRIS setelah trial.',
 
-	live_title: 'Seperti ini dashboard Anda nanti.',
-	live_sub:
-		'Ini toko online fiktif dengan data contoh. Tampilan dan cara kerjanya sama dengan dashboard yang Anda dapat setelah script terpasang. Coba ganti rentang waktunya.',
+	live_note: 'Toko fiktif dengan data contoh. Tampilannya sama dengan dashboard Anda setelah script terpasang.',
 	live_caption: 'Toko Kopi Senja (tokokopisenja.id)',
 	live_badge: 'Data contoh',
 	live_open: 'Buka dashboard penuh',
