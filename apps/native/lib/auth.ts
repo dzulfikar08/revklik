@@ -15,6 +15,7 @@ import {
 	legacySignOut,
 } from "./klikapa/api";
 import type { LegacyUser } from "./klikapa/api";
+import { unregisterFromPush } from "./push";
 
 export type AuthStatus = "loading" | "signed-in" | "signed-out";
 
@@ -69,6 +70,8 @@ export const authCompleteGoogle = async (token: string): Promise<void> => {
 };
 
 export const authSignOut = async (): Promise<void> => {
+	// Needs the live session, so it must run before the token is dropped.
+	await unregisterFromPush();
 	await legacySignOut();
 	setState({ status: "signed-out", user: null });
 };

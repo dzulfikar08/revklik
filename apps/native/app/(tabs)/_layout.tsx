@@ -10,6 +10,10 @@ const TabBarIcon = ({ name, color }: { name: IoniconsName; color: ColorValue }) 
 	<Ionicons name={name} size={20} color={color} />
 );
 
+export const unstable_settings = {
+	initialRouteName: "earnings",
+};
+
 const TabLayout = () => {
 	const { theme } = useUnistyles();
 
@@ -26,7 +30,14 @@ const TabLayout = () => {
 			}}
 		>
 			<Tabs.Screen
-				name="index"
+				name="earnings"
+				options={{
+					tabBarIcon: ({ color }) => <TabBarIcon color={color} name="cash-outline" />,
+					title: "Earnings",
+				}}
+			/>
+			<Tabs.Screen
+				name="sites"
 				options={{
 					tabBarIcon: ({ color }) => <TabBarIcon color={color} name="apps-outline" />,
 					title: "Sites",

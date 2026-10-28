@@ -29,7 +29,7 @@
 		"build": "bun --filter @revklik/app build",
 		"preview": "bun --filter @revklik/app preview",
 		"deploy": "bun run typecheck && bun run lint && bun run test && ./scripts/deploy-new-ui.sh",
-		"typecheck": "bun --filter @revklik/app typecheck && bun --filter @revklik/shared typecheck && bun --filter @revklik/sdk typecheck && bun --filter @revklik/cli typecheck && bun --filter web typecheck",
+		"typecheck": "bun --filter @revklik/app typecheck && bun --filter @revklik/shared typecheck && bun --filter @revklik/sdk typecheck && bun --filter @revklik/cli typecheck && bun --filter web typecheck && bun --filter @revklik/native check-types",
 		"lint": "oxlint .",
 		"test": "bun test",
 		"fmt": "oxfmt .",
@@ -40,7 +40,7 @@
 		"mobile:ios": "bun --filter @revklik/app mobile:ios",
 		"mobile:android": "bun --filter @revklik/app mobile:android",
 		"dev:web": "turbo run dev -F web --",
-		"dev:native": "turbo run dev -F native --",
+		"dev:native": "turbo run dev -F @revklik/native --",
 		"dev:docs": "turbo run dev -F fumadocs --",
 		"dev:landing": "turbo run dev -F landing --",
 		"typecheck:apps": "turbo run check-types"
