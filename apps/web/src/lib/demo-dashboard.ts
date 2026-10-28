@@ -153,6 +153,22 @@ const COUNTRIES: readonly WeightedLabel[] = [
 	{ label: "JP", weight: 0.5 },
 ];
 
+/** Indonesian checkout mix: QRIS leads, then virtual accounts, e-wallets and cards. */
+const PAYMENT_METHODS: readonly WeightedLabel[] = [
+	{ label: "qris", weight: 41 },
+	{ label: "virtual_account", weight: 26 },
+	{ label: "ewallet", weight: 19 },
+	{ label: "credit_card", weight: 10 },
+	{ label: "bank_transfer", weight: 4 },
+];
+
+const PAYMENT_PROVIDERS: readonly WeightedLabel[] = [
+	{ label: "midtrans", weight: 44 },
+	{ label: "xendit", weight: 31 },
+	{ label: "doku", weight: 15 },
+	{ label: "mayar", weight: 10 },
+];
+
 const DEVICES: readonly WeightedLabel[] = [
 	{ label: "mobile", weight: 75.5 },
 	{ label: "desktop", weight: 21.5 },
@@ -335,6 +351,29 @@ export const buildDemoPayload = (range: RangeKey, now: Date): PublicPayload => {
 		.filter((r) => r.conversions > 0)
 		.sort((a, b) => b.revenue - a.revenue);
 
+	// Revenue by payment method / provider: each splits orders, then revenue by orders.
+	const splitPayments = (rows: readonly WeightedLabel[], salt: string) => {
+		const counts = allocate(
+			orders,
+			rows.map((r) => r.weight * (0.94 + 0.12 * rand(range, salt, r.label))),
+		);
+		const revenues = allocate(revenue / 1000, counts).map((units) => units * 1000);
+		return rows
+			.map((r, i) => ({ count: counts[i] ?? 0, label: r.label, revenue: revenues[i] ?? 0 }))
+			.filter((r) => r.count > 0)
+			.sort((a, b) => b.revenue - a.revenue);
+	};
+	const revenueByMethod = splitPayments(PAYMENT_METHODS, "pm").map((r) => ({
+		count: r.count,
+		method: r.label,
+		revenue: r.revenue,
+	}));
+	const revenueByProvider = splitPayments(PAYMENT_PROVIDERS, "pp").map((r) => ({
+		count: r.count,
+		provider: r.label,
+		revenue: r.revenue,
+	}));
+
 	// Top pages: visitors never exceed pageviews or the site's unique visitors.
 	const pageViews = allocate(
 		Math.round((pageviews * PAGES_SHARE_OF_ALL) / 100),
@@ -359,6 +398,8 @@ export const buildDemoPayload = (range: RangeKey, now: Date): PublicPayload => {
 			os: toDeviceRows(splitTotal(visitors, OPERATING_SYSTEMS, `${range}o`), visitors),
 			revenueBySource,
 			revenueByCountry,
+			revenueByMethod,
+			revenueByProvider,
 			revenueTimeseries: buckets.map((b) => ({
 				conversions: b.data.orders,
 				date: b.key,

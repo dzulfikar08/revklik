@@ -20,6 +20,7 @@ import { selectActiveSite, useActiveSite } from "@/lib/active-site";
 import { RANGES, duration, fmt, fmtC, fmtPct, money, pointLabel } from "@/lib/analytics-data";
 import type { CountRow, RangeKey } from "@/lib/analytics-data";
 import { aggregateGeo, hostOf } from "@/lib/analytics-transform";
+import { paymentMethodLabel, paymentProviderLabel } from "@/lib/payment-labels";
 import {
 	connectSSE,
 	countryFlag,
@@ -35,7 +36,7 @@ type PageTabKey = "pages" | "entry" | "exit";
 type SourceTabKey = "channel" | "referrer";
 type LocationTabKey = "city" | "country" | "region";
 type PlatformTabKey = "browser" | "device" | "os";
-type RevenueTabKey = "campaign" | "country" | "method" | "source";
+type RevenueTabKey = "campaign" | "country" | "payment" | "source";
 
 const LIVE_FEED_MAX = 8;
 
@@ -339,6 +340,7 @@ const RevenuePanel = ({
 }: DashProps & { siteId: string; rangeKey: RangeKey }) => {
 	const [tab, setTab] = useState<RevenueTabKey>("source");
 	const [dir, setDir] = useState<"desc" | "asc">("desc");
+	const [paymentView, setPaymentView] = useState<"method" | "provider">("method");
 	const campaignsQ = useQuery({
 		enabled: Boolean(siteId) && tab === "campaign",
 		// The worker predates this endpoint (404) — fetchCampaigns already
@@ -355,17 +357,22 @@ const RevenuePanel = ({
 				value: r.revenue,
 			}));
 		}
-		if (tab === "method") {
-			return (dash?.revenueByMethod ?? []).map((r) => ({
-				label: r.method,
-				value: r.revenue,
-			}));
+		if (tab === "payment") {
+			return paymentView === "provider"
+				? (dash?.revenueByProvider ?? []).map((r) => ({
+						label: paymentProviderLabel(r.provider),
+						value: r.revenue,
+					}))
+				: (dash?.revenueByMethod ?? []).map((r) => ({
+						label: paymentMethodLabel(r.method),
+						value: r.revenue,
+					}));
 		}
 		return (dash?.revenueBySource ?? []).map((r) => ({
 			label: r.source,
 			value: r.revenue,
 		}));
-	}, [dash, tab]);
+	}, [dash, tab, paymentView]);
 
 	return (
 		<Panel
@@ -382,7 +389,7 @@ const RevenuePanel = ({
 					tabs={[
 						{ key: "source", label: "Source" },
 						{ key: "country", label: "Country" },
-						{ key: "method", label: "Method" },
+						{ key: "payment", label: "Payment" },
 						{ key: "campaign", label: "Campaign" },
 					]}
 					value={tab}
@@ -414,13 +421,29 @@ const RevenuePanel = ({
 					))}
 				</PanelBody>
 			) : (
-				<PanelBody
-					emptyText="No revenue in this range."
-					hasData={rows.length > 0}
-					loading={loading}
-				>
-					<BarList asMoney dir={dir} rows={rows} />
-				</PanelBody>
+				<>
+					{tab === "payment" ? (
+						<PanelTabs
+							onChange={(k) => setPaymentView(k as "method" | "provider")}
+							tabs={[
+								{ key: "method", label: "Method" },
+								{ key: "provider", label: "Provider" },
+							]}
+							value={paymentView}
+						/>
+					) : null}
+					<PanelBody
+						emptyText={
+							tab === "payment"
+								? "No payment data yet. This fills in when payments arrive from a connected payment provider or webhook."
+								: "No revenue in this range."
+						}
+						hasData={rows.length > 0}
+						loading={loading}
+					>
+						<BarList asMoney dir={dir} rows={rows} />
+					</PanelBody>
+				</>
 			)}
 		</Panel>
 	);

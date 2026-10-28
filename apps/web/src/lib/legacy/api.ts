@@ -156,6 +156,12 @@ export interface RevenueByPaymentMethod {
 	revenue: number;
 }
 
+export interface RevenueByPaymentProvider {
+	provider: string;
+	count: number;
+	revenue: number;
+}
+
 export interface CampaignPerformance {
 	utm_source: string;
 	utm_medium: string;
@@ -285,7 +291,7 @@ export interface SiteDashboard {
 	entryPagesRevenue: EntryPageRevenue[];
 	exitPages: ExitPage[];
 	revenueByMethod: RevenueByPaymentMethod[];
-	revenueByProvider: unknown[];
+	revenueByProvider: RevenueByPaymentProvider[];
 }
 
 export type FilterOperator =

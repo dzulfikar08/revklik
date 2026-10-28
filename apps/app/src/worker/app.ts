@@ -349,6 +349,8 @@ export function createApp(): Hono<Env> {
 			getRevenueBySource,
 			getRevenueByCountry,
 			getRevenueTimeseries,
+			getRevenueByPaymentMethod,
+			getRevenueByPaymentProvider,
 			getChannelBreakdown,
 		} = await import("./queries/analytics");
 		const [
@@ -360,6 +362,8 @@ export function createApp(): Hono<Env> {
 			revenueBySource,
 			revenueByCountry,
 			revenueTimeseries,
+			revenueByMethod,
+			revenueByProvider,
 			channels,
 		] = await Promise.all([
 			getOverviewStats(db, site.id, startIso, undefined, undefined, scope),
@@ -370,6 +374,8 @@ export function createApp(): Hono<Env> {
 			getRevenueBySource(db, site.id, startIso, undefined, undefined, scope),
 			getRevenueByCountry(db, site.id, startIso, undefined, undefined, scope),
 			getRevenueTimeseries(db, site.id, startIso, false, undefined, undefined, scope),
+			getRevenueByPaymentMethod(db, site.id, startIso, undefined, undefined, scope),
+			getRevenueByPaymentProvider(db, site.id, startIso, undefined, undefined, scope),
 			getChannelBreakdown(db, site.id, startIso, undefined, undefined, scope),
 		]);
 
@@ -387,6 +393,8 @@ export function createApp(): Hono<Env> {
 					revenueBySource,
 					revenueByCountry,
 					revenueTimeseries,
+					revenueByMethod,
+					revenueByProvider,
 					channels,
 					currency: scope.money.currency,
 				},

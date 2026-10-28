@@ -249,6 +249,11 @@ const en = {
 	"dash.platform.browser": "No sessions with browser data in this range.",
 	"dash.platform.device": "No sessions with device data in this range.",
 	"dash.platform.os": "No sessions with OS data in this range.",
+	"dash.payment.tab": "Payment",
+	"dash.payment.method": "Method",
+	"dash.payment.provider": "Provider",
+	"dash.payment.empty":
+		"No payment data yet. This fills in when payments arrive from a connected payment provider or webhook.",
 	"dash.live.hint": "latest pageviews",
 	"dash.live.connecting": "Connecting…",
 	"dash.live.online": "{count} online on {domain}",
@@ -536,6 +541,11 @@ const id: Record<BaseKey, string> = {
 	"dash.platform.browser": "Belum ada sesi dengan data browser di rentang ini.",
 	"dash.platform.device": "Belum ada sesi dengan data perangkat di rentang ini.",
 	"dash.platform.os": "Belum ada sesi dengan data OS di rentang ini.",
+	"dash.payment.tab": "Pembayaran",
+	"dash.payment.method": "Metode",
+	"dash.payment.provider": "Penyedia",
+	"dash.payment.empty":
+		"Belum ada data pembayaran. Terisi saat pembayaran masuk dari penyedia pembayaran atau webhook yang terhubung.",
 	"dash.live.hint": "pageview terbaru",
 	"dash.live.connecting": "Menyambungkan…",
 	"dash.live.online": "{count} orang online di {domain}",

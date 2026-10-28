@@ -5,6 +5,7 @@ import type { ReactNode } from "react";
 import { CountBarRow, Panel, PanelTabs, StatTile, TrafficChart } from "@/components/analytics/ui";
 import { RANGES, fmt, fmtC, money, pointLabel } from "@/components/analytics/data";
 import type { Point, RangeKey } from "@/components/analytics/data";
+import { paymentMethodLabel, paymentProviderLabel } from "@/components/analytics/payment-labels";
 import { useT } from "@/lib/i18n";
 
 /**
@@ -58,6 +59,8 @@ export interface PublicDashboard {
 	revenueBySource: { source: string; revenue: number; conversions: number }[];
 	revenueByCountry: { country: string; revenue: number; conversions: number }[];
 	revenueTimeseries: { date: string; revenue: number; conversions: number }[];
+	revenueByMethod: { method: string; count: number; revenue: number }[];
+	revenueByProvider: { provider: string; count: number; revenue: number }[];
 	channels: ChannelRow[];
 }
 
@@ -140,15 +143,17 @@ const RowsBody = ({
 	loading,
 	isMoney,
 	currency,
+	emptyText = "No data yet.",
 }: {
 	rows: LabelledRow[];
 	loading: boolean;
 	isMoney?: boolean;
 	currency?: string;
+	emptyText?: string;
 }) => {
 	const total = rows.reduce((acc, r) => acc + r.value, 0);
 	return (
-		<PanelBody loading={loading} hasData={rows.length > 0} emptyText="No data yet.">
+		<PanelBody loading={loading} hasData={rows.length > 0} emptyText={emptyText}>
 			<div className="grid max-h-[420px] gap-1 overflow-y-auto">
 				{rows.map((r) => (
 					<CountBarRow
@@ -235,14 +240,26 @@ function PlatformPanel({ dash, loading }: { dash: PublicDashboard | undefined; l
 }
 
 function RevenuePanel({ dash, loading }: { dash: PublicDashboard | undefined; loading: boolean }) {
-	const [tab, setTab] = useState<"source" | "country">("source");
-	const rows: LabelledRow[] = useMemo(
-		() =>
-			tab === "country"
-				? (dash?.revenueByCountry ?? []).map((r) => ({ label: r.country, value: r.revenue }))
-				: (dash?.revenueBySource ?? []).map((r) => ({ label: r.source, value: r.revenue })),
-		[dash, tab],
-	);
+	const tr = useT();
+	const [tab, setTab] = useState<"source" | "country" | "payment">("source");
+	const [paymentView, setPaymentView] = useState<"method" | "provider">("method");
+	const rows: LabelledRow[] = useMemo(() => {
+		if (tab === "country") {
+			return (dash?.revenueByCountry ?? []).map((r) => ({ label: r.country, value: r.revenue }));
+		}
+		if (tab === "payment") {
+			return paymentView === "provider"
+				? (dash?.revenueByProvider ?? []).map((r) => ({
+						label: paymentProviderLabel(r.provider),
+						value: r.revenue,
+					}))
+				: (dash?.revenueByMethod ?? []).map((r) => ({
+						label: paymentMethodLabel(r.method),
+						value: r.revenue,
+					}));
+		}
+		return (dash?.revenueBySource ?? []).map((r) => ({ label: r.source, value: r.revenue }));
+	}, [dash, tab, paymentView]);
 	return (
 		<Panel
 			title="Revenue"
@@ -253,11 +270,30 @@ function RevenuePanel({ dash, loading }: { dash: PublicDashboard | undefined; lo
 					tabs={[
 						{ key: "source", label: "Source" },
 						{ key: "country", label: "Country" },
+						{ key: "payment", label: tr("dash.payment.tab") },
 					]}
 				/>
 			}
 		>
-			<RowsBody rows={rows} loading={loading} isMoney currency={dash?.currency} />
+			{tab === "payment" ? (
+				<div className="mb-2">
+					<PanelTabs
+						value={paymentView}
+						onChange={setPaymentView}
+						tabs={[
+							{ key: "method", label: tr("dash.payment.method") },
+							{ key: "provider", label: tr("dash.payment.provider") },
+						]}
+					/>
+				</div>
+			) : null}
+			<RowsBody
+				rows={rows}
+				loading={loading}
+				isMoney
+				currency={dash?.currency}
+				emptyText={tab === "payment" ? tr("dash.payment.empty") : undefined}
+			/>
 		</Panel>
 	);
 }

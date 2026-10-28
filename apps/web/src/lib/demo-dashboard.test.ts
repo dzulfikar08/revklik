@@ -30,6 +30,10 @@ describe("buildDemoPayload", () => {
 		expect(d.revenueBySource.reduce((a, r) => a + r.conversions, 0)).toBe(stats.conversions);
 		expect(d.revenueByCountry.reduce((a, r) => a + r.revenue, 0)).toBe(stats.revenue);
 		expect(d.revenueByCountry.reduce((a, r) => a + r.conversions, 0)).toBe(stats.conversions);
+		expect(d.revenueByMethod.reduce((a, r) => a + r.revenue, 0)).toBe(stats.revenue);
+		expect(d.revenueByMethod.reduce((a, r) => a + r.count, 0)).toBe(stats.conversions);
+		expect(d.revenueByProvider.reduce((a, r) => a + r.revenue, 0)).toBe(stats.revenue);
+		expect(d.revenueByProvider.reduce((a, r) => a + r.count, 0)).toBe(stats.conversions);
 	});
 
 	it.each(RANGES)("%s: nothing negative, pages within totals", (range) => {
@@ -56,6 +60,10 @@ describe("buildDemoPayload", () => {
 		);
 		expect(d.devices[0]?.device).toBe("mobile");
 		expect(d.revenueByCountry[0]?.country).toBe("ID");
+		expect(d.revenueByMethod[0]?.method).toBe("qris");
+		expect(d.revenueByProvider.map((r) => r.provider)).toEqual(
+			expect.arrayContaining(["midtrans", "xendit", "doku", "mayar"]),
+		);
 		expect(d.timeseries).toHaveLength(30);
 	});
 

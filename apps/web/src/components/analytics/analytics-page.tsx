@@ -115,6 +115,7 @@ import {
 	StatTile,
 	TrafficChart,
 } from "./ui";
+import { paymentMethodLabel, paymentProviderLabel } from "./payment-labels";
 import { UpgradeLock } from "./upgrade-lock";
 import type { ViewKey } from "./views";
 import { VisitorSheet } from "./visitors";
@@ -123,7 +124,7 @@ type LocationTabKey = "country" | "region" | "city" | "globe";
 type PageTabKey = "pages" | "entry" | "exit";
 type SourceTabKey = "referrer" | "channel";
 type PlatformTabKey = "browser" | "os" | "device";
-type RevenueTabKey = "source" | "country" | "method" | "campaign" | "appstore";
+type RevenueTabKey = "source" | "country" | "payment" | "campaign" | "appstore";
 
 const NAV_TABS = [
 	{ Icon: Home, key: "home" as const, label: "Home" },
@@ -877,6 +878,7 @@ const RevenuePanel = ({
 		staleTime: 60_000,
 	});
 	const [revenueSort, setRevenueSort] = useState<"desc" | "asc">("desc");
+	const [paymentView, setPaymentView] = useState<"method" | "provider">("method");
 	const rows: CountRow[] = useMemo(() => {
 		const unsorted: CountRow[] =
 			revenueTab === "appstore"
@@ -891,11 +893,16 @@ const RevenuePanel = ({
 							label: r.country,
 							value: r.revenue,
 						}))
-					: revenueTab === "method"
-						? (dash?.revenueByMethod ?? []).map((r) => ({
-								label: r.method,
-								value: r.revenue,
-							}))
+					: revenueTab === "payment"
+						? paymentView === "provider"
+							? (dash?.revenueByProvider ?? []).map((r) => ({
+									label: paymentProviderLabel(r.provider),
+									value: r.revenue,
+								}))
+							: (dash?.revenueByMethod ?? []).map((r) => ({
+									label: paymentMethodLabel(r.method),
+									value: r.revenue,
+								}))
 						: (dash?.revenueBySource ?? []).map((r) => ({
 								label: r.source,
 								value: r.revenue,
@@ -903,7 +910,7 @@ const RevenuePanel = ({
 		return unsorted.toSorted((a, b) =>
 			revenueSort === "desc" ? b.value - a.value : a.value - b.value,
 		);
-	}, [dash, revenueTab, revenueSort, ascQ.data]);
+	}, [dash, revenueTab, revenueSort, ascQ.data, paymentView]);
 	const total = rows.reduce((acc, r) => acc + r.value, 0);
 
 	const campaigns = campaignsQ.data ?? [];
@@ -941,28 +948,48 @@ const RevenuePanel = ({
 	};
 
 	const moneyBody = () => (
-		<PanelBody loading={loading} hasData={rows.length > 0} emptyText="No revenue in this range.">
-			<div className="grid max-h-[420px] gap-1 overflow-y-auto">
-				{rows.map((r) => (
-					<CountBarRow
-						key={r.label}
-						// A hard-coded "$" glyph contradicted IDR sites; only the
-						// country tab has a glyph worth showing (the flag).
-						glyph={
-							r.flag ? (
-								<span className="text-[15px] leading-none" aria-hidden>
-									{r.flag}
-								</span>
-							) : undefined
-						}
-						label={r.label}
-						value={money(r.value, dash?.currency)}
-						share={(r.value / total) * 100}
-						fill="var(--money)"
+		<>
+			{revenueTab === "payment" ? (
+				<div className="mb-2">
+					<PanelTabs
+						value={paymentView}
+						onChange={setPaymentView}
+						tabs={[
+							{ key: "method", label: tr("dash.payment.method") },
+							{ key: "provider", label: tr("dash.payment.provider") },
+						]}
 					/>
-				))}
-			</div>
-		</PanelBody>
+				</div>
+			) : null}
+			<PanelBody
+				loading={loading}
+				hasData={rows.length > 0}
+				emptyText={
+					revenueTab === "payment" ? tr("dash.payment.empty") : "No revenue in this range."
+				}
+			>
+				<div className="grid max-h-[420px] gap-1 overflow-y-auto">
+					{rows.map((r) => (
+						<CountBarRow
+							key={r.label}
+							// A hard-coded "$" glyph contradicted IDR sites; only the
+							// country tab has a glyph worth showing (the flag).
+							glyph={
+								r.flag ? (
+									<span className="text-[15px] leading-none" aria-hidden>
+										{r.flag}
+									</span>
+								) : undefined
+							}
+							label={r.label}
+							value={money(r.value, dash?.currency)}
+							share={(r.value / total) * 100}
+							fill="var(--money)"
+						/>
+					))}
+				</div>
+			</PanelBody>
+		</>
 	);
 	const ascBody = () => {
 		const asc = ascQ.data;
@@ -1012,7 +1039,7 @@ const RevenuePanel = ({
 					tabs={[
 						{ key: "source", label: "Source" },
 						{ key: "country", label: "Country" },
-						{ key: "method", label: "Method" },
+						{ key: "payment", label: tr("dash.payment.tab") },
 						{ key: "campaign", label: "Campaign" },
 						{ key: "appstore", label: "App Store" },
 					]}
