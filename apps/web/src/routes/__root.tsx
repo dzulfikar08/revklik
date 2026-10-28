@@ -8,7 +8,7 @@ import {
 	createRootRouteWithContext,
 	useRouterState,
 } from "@tanstack/react-router";
-import { lazy, Suspense } from "react";
+import { lazy, Suspense, useEffect } from "react";
 
 import { AuthShell, authButtonClass } from "@/components/auth-shell";
 import { ThemeProvider } from "@/components/theme-provider";
@@ -106,8 +106,30 @@ function captureOAuthToken(): void {
 
 captureOAuthToken();
 
+const STALE_SHELL_RETRY_KEY = "kp_stale_shell_retry";
+
+/**
+ * A 404 under an installed service worker usually means the cached app shell
+ * predates the route (e.g. /demo after a deploy). Drop the worker and reload
+ * once per path from the network; a real 404 stays put after that one retry.
+ */
+function useStaleShellRecovery(): void {
+	useEffect(() => {
+		if (!navigator.serviceWorker?.controller) return;
+		const path = window.location.pathname;
+		if (sessionStorage.getItem(STALE_SHELL_RETRY_KEY) === path) return;
+		sessionStorage.setItem(STALE_SHELL_RETRY_KEY, path);
+		void (async () => {
+			const registrations = await navigator.serviceWorker.getRegistrations();
+			await Promise.all(registrations.map((r) => r.unregister()));
+			window.location.reload();
+		})();
+	}, []);
+}
+
 function NotFound() {
 	const t = useT();
+	useStaleShellRecovery();
 	return (
 		<AuthShell eyebrow="404" title={t("notFound.title")} description={t("notFound.desc")}>
 			<Link to="/analytics" className={buttonVariants({ className: authButtonClass })}>

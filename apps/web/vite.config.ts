@@ -24,7 +24,8 @@ export default defineConfig({
 			// starts with a full-page navigation to /api/auth/google, and a cached
 			// index.html there renders the app's 404 instead of the redirect.
 			workbox: {
-				navigateFallbackDenylist: [/^\/api\//],
+				// Embedded pages (landing demo, public dashboards) always load the deployed shell.
+				navigateFallbackDenylist: [/^\/api\//, /^\/demo/, /^\/public\//],
 				skipWaiting: true,
 				clientsClaim: true,
 			},
