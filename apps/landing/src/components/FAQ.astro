@@ -1,14 +1,18 @@
 ---
-import { C } from '../data/copy';
+import type { Copy } from '../data/copy';
+interface Props {
+	c: Copy;
+}
+const { c } = Astro.props;
 ---
 <section class="faq" id="faq" data-section="faq">
   <div class="wrap">
     <div class="section-head">
-      <h2>{C.faq_title}</h2>
+      <h2>{c.faq_title}</h2>
     </div>
     <div class="faq-grid">
       <div class="faq-list">
-        {C.faq.map((f) => (
+        {c.faq.map((f) => (
           <details class="faq-item">
             <summary>{f.q}</summary>
             <p>{f.a}</p>
@@ -16,8 +20,8 @@ import { C } from '../data/copy';
         ))}
       </div>
       <aside class="faq-aside">
-        <p>{C.faq_aside}</p>
-        <a class="link-plain" href="/support.html">{C.faq_aside_cta}</a>
+        <p>{c.faq_aside}</p>
+        <a class="link-plain" href="/support.html">{c.faq_aside_cta}</a>
       </aside>
     </div>
   </div>

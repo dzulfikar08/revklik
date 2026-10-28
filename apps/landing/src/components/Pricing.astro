@@ -1,29 +1,34 @@
 ---
-import { C } from '../data/copy';
-import { PLANS, registerUrl, SUPPORT_EMAIL } from '../data/site';
+import type { Copy } from '../data/copy';
+import { getPlans, registerUrl, SUPPORT_EMAIL } from '../data/site';
+interface Props {
+	c: Copy;
+}
+const { c } = Astro.props;
+const plans = getPlans(c);
 ---
 <section class="pricing" id="pricing" data-section="pricing">
   <div class="wrap">
     <div class="section-head">
-      <h2>{C.price_title}</h2>
-      <p>{C.price_desc}</p>
+      <h2>{c.price_title}</h2>
+      <p>{c.price_desc}</p>
     </div>
     <div class="plans">
-      {PLANS.map((plan) => (
+      {plans.map((plan) => (
         <article class={`plan${plan.highlight ? ' plan-highlight' : ''}`}>
           <div class="plan-id">
             <h3>{plan.name}</h3>
             <p>{plan.desc}</p>
-            {plan.highlight && <p class="plan-note">{C.price_highlight}</p>}
+            {plan.highlight && <p class="plan-note">{c.price_highlight}</p>}
           </div>
-          <p class="plan-price"><span class="cur">Rp</span><span class="amt">{plan.label.replace('Rp ', '')}</span><span class="per">{C.price_per}</span></p>
+          <p class="plan-price"><span class="cur">Rp</span><span class="amt">{plan.label.replace('Rp ', '')}</span><span class="per">{c.price_per}</span></p>
           <ul class="plan-feats">
             {plan.features.map((f) => <li>{f}</li>)}
           </ul>
-          <a href={registerUrl(plan)} class={`btn plan-cta ${plan.highlight ? 'btn-primary' : 'btn-ghost'}`} data-cta data-revklik-goal="register_click" data-revklik-goal-plan={plan.name}>{C.plan_cta}</a>
+          <a href={registerUrl(plan)} class={`btn plan-cta ${plan.highlight ? 'btn-primary' : 'btn-ghost'}`} data-cta data-revklik-goal="register_click" data-revklik-goal-plan={plan.name}>{c.plan_cta}</a>
         </article>
       ))}
     </div>
-    <p class="pricing-note">{C.price_note} <a href={`mailto:${SUPPORT_EMAIL}`}>{SUPPORT_EMAIL}</a></p>
+    <p class="pricing-note">{c.price_note} <a href={`mailto:${SUPPORT_EMAIL}`}>{SUPPORT_EMAIL}</a></p>
   </div>
 </section>

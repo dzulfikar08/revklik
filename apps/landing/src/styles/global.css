@@ -412,6 +412,52 @@ p {
 	}
 }
 
+/* ID | EN segmented switch (mirrors the app's pill toggle). Lives in the nav
+   menu, so it shows inline on desktop and inside the panel on mobile. */
+.lang-switch {
+	display: inline-flex;
+	align-self: flex-start;
+	margin-block: 12px 4px;
+	padding: 2px;
+	border-radius: 999px;
+	background: oklch(1 0 0 / 0.06);
+}
+.lang-opt {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	min-width: 44px;
+	min-height: 44px;
+	padding-inline: 12px;
+	border-radius: 999px;
+	color: var(--muted);
+	font-size: 0.8125rem;
+	font-weight: 600;
+	letter-spacing: 0.04em;
+	text-decoration: none;
+	transition: color 150ms ease, background-color 150ms ease;
+}
+.lang-opt[aria-current='true'] {
+	background: var(--raised);
+	color: var(--text);
+	box-shadow: var(--ring);
+}
+@media (hover: hover) {
+	.lang-opt:hover {
+		color: var(--text);
+	}
+}
+.lang-opt:focus-visible {
+	outline: 2px solid var(--accent);
+	outline-offset: 2px;
+}
+@media (min-width: 900px) {
+	.lang-switch {
+		align-self: center;
+		margin: 0 4px 0 8px;
+	}
+}
+
 /* ---- Hero ---- */
 .hero {
 	padding-block: 40px 32px;

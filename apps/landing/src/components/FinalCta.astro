@@ -1,15 +1,19 @@
 ---
-import { C } from '../data/copy';
+import type { Copy } from '../data/copy';
 import { REGISTER_URL } from '../data/site';
+interface Props {
+	c: Copy;
+}
+const { c } = Astro.props;
 ---
 <section class="cta" id="cta" data-section="cta">
   <div class="wrap">
     <div class="cta-panel">
       <div>
-        <h2>{C.cta_title}</h2>
-        <p>{C.cta_desc}</p>
+        <h2>{c.cta_title}</h2>
+        <p>{c.cta_desc}</p>
       </div>
-      <a href={REGISTER_URL} class="btn btn-primary" data-cta data-revklik-goal="register_click" data-revklik-goal-location="footer_cta">{C.cta_btn}</a>
+      <a href={REGISTER_URL} class="btn btn-primary" data-cta data-revklik-goal="register_click" data-revklik-goal-location="footer_cta">{c.cta_btn}</a>
     </div>
   </div>
 </section>

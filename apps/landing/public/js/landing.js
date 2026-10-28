@@ -19,7 +19,7 @@
     var api = k();
     if (!api || !api.getVisitorId) return;
     var url;
-    try { url = new URL(a.href, location.href); } catch (e) { return; }
+    try { url = new URL(a.href, location.href); } catch { return; }
     if (url.hostname !== APP_HOST || !/^\/(register|login)\/?$/.test(url.pathname)) return;
     url.searchParams.set('rk_vid', api.getVisitorId());
     url.searchParams.set('rk_sid', api.getSessionId());
@@ -39,7 +39,7 @@
       url.searchParams.delete('rk_vid');
       url.searchParams.delete('rk_sid');
       return url.toString();
-    } catch (e) { return a.href || '#'; }
+    } catch { return a.href || '#'; }
   }
 
   // Mobile menu: toggle, close on Escape / link click / resize to desktop.
@@ -70,6 +70,24 @@
       if (e.matches) setMenu(false);
     });
   }
+
+  // Language switch: remember the choice (same key/values as the app's ID/EN
+  // toggle) and carry the current #hash to the other locale's page.
+  var localeLinks = document.querySelectorAll('[data-locale-link]');
+  function syncLocaleHash() {
+    localeLinks.forEach(function (a) {
+      var base = a.getAttribute('href').split('#')[0];
+      a.setAttribute('href', base + location.hash);
+    });
+  }
+  syncLocaleHash();
+  window.addEventListener('hashchange', syncLocaleHash);
+  localeLinks.forEach(function (a) {
+    a.addEventListener('click', function () {
+      try { localStorage.setItem('kp_locale', a.dataset.localeLink); } catch { /* storage blocked */ }
+      track('locale_switch', { locale: a.dataset.localeLink });
+    });
+  });
 
   // Nav link clicks
   document.querySelectorAll('.nav-menu a.nav-link').forEach(function (a) {

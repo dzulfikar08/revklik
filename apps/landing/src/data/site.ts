@@ -1,4 +1,4 @@
-import { C } from './copy';
+import type { Copy } from './copy';
 
 // Canonical tracker URL, served by the app worker, NOT the landing domain.
 // (https://revklik.com/klikapa.js returns the SPA HTML fallback and browsers
@@ -22,11 +22,18 @@ export type Plan = {
 	highlight?: boolean;
 };
 
-export const PLANS: Plan[] = [
-	{ id: 'micro', name: 'Micro', amount: 16_000, label: 'Rp 16.000', events: 10_000, desc: C.p0_desc, features: C.p0_f },
-	{ id: 'starter', name: 'Starter', amount: 64_000, label: 'Rp 64.000', events: 100_000, desc: C.p1_desc, features: C.p1_f, highlight: true },
-	{ id: 'growth', name: 'Growth', amount: 192_000, label: 'Rp 192.000', events: 500_000, desc: C.p2_desc, features: C.p2_f },
-];
+// Rupiah amounts follow the reader's number format (Rp 16.000 / Rp 16,000).
+function rp(amount: number, c: Copy): string {
+	return `Rp ${amount.toLocaleString(c.lang === 'en' ? 'en-US' : 'id-ID')}`;
+}
+
+export function getPlans(c: Copy): Plan[] {
+	return [
+		{ id: 'micro', name: 'Micro', amount: 16_000, label: rp(16_000, c), events: 10_000, desc: c.p0_desc, features: c.p0_f },
+		{ id: 'starter', name: 'Starter', amount: 64_000, label: rp(64_000, c), events: 100_000, desc: c.p1_desc, features: c.p1_f, highlight: true },
+		{ id: 'growth', name: 'Growth', amount: 192_000, label: rp(192_000, c), events: 500_000, desc: c.p2_desc, features: c.p2_f },
+	];
+}
 
 // Pricing CTAs send the visitor to signup with the plan preselected. Every new
 // account starts a 7-day Growth trial; the app paywall handles the QRIS payment

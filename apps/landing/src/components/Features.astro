@@ -1,12 +1,16 @@
 ---
-import { C } from '../data/copy';
-const lead = C.feat_lead;
+import type { Copy } from '../data/copy';
+interface Props {
+	c: Copy;
+}
+const { c } = Astro.props;
+const lead = c.feat_lead;
 ---
 <section class="features" id="features" data-section="features">
   <div class="wrap split">
     <div class="section-head split-head">
-      <h2>{C.feat_title}</h2>
-      <p>{C.feat_desc}</p>
+      <h2>{c.feat_title}</h2>
+      <p>{c.feat_desc}</p>
     </div>
     <div class="split-body">
       <article class="feature-lead">
@@ -20,7 +24,7 @@ const lead = C.feat_lead;
         </div>
       </article>
       <div class="feature-list">
-        {C.feat_rows.map((f) => (
+        {c.feat_rows.map((f) => (
           <article class="feature-row">
             <h3>{f.title}</h3>
             <p>{f.desc}</p>

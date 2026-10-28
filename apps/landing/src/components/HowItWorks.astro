@@ -1,17 +1,21 @@
 ---
-import { C } from '../data/copy';
+import type { Copy } from '../data/copy';
 import { TRACKER_URL } from '../data/site';
 const snippet = `<script defer data-site-id="your-site-id" src="${TRACKER_URL}"></scr` + `ipt>`;
+interface Props {
+	c: Copy;
+}
+const { c } = Astro.props;
 ---
 <section class="how" id="cara-pasang" data-section="how-it-works">
   <div class="wrap">
     <div class="section-head">
-      <h2>{C.how_title}</h2>
-      <p>{C.how_desc}</p>
+      <h2>{c.how_title}</h2>
+      <p>{c.how_desc}</p>
     </div>
     <div class="how-grid">
       <ol class="steps">
-        {C.steps.map((s) => (
+        {c.steps.map((s) => (
           <li class="step">
             <div>
               <h3>{s.title}</h3>
@@ -23,12 +27,12 @@ const snippet = `<script defer data-site-id="your-site-id" src="${TRACKER_URL}">
       </ol>
       <div class="snippet">
         <div class="snippet-bar">
-          <span>{C.code_label}</span>
-          <button type="button" class="btn btn-ghost btn-sm" data-copy-snippet={snippet} data-copied={C.code_copied} data-failed={C.code_failed}>{C.code_copy}</button>
+          <span>{c.code_label}</span>
+          <button type="button" class="btn btn-ghost btn-sm" data-copy-snippet={snippet} data-copied={c.code_copied} data-failed={c.code_failed}>{c.code_copy}</button>
         </div>
         <pre class="snippet-code"><code>&lt;script defer data-site-id="<span class="ph">your-site-id</span>" src="{TRACKER_URL}"&gt;&lt;/script&gt;</code></pre>
         <p class="snippet-status" role="status" data-copy-status></p>
-        <a class="link-plain" href="https://docs.revklik.com">{C.code_docs}</a>
+        <a class="link-plain" href="https://docs.revklik.com">{c.code_docs}</a>
       </div>
     </div>
   </div>

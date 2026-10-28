@@ -2,8 +2,6 @@
 /docs https://docs.revklik.com 301
 /docs.html https://docs.revklik.com 301
 # Removed pages — keep them out of the SPA soft-404 fallback
-/en / 301
-/en/ / 301
 /blog/ai-seo-audit-searchconsole-revklik.html /blog.html 301
 /blog/analytics-script-size-core-web-vitals.html /blog.html 301
 /blog/analytics-without-cookie-banner.html /blog.html 301

@@ -1,23 +1,27 @@
 ---
-import { C } from '../data/copy';
+import type { Copy } from '../data/copy';
 const DEMO_URL = 'https://app.revklik.com/demo';
+interface Props {
+	c: Copy;
+}
+const { c } = Astro.props;
 ---
 <section class="live" data-section="live">
   <div class="wrap">
     <div class="frame">
       <div class="frame-bar">
-        <p class="frame-title">{C.live_caption}</p>
-        <span class="frame-badge">{C.live_badge}</span>
+        <p class="frame-title">{c.live_caption}</p>
+        <span class="frame-badge">{c.live_badge}</span>
       </div>
       <div class="frame-body">
-        <p class="frame-status" data-frame-status>{C.live_loading} <a href={DEMO_URL} target="_blank" rel="noopener">{C.live_open}</a></p>
+        <p class="frame-status" data-frame-status>{c.live_loading} <a href={DEMO_URL} target="_blank" rel="noopener">{c.live_open}</a></p>
         <iframe
           src={`${DEMO_URL}?embed=1`}
-          title={C.live_iframe_title}
+          title={c.live_iframe_title}
           loading="lazy"
         ></iframe>
       </div>
     </div>
-    <p class="frame-note">{C.live_note}</p>
+    <p class="frame-note">{c.live_note}</p>
   </div>
 </section>

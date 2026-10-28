@@ -1,7 +1,8 @@
 ---
 import HomePage from '../components/HomePage.astro';
 import RootLayout from '../layouts/RootLayout.astro';
+import { ID } from '../data/copy';
 ---
-<RootLayout>
-	<HomePage />
+<RootLayout c={ID} locale="id">
+	<HomePage c={ID} />
 </RootLayout>

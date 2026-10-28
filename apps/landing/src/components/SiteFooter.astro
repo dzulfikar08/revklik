@@ -1,23 +1,27 @@
 ---
-import { C } from '../data/copy';
+import type { Copy } from '../data/copy';
 import BrandMark from './BrandMark.astro';
+interface Props {
+	c: Copy;
+}
+const { c } = Astro.props;
 ---
 <footer class="site-footer">
   <div class="wrap">
     <div class="footer-main">
-      <p class="footer-brand"><BrandMark width={26} /><span>Rev<b>Klik</b></span><span class="footer-copy">{C.footer_copy}</span></p>
+      <p class="footer-brand"><BrandMark width={26} /><span>Rev<b>Klik</b></span><span class="footer-copy">{c.footer_copy}</span></p>
       <ul class="footer-links">
-        <li><a href="/privacy.html">{C.f_privacy}</a></li>
-        <li><a href="/terms.html">{C.f_terms}</a></li>
-        <li><a href="/support.html">{C.f_support}</a></li>
-        <li><a href="https://docs.revklik.com">{C.f_docs}</a></li>
-        <li><a href="/blog.html">{C.nav_blog}</a></li>
+        <li><a href="/privacy.html">{c.f_privacy}</a></li>
+        <li><a href="/terms.html">{c.f_terms}</a></li>
+        <li><a href="/support.html">{c.f_support}</a></li>
+        <li><a href="https://docs.revklik.com">{c.f_docs}</a></li>
+        <li><a href="/blog.html">{c.nav_blog}</a></li>
       </ul>
     </div>
     <div class="footer-network">
-      <span class="footer-copy">{C.f_network}:</span>
+      <span class="footer-copy">{c.f_network}:</span>
       <ul class="footer-links">
-        <li><a href="https://nempel.com/cafe">Nempel: direktori cafe &amp; fasilitas</a></li>
+        <li><a href="https://nempel.com/cafe">{c.f_nempel}</a></li>
         <li><a href="https://voltrus.id">Voltrus</a></li>
         <li><a href="https://cowculator.id">Cowculator</a></li>
         <li><a href="https://epondok.id">E-Pondok</a></li>

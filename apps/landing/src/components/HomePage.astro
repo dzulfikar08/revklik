@@ -1,4 +1,5 @@
 ---
+import type { Copy } from '../data/copy';
 import FAQ from './FAQ.astro';
 import Features from './Features.astro';
 import FinalCta from './FinalCta.astro';
@@ -6,11 +7,16 @@ import LiveDashboard from './LiveDashboard.astro';
 import Hero from './Hero.astro';
 import HowItWorks from './HowItWorks.astro';
 import Pricing from './Pricing.astro';
+
+interface Props {
+	c: Copy;
+}
+const { c } = Astro.props;
 ---
-<Hero />
-<LiveDashboard />
-<Features />
-<HowItWorks />
-<Pricing />
-<FAQ />
-<FinalCta />
+<Hero c={c} />
+<LiveDashboard c={c} />
+<Features c={c} />
+<HowItWorks c={c} />
+<Pricing c={c} />
+<FAQ c={c} />
+<FinalCta c={c} />

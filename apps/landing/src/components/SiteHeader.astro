@@ -1,21 +1,45 @@
 ---
-import { C } from '../data/copy';
+import type { Copy, Locale } from '../data/copy';
 import { LOGIN_URL, REGISTER_URL } from '../data/site';
 import BrandMark from './BrandMark.astro';
+
+interface Props {
+	c: Copy;
+	locale: Locale;
+}
+const { c, locale } = Astro.props;
+const home = locale === 'en' ? '/en/' : '/';
+const options = [
+	{ value: 'id', label: 'ID', name: c.locale_id_name, href: '/' },
+	{ value: 'en', label: 'EN', name: c.locale_en_name, href: '/en/' },
+] as const;
 ---
 <header class="site-nav">
-  <nav class="wrap nav-bar" aria-label={C.nav_label}>
-    <a href="/" class="brand"><BrandMark width={34} /><span>Rev<b>Klik</b></span></a>
+  <nav class="wrap nav-bar" aria-label={c.nav_label}>
+    <a href={home} class="brand" aria-label={c.home_label}><BrandMark width={34} /><span>Rev<b>Klik</b></span></a>
     <div id="site-menu" class="nav-menu">
-      <a class="nav-link" href="#features">{C.nav_features}</a>
-      <a class="nav-link" href="#cara-pasang">{C.nav_how}</a>
-      <a class="nav-link" href="#pricing">{C.nav_pricing}</a>
-      <a class="nav-link" href="#faq">{C.nav_faq}</a>
-      <a class="nav-link" href="/blog.html">{C.nav_blog}</a>
-      <a href={REGISTER_URL} class="btn btn-primary menu-cta" data-cta data-revklik-goal="register_click" data-revklik-goal-location="nav_menu">{C.nav_cta}</a>
+      <a class="nav-link" href="#features">{c.nav_features}</a>
+      <a class="nav-link" href="#cara-pasang">{c.nav_how}</a>
+      <a class="nav-link" href="#pricing">{c.nav_pricing}</a>
+      <a class="nav-link" href="#faq">{c.nav_faq}</a>
+      <a class="nav-link" href="/blog.html">{c.nav_blog}</a>
+      <div class="lang-switch" role="group" aria-label={c.locale_label}>
+        {options.map((o) => (
+          <a
+            href={o.href}
+            class="lang-opt"
+            lang={o.value}
+            hreflang={o.value}
+            aria-label={o.name}
+            aria-current={o.value === locale ? 'true' : undefined}
+            data-locale-link={o.value}
+          >{o.label}</a>
+        ))}
+      </div>
+      <a href={REGISTER_URL} class="btn btn-primary menu-cta" data-cta data-revklik-goal="register_click" data-revklik-goal-location="nav_menu">{c.nav_cta}</a>
     </div>
-    <a href={LOGIN_URL} class="nav-link nav-login">{C.nav_login}</a>
-    <a href={REGISTER_URL} class="btn btn-primary btn-sm nav-cta" data-cta data-revklik-goal="register_click" data-revklik-goal-location="nav">{C.nav_cta}</a>
-    <button type="button" class="menu-btn" aria-expanded="false" aria-controls="site-menu">{C.nav_menu}</button>
+    <a href={LOGIN_URL} class="nav-link nav-login">{c.nav_login}</a>
+    <a href={REGISTER_URL} class="btn btn-primary btn-sm nav-cta" data-cta data-revklik-goal="register_click" data-revklik-goal-location="nav">{c.nav_cta}</a>
+    <button type="button" class="menu-btn" aria-expanded="false" aria-controls="site-menu">{c.nav_menu}</button>
   </nav>
 </header>
