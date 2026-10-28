@@ -1,28 +1,18 @@
 import type { Kysely, SelectQueryBuilder } from "kysely";
 import type { HeatmapData, KlikapaDatabase } from "@revklik/shared";
+import { loadAccess, type SiteAccess } from "./site-access";
 
 /**
  * Validate that a user has access to a site (owns it or is an accepted team member).
+ * Shares one read per request with the plan gates and the query scope.
  */
-export function validateSite(db: Kysely<KlikapaDatabase>, userId: string, siteId: string) {
-	return db
-		.selectFrom("sites")
-		.select(["id"])
-		.where("id", "=", siteId)
-		.where((eb) =>
-			eb.or([
-				eb("user_id", "=", userId),
-				eb.exists(
-					eb
-						.selectFrom("team_members")
-						.select("id")
-						.where("site_id", "=", siteId)
-						.where("user_id", "=", userId)
-						.where("accepted_at", "is not", null),
-				),
-			]),
-		)
-		.executeTakeFirst();
+export async function validateSite(
+	db: Kysely<KlikapaDatabase>,
+	userId: string,
+	siteId: string,
+): Promise<SiteAccess | undefined> {
+	const { site } = await loadAccess(db, userId, siteId);
+	return site?.canAccess ? site : undefined;
 }
 
 /**

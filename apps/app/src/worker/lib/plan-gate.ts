@@ -4,7 +4,8 @@ import type { Kysely } from "kysely";
 import type { KlikapaDatabase } from "@revklik/shared";
 import type { Env } from "../types";
 import { INGEST_GRACE_MS, isSelfHosted, isSubscriptionActive } from "./entitlement";
-import { accessibleSiteOwner, PLANS, type PlanTier, requirePlanForSite } from "./plans";
+import { PLANS, type PlanTier, requirePlanForSite } from "./plans";
+import { type AccountPlan, loadAccess } from "./site-access";
 
 type GateEnv = Env;
 
@@ -99,41 +100,48 @@ export function clearAccessCache(): void {
 	accessCache.clear();
 }
 
-async function accountAccess(
-	db: Kysely<KlikapaDatabase>,
-	accountId: string,
-): Promise<AccountAccess> {
-	const cached = accessCache.get(accountId);
-	if (cached && Date.now() - cached.at < ACCESS_TTL_MS) return cached;
-	const row = await db
-		.selectFrom("users")
-		.leftJoin("subscriptions", "subscriptions.user_id", "users.id")
-		.select([
-			"users.role",
-			"subscriptions.plan",
-			"subscriptions.status",
-			"subscriptions.current_period_end",
-		])
-		.where("users.id", "=", accountId)
-		.executeTakeFirst();
+function toAccountAccess(account: AccountPlan): AccountAccess {
 	const ok =
-		row?.role === "super_admin" ||
+		account.role === "super_admin" ||
 		// No subscription row: account predates trials and keeps micro access.
-		!row?.status ||
+		!account.status ||
 		isSubscriptionActive({
-			plan: row.plan ?? "micro",
-			status: row.status,
-			current_period_end: row.current_period_end ?? null,
+			plan: account.plan ?? "micro",
+			status: account.status,
+			current_period_end: account.periodEnd,
 		});
-	const plan = PLANS[(row?.plan ?? "micro") as PlanTier] ?? PLANS.micro;
-	const verdict: AccountAccess = {
+	const plan = PLANS[(account.plan ?? "micro") as PlanTier] ?? PLANS.micro;
+	return {
 		ok,
-		periodEnd: row?.current_period_end ?? null,
-		retentionDays: row?.role === "super_admin" ? null : plan.retention_days,
+		periodEnd: account.periodEnd,
+		retentionDays: account.role === "super_admin" ? null : plan.retention_days,
 	};
-	if (accessCache.size > 10_000) accessCache.clear();
-	accessCache.set(accountId, { ...verdict, at: Date.now() });
-	return verdict;
+}
+
+/**
+ * Verdict for the account that decides this request: the owner of an accessible
+ * `siteId`, else the caller. A request naming a site settles everything in one
+ * shared read; site-less requests reuse a short-lived per-account verdict.
+ */
+async function resolveAccess(
+	db: Kysely<KlikapaDatabase>,
+	userId: string,
+	siteId: string | undefined,
+): Promise<{ access: AccountAccess; callerIsSuperAdmin: boolean }> {
+	if (!siteId) {
+		const cached = accessCache.get(userId);
+		// A cached lapse is the caller's own, and a super admin never lapses.
+		if (cached && Date.now() - cached.at < ACCESS_TTL_MS) {
+			return { access: cached, callerIsSuperAdmin: false };
+		}
+	}
+	const { caller, site } = await loadAccess(db, userId, siteId);
+	const access = toAccountAccess(site?.canAccess ? site.owner : caller);
+	if (!siteId) {
+		if (accessCache.size > 10_000) accessCache.clear();
+		accessCache.set(userId, { ...access, at: Date.now() });
+	}
+	return { access, callerIsSuperAdmin: caller.role === "super_admin" };
 }
 
 /** Whole days of post-period ingest grace left (0 once it has run out). */
@@ -154,8 +162,7 @@ export const requireActiveSubscription = createMiddleware<GateEnv>(async (c, nex
 	const db = c.get("db");
 	const userId = c.get("userId");
 	// Only a site the caller belongs to lends its owner's subscription.
-	const ownerId = await accessibleSiteOwner(db, userId, c.req.query("site_id"));
-	const access = await accountAccess(db, ownerId ?? userId);
+	const { access, callerIsSuperAdmin } = await resolveAccess(db, userId, c.req.query("site_id"));
 	if (access.ok) {
 		// Plan retention is a read window: older rows exist but are not served.
 		if (access.retentionDays !== null) {
@@ -167,12 +174,7 @@ export const requireActiveSubscription = createMiddleware<GateEnv>(async (c, nex
 		return next();
 	}
 
-	const caller = await db
-		.selectFrom("users")
-		.select(["role"])
-		.where("id", "=", userId)
-		.executeTakeFirst();
-	if (caller?.role === "super_admin") return next();
+	if (callerIsSuperAdmin) return next();
 	return c.json(
 		{
 			success: false,

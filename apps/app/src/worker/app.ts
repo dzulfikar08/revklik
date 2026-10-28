@@ -54,6 +54,7 @@ import {
 } from "./lib/plan-gate";
 import { isSelfHosted } from "./lib/entitlement";
 import { refreshSessionExpiry } from "./lib/session";
+import { beginRequestAccess } from "./lib/site-access";
 import type { Env } from "./types";
 import { hashToken } from "./utils";
 
@@ -82,6 +83,7 @@ const authMiddleware = createMiddleware<Env>(async (c, next) => {
 	await refreshSessionExpiry(db, keyHash, apiKey.expires_at);
 
 	c.set("userId", apiKey.user_id);
+	beginRequestAccess(db, apiKey.user_id);
 	await next();
 });
 

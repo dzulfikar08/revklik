@@ -2,7 +2,7 @@
  * Version the live schema must reach. Bump it whenever a step is appended to
  * VERSIONED_STEPS; a DB already at this version costs one SELECT per isolate.
  */
-export const SCHEMA_VERSION = 15;
+export const SCHEMA_VERSION = 16;
 
 const migrated = new WeakSet<D1Database>();
 
@@ -87,6 +87,15 @@ const VERSIONED_STEPS: MigrationStep[] = [
 	},
 	{ version: 14, run: revenueAggregationSchema },
 	{ version: 15, run: pushAlertsSchema },
+	{
+		version: 16,
+		run: (d1) =>
+			runDdl(
+				d1,
+				// Literal `revenue != 0` in queries is required for the planner to pick this; a bound param does not match.
+				"CREATE INDEX IF NOT EXISTS idx_events_revenue_partial ON events(site_id, timestamp) WHERE revenue != 0",
+			),
+	},
 ];
 
 /**

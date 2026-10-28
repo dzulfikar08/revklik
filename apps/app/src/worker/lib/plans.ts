@@ -96,6 +96,7 @@ export function getFeatures(tier: PlanTier): string[] {
 import type { Kysely } from "kysely";
 import type { KlikapaDatabase } from "@revklik/shared";
 import { effectiveSubscription, isSubscriptionActive } from "./entitlement";
+import { type AccountPlan, knownAccount, loadAccess } from "./site-access";
 
 /**
  * Tier check against the caller's own subscription. Super admins always pass;
@@ -109,19 +110,8 @@ export async function requirePlan(
 ): Promise<{ allowed: boolean; plan: string }> {
 	// Self-hosted: the entitlement is the top tier for everyone, no lookup needed.
 	if (selfHosted) return evaluate(effectiveSubscription(undefined, true), requiredTier);
-	const user = await db
-		.selectFrom("users")
-		.select(["role"])
-		.where("id", "=", userId)
-		.executeTakeFirst();
-	if (user?.role === "super_admin") return { allowed: true, plan: "growth" };
-
-	const sub = await db
-		.selectFrom("subscriptions")
-		.select(["plan", "status", "current_period_end"])
-		.where("user_id", "=", userId)
-		.executeTakeFirst();
-	return evaluate(sub, requiredTier);
+	const account = knownAccount(db, userId) ?? (await loadAccess(db, userId)).caller;
+	return evaluateAccount(account, requiredTier);
 }
 
 function evaluate(
@@ -133,31 +123,21 @@ function evaluate(
 	return { allowed: isSubscriptionActive(sub) && tier >= requiredTier, plan: sub.plan };
 }
 
-/**
- * Owner of `siteId` when the caller may act on it (owner or ACCEPTED team
- * member); undefined otherwise, so a foreign site id never lends its plan.
- */
-export async function accessibleSiteOwner(
-	db: Kysely<KlikapaDatabase>,
-	userId: string,
-	siteId: string | null | undefined,
-): Promise<string | undefined> {
-	if (!siteId) return undefined;
-	const site = await db
-		.selectFrom("sites")
-		.select(["user_id"])
-		.where("id", "=", siteId)
-		.executeTakeFirst();
-	if (!site) return undefined;
-	if (site.user_id === userId) return site.user_id;
-	const member = await db
-		.selectFrom("team_members")
-		.select("id")
-		.where("site_id", "=", siteId)
-		.where("user_id", "=", userId)
-		.where("accepted_at", "is not", null)
-		.executeTakeFirst();
-	return member ? site.user_id : undefined;
+function evaluateAccount(
+	account: AccountPlan,
+	requiredTier: number,
+): { allowed: boolean; plan: string } {
+	if (account.role === "super_admin") return { allowed: true, plan: "growth" };
+	return evaluate(
+		account.status
+			? {
+					plan: account.plan ?? "micro",
+					status: account.status,
+					current_period_end: account.periodEnd,
+				}
+			: null,
+		requiredTier,
+	);
 }
 
 /**
@@ -173,13 +153,9 @@ export async function requirePlanForSite(
 	selfHosted = false,
 ): Promise<{ allowed: boolean; plan: string }> {
 	if (selfHosted) return requirePlan(db, userId, requiredTier, true);
-	const ownerId = await accessibleSiteOwner(db, userId, siteId);
-	if (!ownerId || ownerId === userId) return requirePlan(db, userId, requiredTier);
-	const caller = await db
-		.selectFrom("users")
-		.select(["role"])
-		.where("id", "=", userId)
-		.executeTakeFirst();
-	if (caller?.role === "super_admin") return { allowed: true, plan: "growth" };
-	return requirePlan(db, ownerId, requiredTier);
+	const { caller, site } = await loadAccess(db, userId, siteId);
+	if (!site?.canAccess || site.isOwner || caller.role === "super_admin") {
+		return evaluateAccount(caller, requiredTier);
+	}
+	return evaluateAccount(site.owner, requiredTier);
 }

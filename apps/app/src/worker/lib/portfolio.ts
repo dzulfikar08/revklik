@@ -95,26 +95,28 @@ export async function queryPortfolioRevenue(
 ): Promise<PortfolioRevenue> {
 	const range = resolvePortfolioRange(query);
 
-	const sites = await db
-		.selectFrom("sites")
-		.select(["id", "name", "revenue_currency"])
-		.where((eb) =>
-			eb.or([
-				eb("user_id", "=", userId),
-				eb.exists(
-					eb
-						.selectFrom("team_members")
-						.select("team_members.id")
-						.whereRef("team_members.site_id", "=", "sites.id")
-						.where("team_members.user_id", "=", userId)
-						.where("team_members.accepted_at", "is not", null),
-				),
-			]),
-		)
-		.$if(!!opts.onlySiteId, (qb) => qb.where("id", "=", opts.onlySiteId as string))
-		.execute();
+	const [sites, rates] = await Promise.all([
+		db
+			.selectFrom("sites")
+			.select(["id", "name", "revenue_currency"])
+			.where((eb) =>
+				eb.or([
+					eb("user_id", "=", userId),
+					eb.exists(
+						eb
+							.selectFrom("team_members")
+							.select("team_members.id")
+							.whereRef("team_members.site_id", "=", "sites.id")
+							.where("team_members.user_id", "=", userId)
+							.where("team_members.accepted_at", "is not", null),
+					),
+				]),
+			)
+			.$if(!!opts.onlySiteId, (qb) => qb.where("id", "=", opts.onlySiteId as string))
+			.execute(),
+		loadUsdRates(db, opts.env),
+	]);
 
-	const rates = await loadUsdRates(db, opts.env);
 	const requested = query.currency ? normalizeCurrency(query.currency) : null;
 	if (query.currency && !requested)
 		throw new PortfolioQueryError("currency must be a 3-letter code");
@@ -141,52 +143,46 @@ export async function queryPortfolioRevenue(
 	const siteNames = new Map(sites.map((s) => [s.id, s.name]));
 	const siteIds = sites.map((s) => s.id);
 
-	const fx = fxFactorSql(money, "events.currency");
-	const gross = sql<number>`(events.revenue * ${fx})`;
-	const net = sql<number>`(COALESCE(events.net_revenue, events.revenue) * ${fx})`;
 	const railExpr = sql<string>`COALESCE(NULLIF(events.rail, ''), NULLIF(events.payment_provider, ''), 'other')`;
+	const currencyExpr = sql<string>`UPPER(COALESCE(NULLIF(events.currency, ''), 'USD'))`;
+	const dayExpr = sql<string>`substr(events.timestamp, 1, 10)`;
+
+	const toRate = rates[money.currency] ?? 1;
+	const fallbackFactor = Number.isFinite(toRate) ? toRate : 1;
+	const factorFor = (code: string): number => {
+		if (code === "USD" || !/^[A-Z]{3}$/.test(code)) return fallbackFactor;
+		const rate = rates[code];
+		if (rate === undefined) return fallbackFactor;
+		const factor = toRate / rate;
+		return Number.isFinite(factor) ? factor : fallbackFactor;
+	};
 
 	const base = () =>
 		db
 			.selectFrom("events")
 			.where("events.site_id", "in", siteIds)
-			.where("events.revenue", "!=", 0)
+			.where(sql<boolean>`events.revenue != 0`)
 			.where("events.is_bot", "=", 0)
 			.where("events.timestamp", ">=", range.startIso)
 			.where("events.timestamp", "<", range.endIso);
 
-	const sums = () => [
-		sql<number>`COALESCE(SUM(${gross}), 0)`.as("gross"),
-		sql<number>`COALESCE(SUM(${net}), 0)`.as("net"),
-		sql<number>`COALESCE(SUM(CASE WHEN events.revenue > 0 THEN 1 ELSE 0 END), 0)`.as("sales"),
-	];
-
-	const [totals, bySite, byProduct, byRail, daily, recent] = await Promise.all([
+	const [groups, recent] = await Promise.all([
 		base()
 			.select([
-				...sums(),
+				"events.site_id",
+				"events.product",
+				railExpr.as("rail"),
+				dayExpr.as("date"),
+				currencyExpr.as("cur"),
+				sql<number>`COALESCE(SUM(events.revenue), 0)`.as("gross"),
+				sql<number>`COALESCE(SUM(COALESCE(events.net_revenue, events.revenue)), 0)`.as("net"),
+				sql<number>`COALESCE(SUM(CASE WHEN events.revenue > 0 THEN 1 ELSE 0 END), 0)`.as("sales"),
 				sql<number>`COALESCE(SUM(CASE WHEN events.revenue < 0 THEN 1 ELSE 0 END), 0)`.as("refunds"),
-				sql<number>`COALESCE(SUM(CASE WHEN events.revenue < 0 THEN -${gross} ELSE 0 END), 0)`.as(
-					"refund_amount",
+				sql<number>`COALESCE(SUM(CASE WHEN events.revenue < 0 THEN -events.revenue ELSE 0 END), 0)`.as(
+					"refund_raw",
 				),
 			])
-			.executeTakeFirst(),
-		base()
-			.select(["events.site_id", ...sums()])
-			.groupBy("events.site_id")
-			.execute(),
-		base()
-			.select(["events.site_id", "events.product", ...sums()])
-			.groupBy(["events.site_id", "events.product"])
-			.execute(),
-		base()
-			.select([railExpr.as("rail"), ...sums()])
-			.groupBy(railExpr)
-			.execute(),
-		base()
-			.select([sql<string>`substr(events.timestamp, 1, 10)`.as("date"), ...sums()])
-			.groupBy(sql`substr(events.timestamp, 1, 10)`)
-			.orderBy("date")
+			.groupBy(["events.site_id", "events.product", railExpr, dayExpr, currencyExpr])
 			.execute(),
 		base()
 			.select([
@@ -199,62 +195,112 @@ export async function queryPortfolioRevenue(
 				"events.currency",
 				"events.timestamp",
 				railExpr.as("rail"),
-				gross.as("converted_gross"),
-				net.as("converted_net"),
 			])
 			.orderBy("events.timestamp", "desc")
 			.limit(RECENT_LIMIT)
 			.execute(),
 	]);
 
+	interface Acc {
+		gross: number;
+		net: number;
+		sales: number;
+	}
+	const add = <K>(map: Map<K, Acc>, key: K, gross: number, net: number, sales: number) => {
+		const acc = map.get(key);
+		if (acc) {
+			acc.gross += gross;
+			acc.net += net;
+			acc.sales += sales;
+		} else map.set(key, { gross, net, sales });
+	};
+	const totals = { gross: 0, net: 0, sales: 0, refunds: 0, refund_amount: 0 };
+	const siteAcc = new Map<string, Acc>();
+	const productAcc = new Map<string, Acc & { site_id: string; product: string | null }>();
+	const railAcc = new Map<string, Acc>();
+	const dayAcc = new Map<string, Acc>();
+	for (const r of groups) {
+		const f = factorFor(r.cur);
+		const g = r.gross * f;
+		const n = r.net * f;
+		totals.gross += g;
+		totals.net += n;
+		totals.sales += r.sales;
+		totals.refunds += r.refunds;
+		totals.refund_amount += r.refund_raw * f;
+		add(siteAcc, r.site_id, g, n, r.sales);
+		add(railAcc, r.rail, g, n, r.sales);
+		add(dayAcc, r.date, g, n, r.sales);
+		const pKey = `${r.site_id}\u0000${r.product ?? "\u0001null"}`;
+		const p = productAcc.get(pKey);
+		if (p) {
+			p.gross += g;
+			p.net += n;
+			p.sales += r.sales;
+		} else
+			productAcc.set(pKey, {
+				site_id: r.site_id,
+				product: r.product,
+				gross: g,
+				net: n,
+				sales: r.sales,
+			});
+	}
+
+	const cmp = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
 	const name = (siteId: string) => siteNames.get(siteId) ?? siteId;
 	return {
 		...empty,
-		totals: totals
-			? {
-					gross: totals.gross,
-					net: totals.net,
-					sales: totals.sales,
-					refunds: totals.refunds,
-					refund_amount: totals.refund_amount,
-				}
-			: empty.totals,
-		by_site: bySite
-			.map((r) => ({
-				site_id: r.site_id,
-				site_name: name(r.site_id),
-				gross: r.gross,
-				net: r.net,
-				sales: r.sales,
+		totals,
+		by_site: [...siteAcc.entries()]
+			.sort((a, b) => cmp(a[0], b[0]))
+			.map(([site_id, v]) => ({
+				site_id,
+				site_name: name(site_id),
+				gross: v.gross,
+				net: v.net,
+				sales: v.sales,
 			}))
 			.sort((a, b) => b.gross - a.gross),
-		by_product: byProduct
-			.map((r) => ({
+		by_product: [...productAcc.values()]
+			.sort(
+				(a, b) =>
+					cmp(a.site_id, b.site_id) ||
+					cmp(a.product ?? "", b.product ?? "") ||
+					(a.product === null ? -1 : 0) - (b.product === null ? -1 : 0),
+			)
+			.map((v) => ({
+				product: v.product,
+				site_id: v.site_id,
+				site_name: name(v.site_id),
+				gross: v.gross,
+				net: v.net,
+				sales: v.sales,
+			}))
+			.sort((a, b) => b.gross - a.gross),
+		by_rail: [...railAcc.entries()]
+			.sort((a, b) => cmp(a[0], b[0]))
+			.map(([rail, v]) => ({ rail, gross: v.gross, net: v.net, sales: v.sales }))
+			.sort((a, b) => b.gross - a.gross),
+		daily: [...dayAcc.entries()]
+			.sort((a, b) => cmp(a[0], b[0]))
+			.map(([date, v]) => ({ date, gross: v.gross, net: v.net, sales: v.sales })),
+		recent: recent.map((r) => {
+			const f = factorFor(String(r.currency || "USD").toUpperCase());
+			return {
+				event_id: r.id,
+				site_id: r.site_id,
+				site_name: name(r.site_id),
 				product: r.product,
-				site_id: r.site_id,
-				site_name: name(r.site_id),
-				gross: r.gross,
-				net: r.net,
-				sales: r.sales,
-			}))
-			.sort((a, b) => b.gross - a.gross),
-		by_rail: byRail
-			.map((r) => ({ rail: r.rail, gross: r.gross, net: r.net, sales: r.sales }))
-			.sort((a, b) => b.gross - a.gross),
-		daily: daily.map((r) => ({ date: r.date, gross: r.gross, net: r.net, sales: r.sales })),
-		recent: recent.map((r) => ({
-			event_id: r.id,
-			site_id: r.site_id,
-			site_name: name(r.site_id),
-			product: r.product,
-			rail: r.rail,
-			name: r.name,
-			revenue: r.revenue ?? 0,
-			net_revenue: r.net_revenue ?? r.revenue ?? 0,
-			currency: r.currency ?? "USD",
-			converted_gross: r.converted_gross,
-			converted_net: r.converted_net,
-			occurred_at: r.timestamp,
-		})),
+				rail: r.rail,
+				name: r.name,
+				revenue: r.revenue ?? 0,
+				net_revenue: r.net_revenue ?? r.revenue ?? 0,
+				currency: r.currency ?? "USD",
+				converted_gross: (r.revenue ?? 0) * f,
+				converted_net: (r.net_revenue ?? r.revenue ?? 0) * f,
+				occurred_at: r.timestamp,
+			};
+		}),
 	};
 }

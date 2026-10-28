@@ -13,7 +13,6 @@ import { createDb, sql } from "../db";
 import type { FunnelStep } from "../lib/analytics-queries";
 import {
 	applyFilters,
-	applySessionFilters,
 	buildDepthSteps,
 	buildFunnelSteps,
 	buildHeatmapData,
@@ -26,22 +25,11 @@ import { planRequiredBody } from "../lib/plan-gate";
 import { isSelfHosted } from "../lib/entitlement";
 import { requirePlanForSite } from "../lib/plans";
 import {
-	getChannelBreakdown,
-	getDeviceBreakdown,
-	getEntryPagesRevenue,
-	getExitPages,
-	getLatestSessionsForVisitors,
-	getOverviewStats,
-	getReferrers,
-	getRevenueByCountry,
-	getRevenueByPaymentMethod,
-	getRevenueByPaymentProvider,
-	getRevenueBySource,
-	getRevenueTimeseries,
-	getTimeseries,
-	getTopPages,
-	IN_CLAUSE_CHUNK,
-	SESSION_COLS,
+	loadDashboardData,
+	loadJourneyData,
+	queryPlan,
+	runBatch,
+	type SessionEvent,
 	type SessionSummary,
 } from "../queries/analytics";
 import { revenueSql } from "../lib/fx";
@@ -149,19 +137,16 @@ analyticsRoutes.get(
 			new Date(start.getTime() - (end.getTime() - start.getTime())).toISOString(),
 		);
 
-		let recentSessionsQ = db
-			.selectFrom("sessions")
-			.select([...SESSION_COLS])
-			.where("site_id", "=", siteId)
-			.where("started_at", ">=", startIso);
-		if (endIso) recentSessionsQ = recentSessionsQ.where("started_at", "<", endIso);
-
-		const [
+		const {
 			stats,
+			prevStats,
 			timeseries,
+			prevTimeseries,
 			topPages,
 			sources,
-			{ devices, os, browsers },
+			devices,
+			os,
+			browsers,
 			recentSessions,
 			profiles,
 			revenueBySource,
@@ -172,55 +157,14 @@ analyticsRoutes.get(
 			revenueByMethod,
 			revenueByProvider,
 			channels,
-			prevStats,
-			prevTimeseries,
-		] = await Promise.all([
-			getOverviewStats(db, siteId, startIso, filters, endIso, scope),
-			getTimeseries(db, siteId, startIso, isHourly, filters, endIso, scope),
-			getTopPages(db, siteId, startIso, 10, filters, endIso),
-			getReferrers(db, siteId, startIso, 10, filters, endIso),
-			getDeviceBreakdown(db, siteId, startIso, filters, endIso),
-			applySessionFilters(recentSessionsQ, { db, siteId, startIso, endIso }, filters)
-				.orderBy("started_at", "desc")
-				.limit(100)
-				.execute(),
-			db
-				.selectFrom("visitor_profiles")
-				.select([
-					"id",
-					"visitor_id",
-					"name",
-					"email",
-					"phone",
-					"first_seen",
-					"last_seen",
-					"country",
-					"region",
-					"city",
-					"device_type",
-					"browser",
-					"os",
-					"total_sessions",
-					"total_pageviews",
-					"total_revenue",
-					"tags",
-					"notes",
-				])
-				.where("site_id", "=", siteId)
-				// Same cap as GET /visitors so journey coverage matches the Users tab.
-				.limit(100)
-				.execute(),
-			getRevenueBySource(db, siteId, startIso, filters, endIso, scope),
-			getRevenueByCountry(db, siteId, startIso, filters, endIso, scope),
-			getRevenueTimeseries(db, siteId, startIso, isHourly, filters, endIso, scope),
-			getEntryPagesRevenue(db, siteId, startIso, filters, endIso, scope),
-			getExitPages(db, siteId, startIso, filters, endIso),
-			getRevenueByPaymentMethod(db, siteId, startIso, filters, endIso, scope),
-			getRevenueByPaymentProvider(db, siteId, startIso, filters, endIso, scope),
-			getChannelBreakdown(db, siteId, startIso, filters, endIso, scope),
-			getOverviewStats(db, siteId, prevStartIso, filters, startIso, scope),
-			getTimeseries(db, siteId, prevStartIso, isHourly, filters, startIso, scope),
-		]);
+		} = await loadDashboardData(c.env.DB, db, {
+			siteId,
+			siteDomain: site.domain,
+			window: { prevStartIso, startIso, endIso },
+			isHourly,
+			filters,
+			scope,
+		});
 
 		// Period-over-period comparison (current range vs the equal window before it)
 		const pctChange = (current: number, previous: number): number | null => {
@@ -251,36 +195,15 @@ analyticsRoutes.get(
 		const missingVisitors = profiles
 			.map((p) => p.visitor_id)
 			.filter((id) => !journeyVisitors.has(id));
-		const backfillSessions = await getLatestSessionsForVisitors(db, siteId, missingVisitors);
+		const { backfillSessions, eventsBySession } = await loadJourneyData(
+			c.env.DB,
+			db,
+			siteId,
+			recentSessions,
+			missingVisitors,
+		);
 
-		const sessionIds = [...recentSessions, ...backfillSessions].map((s) => s.id);
-		const allSessionEvents: {
-			session_id: string;
-			path: string;
-			event_type: string;
-			name: string | null;
-			timestamp: string;
-			revenue: number | null;
-			props: string | null;
-		}[] = [];
-		for (let i = 0; i < sessionIds.length; i += IN_CLAUSE_CHUNK) {
-			const batch = sessionIds.slice(i, i + IN_CLAUSE_CHUNK);
-			const rows = await db
-				.selectFrom("events")
-				.select(["session_id", "path", "event_type", "name", "timestamp", "revenue", "props"])
-				.where("session_id", "in", batch)
-				.where("site_id", "=", siteId)
-				.orderBy("timestamp", "asc")
-				.execute();
-			allSessionEvents.push(...rows);
-		}
-		const eventsBySession = new Map<string, typeof allSessionEvents>();
-		for (const e of allSessionEvents) {
-			if (!eventsBySession.has(e.session_id)) eventsBySession.set(e.session_id, []);
-			eventsBySession.get(e.session_id)?.push(e);
-		}
-
-		const toJourney = (sess: SessionSummary, events: typeof allSessionEvents): VisitorJourney => {
+		const toJourney = (sess: SessionSummary, events: SessionEvent[]): VisitorJourney => {
 			const profile = profiles.find((p) => p.visitor_id === sess.visitor_id);
 			return {
 				session_id: sess.id,
@@ -389,22 +312,43 @@ analyticsRoutes.get(
 		const { start } = rangeFor(c, range);
 		const startIso = start.toISOString();
 
-		// Total unique visitors (funnel entry = all pageview visitors)
-		const totalVisitors = await db
-			.selectFrom("events")
-			.select(({ fn }) => [fn.count<number>("visitor_id").distinct().as("count")])
-			.where("site_id", "=", siteId)
-			.where("timestamp", ">=", startIso)
-			.executeTakeFirst();
-
-		// Get all scroll-related events with their page path
-		const scrollEvents = await db
-			.selectFrom("events")
-			.select(["visitor_id", "name", "props", "path"])
-			.where("site_id", "=", siteId)
-			.where("name", "in", ["scroll", "scroll_section"])
-			.where("timestamp", ">=", startIso)
-			.execute();
+		const [totalVisitors, scrollEvents, pageVisCounts] = await runBatch(c.env.DB, [
+			// Total unique visitors (funnel entry = all pageview visitors)
+			queryPlan(
+				db
+					.selectFrom("events")
+					.select(({ fn }) => [fn.count<number>("visitor_id").distinct().as("count")])
+					.where("site_id", "=", siteId)
+					.where("timestamp", ">=", startIso),
+				(rows) => rows[0],
+			),
+			// Scroll-related events with their page path. Repeats of the same
+			// visitor/section/depth add nothing to the visitor sets, so the database
+			// collapses them instead of shipping every row.
+			queryPlan(
+				db
+					.selectFrom("events")
+					.select(["visitor_id", "name", "props", "path"])
+					.distinct()
+					.where("site_id", "=", siteId)
+					.where("name", "in", ["scroll", "scroll_section"])
+					.where("timestamp", ">=", startIso),
+				(rows) => rows,
+			),
+			// Pageview visitors per page: each page funnel's entry count
+			queryPlan(
+				db
+					.selectFrom("events")
+					.select(["path", ({ fn }) => fn.count<number>("visitor_id").distinct().as("visitors")])
+					.where("site_id", "=", siteId)
+					.where("event_type", "=", "pageview")
+					.where("timestamp", ">=", startIso)
+					.groupBy("path")
+					.orderBy("visitors", "desc")
+					.limit(50),
+				(rows) => rows,
+			),
+		]);
 
 		// Per-page tracking: path -> section -> visitor set
 		const { pageSectionVisitors, sectionVisitors, visitorDepths } =
@@ -424,19 +368,6 @@ analyticsRoutes.get(
 			steps.length >= 2 && total > 0
 				? Math.round(((steps[steps.length - 1]?.visitors ?? 0) / total) * 1000) / 10
 				: 0;
-
-		// Build per-page funnels
-		// Get pageview counts per page for totalVisitors per page
-		const pageVisCounts = await db
-			.selectFrom("events")
-			.select(["path", ({ fn }) => fn.count<number>("visitor_id").distinct().as("visitors")])
-			.where("site_id", "=", siteId)
-			.where("event_type", "=", "pageview")
-			.where("timestamp", ">=", startIso)
-			.groupBy("path")
-			.orderBy("visitors", "desc")
-			.limit(50)
-			.execute();
 
 		const pageVisMap = new Map(pageVisCounts.map((r) => [r.path, Number(r.visitors)]));
 

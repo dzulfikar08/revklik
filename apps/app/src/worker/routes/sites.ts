@@ -1,9 +1,9 @@
 import { Hono } from "hono";
-import type { Kysely } from "kysely";
+import type { Compilable, Kysely } from "kysely";
 import type { CreateSitePayload, KlikapaDatabase, Site, SiteWithStats } from "@revklik/shared";
 import { sql } from "../db";
 import { isSelfHosted, isSubscriptionActive } from "../lib/entitlement";
-import { normalizeCurrency, revenueSql, usdRates } from "../lib/fx";
+import { convertAmount, normalizeCurrency, usdRates } from "../lib/fx";
 import { getPlanLimits } from "../lib/plans";
 import { purgeSiteRows } from "../lib/purge";
 import { displayCurrency } from "../lib/site-scope";
@@ -64,61 +64,109 @@ siteRoutes.get("/", async (c) => {
 		startIso = new Date(Date.now() - (days[rangeParam] ?? 7) * 86400000).toISOString();
 	}
 
-	const sitesWithStats: SiteWithStats[] = await Promise.all(
-		sites.map(async ({ revenue_currency, ...site }) => {
-			const money = { currency: displayCurrency(revenue_currency, rates), rates };
-			const [stats, sparkRows, revenueRows, anyEvent] = await Promise.all([
-				db
-					.selectFrom("events")
-					.select([
-						({ fn }) => fn.count<number>("id").as("pageviews"),
-						({ fn }) => fn.count<number>("visitor_id").distinct().as("visitors"),
-					])
-					.where("site_id", "=", site.id)
-					.where("event_type", "=", "pageview")
-					.where("timestamp", ">=", startIso)
-					.executeTakeFirst(),
-				db
-					.selectFrom("events")
-					.select([({ fn }) => fn.count<number>("id").as("count")])
-					.where("site_id", "=", site.id)
-					.where("event_type", "=", "pageview")
-					.where("timestamp", ">=", startIso)
-					.groupBy(sql`date(${sql.ref("timestamp")})`)
-					.orderBy("timestamp", "asc")
-					.execute(),
-				// Daily revenue across all event types (revenue can ride on conversions too).
-				db
-					.selectFrom("events")
-					.select([sql<number>`SUM(${revenueSql(money)})`.as("revenue")])
-					.where("site_id", "=", site.id)
-					.where("revenue", "!=", 0)
-					.where("timestamp", ">=", startIso)
-					.groupBy(sql`date(${sql.ref("timestamp")})`)
-					.orderBy("timestamp", "asc")
-					.execute(),
-				// Ever received anything: drives the "Not installed" badge.
-				db
-					.selectFrom("events")
-					.select("id")
-					.where("site_id", "=", site.id)
-					.where("is_bot", "in", [0, 1])
-					.limit(1)
-					.executeTakeFirst(),
-			]);
+	const ownedSites = db.selectFrom("sites").select("id").where("user_id", "=", userId);
+	const statsQuery = db
+		.selectFrom("events")
+		.select([
+			"site_id",
+			({ fn }) => fn.count<number>("id").as("pageviews"),
+			({ fn }) => fn.count<number>("visitor_id").distinct().as("visitors"),
+		])
+		.where("site_id", "in", ownedSites)
+		.where("event_type", "=", "pageview")
+		.where("timestamp", ">=", startIso)
+		.groupBy("site_id");
+	const sparkQuery = db
+		.selectFrom("events")
+		.select([
+			"site_id",
+			sql<string>`date(${sql.ref("timestamp")})`.as("day"),
+			({ fn }) => fn.count<number>("id").as("pv"),
+		])
+		.where("site_id", "in", ownedSites)
+		.where("event_type", "=", "pageview")
+		.where("timestamp", ">=", startIso)
+		.groupBy(["site_id", sql`date(${sql.ref("timestamp")})`])
+		.orderBy("day", "asc");
+	// Revenue can ride on any event type; literal `!= 0` lets SQLite use the partial index.
+	const revenueQuery = db
+		.selectFrom("events")
+		.select([
+			"site_id",
+			sql<string>`date(${sql.ref("timestamp")})`.as("day"),
+			sql<string>`UPPER(COALESCE(NULLIF(${sql.ref("currency")}, ''), 'USD'))`.as("cur"),
+			sql<number>`SUM(${sql.ref("revenue")})`.as("rev"),
+		])
+		.where("site_id", "in", ownedSites)
+		.where(sql<boolean>`revenue != 0`)
+		.where("timestamp", ">=", startIso)
+		.groupBy(["site_id", sql`date(${sql.ref("timestamp")})`, sql`cur`])
+		.orderBy("day", "asc");
+	// Ever received anything: drives the "Not installed" badge.
+	const probeQuery = sql<{
+		id: string;
+	}>`SELECT s.id FROM sites s WHERE s.user_id = ${userId} AND EXISTS (SELECT 1 FROM events e WHERE e.site_id = s.id)`;
 
-			return {
-				...site,
-				pageviews: Number(stats?.pageviews ?? 0),
-				visitors: Number(stats?.visitors ?? 0),
-				revenue: revenueRows.reduce((sum, r) => sum + Number(r.revenue ?? 0), 0),
-				sparkline: sparkRows.map((r) => Number(r.count)),
-				revenue_sparkline: revenueRows.map((r) => Number(r.revenue ?? 0)),
-				currency: money.currency,
-				has_events: !!anyEvent,
-			};
-		}),
-	);
+	const prepare = (q: Compilable) => {
+		const compiled = q.compile();
+		return c.env.DB.prepare(compiled.sql).bind(...compiled.parameters);
+	};
+	const [statsRes, sparkRes, revenueRes, probeRes] =
+		sites.length === 0
+			? [null, null, null, null]
+			: await c.env.DB.batch([
+					prepare(statsQuery),
+					prepare(sparkQuery),
+					prepare(revenueQuery),
+					c.env.DB.prepare(probeQuery.compile(db).sql).bind(userId),
+				]);
+
+	const statsBySite = new Map<string, { pageviews: number; visitors: number }>();
+	for (const r of (statsRes?.results ?? []) as {
+		site_id: string;
+		pageviews: number;
+		visitors: number;
+	}[]) {
+		statsBySite.set(r.site_id, { pageviews: Number(r.pageviews), visitors: Number(r.visitors) });
+	}
+	const spark = new Map<string, number[]>();
+	for (const r of (sparkRes?.results ?? []) as { site_id: string; pv: number }[]) {
+		const list = spark.get(r.site_id) ?? [];
+		list.push(Number(r.pv));
+		spark.set(r.site_id, list);
+	}
+	const revenueDays = new Map<string, Map<string, [string, number][]>>();
+	for (const r of (revenueRes?.results ?? []) as {
+		site_id: string;
+		day: string;
+		cur: string;
+		rev: number;
+	}[]) {
+		const days = revenueDays.get(r.site_id) ?? new Map<string, [string, number][]>();
+		const rows = days.get(r.day) ?? [];
+		rows.push([r.cur, Number(r.rev)]);
+		days.set(r.day, rows);
+		revenueDays.set(r.site_id, days);
+	}
+	const hasEvents = new Set(((probeRes?.results ?? []) as { id: string }[]).map((r) => r.id));
+
+	const sitesWithStats: SiteWithStats[] = sites.map(({ revenue_currency, ...site }) => {
+		const currency = displayCurrency(revenue_currency, rates);
+		const revenueSparkline = [...(revenueDays.get(site.id)?.values() ?? [])].map((rows) =>
+			rows.reduce((sum, [cur, amount]) => sum + convertAmount(amount, cur, currency, rates), 0),
+		);
+		const stats = statsBySite.get(site.id);
+		return {
+			...site,
+			pageviews: stats?.pageviews ?? 0,
+			visitors: stats?.visitors ?? 0,
+			revenue: revenueSparkline.reduce((sum, v) => sum + v, 0),
+			sparkline: spark.get(site.id) ?? [],
+			revenue_sparkline: revenueSparkline,
+			currency,
+			has_events: hasEvents.has(site.id),
+		};
+	});
 
 	return c.json({ data: sitesWithStats, success: true });
 });
