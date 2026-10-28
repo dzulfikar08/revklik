@@ -863,7 +863,7 @@ p {
 }
 @media (min-width: 900px) {
 	.pricing {
-		padding-block: 0 112px;
+		padding-block: 112px;
 	}
 }
 
