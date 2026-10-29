@@ -11,6 +11,7 @@ import { aiInsightsRoutes } from "./routes/ai-insights";
 import { analyticsRoutes } from "./routes/analytics";
 import { annotationRoutes } from "./routes/annotations";
 import { ascRoutes } from "./routes/appstoreconnect";
+import { accountLinkRoutes } from "./routes/account-links";
 import { authRoutes } from "./routes/auth";
 import { billingRoutes } from "./routes/billing";
 import { billingWebhookRoutes } from "./routes/billing-webhook";
@@ -175,6 +176,8 @@ export function createApp(): Hono<Env> {
 	// Auth routes are public. /auth/me and /auth/logout resolve the caller's
 	// own Bearer token inline (resolveTokenUserId in routes/auth.ts).
 	app.route("/auth", authRoutes);
+	// Linked accounts + switcher resolve their own session token the same way.
+	app.route("/auth", accountLinkRoutes);
 
 	app.use("/sites/*", authMiddleware);
 	app.route("/sites", siteRoutes);

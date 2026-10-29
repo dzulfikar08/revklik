@@ -26,7 +26,8 @@ export const unstable_settings = {
 
 const RootLayout = () => {
 	const { theme } = useUnistyles();
-	const { status } = useAuth();
+	const { status, user } = useAuth();
+	const userId = user?.id;
 
 	useEffect(() => {
 		const boot = async () => {
@@ -43,7 +44,7 @@ const RootLayout = () => {
 	// Sign-in (or a cold start with a stored session) registers this device for sale alerts.
 	// Denied permission / simulators are shown in Settings; anything else is a setup problem.
 	useEffect(() => {
-		if (status !== "signed-in") {
+		if (status !== "signed-in" || !userId) {
 			return;
 		}
 		registerForPush().catch((error: unknown) => {
@@ -55,7 +56,7 @@ const RootLayout = () => {
 				error instanceof Error ? error.message : "Couldn't register this device for sale alerts.",
 			);
 		});
-	}, [status]);
+	}, [status, userId]);
 
 	// Tapping a sale/refund alert opens Earnings (cold start and warm).
 	const lastResponse = useLastNotificationResponse();

@@ -3,6 +3,12 @@ import { deleteCookie, getCookie, setCookie } from "hono/cookie";
 import type { Kysely } from "kysely";
 import type { KlikapaDatabase } from "@revklik/shared";
 import { sql } from "../db";
+import {
+	consumeLinkIntent,
+	createLink,
+	isLinkIntentValid,
+	type LinkFailure,
+} from "../lib/account-links";
 import { recordReferralSignup } from "../lib/affiliates";
 import {
 	clearAttempts,
@@ -400,6 +406,8 @@ interface OAuthCookie {
 	/** Tracker visitor id from the marketing site (see recordSignupEvent). */
 	rkVid?: string;
 	redirect?: string;
+	/** Set when a signed-in user is linking this Google account instead of signing in. */
+	linkNonce?: string;
 }
 
 /** Only same-origin URLs or the native app's callback schemes may receive a token. */
@@ -417,15 +425,27 @@ function safeRedirect(raw: string | undefined, origin: string): string | undefin
 }
 
 // GET /auth/google — initiate Google OAuth; ?ref=, ?plan=, ?rk_vid= and ?redirect_to= ride in the state cookie
-authRoutes.get("/google", (c) => {
+authRoutes.get("/google", async (c) => {
 	const origin = new URL(c.req.url).origin;
 	const state = crypto.randomUUID();
+	const redirect = safeRedirect(c.req.query("redirect_to"), origin);
+	const linkNonce = c.req.query("link") || undefined;
+	if (linkNonce) {
+		const db = c.get("db");
+		if (!db) return c.json({ error: "DB unavailable", success: false }, 503);
+		if (!(await isLinkIntentValid(db, linkNonce))) {
+			return redirect
+				? c.redirect(linkResultUrl(redirect, "error", "expired"))
+				: c.json({ error: "Invalid or expired link intent", success: false }, 400);
+		}
+	}
 	const payload: OAuthCookie = {
 		state,
 		ref: c.req.query("ref") || undefined,
 		plan: c.req.query("plan") || undefined,
 		rkVid: parseVisitorId(c.req.query("rk_vid")) ?? undefined,
-		redirect: safeRedirect(c.req.query("redirect_to"), origin),
+		redirect,
+		linkNonce,
 	};
 	setCookie(c, OAUTH_COOKIE, btoa(JSON.stringify(payload)), {
 		path: "/api/auth/google",
@@ -445,6 +465,47 @@ authRoutes.get("/google", (c) => {
 	});
 	return c.redirect(`https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`);
 });
+
+/** Append link=ok|error (and a reason) to the app URL the flow started from. */
+function linkResultUrl(base: string, result: "ok" | "error", reason?: string): string {
+	const url = new URL(base);
+	url.searchParams.set("link", result);
+	if (reason) url.searchParams.set("reason", reason);
+	return url.toString();
+}
+
+type GoogleLinkResult = "ok" | "expired" | "no_account" | LinkFailure;
+
+/**
+ * Link mode: the intent's owner links to the EXISTING user behind this Google
+ * identity. Nothing is created or modified on that user — sign-in side effects
+ * (takeover, role, trial) belong to the sign-in path only.
+ */
+async function linkGoogleAccount(
+	db: Kysely<KlikapaDatabase>,
+	nonce: string,
+	googleEmail: string,
+	googleSub: string | null,
+	emailVerified: boolean | undefined,
+): Promise<GoogleLinkResult> {
+	const currentUserId = await consumeLinkIntent(db, nonce);
+	if (!currentUserId) return "expired";
+	const target = await db
+		.selectFrom("users")
+		.select(["id", "google_id"])
+		.where((eb) =>
+			eb.or([
+				googleSub ? eb("google_id", "=", googleSub) : eb("id", "=", "__never__"),
+				eb(sql<string>`lower(email)`, "=", googleEmail),
+			]),
+		)
+		.executeTakeFirst();
+	if (!target) return "no_account";
+	// Matching by address alone needs Google to vouch for it.
+	if (!target.google_id && emailVerified === false) return "no_account";
+	const result = await createLink(db, currentUserId, target.id);
+	return result.ok ? "ok" : result.reason;
+}
 
 function readOAuthCookie(raw: string | undefined): OAuthCookie | null {
 	if (!raw) return null;
@@ -472,6 +533,12 @@ authRoutes.get("/google/callback", async (c) => {
 
 	const origin = new URL(c.req.url).origin;
 	const redirectUri = `${origin}/api/auth/google/callback`;
+	const linkBase = oauth.linkNonce ? (oauth.redirect ?? `${origin}/settings`) : null;
+	// Link mode reports failures to the app; sign-in mode keeps the JSON errors.
+	const fail = (message: string, status: 400 | 500, reason = "failed") =>
+		linkBase
+			? c.redirect(linkResultUrl(linkBase, "error", reason))
+			: c.json({ error: message, success: false }, status);
 
 	let tokenRes: { access_token?: string; error?: string; error_description?: string };
 	try {
@@ -488,10 +555,9 @@ authRoutes.get("/google/callback", async (c) => {
 		});
 		tokenRes = await tr.json();
 	} catch {
-		return c.json({ error: "OAuth token exchange failed", success: false }, 500);
+		return fail("OAuth token exchange failed", 500);
 	}
-	if (tokenRes.error)
-		return c.json({ error: tokenRes.error_description || tokenRes.error, success: false }, 400);
+	if (tokenRes.error) return fail(tokenRes.error_description || tokenRes.error, 400);
 
 	let profile: {
 		email?: string | null;
@@ -506,12 +572,24 @@ authRoutes.get("/google/callback", async (c) => {
 		});
 		profile = await pr.json();
 	} catch {
-		return c.json({ error: "Failed to get profile", success: false }, 500);
+		return fail("Failed to get profile", 500);
 	}
 	const googleEmail = normalizeEmail(profile.email);
-	if (!googleEmail) return c.json({ error: "No email from Google", success: false }, 400);
+	if (!googleEmail) return fail("No email from Google", 400);
 
 	const googleSub = profile.sub ?? null;
+	if (linkBase && oauth.linkNonce) {
+		const result = await linkGoogleAccount(
+			db,
+			oauth.linkNonce,
+			googleEmail,
+			googleSub,
+			profile.email_verified,
+		);
+		return c.redirect(
+			result === "ok" ? linkResultUrl(linkBase, "ok") : linkResultUrl(linkBase, "error", result),
+		);
+	}
 	const superAdminEmail = normalizeEmail(c.env.SUPER_ADMIN_EMAIL);
 	const isSuperAdmin = !!superAdminEmail && googleEmail === superAdminEmail;
 

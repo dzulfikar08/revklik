@@ -11,6 +11,8 @@
  * the root route captures). It is cached in memory and localStorage.
  */
 
+import { forgetToken, rememberToken } from "./account-tokens";
+
 const HOSTED_API_BASE = "https://app.revklik.com/api";
 
 /**
@@ -322,10 +324,25 @@ export const getLegacyUser = (): LegacyUser | null => {
 
 /** Drop the cached klikapa token + profile (sign-out or 401 recovery). */
 export const legacyLogout = (): void => {
+	const user = getLegacyUser();
+	if (user) {
+		forgetToken(localStorage, user.id);
+	}
 	cachedToken = null;
 	localStorage.removeItem(TOKEN_KEY);
 	localStorage.removeItem(USER_KEY);
 	localStorage.removeItem("kp_active_site");
+};
+
+/**
+ * Make `token` the active session for `user` and remember it in kp_tokens so
+ * the account switcher can come back to it.
+ */
+export const setLegacySession = (token: string, user: LegacyUser): void => {
+	cachedToken = token;
+	localStorage.setItem(TOKEN_KEY, token);
+	localStorage.setItem(USER_KEY, JSON.stringify(user));
+	rememberToken(localStorage, user.id, token);
 };
 
 /** Optional machine-readable fields some error envelopes carry. */
@@ -400,9 +417,7 @@ const authRequest = async (
 			json ? { error: json.error } : undefined,
 		);
 	}
-	cachedToken = json.data.token;
-	localStorage.setItem(TOKEN_KEY, json.data.token);
-	localStorage.setItem(USER_KEY, JSON.stringify(json.data.user));
+	setLegacySession(json.data.token, json.data.user);
 	return json.data.user;
 };
 

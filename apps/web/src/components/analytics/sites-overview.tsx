@@ -1,6 +1,6 @@
 import { Button, buttonVariants } from "@revklik/ui/components/button";
 import { useQuery } from "@tanstack/react-query";
-import { Link } from "@tanstack/react-router";
+import { Link, useNavigate } from "@tanstack/react-router";
 import { ChartColumn, Code2, CreditCard, Globe, Loader2, Plus } from "lucide-react";
 import { useId, useState } from "react";
 
@@ -11,6 +11,7 @@ import { useT } from "@/lib/i18n";
 import { fetchSites, isSubscriptionInactive } from "@/lib/legacy/api";
 import type { SiteWithStats } from "@/lib/legacy/api";
 
+import { AccountMenu } from "./account-menu";
 import { AccountNotices } from "./account-notices";
 import { fmt, money, RANGES } from "./data";
 import type { RangeKey } from "./data";
@@ -201,10 +202,15 @@ const SitesOverviewPage = () => {
 		staleTime: 60_000,
 	});
 	const sites = sitesQ.data ?? [];
+	const navigate = useNavigate();
+	const firstSiteId = sites[0]?.id;
 
 	if (isSubscriptionInactive(sitesQ.error)) {
 		return (
 			<div className="bg-background text-foreground min-h-svh pt-3">
+				<div className="flex justify-end px-3 md:px-4">
+					<AccountMenu />
+				</div>
 				<UpgradeLock error={sitesQ.error} onUpgrade={() => openBilling()} />
 			</div>
 		);
@@ -221,7 +227,21 @@ const SitesOverviewPage = () => {
 						<h1 className="text-lg font-semibold tracking-tight">{t("sites.title")}</h1>
 						<p className="text-muted-foreground text-xs">{t("overview.subtitle")}</p>
 					</div>
-					<LocaleToggle className="sm:order-last" />
+					<div className="flex items-center gap-2 sm:order-last">
+						<LocaleToggle />
+						<AccountMenu
+							onLinkAccount={
+								firstSiteId
+									? () =>
+											void navigate({
+												params: { siteId: firstSiteId },
+												search: { view: "settings" },
+												to: "/analytics/$siteId",
+											})
+									: undefined
+							}
+						/>
+					</div>
 					<div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
 						<RangePills rangeKey={rangeKey} onRange={setRangeKey} />
 						<Link

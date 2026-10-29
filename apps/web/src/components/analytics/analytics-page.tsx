@@ -93,6 +93,7 @@ import {
 } from "./data";
 import type { CountRow, Point, RangeKey, Visitor, VisitorEvent } from "./data";
 import { IntegrationsView } from "./integrations-view";
+import { AccountMenu } from "./account-menu";
 import { SettingsView } from "./settings";
 import { fetchVisitorProfile, type VisitorProfileResult } from "@/lib/legacy/growth";
 import { SitesView } from "./sites-view";
@@ -1637,6 +1638,11 @@ const TopBar = ({
 					<OnlinePill online={online} className="hidden sm:flex" />
 				</div>
 			) : null}
+
+			<AccountMenu
+				onLinkAccount={() => onView("settings")}
+				className={view === "home" ? "sm:order-1" : "ms-auto sm:order-1"}
+			/>
 
 			<NavTabs
 				view={view}

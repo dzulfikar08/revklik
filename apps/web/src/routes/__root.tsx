@@ -13,6 +13,7 @@ import { lazy, Suspense, useEffect } from "react";
 import { AuthShell, authButtonClass } from "@/components/auth-shell";
 import { ThemeProvider } from "@/components/theme-provider";
 import { useT } from "@/lib/i18n";
+import { rememberToken } from "@/lib/legacy/account-tokens";
 import { clearSignupIntent, takeSignupPlan } from "@/lib/signup-intent";
 
 import "../index.css";
@@ -91,6 +92,15 @@ function captureOAuthToken(): void {
 			const json = (await res.json()) as { data?: { user?: unknown } };
 			if (!json.data?.user) throw new Error("no user");
 			localStorage.setItem("kp_user", JSON.stringify(json.data.user));
+			const { user } = json.data;
+			if (
+				typeof user === "object" &&
+				user !== null &&
+				"id" in user &&
+				typeof user.id === "string"
+			) {
+				rememberToken(localStorage, user.id, token);
+			}
 			// A plan picked on the pricing page before "Continue with Google".
 			const plan = takeSignupPlan();
 			// The ref went to /auth/google and is attributed server-side now.

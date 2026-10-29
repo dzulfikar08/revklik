@@ -302,6 +302,8 @@ export interface KlikapaDatabase {
 	password_resets: PasswordResetTable;
 	email_verifications: EmailVerificationTable;
 	login_attempts: LoginAttemptTable;
+	account_links: AccountLinkTable;
+	account_link_intents: AccountLinkIntentTable;
 }
 
 export interface PasswordResetTable {
@@ -321,6 +323,22 @@ export interface EmailVerificationTable {
 	expires_at: string;
 	used_at: string | null;
 	created_at: string;
+}
+
+/** Two accounts one person proved they own; user_a < user_b always. */
+export interface AccountLinkTable {
+	id: string;
+	user_a: string;
+	user_b: string;
+	created_at: string;
+	created_by: string;
+}
+
+/** One-time, 10-minute proof that a signed-in user started a Google link flow. */
+export interface AccountLinkIntentTable {
+	token_hash: string;
+	user_id: string;
+	expires_at: string;
 }
 
 /** Fixed-window attempt counters (login, password-reset requests). */

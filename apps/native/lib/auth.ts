@@ -15,7 +15,10 @@ import {
 	legacySignOut,
 } from "./klikapa/api";
 import type { LegacyUser } from "./klikapa/api";
-import { unregisterFromPush } from "./push";
+import { continueAsRemembered, switchAccount } from "./klikapa/accounts";
+import type { LinkedUser } from "./klikapa/accounts";
+import { resetActiveSite } from "./active-site";
+import { registerForPush, unregisterFromPush } from "./push";
 
 export type AuthStatus = "loading" | "signed-in" | "signed-out";
 
@@ -67,6 +70,34 @@ export const authRegister = async (
 export const authCompleteGoogle = async (token: string): Promise<void> => {
 	const user = await completeGoogleSignIn(token);
 	setState({ status: "signed-in", user });
+};
+
+/**
+ * Switch to a linked account. Push registration is per account: this device
+ * is released from the current account first (needs the live session), and
+ * the root layout registers it for the new user once the store updates.
+ * Callers clear the React Query cache afterwards.
+ */
+export const authSwitchAccount = async (target: LinkedUser): Promise<void> => {
+	await unregisterFromPush();
+	let user: LegacyUser;
+	try {
+		user = await switchAccount(target);
+	} catch (error) {
+		// Still the same account: put this device's alerts back.
+		registerForPush().catch(() => undefined);
+		throw error;
+	}
+	resetActiveSite();
+	setState({ status: "signed-in", user });
+};
+
+/** Sign-in screen shortcut: reuse a session this device still holds. */
+export const authContinueAs = async (remembered: LegacyUser): Promise<void> => {
+	if (await continueAsRemembered(remembered)) {
+		resetActiveSite();
+		setState({ status: "signed-in", user: remembered });
+	}
 };
 
 export const authSignOut = async (): Promise<void> => {

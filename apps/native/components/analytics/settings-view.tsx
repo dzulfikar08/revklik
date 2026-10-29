@@ -1,21 +1,22 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Alert, ScrollView, Switch, Text, TouchableOpacity, View } from "react-native";
 import { StyleSheet, useUnistyles } from "react-native-unistyles";
 
+import { AccountsSection } from "@/components/analytics/accounts-section";
 import { Panel, PanelBody } from "@/components/analytics/ui";
 import { NotificationsSection, PlanSection } from "@/components/push-settings";
 import { Button, Input, Row } from "@/components/ui";
 import { useActiveSite } from "@/lib/active-site";
-import { authSignOut } from "@/lib/auth";
+import { authSignOut, useAuth } from "@/lib/auth";
 import {
 	createEmailReport,
 	deleteEmailReport,
 	fetchEmailReports,
 	updateEmailReport,
 } from "@/lib/klikapa/analytics-settings";
-import { fetchSites, getLegacyUser, API_URL, LegacyApiError } from "@/lib/klikapa/api";
-import type { LegacyUser, SiteWithStats } from "@/lib/klikapa/api";
+import { fetchSites, API_URL, LegacyApiError } from "@/lib/klikapa/api";
+import type { SiteWithStats } from "@/lib/klikapa/api";
 import {
 	fetchTeam,
 	inviteTeamMember,
@@ -292,14 +293,7 @@ const TeamSection = ({ siteId }: { siteId: string }) => {
 export const SettingsView = () => {
 	const { theme } = useUnistyles();
 	const activeSite = useActiveSite();
-	const [user, setUser] = useState<LegacyUser | null>(null);
-
-	useEffect(() => {
-		const load = async () => {
-			setUser(await getLegacyUser());
-		};
-		load();
-	}, []);
+	const { user } = useAuth();
 	const sitesQ = useQuery({
 		queryFn: (): Promise<SiteWithStats[]> => fetchSites("30d"),
 		queryKey: ["legacy", "sites", "settings"],
@@ -321,6 +315,8 @@ export const SettingsView = () => {
 				<Row label="Email" value={user?.email ?? "—"} />
 				<Row label="Role" value={user?.role ?? "—"} />
 			</Panel>
+
+			<AccountsSection />
 
 			<NotificationsSection />
 			<PlanSection />

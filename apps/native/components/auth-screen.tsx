@@ -1,12 +1,14 @@
 import * as WebBrowser from "expo-web-browser";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Image, KeyboardAvoidingView, ScrollView, Text, View } from "react-native";
 import { StyleSheet } from "react-native-unistyles";
 import { z } from "zod";
 
 import { Button, Input } from "@/components/ui";
-import { authCompleteGoogle, authRegister, authSignIn, useAuth } from "@/lib/auth";
+import { authCompleteGoogle, authContinueAs, authRegister, authSignIn, useAuth } from "@/lib/auth";
+import { fetchRememberedAccounts } from "@/lib/klikapa/accounts";
 import { GOOGLE_AUTH_URL, GOOGLE_CALLBACK_URL, LegacyApiError } from "@/lib/klikapa/api";
+import type { LegacyUser } from "@/lib/klikapa/api";
 
 type Mode = "sign-in" | "sign-up";
 
@@ -52,6 +54,21 @@ export const AuthScreen = () => {
 	const [formError, setFormError] = useState<string | null>(null);
 	const [googleHint, setGoogleHint] = useState<string | null>(null);
 	const [pending, setPending] = useState(false);
+	const [remembered, setRemembered] = useState<LegacyUser[]>([]);
+
+	// Accounts this device still holds a live session for (for example after
+	// signing out of one of several linked accounts).
+	useEffect(() => {
+		let active = true;
+		fetchRememberedAccounts().then((found) => {
+			if (active) {
+				setRemembered(found);
+			}
+		});
+		return () => {
+			active = false;
+		};
+	}, []);
 
 	const submit = async () => {
 		if (pending) {
@@ -122,6 +139,29 @@ export const AuthScreen = () => {
 							? "Sign in to your revklik analytics"
 							: "Start your free 7-day trial — no card required"}
 					</Text>
+
+					{mode === "sign-in" && remembered.length > 0 ? (
+						<View style={styles.remembered}>
+							<Text style={styles.rememberedTitle}>Accounts on this device</Text>
+							{remembered.map((account) => (
+								<View key={account.id} style={styles.rememberedItem}>
+									<Button
+										label={`Continue as ${account.name}`}
+										onPress={() => authContinueAs(account)}
+										variant="outline"
+									/>
+									<Text numberOfLines={1} style={styles.rememberedEmail}>
+										{account.email}
+									</Text>
+								</View>
+							))}
+							<View style={styles.divider}>
+								<View style={styles.dividerLine} />
+								<Text style={styles.dividerText}>or</Text>
+								<View style={styles.dividerLine} />
+							</View>
+						</View>
+					) : null}
 
 					<View style={styles.form}>
 						{mode === "sign-up" ? (
@@ -242,6 +282,25 @@ const styles = StyleSheet.create((theme) => ({
 		marginBottom: 10,
 		resizeMode: "contain",
 		width: 64,
+	},
+	remembered: {
+		gap: 6,
+		marginTop: 16,
+	},
+	rememberedEmail: {
+		color: theme.colors.mutedForeground,
+		fontFamily: "monospace",
+		fontSize: 11,
+		marginTop: 3,
+		textAlign: "center",
+	},
+	rememberedItem: {
+		marginTop: 2,
+	},
+	rememberedTitle: {
+		color: theme.colors.mutedForeground,
+		fontSize: theme.fontSize.xs,
+		fontWeight: "500",
 	},
 	scroll: {
 		flexGrow: 1,

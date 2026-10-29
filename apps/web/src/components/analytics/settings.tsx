@@ -4,6 +4,7 @@ import { LogOut } from "lucide-react";
 import { getLegacyUser, LEGACY_API_BASE, legacySignOut } from "@/lib/legacy/api";
 
 import { EmailReportsSection } from "./email-reports";
+import { LinkedAccountsSection } from "./linked-accounts";
 import { TeamSection } from "./team";
 
 import { Panel } from "./ui";
@@ -71,6 +72,10 @@ export const SettingsView = ({
 						</div>
 					</dl>
 				</Panel>
+
+				<div className="md:col-span-2">
+					<LinkedAccountsSection />
+				</div>
 
 				<div className="md:col-span-2">
 					<EmailReportsSection siteId={siteId} />

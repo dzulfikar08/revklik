@@ -9,6 +9,7 @@ import { fetch as expoFetch } from "expo/fetch";
 import { AppState } from "react-native";
 
 import { API_URL, DEV_TOKEN } from "../env";
+import { forgetToken, rememberToken } from "./account-tokens";
 
 export { API_URL };
 
@@ -326,6 +327,9 @@ export const getLegacyUser = async (): Promise<LegacyUser | null> => {
 
 /** Drop the cached klikapa token + profile (sign-out or 401 recovery). */
 export const legacyLogout = (): void => {
+	if (cachedUser) {
+		void forgetToken(cachedUser.id);
+	}
 	cachedToken = null;
 	cachedUser = undefined;
 	void deleteStore(TOKEN_KEY);
@@ -341,6 +345,18 @@ export class LegacyApiError extends Error {
 		this.status = status;
 	}
 }
+
+/**
+ * Make `token` the active session for `user`, persist it and remember it in
+ * kp_tokens so the account switcher can come back to it.
+ */
+export const setLegacySession = async (token: string, user: LegacyUser): Promise<void> => {
+	cachedToken = token;
+	cachedUser = user;
+	await writeStore(TOKEN_KEY, token);
+	await writeStore(USER_KEY, JSON.stringify(user));
+	await rememberToken(user.id, token);
+};
 
 /**
  * Shared email/password auth: POST to a klikapa auth endpoint, persist the
@@ -361,10 +377,7 @@ const authRequest = async (path: string, body: Record<string, string>): Promise<
 	if (!res.ok || !json?.success || !json.data) {
 		throw new LegacyApiError(json?.error || "Couldn't sign you in — please try again", res.status);
 	}
-	cachedToken = json.data.token;
-	cachedUser = json.data.user;
-	await writeStore(TOKEN_KEY, json.data.token);
-	await writeStore(USER_KEY, JSON.stringify(json.data.user));
+	await setLegacySession(json.data.token, json.data.user);
 	return json.data.user;
 };
 
@@ -406,10 +419,7 @@ export const completeGoogleSignIn = async (token: string): Promise<LegacyUser> =
 	if (!res.ok || !json?.success || !user) {
 		throw new LegacyApiError("Couldn't complete Google sign-in — please try again", res.status);
 	}
-	cachedToken = token;
-	cachedUser = user;
-	await writeStore(TOKEN_KEY, token);
-	await writeStore(USER_KEY, JSON.stringify(user));
+	await setLegacySession(token, user);
 	return user;
 };
 
@@ -482,6 +492,9 @@ export const bareFetch = async <T>(path: string, opts?: RequestInit): Promise<T>
 
 /** Last site the user viewed — restored on cold start, like the web app. */
 export const getActiveSiteId = (): Promise<string | null> => readStore(ACTIVE_SITE_KEY);
+
+/** Site ids belong to one account: forget the selection when the account changes. */
+export const clearActiveSiteId = (): Promise<void> => deleteStore(ACTIVE_SITE_KEY);
 
 export const setActiveSiteId = (siteId: string): Promise<void> =>
 	writeStore(ACTIVE_SITE_KEY, siteId);

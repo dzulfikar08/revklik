@@ -4,7 +4,7 @@
  */
 import { useSyncExternalStore } from "react";
 
-import { getActiveSiteId, setActiveSiteId } from "./klikapa/api";
+import { clearActiveSiteId, getActiveSiteId, setActiveSiteId } from "./klikapa/api";
 
 let siteId: string | null = null;
 const listeners: (() => void)[] = [];
@@ -35,6 +35,13 @@ export const selectActiveSite = (id: string): void => {
 	siteId = id;
 	emit();
 	void setActiveSiteId(id);
+};
+
+/** Account switch: the previous account's site is meaningless to the next one. */
+export const resetActiveSite = (): void => {
+	siteId = null;
+	emit();
+	void clearActiveSiteId();
 };
 
 export const useActiveSite = (): string | null => useSyncExternalStore(subscribe, getSnapshot);
