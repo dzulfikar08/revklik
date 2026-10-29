@@ -6,7 +6,7 @@ import { computedSourceSql } from "./lib/source-sql";
  * Version the live schema must reach. Bump it whenever a step is appended to
  * VERSIONED_STEPS; a DB already at this version costs one SELECT per isolate.
  */
-export const SCHEMA_VERSION = 19;
+export const SCHEMA_VERSION = 20;
 
 const migrated = new WeakSet<D1Database>();
 
@@ -104,6 +104,15 @@ const VERSIONED_STEPS: MigrationStep[] = [
 	{ version: 18, run: probeBotBackfill },
 	// v18 ran on D1 with an expression tree past its depth limit and flagged nothing.
 	{ version: 19, run: probeBotBackfill },
+	// Small key/value store for operational state the cron jobs carry between runs.
+	{
+		version: 20,
+		run: (d1) =>
+			runDdl(
+				d1,
+				"CREATE TABLE IF NOT EXISTS system_state (key TEXT PRIMARY KEY, value TEXT NOT NULL, updated_at TEXT NOT NULL)",
+			),
+	},
 ];
 
 /** Rows rewritten per backfill statement: far below D1's per-query CPU and row-write limits. */

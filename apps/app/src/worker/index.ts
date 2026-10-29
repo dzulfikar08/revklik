@@ -6,6 +6,7 @@ import { reclassifyRecentBots } from "./lib/bot-reclassify";
 import { inferSiteCurrencies } from "./lib/currency-backfill";
 import { isSelfHosted } from "./lib/entitlement";
 import { refreshFxRates } from "./lib/fx";
+import { checkIngestHealth } from "./lib/ingest-watchdog";
 import { pruneOutbox, runPushCron } from "./lib/push";
 import { purgeExpiredRows } from "./lib/purge";
 import { carryOverPakasirOrders } from "./migrations";
@@ -44,8 +45,14 @@ export default {
 			return;
 		}
 		if (controller.cron === "15 * * * *") {
-			// Hourly: sessions that grew into bot-shaped bursts since the last pass.
-			if (env.DB) await reclassifyRecentBots(env.DB);
+			// Hourly: sessions that grew into bot-shaped bursts since the last pass,
+			// then the ingest canary (mails SUPER_ADMIN_EMAIL when pageviews stop).
+			if (env.DB) {
+				await reclassifyRecentBots(env.DB);
+				await checkIngestHealth(env).catch((err) =>
+					console.error("Ingest health check failed:", err),
+				);
+			}
 			return;
 		}
 		if (controller.cron === "0 18 * * *") {
