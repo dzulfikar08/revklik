@@ -284,6 +284,37 @@ describe("native auth flows", () => {
 		expect(localStorage.getItem("kp_active_site")).toBeNull();
 	});
 
+	it("legacySignOut revokes and forgets every remembered account by default", async () => {
+		localStorage.setItem("kp_token", "kp_a");
+		localStorage.setItem("kp_user", JSON.stringify(TEST_USER));
+		localStorage.setItem("kp_tokens", JSON.stringify({ u1: "kp_a", u2: "kp_b", u3: "kp_c" }));
+		const fetch = fetchMock();
+		fetch.mockResolvedValue(okEnvelope({ loggedOut: true }));
+		vi.stubGlobal("fetch", fetch);
+
+		await legacySignOut();
+
+		const revoked = (fetch.mock.calls as unknown as [string, { headers: Record<string, string> }][])
+			.map(([, init]) => init.headers.Authorization)
+			.toSorted();
+		expect(revoked).toEqual(["Bearer kp_a", "Bearer kp_b", "Bearer kp_c"]);
+		expect(localStorage.getItem("kp_tokens")).toBeNull();
+	});
+
+	it("legacySignOut with keepOthers revokes only the current session", async () => {
+		localStorage.setItem("kp_token", "kp_a");
+		localStorage.setItem("kp_user", JSON.stringify(TEST_USER));
+		localStorage.setItem("kp_tokens", JSON.stringify({ u1: "kp_a", u2: "kp_b" }));
+		const fetch = fetchMock();
+		fetch.mockResolvedValue(okEnvelope({ loggedOut: true }));
+		vi.stubGlobal("fetch", fetch);
+
+		await legacySignOut({ keepOthers: true });
+
+		expect(fetch).toHaveBeenCalledTimes(1);
+		expect(JSON.parse(localStorage.getItem("kp_tokens") ?? "{}")).toEqual({ u2: "kp_b" });
+	});
+
 	it("legacySignOut clears locally even when the network fails", async () => {
 		localStorage.setItem("kp_token", "kp_bye");
 		const fetch = fetchMock();

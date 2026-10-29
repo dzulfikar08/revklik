@@ -52,7 +52,7 @@ async function googleSignIn(t: MigratedTestApp, email: string, query = "") {
 		if (String(input).includes("oauth2.googleapis.com/token")) {
 			return Response.json({ access_token: "at" });
 		}
-		return Response.json({ email, sub: `g-${email}`, name: "G" });
+		return Response.json({ email, sub: `g-${email}`, name: "G", email_verified: true });
 	}) as typeof fetch;
 	const start = await t.call("GET", `/api/auth/google${query}`);
 	const state = new URL(start.headers.get("location") ?? "").searchParams.get("state");

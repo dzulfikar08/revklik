@@ -52,24 +52,37 @@ export async function refreshSessionExpiry(
 		.execute();
 }
 
+export interface ResolvedSession {
+	userId: string;
+	/** When this session token was minted (ISO). */
+	createdAt: string;
+}
+
 /**
- * Resolve the user behind a kp_ session Bearer token (rvt_/rv_ and expired
- * tokens are rejected). Link and switch routes resolve their own auth, like
+ * Resolve the kp_ session behind a Bearer token (rvt_/rv_ and expired tokens
+ * are rejected). Link and switch routes resolve their own auth, like
  * /auth/me, because they sit on the public /auth mount.
  */
-export async function resolveSessionUserId(
+export async function resolveSession(
 	db: Kysely<KlikapaDatabase> | undefined,
 	authHeader: string | undefined,
-): Promise<string | null> {
+): Promise<ResolvedSession | null> {
 	if (!db || !authHeader?.startsWith("Bearer ")) return null;
 	const keyHash = await hashToken(authHeader.slice(7));
 	const apiKey = await db
 		.selectFrom("api_keys")
-		.select(["user_id", "token_type", "expires_at"])
+		.select(["user_id", "token_type", "expires_at", "created_at"])
 		.where("key_hash", "=", keyHash)
 		.executeTakeFirst();
 	if (!apiKey || apiKey.token_type !== "session") return null;
 	if (apiKey.expires_at && new Date(apiKey.expires_at) <= new Date()) return null;
 	await refreshSessionExpiry(db, keyHash, apiKey.expires_at);
-	return apiKey.user_id;
+	return { userId: apiKey.user_id, createdAt: apiKey.created_at };
+}
+
+export async function resolveSessionUserId(
+	db: Kysely<KlikapaDatabase> | undefined,
+	authHeader: string | undefined,
+): Promise<string | null> {
+	return (await resolveSession(db, authHeader))?.userId ?? null;
 }

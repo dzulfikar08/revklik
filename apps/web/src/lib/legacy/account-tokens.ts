@@ -54,3 +54,11 @@ export const pruneTokens = (storage: TokenStorage, keepUserIds: readonly string[
 		writeTokenMap(storage, kept);
 	}
 };
+
+/** Every remembered token, for sign-out to revoke. */
+export const listRememberedTokens = (storage: TokenStorage): string[] =>
+	Object.values(readTokenMap(storage));
+
+export const clearTokenMap = (storage: TokenStorage): void => {
+	storage.removeItem(TOKENS_KEY);
+};

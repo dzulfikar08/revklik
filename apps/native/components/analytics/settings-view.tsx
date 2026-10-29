@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Alert, ScrollView, Switch, Text, TouchableOpacity, View } from "react-native";
 import { StyleSheet, useUnistyles } from "react-native-unistyles";
 
@@ -15,6 +15,7 @@ import {
 	fetchEmailReports,
 	updateEmailReport,
 } from "@/lib/klikapa/analytics-settings";
+import { readTokenMap } from "@/lib/klikapa/account-tokens";
 import { fetchSites, API_URL, LegacyApiError } from "@/lib/klikapa/api";
 import type { SiteWithStats } from "@/lib/klikapa/api";
 import {
@@ -294,6 +295,14 @@ export const SettingsView = () => {
 	const { theme } = useUnistyles();
 	const activeSite = useActiveSite();
 	const { user } = useAuth();
+	const [keepOthers, setKeepOthers] = useState(false);
+	const [hasOtherAccounts, setHasOtherAccounts] = useState(false);
+
+	useEffect(() => {
+		readTokenMap().then((map) =>
+			setHasOtherAccounts(Object.keys(map).some((id) => id !== user?.id)),
+		);
+	}, [user?.id]);
 	const sitesQ = useQuery({
 		queryFn: (): Promise<SiteWithStats[]> => fetchSites("30d"),
 		queryKey: ["legacy", "sites", "settings"],
@@ -331,10 +340,16 @@ export const SettingsView = () => {
 			<TeamSection siteId={activeSite ?? ""} />
 
 			<Panel title="Session">
+				{hasOtherAccounts ? (
+					<View style={styles.keepRow}>
+						<Text style={styles.keepLabel}>Keep my other accounts signed in on this device</Text>
+						<Switch onValueChange={setKeepOthers} value={keepOthers} />
+					</View>
+				) : null}
 				<Button
 					icon="log-out-outline"
 					label="Sign out"
-					onPress={() => authSignOut()}
+					onPress={() => authSignOut({ keepOthers })}
 					variant="outline"
 				/>
 			</Panel>
@@ -366,6 +381,17 @@ const styles = StyleSheet.create((theme, rt) => ({
 		flexDirection: "row",
 		flexWrap: "wrap",
 		gap: 6,
+	},
+	keepLabel: {
+		color: theme.colors.mutedForeground,
+		flex: 1,
+		fontSize: theme.fontSize.xs,
+	},
+	keepRow: {
+		alignItems: "center",
+		flexDirection: "row",
+		gap: 10,
+		marginBottom: 10,
 	},
 	inviteEmail: {
 		flex: 1,

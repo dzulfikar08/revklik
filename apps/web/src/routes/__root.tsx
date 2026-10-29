@@ -114,7 +114,20 @@ function captureOAuthToken(): void {
 		});
 }
 
+/**
+ * Google link flow lands back on the settings page with #link_code=<code>.
+ * Keep it in sessionStorage (this tab only) and strip it from the URL before
+ * the router rewrites the location; Settings then asks the user to confirm.
+ */
+function captureLinkCode(): void {
+	const match = window.location.hash.match(/^#link_code=(.+)$/);
+	if (!match) return;
+	sessionStorage.setItem("kp_link_code", decodeURIComponent(match[1]));
+	history.replaceState(null, "", window.location.pathname + window.location.search);
+}
+
 captureOAuthToken();
+captureLinkCode();
 
 const STALE_SHELL_RETRY_KEY = "kp_stale_shell_retry";
 

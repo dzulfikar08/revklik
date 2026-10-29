@@ -34,6 +34,9 @@ export const MAX_LINKS = 5;
 export const LINKS_QUERY_KEY = ["legacy", "account-links"] as const;
 
 const LINK_ERROR_MESSAGES: Record<string, string> = {
+	current_password_invalid: "Your password is wrong.",
+	recent_login_required: "Sign in again, then link an account within 10 minutes.",
+	unverified: "That account's email address is not verified yet.",
 	already_linked: "These accounts are already linked.",
 	expired: "The Google link request expired. Try again.",
 	invalid_credentials: "Wrong email or password.",
@@ -67,14 +70,14 @@ export const fetchLinks = async (): Promise<AccountLink[]> => {
 };
 
 /**
- * A wrong password answers 401, which the shared request helper treats as a
- * dead session and signs out; this call reads the response itself so the
- * user stays signed in and sees the code.
+ * POST that reads the response itself: a 401 from the shared request helper
+ * signs the app out, but here it only means a wrong password. Errors carry
+ * the worker's code (invalid_credentials, current_password_invalid, …).
  */
-export const linkWithPassword = async (email: string, password: string): Promise<AccountLink> => {
+const postLinkRequest = async <T>(path: string, body: Record<string, string>): Promise<T> => {
 	const token = await getToken();
-	const res = await fetch(`${API_URL}/auth/links`, {
-		body: JSON.stringify({ email, password }),
+	const res = await fetch(`${API_URL}${path}`, {
+		body: JSON.stringify(body),
 		headers: {
 			"Content-Type": "application/json",
 			...(token ? { Authorization: `Bearer ${token}` } : {}),
@@ -82,7 +85,7 @@ export const linkWithPassword = async (email: string, password: string): Promise
 		method: "POST",
 	});
 	const json = (await res.json().catch(() => null)) as {
-		data?: AccountLink;
+		data?: T;
 		error?: string;
 		success?: boolean;
 	} | null;
@@ -94,26 +97,47 @@ export const linkWithPassword = async (email: string, password: string): Promise
 	return json.data;
 };
 
+export const linkWithPassword = (
+	email: string,
+	password: string,
+	currentPassword: string,
+): Promise<AccountLink> =>
+	postLinkRequest("/auth/links", { current_password: currentPassword, email, password });
+
 export const unlinkAccount = async (link: AccountLink): Promise<void> => {
 	await legacyFetch(`/auth/links/${link.id}`, { method: "DELETE" });
 	await forgetToken(link.user.id);
 };
 
-/** Start URL for Google in link mode; resolves with `revklik://auth/callback?link=ok|error`. */
-export const googleLinkUrl = async (callbackUrl: string): Promise<string> => {
-	const { intent } = await legacyFetch<{ intent: string }>("/auth/links/google-intent", {
-		method: "POST",
+/** Start URL for Google in link mode; the flow returns to `callbackUrl#link_code=<code>`. */
+export const googleLinkUrl = async (
+	callbackUrl: string,
+	currentPassword: string,
+): Promise<string> => {
+	const { intent } = await postLinkRequest<{ intent: string }>("/auth/links/google-intent", {
+		current_password: currentPassword,
 	});
 	const params = new URLSearchParams({ link: intent, redirect_to: callbackUrl });
 	return `${API_URL}/auth/google?${params.toString()}`;
 };
 
-/** Read link=ok|error&reason=… off the deep link the Google flow returned to. */
-export const parseLinkResult = (url: string): { ok: boolean; reason: string | undefined } => {
-	const query = (url.split("#")[0] ?? "").split("?")[1] ?? "";
-	const params = new URLSearchParams(query);
-	return { ok: params.get("link") === "ok", reason: params.get("reason") ?? undefined };
+/** What the deep link carried: a one-time code on success, or link=error&reason=…. */
+export const parseLinkResult = (
+	url: string,
+): { code: string | null; reason: string | undefined } => {
+	const [beforeHash = "", fragment = ""] = url.split("#");
+	const query = new URLSearchParams(beforeHash.split("?")[1] ?? "");
+	const code = new URLSearchParams(fragment).get("link_code");
+	return { code, reason: query.get("reason") ?? undefined };
 };
+
+/** Which account a Google link code would attach (nothing is linked yet). */
+export const previewGoogleLink = async (code: string): Promise<LinkedUser> =>
+	(await postLinkRequest<{ user: LinkedUser }>("/auth/links/google/preview", { code })).user;
+
+/** Confirm a previewed Google link; only the session that started the flow may. */
+export const completeGoogleLink = (code: string): Promise<AccountLink> =>
+	postLinkRequest("/auth/links/google/complete", { code });
 
 const userForToken = async (token: string, userId: string): Promise<LegacyUser | null> => {
 	try {
@@ -157,7 +181,7 @@ export const switchAccount = async (target: LinkedUser): Promise<LegacyUser> => 
 	return minted.user;
 };
 
-/** Users whose remembered token still works (dead tokens are dropped). */
+/** Accounts deliberately kept signed in on this device whose token still works. */
 export const fetchRememberedAccounts = async (): Promise<LegacyUser[]> => {
 	const entries = Object.entries(await readTokenMap());
 	const checked = await Promise.all(

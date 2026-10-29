@@ -9,6 +9,7 @@ import { Panel, PanelBody } from "@/components/analytics/ui";
 import { Button, Input } from "@/components/ui";
 import { authSwitchAccount } from "@/lib/auth";
 import {
+	completeGoogleLink,
 	fetchLinks,
 	googleLinkUrl,
 	LINKS_QUERY_KEY,
@@ -16,6 +17,7 @@ import {
 	LinkError,
 	linkWithPassword,
 	parseLinkResult,
+	previewGoogleLink,
 	unlinkAccount,
 } from "@/lib/klikapa/accounts";
 import type { AccountLink } from "@/lib/klikapa/accounts";
@@ -38,17 +40,19 @@ export const AccountsSection = () => {
 	const [formError, setFormError] = useState<string | null>(null);
 	const [switchingId, setSwitchingId] = useState<string | null>(null);
 	const [googlePending, setGooglePending] = useState(false);
+	const [currentPassword, setCurrentPassword] = useState("");
 
 	const linksQ = useQuery({ queryFn: fetchLinks, queryKey: LINKS_QUERY_KEY });
 	const links = linksQ.data ?? [];
 
 	const linkMut = useMutation({
-		mutationFn: () => linkWithPassword(email.trim(), password),
+		mutationFn: () => linkWithPassword(email.trim(), password, currentPassword),
 		onError: (error: unknown) => setFormError(linkErrorMessage(codeOf(error))),
 		onSuccess: (link) => {
 			setFormError(null);
 			setEmail("");
 			setPassword("");
+			setCurrentPassword("");
 			qc.invalidateQueries({ queryKey: LINKS_QUERY_KEY });
 			Alert.alert(`Linked ${link.user.name}`);
 		},
@@ -87,21 +91,46 @@ export const AccountsSection = () => {
 	const linkWithGoogle = async () => {
 		setGooglePending(true);
 		try {
-			const url = await googleLinkUrl(GOOGLE_CALLBACK_URL);
+			const url = await googleLinkUrl(GOOGLE_CALLBACK_URL, currentPassword);
 			const result = await WebBrowser.openAuthSessionAsync(url, GOOGLE_CALLBACK_URL);
 			if (result.type === "success") {
 				const outcome = parseLinkResult(result.url);
-				if (outcome.ok) {
-					qc.invalidateQueries({ queryKey: LINKS_QUERY_KEY });
-					Alert.alert("Google account linked");
+				if (outcome.code) {
+					await confirmGoogleLink(outcome.code);
 				} else {
 					Alert.alert(linkErrorMessage(outcome.reason));
 				}
 			}
-		} catch {
-			Alert.alert("Couldn't link the account. Try again.");
+		} catch (error) {
+			Alert.alert(linkErrorMessage(codeOf(error)));
 		}
 		setGooglePending(false);
+	};
+
+	/** Show which account Google confirmed and link only after the user agrees. */
+	const confirmGoogleLink = async (code: string) => {
+		const user = await previewGoogleLink(code);
+		await new Promise<void>((resolve) => {
+			Alert.alert(
+				`Link ${user.name}?`,
+				`Google confirmed ${user.email}. Once linked, you can switch between it and this account.`,
+				[
+					{ onPress: () => resolve(), style: "cancel", text: "Cancel" },
+					{
+						onPress: () => {
+							completeGoogleLink(code)
+								.then(() => {
+									qc.invalidateQueries({ queryKey: LINKS_QUERY_KEY });
+									Alert.alert("Google account linked");
+								})
+								.catch((error: unknown) => Alert.alert(linkErrorMessage(codeOf(error))))
+								.finally(resolve);
+						},
+						text: "Link account",
+					},
+				],
+			);
+		});
 	};
 
 	return (
@@ -172,6 +201,17 @@ export const AccountsSection = () => {
 					secureTextEntry
 					value={password}
 				/>
+				<Input
+					autoCapitalize="none"
+					autoComplete="off"
+					label="Your password"
+					onChangeText={setCurrentPassword}
+					secureTextEntry
+					value={currentPassword}
+				/>
+				<Text style={styles.formHint}>
+					Needed to link. If you only sign in with Google, leave it empty.
+				</Text>
 				{formError ? <Text style={styles.error}>{formError}</Text> : null}
 				<Button
 					busy={linkMut.isPending}

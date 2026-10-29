@@ -9,7 +9,7 @@ import { fetch as expoFetch } from "expo/fetch";
 import { AppState } from "react-native";
 
 import { API_URL, DEV_TOKEN } from "../env";
-import { forgetToken, rememberToken } from "./account-tokens";
+import { clearTokenMap, forgetToken, listRememberedTokens, rememberToken } from "./account-tokens";
 
 export { API_URL };
 
@@ -423,21 +423,38 @@ export const completeGoogleSignIn = async (token: string): Promise<LegacyUser> =
 	return user;
 };
 
+const revokeSession = async (token: string): Promise<void> => {
+	try {
+		await fetch(`${API_URL}/auth/logout`, {
+			headers: { Authorization: `Bearer ${token}` },
+			method: "POST",
+		});
+	} catch {
+		// Server unreachable; the local copy is discarded regardless.
+	}
+};
+
 /**
  * Sign out: delete the presented session server-side, then drop all local
- * state. Best-effort — local sign-out wins even if the network fails.
+ * state. By default every other account's session kept in kp_tokens is
+ * revoked and forgotten too, so a shared device keeps nothing behind;
+ * `keepOthers` leaves those accounts signed in for "Continue as".
+ * Best-effort: local sign-out wins even if the network fails.
  */
-export const legacySignOut = async (): Promise<void> => {
-	const token = cachedToken ?? (await readStore(TOKEN_KEY));
-	if (token) {
-		try {
-			await fetch(`${API_URL}/auth/logout`, {
-				headers: { Authorization: `Bearer ${token}` },
-				method: "POST",
-			});
-		} catch {
-			// Server unreachable; the local session is discarded regardless.
+export const legacySignOut = async ({ keepOthers = false } = {}): Promise<void> => {
+	const tokens = new Set<string>();
+	const current = cachedToken ?? (await readStore(TOKEN_KEY));
+	if (current) {
+		tokens.add(current);
+	}
+	if (!keepOthers) {
+		for (const token of await listRememberedTokens()) {
+			tokens.add(token);
 		}
+	}
+	await Promise.all([...tokens].map(revokeSession));
+	if (!keepOthers) {
+		await clearTokenMap();
 	}
 	legacyLogout();
 };

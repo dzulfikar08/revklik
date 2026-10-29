@@ -6,7 +6,7 @@ import { computedSourceSql } from "./lib/source-sql";
  * Version the live schema must reach. Bump it whenever a step is appended to
  * VERSIONED_STEPS; a DB already at this version costs one SELECT per isolate.
  */
-export const SCHEMA_VERSION = 21;
+export const SCHEMA_VERSION = 22;
 
 const migrated = new WeakSet<D1Database>();
 
@@ -114,6 +114,7 @@ const VERSIONED_STEPS: MigrationStep[] = [
 			),
 	},
 	{ version: 21, run: accountLinksSchema },
+	{ version: 22, run: accountLinkFlowsSchema },
 ];
 
 /** Server-side linked accounts (switcher) and the one-time intents behind Google linking. */
@@ -127,6 +128,21 @@ async function accountLinksSchema(d1: D1Database): Promise<void> {
 	await runDdl(
 		d1,
 		"CREATE TABLE IF NOT EXISTS account_link_intents (token_hash TEXT PRIMARY KEY, user_id TEXT NOT NULL, expires_at TEXT NOT NULL)",
+	);
+}
+
+/**
+ * Google link flows: started with a consumed intent, bound to the starting
+ * browser, completed by the intent owner's own session with a one-time code.
+ */
+async function accountLinkFlowsSchema(d1: D1Database): Promise<void> {
+	await runDdl(
+		d1,
+		"CREATE TABLE IF NOT EXISTS account_link_flows (state_hash TEXT PRIMARY KEY, owner_id TEXT NOT NULL, browser_hash TEXT NOT NULL, target_id TEXT, code_hash TEXT, expires_at TEXT NOT NULL)",
+	);
+	await runDdl(
+		d1,
+		"CREATE UNIQUE INDEX IF NOT EXISTS idx_account_link_flows_code ON account_link_flows(code_hash)",
 	);
 }
 

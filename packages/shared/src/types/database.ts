@@ -304,6 +304,7 @@ export interface KlikapaDatabase {
 	login_attempts: LoginAttemptTable;
 	account_links: AccountLinkTable;
 	account_link_intents: AccountLinkIntentTable;
+	account_link_flows: AccountLinkFlowTable;
 }
 
 export interface PasswordResetTable {
@@ -338,6 +339,16 @@ export interface AccountLinkTable {
 export interface AccountLinkIntentTable {
 	token_hash: string;
 	user_id: string;
+	expires_at: string;
+}
+
+/** A Google link in progress: owner, starting browser, and (after consent) the account to link. */
+export interface AccountLinkFlowTable {
+	state_hash: string;
+	owner_id: string;
+	browser_hash: string;
+	target_id: string | null;
+	code_hash: string | null;
 	expires_at: string;
 }
 

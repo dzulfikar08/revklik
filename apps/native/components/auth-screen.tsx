@@ -56,8 +56,8 @@ export const AuthScreen = () => {
 	const [pending, setPending] = useState(false);
 	const [remembered, setRemembered] = useState<LegacyUser[]>([]);
 
-	// Accounts this device still holds a live session for (for example after
-	// signing out of one of several linked accounts).
+	// Accounts the user chose to keep signed in at sign-out ("Keep my other
+	// accounts signed in"); a default sign-out revokes them all, so this is empty.
 	useEffect(() => {
 		let active = true;
 		fetchRememberedAccounts().then((found) => {

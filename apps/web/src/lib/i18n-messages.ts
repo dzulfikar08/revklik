@@ -350,6 +350,17 @@ const en = {
 	"accounts.err.expired": "The Google link request expired. Try again.",
 	"accounts.continueTitle": "Accounts on this device",
 	"accounts.continueAs": "Continue as {name}",
+	"accounts.currentPassword": "Your password",
+	"accounts.currentPasswordHint":
+		"Needed to link. If you only sign in with Google, leave it empty.",
+	"accounts.err.currentInvalid": "Your password is wrong.",
+	"accounts.err.recent": "Sign in again, then link an account within 10 minutes.",
+	"accounts.err.unverified": "That account's email address is not verified yet.",
+	"accounts.confirmLinkTitle": "Link {name}?",
+	"accounts.confirmLinkBody":
+		"Google confirmed {email}. Once linked, you can switch between it and this account.",
+	"accounts.confirmLink": "Link account",
+	"accounts.keepOthers": "Keep my other accounts signed in on this device",
 } as const;
 
 export type MessageKey = keyof typeof en;
@@ -689,6 +700,17 @@ const id: Record<BaseKey, string> = {
 	"accounts.err.expired": "Permintaan tautan Google sudah kedaluwarsa. Coba lagi.",
 	"accounts.continueTitle": "Akun di perangkat ini",
 	"accounts.continueAs": "Lanjut sebagai {name}",
+	"accounts.currentPassword": "Kata sandimu",
+	"accounts.currentPasswordHint":
+		"Wajib untuk menautkan. Kalau kamu hanya masuk dengan Google, kosongkan.",
+	"accounts.err.currentInvalid": "Kata sandimu salah.",
+	"accounts.err.recent": "Masuk lagi, lalu tautkan akun dalam 10 menit.",
+	"accounts.err.unverified": "Alamat email akun itu belum diverifikasi.",
+	"accounts.confirmLinkTitle": "Tautkan {name}?",
+	"accounts.confirmLinkBody":
+		"Google memastikan {email}. Setelah tertaut, kamu bisa pindah antara akun itu dan akun ini.",
+	"accounts.confirmLink": "Tautkan akun",
+	"accounts.keepOthers": "Biarkan akunku yang lain tetap masuk di perangkat ini",
 };
 
 export const MESSAGES: {

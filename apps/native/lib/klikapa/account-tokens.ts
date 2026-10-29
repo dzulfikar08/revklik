@@ -68,3 +68,10 @@ export const pruneTokens = async (keepUserIds: readonly string[]): Promise<void>
 		await writeTokenMap(kept);
 	}
 };
+
+export const listRememberedTokens = async (): Promise<string[]> =>
+	Object.values(await readTokenMap());
+
+export const clearTokenMap = async (): Promise<void> => {
+	await writeTokenMap({});
+};

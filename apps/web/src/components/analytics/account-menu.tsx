@@ -1,5 +1,6 @@
 import {
 	DropdownMenu,
+	DropdownMenuCheckboxItem,
 	DropdownMenuContent,
 	DropdownMenuGroup,
 	DropdownMenuItem,
@@ -10,10 +11,17 @@ import {
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { LogOut, UserPlus } from "lucide-react";
+import { useState } from "react";
 import { toast } from "sonner";
 
 import { useT } from "@/lib/i18n";
-import { enterDashboard, fetchLinks, LINKS_QUERY_KEY, switchAccount } from "@/lib/legacy/accounts";
+import {
+	enterDashboard,
+	fetchLinks,
+	LINKS_QUERY_KEY,
+	rememberedOtherUserIds,
+	switchAccount,
+} from "@/lib/legacy/accounts";
 import type { LinkedUser } from "@/lib/legacy/accounts";
 import { getLegacyUser, legacySignOut } from "@/lib/legacy/api";
 
@@ -35,6 +43,7 @@ export const AccountMenu = ({
 	const navigate = useNavigate();
 	const queryClient = useQueryClient();
 	const me = getLegacyUser();
+	const [keepOthers, setKeepOthers] = useState(false);
 	const links = useQuery({
 		enabled: Boolean(me),
 		queryFn: fetchLinks,
@@ -57,7 +66,7 @@ export const AccountMenu = ({
 	};
 
 	const signOut = async (): Promise<void> => {
-		await legacySignOut();
+		await legacySignOut({ keepOthers });
 		queryClient.clear();
 		await navigate({ to: "/login" });
 	};
@@ -139,6 +148,16 @@ export const AccountMenu = ({
 						<UserPlus className="size-3.5" aria-hidden />
 						{t("accounts.menu.link")}
 					</DropdownMenuItem>
+				) : null}
+				{rememberedOtherUserIds().length > 0 ? (
+					<DropdownMenuCheckboxItem
+						checked={keepOthers}
+						closeOnClick={false}
+						onCheckedChange={setKeepOthers}
+						className="pointer-coarse:min-h-11 whitespace-normal"
+					>
+						{t("accounts.keepOthers")}
+					</DropdownMenuCheckboxItem>
 				) : null}
 				<DropdownMenuItem
 					variant="destructive"

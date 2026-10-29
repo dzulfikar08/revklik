@@ -47,10 +47,14 @@ export const fetchLinks = async (): Promise<AccountLink[]> => {
  * and signs out; this call reads the response itself so the caller stays
  * signed in and sees the code (invalid, too_many_attempts, already_linked…).
  */
-export const linkWithPassword = async (email: string, password: string): Promise<AccountLink> => {
+export const linkWithPassword = async (
+	email: string,
+	password: string,
+	currentPassword: string,
+): Promise<AccountLink> => {
 	const token = await getToken();
 	const res = await fetch(`${LEGACY_API_BASE}/auth/links`, {
-		body: JSON.stringify({ email, password }),
+		body: JSON.stringify({ current_password: currentPassword, email, password }),
 		headers: {
 			"Content-Type": "application/json",
 			...(token ? { Authorization: `Bearer ${token}` } : {}),
@@ -76,13 +80,30 @@ export const unlinkAccount = async (link: AccountLink): Promise<void> => {
 };
 
 /** Ask for a one-time intent, then send the browser through Google in link mode. */
-export const startGoogleLink = async (returnTo: string): Promise<void> => {
+export const startGoogleLink = async (returnTo: string, currentPassword: string): Promise<void> => {
 	const { intent } = await legacyFetch<{ intent: string }>("/auth/links/google-intent", {
+		body: JSON.stringify({ current_password: currentPassword }),
 		method: "POST",
 	});
 	const params = new URLSearchParams({ link: intent, redirect_to: returnTo });
 	window.location.assign(`${LEGACY_API_BASE}/auth/google?${params.toString()}`);
 };
+
+/** Which account a Google link code would attach (nothing is linked yet). */
+export const previewGoogleLink = async (code: string): Promise<LinkedUser> => {
+	const { user } = await legacyFetch<{ user: LinkedUser }>("/auth/links/google/preview", {
+		body: JSON.stringify({ code }),
+		method: "POST",
+	});
+	return user;
+};
+
+/** Confirm a previewed Google link; only the session that started the flow may. */
+export const completeGoogleLink = (code: string): Promise<AccountLink> =>
+	legacyFetch("/auth/links/google/complete", {
+		body: JSON.stringify({ code }),
+		method: "POST",
+	});
 
 const tokenWorks = async (token: string, userId: string): Promise<LegacyUser | null> => {
 	try {
@@ -143,7 +164,7 @@ export const enterDashboard = (): void => {
 	window.location.assign("/analytics");
 };
 
-/** Users whose remembered token still works (dead tokens are dropped). */
+/** Accounts deliberately kept signed in on this device whose token still works. */
 export const fetchRememberedAccounts = async (): Promise<LegacyUser[]> => {
 	const entries = Object.entries(readTokenMap(localStorage));
 	const checked = await Promise.all(

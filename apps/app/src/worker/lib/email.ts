@@ -129,3 +129,25 @@ export async function sendWeeklyReport(
   `;
 	await sendEmail({ to: useremail, from: opts.from, subject, html }, emailBinding);
 }
+
+/** Tell both accounts that they were linked, so an unexpected link is noticed. */
+export async function sendAccountLinkedNotice(
+	emails: { to: string; other: string }[],
+	emailBinding?: EmailBinding,
+	from?: string,
+): Promise<void> {
+	await Promise.all(
+		emails.map(({ to, other }) =>
+			sendEmail(
+				{
+					to,
+					from,
+					subject: "RevKlik: an account was linked to yours",
+					html: `<p>The RevKlik account <strong>${other}</strong> was linked to <strong>${to}</strong>. Signed in to either one, you can now switch to the other.</p><p>If this wasn't you, sign in and remove the link under Settings, Linked accounts, then reset your password.</p>`,
+					text: `The RevKlik account ${other} was linked to ${to}. If this wasn't you, remove the link under Settings, Linked accounts, and reset your password.`,
+				},
+				emailBinding,
+			),
+		),
+	);
+}

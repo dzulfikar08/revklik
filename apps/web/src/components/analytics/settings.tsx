@@ -1,6 +1,9 @@
 import { Button } from "@revklik/ui/components/button";
+import { useId, useState } from "react";
 import { LogOut } from "lucide-react";
 
+import { useT } from "@/lib/i18n";
+import { rememberedOtherUserIds } from "@/lib/legacy/accounts";
 import { getLegacyUser, LEGACY_API_BASE, legacySignOut } from "@/lib/legacy/api";
 
 import { EmailReportsSection } from "./email-reports";
@@ -19,10 +22,13 @@ export const SettingsView = ({
 	onSignOut: () => void;
 }) => {
 	const handleSignOut = async (): Promise<void> => {
-		await legacySignOut();
+		await legacySignOut({ keepOthers });
 		onSignOut();
 	};
 	const user = getLegacyUser();
+	const [keepOthers, setKeepOthers] = useState(false);
+	const t = useT();
+	const keepId = useId();
 
 	return (
 		<main className="mx-auto max-w-7xl px-3 pt-3 pb-6 md:px-4">
@@ -87,6 +93,21 @@ export const SettingsView = ({
 
 				<div className="md:col-span-2">
 					<Panel title="Session">
+						{rememberedOtherUserIds().length > 0 ? (
+							<label
+								htmlFor={keepId}
+								className="text-muted-foreground mb-2 flex items-start gap-2 text-xs"
+							>
+								<input
+									id={keepId}
+									type="checkbox"
+									checked={keepOthers}
+									onChange={(e) => setKeepOthers(e.target.checked)}
+									className="mt-0.5 size-4 pointer-coarse:size-5"
+								/>
+								{t("accounts.keepOthers")}
+							</label>
+						) : null}
 						<Button variant="outline" size="sm" onClick={() => void handleSignOut()}>
 							<LogOut className="size-3.5" aria-hidden />
 							Sign out

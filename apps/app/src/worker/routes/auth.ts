@@ -5,9 +5,10 @@ import type { KlikapaDatabase } from "@revklik/shared";
 import { sql } from "../db";
 import {
 	consumeLinkIntent,
-	createLink,
-	isLinkIntentValid,
-	type LinkFailure,
+	getLinkFlowOwner,
+	removeAccountLinks,
+	setLinkFlowTarget,
+	startLinkFlow,
 } from "../lib/account-links";
 import { recordReferralSignup } from "../lib/affiliates";
 import {
@@ -35,6 +36,8 @@ const MIN_PASSWORD_LENGTH = 8;
 const RESET_TTL_MS = 3_600_000;
 const OAUTH_COOKIE = "rk_oauth";
 const OAUTH_COOKIE_MAX_AGE = 600;
+/** Binds a Google link flow to the browser that started it. */
+const LINK_BIND_COOKIE = "rk_link_bind";
 // Native app callbacks allowed as OAuth redirect_to targets (besides same-origin URLs).
 const NATIVE_REDIRECT_SCHEMES = ["revklik-new:", "revklik:"];
 
@@ -320,6 +323,8 @@ authRoutes.post("/reset-password", async (c) => {
 	await db.deleteFrom("api_keys").where("user_id", "=", userId).execute();
 	// Sale alerts follow the session: a phone must sign in again to keep receiving them.
 	await db.deleteFrom("push_devices").where("user_id", "=", userId).execute();
+	// Recovery cuts every account link: the old credentials may have built them.
+	await removeAccountLinks(db, userId);
 	await db
 		.deleteFrom("password_resets")
 		.where("user_id", "=", userId)
@@ -406,8 +411,8 @@ interface OAuthCookie {
 	/** Tracker visitor id from the marketing site (see recordSignupEvent). */
 	rkVid?: string;
 	redirect?: string;
-	/** Set when a signed-in user is linking this Google account instead of signing in. */
-	linkNonce?: string;
+	/** Link mode: a signed-in user is linking this Google account instead of signing in. */
+	link?: boolean;
 }
 
 /** Only same-origin URLs or the native app's callback schemes may receive a token. */
@@ -433,11 +438,22 @@ authRoutes.get("/google", async (c) => {
 	if (linkNonce) {
 		const db = c.get("db");
 		if (!db) return c.json({ error: "DB unavailable", success: false }, 503);
-		if (!(await isLinkIntentValid(db, linkNonce))) {
+		// The nonce is a bearer secret, so it dies the moment the flow starts.
+		const ownerId = await consumeLinkIntent(db, linkNonce);
+		if (!ownerId) {
 			return redirect
 				? c.redirect(linkResultUrl(redirect, "error", "expired"))
 				: c.json({ error: "Invalid or expired link intent", success: false }, 400);
 		}
+		const browserSecret = crypto.randomUUID();
+		await startLinkFlow(db, ownerId, state, browserSecret);
+		setCookie(c, LINK_BIND_COOKIE, browserSecret, {
+			path: "/api/auth/google",
+			httpOnly: true,
+			secure: true,
+			sameSite: "Lax",
+			maxAge: OAUTH_COOKIE_MAX_AGE,
+		});
 	}
 	const payload: OAuthCookie = {
 		state,
@@ -445,7 +461,7 @@ authRoutes.get("/google", async (c) => {
 		plan: c.req.query("plan") || undefined,
 		rkVid: parseVisitorId(c.req.query("rk_vid")) ?? undefined,
 		redirect,
-		linkNonce,
+		link: linkNonce ? true : undefined,
 	};
 	setCookie(c, OAUTH_COOKIE, btoa(JSON.stringify(payload)), {
 		path: "/api/auth/google",
@@ -474,25 +490,42 @@ function linkResultUrl(base: string, result: "ok" | "error", reason?: string): s
 	return url.toString();
 }
 
-type GoogleLinkResult = "ok" | "expired" | "no_account" | LinkFailure;
+/**
+ * Whether a user row may be claimed by this Google identity. A stored
+ * google_id must equal the sub; anything else is an address match, which only
+ * counts when Google vouches for the address.
+ */
+function googleMatchAllowed(
+	target: { google_id: string | null },
+	googleSub: string | null,
+	emailVerified: boolean | undefined,
+): boolean {
+	if (target.google_id && target.google_id !== googleSub) return false;
+	if (target.google_id && target.google_id === googleSub) return true;
+	return emailVerified === true;
+}
+
+type GoogleLinkResult = { code: string } | { error: string };
 
 /**
- * Link mode: the intent's owner links to the EXISTING user behind this Google
- * identity. Nothing is created or modified on that user — sign-in side effects
- * (takeover, role, trial) belong to the sign-in path only.
+ * Link mode: resolve the EXISTING user behind this Google identity and park it
+ * behind a one-time code. No link is created here; the flow owner's own session
+ * completes it, so whoever finishes Google consent cannot attach themselves to
+ * someone else's session. Nothing on the target user is created or modified.
  */
-async function linkGoogleAccount(
+async function prepareGoogleLink(
 	db: Kysely<KlikapaDatabase>,
-	nonce: string,
+	state: string,
+	browserSecret: string | undefined,
 	googleEmail: string,
 	googleSub: string | null,
 	emailVerified: boolean | undefined,
 ): Promise<GoogleLinkResult> {
-	const currentUserId = await consumeLinkIntent(db, nonce);
-	if (!currentUserId) return "expired";
+	const ownerId = await getLinkFlowOwner(db, state, browserSecret);
+	if (!ownerId) return { error: "expired" };
 	const target = await db
 		.selectFrom("users")
-		.select(["id", "google_id"])
+		.select(["id", "google_id", "email_verified_at"])
 		.where((eb) =>
 			eb.or([
 				googleSub ? eb("google_id", "=", googleSub) : eb("id", "=", "__never__"),
@@ -500,11 +533,18 @@ async function linkGoogleAccount(
 			]),
 		)
 		.executeTakeFirst();
-	if (!target) return "no_account";
-	// Matching by address alone needs Google to vouch for it.
-	if (!target.google_id && emailVerified === false) return "no_account";
-	const result = await createLink(db, currentUserId, target.id);
-	return result.ok ? "ok" : result.reason;
+	if (!target) return { error: "no_account" };
+	if (!googleMatchAllowed(target, googleSub, emailVerified)) return { error: "no_account" };
+	if (!target.email_verified_at) return { error: "unverified" };
+	if (target.id === ownerId) return { error: "self" };
+	return { code: await setLinkFlowTarget(db, state, target.id) };
+}
+
+/** Success: the one-time code rides in the fragment, which never reaches a server or log. */
+function linkCodeUrl(base: string, code: string): string {
+	const url = new URL(base);
+	url.hash = `link_code=${encodeURIComponent(code)}`;
+	return url.toString();
 }
 
 function readOAuthCookie(raw: string | undefined): OAuthCookie | null {
@@ -526,14 +566,16 @@ authRoutes.get("/google/callback", async (c) => {
 	const state = c.req.query("state");
 	if (!code || !state) return c.json({ error: "Missing code or state", success: false }, 400);
 	const oauth = readOAuthCookie(getCookie(c, OAUTH_COOKIE));
+	const linkBind = getCookie(c, LINK_BIND_COOKIE);
 	deleteCookie(c, OAUTH_COOKIE, { path: "/api/auth/google" });
+	deleteCookie(c, LINK_BIND_COOKIE, { path: "/api/auth/google" });
 	if (!oauth || oauth.state !== state) {
 		return c.json({ error: "Invalid OAuth state", success: false }, 400);
 	}
 
 	const origin = new URL(c.req.url).origin;
 	const redirectUri = `${origin}/api/auth/google/callback`;
-	const linkBase = oauth.linkNonce ? (oauth.redirect ?? `${origin}/settings`) : null;
+	const linkBase = oauth.link ? (oauth.redirect ?? `${origin}/settings`) : null;
 	// Link mode reports failures to the app; sign-in mode keeps the JSON errors.
 	const fail = (message: string, status: 400 | 500, reason = "failed") =>
 		linkBase
@@ -578,16 +620,19 @@ authRoutes.get("/google/callback", async (c) => {
 	if (!googleEmail) return fail("No email from Google", 400);
 
 	const googleSub = profile.sub ?? null;
-	if (linkBase && oauth.linkNonce) {
-		const result = await linkGoogleAccount(
+	if (linkBase) {
+		const result = await prepareGoogleLink(
 			db,
-			oauth.linkNonce,
+			state,
+			linkBind,
 			googleEmail,
 			googleSub,
 			profile.email_verified,
 		);
 		return c.redirect(
-			result === "ok" ? linkResultUrl(linkBase, "ok") : linkResultUrl(linkBase, "error", result),
+			"code" in result
+				? linkCodeUrl(linkBase, result.code)
+				: linkResultUrl(linkBase, "error", result.error),
 		);
 	}
 	const superAdminEmail = normalizeEmail(c.env.SUPER_ADMIN_EMAIL);
@@ -607,8 +652,11 @@ authRoutes.get("/google/callback", async (c) => {
 	let userId: string;
 	if (existingUser) {
 		userId = existingUser.id;
-		if (!existingUser.google_id && profile.email_verified === false) {
-			return c.json({ error: "Google has not verified this email address", success: false }, 403);
+		if (!googleMatchAllowed(existingUser, googleSub, profile.email_verified)) {
+			return c.json(
+				{ error: "This Google account cannot sign in to that RevKlik account", success: false },
+				403,
+			);
 		}
 		if (!existingUser.google_id && googleSub) {
 			// Google proves ownership of the address. An unverified password account
@@ -628,6 +676,7 @@ authRoutes.get("/google/callback", async (c) => {
 			if (takeover) {
 				await db.deleteFrom("api_keys").where("user_id", "=", userId).execute();
 				await db.deleteFrom("push_devices").where("user_id", "=", userId).execute();
+				await removeAccountLinks(db, userId);
 				console.warn(
 					`[auth] google sign-in took over unverified account ${userId}: password and tokens cleared`,
 				);

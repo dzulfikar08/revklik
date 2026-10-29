@@ -6,9 +6,9 @@ import { continueAsRemembered, fetchRememberedAccounts } from "@/lib/legacy/acco
 import type { LegacyUser } from "@/lib/legacy/api";
 
 /**
- * Sign-in shortcut for accounts this browser still holds a live session for
- * (for example after signing out of one of several linked accounts).
- * Renders nothing when there are none.
+ * Sign-in shortcut for accounts the user chose to keep signed in on this
+ * device ("Keep my other accounts signed in" at sign-out). Sign-out revokes
+ * everything else, so this is empty on a default sign-out and renders nothing.
  */
 export const RememberedAccounts = ({ onContinue }: { onContinue: () => void }) => {
 	const t = useT();

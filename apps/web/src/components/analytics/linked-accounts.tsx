@@ -15,16 +15,18 @@ import { GoogleIcon } from "@/components/google-icon";
 import { useT } from "@/lib/i18n";
 import type { MessageKey } from "@/lib/i18n";
 import {
+	completeGoogleLink,
 	enterDashboard,
 	fetchLinks,
 	LINKS_QUERY_KEY,
 	linkWithPassword,
 	MAX_LINKS,
+	previewGoogleLink,
 	startGoogleLink,
 	switchAccount,
 	unlinkAccount,
 } from "@/lib/legacy/accounts";
-import type { AccountLink } from "@/lib/legacy/accounts";
+import type { AccountLink, LinkedUser } from "@/lib/legacy/accounts";
 import { LegacyApiError } from "@/lib/legacy/api";
 import { useModalDialog } from "@/lib/use-modal-dialog";
 
@@ -33,6 +35,9 @@ import { Panel } from "./ui";
 
 const LINK_ERROR_KEYS: Record<string, MessageKey> = {
 	already_linked: "accounts.err.already",
+	current_password_invalid: "accounts.err.currentInvalid",
+	recent_login_required: "accounts.err.recent",
+	unverified: "accounts.err.unverified",
 	expired: "accounts.err.expired",
 	invalid_credentials: "accounts.err.invalid",
 	limit_reached: "accounts.err.limit",
@@ -47,13 +52,19 @@ const linkErrorKey = (code: string | undefined): MessageKey =>
 const codeOf = (err: unknown): string | undefined =>
 	err instanceof LegacyApiError ? err.code : undefined;
 
-const ConfirmUnlink = ({
-	link,
+const ConfirmDialog = ({
+	title,
+	body,
+	confirmLabel,
+	destructive,
 	pending,
 	onConfirm,
 	onClose,
 }: {
-	link: AccountLink;
+	title: string;
+	body: string;
+	confirmLabel: string;
+	destructive: boolean;
 	pending: boolean;
 	onConfirm: () => void;
 	onClose: () => void;
@@ -82,10 +93,10 @@ const ConfirmUnlink = ({
 				className="bg-card ring-foreground/10 animate-in fade-in zoom-in-95 relative w-full max-w-sm rounded-2xl p-4 ring-1 duration-150 outline-none"
 			>
 				<h2 id={titleId} className="text-sm font-semibold">
-					{t("accounts.unlinkTitle", { name: link.user.name })}
+					{title}
 				</h2>
 				<p id={bodyId} className="text-muted-foreground mt-1.5 text-xs">
-					{t("accounts.unlinkBody", { email: link.user.email })}
+					{body}
 				</p>
 				<div className="mt-4 flex justify-end gap-2">
 					<Button
@@ -97,19 +108,21 @@ const ConfirmUnlink = ({
 						{t("accounts.cancel")}
 					</Button>
 					<Button
-						variant="destructive"
+						variant={destructive ? "destructive" : "default"}
 						className="pointer-coarse:h-11 h-8"
 						disabled={pending}
 						onClick={onConfirm}
 					>
 						{pending ? <LoaderCircle className="animate-spin" aria-hidden /> : null}
-						{t("accounts.unlink")}
+						{confirmLabel}
 					</Button>
 				</div>
 			</div>
 		</div>
 	);
 };
+
+const LINK_CODE_KEY = "kp_link_code";
 
 export const LinkedAccountsSection = () => {
 	const t = useT();
@@ -121,14 +134,19 @@ export const LinkedAccountsSection = () => {
 	const [confirming, setConfirming] = useState<AccountLink | null>(null);
 	const [switchingId, setSwitchingId] = useState<string | null>(null);
 	const [googlePending, setGooglePending] = useState(false);
+	const [currentPassword, setCurrentPassword] = useState("");
+	// Google handed back a code: show which account it is before anything is linked.
+	const [pendingGoogle, setPendingGoogle] = useState<{ code: string; user: LinkedUser } | null>(
+		null,
+	);
 
 	const linksQ = useQuery({ queryFn: fetchLinks, queryKey: LINKS_QUERY_KEY, staleTime: 15_000 });
 
-	// Google link mode returns here with ?link=ok|error&reason=…
+	// A failed Google link returns here with ?link=error&reason=…; success carries a #link_code instead.
 	useEffect(() => {
 		const params = new URLSearchParams(window.location.search);
 		const result = params.get("link");
-		if (result !== "ok" && result !== "error") {
+		if (result !== "error") {
 			return;
 		}
 		const reason = params.get("reason") ?? undefined;
@@ -136,21 +154,38 @@ export const LinkedAccountsSection = () => {
 		params.delete("reason");
 		const query = params.toString();
 		window.history.replaceState(null, "", `${window.location.pathname}${query ? `?${query}` : ""}`);
-		if (result === "ok") {
-			toast.success(t("accounts.googleLinked"));
-			void queryClient.invalidateQueries({ queryKey: LINKS_QUERY_KEY });
-		} else {
-			toast.error(t(linkErrorKey(reason), { n: MAX_LINKS }));
+		toast.error(t(linkErrorKey(reason), { n: MAX_LINKS }));
+	}, [t]);
+
+	useEffect(() => {
+		const code = sessionStorage.getItem(LINK_CODE_KEY);
+		if (!code) {
+			return;
 		}
-	}, [queryClient, t]);
+		sessionStorage.removeItem(LINK_CODE_KEY);
+		previewGoogleLink(code)
+			.then((user) => setPendingGoogle({ code, user }))
+			.catch(() => toast.error(t("accounts.err.expired")));
+	}, [t]);
+
+	const completeGoogleMut = useMutation({
+		mutationFn: (code: string) => completeGoogleLink(code),
+		onError: (err) => toast.error(t(linkErrorKey(codeOf(err)), { n: MAX_LINKS })),
+		onSettled: () => setPendingGoogle(null),
+		onSuccess: () => {
+			void queryClient.invalidateQueries({ queryKey: LINKS_QUERY_KEY });
+			toast.success(t("accounts.googleLinked"));
+		},
+	});
 
 	const linkMut = useMutation({
-		mutationFn: () => linkWithPassword(email.trim(), password),
+		mutationFn: () => linkWithPassword(email.trim(), password, currentPassword),
 		onError: (err) => setFormError(t(linkErrorKey(codeOf(err)), { n: MAX_LINKS })),
 		onSuccess: (link) => {
 			setFormError(null);
 			setEmail("");
 			setPassword("");
+			setCurrentPassword("");
 			void queryClient.invalidateQueries({ queryKey: LINKS_QUERY_KEY });
 			toast.success(t("accounts.linked", { name: link.user.name }));
 		},
@@ -181,10 +216,13 @@ export const LinkedAccountsSection = () => {
 	const linkWithGoogle = async (): Promise<void> => {
 		setGooglePending(true);
 		try {
-			await startGoogleLink(`${window.location.origin}${window.location.pathname}?view=settings`);
-		} catch {
+			await startGoogleLink(
+				`${window.location.origin}${window.location.pathname}?view=settings`,
+				currentPassword,
+			);
+		} catch (err) {
 			setGooglePending(false);
-			toast.error(t("accounts.err.generic"));
+			toast.error(t(linkErrorKey(codeOf(err)), { n: MAX_LINKS }));
 		}
 	};
 
@@ -293,6 +331,23 @@ export const LinkedAccountsSection = () => {
 							className="pointer-coarse:h-11 h-9"
 						/>
 					</div>
+					<div className="grid gap-1.5">
+						<Label htmlFor={`${formId}-current`} className="text-xs">
+							{t("accounts.currentPassword")}
+						</Label>
+						<Input
+							id={`${formId}-current`}
+							type="password"
+							autoComplete="current-password"
+							value={currentPassword}
+							onChange={(e) => setCurrentPassword(e.target.value)}
+							aria-describedby={`${formId}-current-hint`}
+							className="pointer-coarse:h-11 h-9"
+						/>
+						<p id={`${formId}-current-hint`} className="text-muted-foreground text-[11px]">
+							{t("accounts.currentPasswordHint")}
+						</p>
+					</div>
 					{formError ? (
 						<p className="text-destructive text-xs" role="alert">
 							{formError}
@@ -318,11 +373,25 @@ export const LinkedAccountsSection = () => {
 			</div>
 
 			{confirming ? (
-				<ConfirmUnlink
-					link={confirming}
+				<ConfirmDialog
+					title={t("accounts.unlinkTitle", { name: confirming.user.name })}
+					body={t("accounts.unlinkBody", { email: confirming.user.email })}
+					confirmLabel={t("accounts.unlink")}
+					destructive
 					pending={unlinkMut.isPending}
 					onConfirm={() => unlinkMut.mutate(confirming)}
 					onClose={() => setConfirming(null)}
+				/>
+			) : null}
+			{pendingGoogle ? (
+				<ConfirmDialog
+					title={t("accounts.confirmLinkTitle", { name: pendingGoogle.user.name })}
+					body={t("accounts.confirmLinkBody", { email: pendingGoogle.user.email })}
+					confirmLabel={t("accounts.confirmLink")}
+					destructive={false}
+					pending={completeGoogleMut.isPending}
+					onConfirm={() => completeGoogleMut.mutate(pendingGoogle.code)}
+					onClose={() => setPendingGoogle(null)}
 				/>
 			) : null}
 		</Panel>

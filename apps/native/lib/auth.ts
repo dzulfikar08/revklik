@@ -100,10 +100,10 @@ export const authContinueAs = async (remembered: LegacyUser): Promise<void> => {
 	}
 };
 
-export const authSignOut = async (): Promise<void> => {
+export const authSignOut = async ({ keepOthers = false } = {}): Promise<void> => {
 	// Needs the live session, so it must run before the token is dropped.
 	await unregisterFromPush();
-	await legacySignOut();
+	await legacySignOut({ keepOthers });
 	setState({ status: "signed-out", user: null });
 };
 

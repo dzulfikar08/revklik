@@ -11,7 +11,7 @@
  * the root route captures). It is cached in memory and localStorage.
  */
 
-import { forgetToken, rememberToken } from "./account-tokens";
+import { clearTokenMap, forgetToken, listRememberedTokens, rememberToken } from "./account-tokens";
 
 const HOSTED_API_BASE = "https://app.revklik.com/api";
 
@@ -527,21 +527,38 @@ export const fetchMe = async (): Promise<LegacyUser | null> => {
 	return data?.user ?? null;
 };
 
+const revokeSession = async (token: string): Promise<void> => {
+	try {
+		await fetch(`${API_BASE}/auth/logout`, {
+			method: "POST",
+			headers: { Authorization: `Bearer ${token}` },
+		});
+	} catch {
+		// Server unreachable; the local copy is discarded regardless.
+	}
+};
+
 /**
  * Sign out: delete the presented session server-side, then drop all local
- * state. Best-effort — local sign-out wins even if the network fails.
+ * state. By default every other account's session kept in kp_tokens is
+ * revoked and forgotten too, so a shared device keeps nothing behind;
+ * `keepOthers` leaves those accounts signed in for "Continue as".
+ * Best-effort: local sign-out wins even if the network fails.
  */
-export const legacySignOut = async (): Promise<void> => {
-	const token = cachedToken ?? localStorage.getItem(TOKEN_KEY);
-	if (token) {
-		try {
-			await fetch(`${API_BASE}/auth/logout`, {
-				method: "POST",
-				headers: { Authorization: `Bearer ${token}` },
-			});
-		} catch {
-			// Server unreachable; the local session is discarded regardless.
+export const legacySignOut = async ({ keepOthers = false } = {}): Promise<void> => {
+	const tokens = new Set<string>();
+	const current = cachedToken ?? localStorage.getItem(TOKEN_KEY);
+	if (current) {
+		tokens.add(current);
+	}
+	if (!keepOthers) {
+		for (const token of listRememberedTokens(localStorage)) {
+			tokens.add(token);
 		}
+	}
+	await Promise.all([...tokens].map(revokeSession));
+	if (!keepOthers) {
+		clearTokenMap(localStorage);
 	}
 	legacyLogout();
 };
