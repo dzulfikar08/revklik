@@ -38,6 +38,7 @@ const OAUTH_COOKIE = "rk_oauth";
 const OAUTH_COOKIE_MAX_AGE = 600;
 /** Binds a Google link flow to the browser that started it. */
 const LINK_BIND_COOKIE = "rk_link_bind";
+const LINK_NATIVE_CALLBACK = "revklik://auth/callback";
 // Native app callbacks allowed as OAuth redirect_to targets (besides same-origin URLs).
 const NATIVE_REDIRECT_SCHEMES = ["revklik-new:", "revklik:"];
 
@@ -436,6 +437,13 @@ authRoutes.get("/google", async (c) => {
 	const redirect = safeRedirect(c.req.query("redirect_to"), origin);
 	const linkNonce = c.req.query("link") || undefined;
 	if (linkNonce) {
+		// Link mode returns a one-time code in the URL: only the web origin or
+		// the exact native callback may receive it.
+		const raw = c.req.query("redirect_to");
+		const native = redirect ? NATIVE_REDIRECT_SCHEMES.includes(new URL(redirect).protocol) : false;
+		if (raw && (!redirect || (native && redirect !== LINK_NATIVE_CALLBACK))) {
+			return c.json({ error: "redirect_to not allowed", success: false }, 400);
+		}
 		const db = c.get("db");
 		if (!db) return c.json({ error: "DB unavailable", success: false }, 503);
 		// The nonce is a bearer secret, so it dies the moment the flow starts.

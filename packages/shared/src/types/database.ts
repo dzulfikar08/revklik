@@ -131,6 +131,8 @@ export interface ApiKeyTable {
 	last_used_at: string | null;
 	expires_at: string | null;
 	created_at: string;
+	/** When a credential was last proven for this session; NULL for switch-minted sessions. */
+	authenticated_at?: string | null;
 }
 
 export interface VisitorProfileTable {

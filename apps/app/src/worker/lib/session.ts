@@ -13,6 +13,8 @@ export async function issueSessionToken(
 	db: Kysely<KlikapaDatabase>,
 	userId: string,
 	name = "session",
+	/** Credential-proven sessions carry the time; switch-minted ones pass null. */
+	authenticatedAt: string | null = new Date().toISOString(),
 ): Promise<string> {
 	const { key } = generateApiKey("session");
 	const now = new Date().toISOString();
@@ -30,6 +32,7 @@ export async function issueSessionToken(
 			last_used_at: null,
 			expires_at: sessionExpiry(),
 			created_at: now,
+			authenticated_at: authenticatedAt,
 		})
 		.execute();
 	return key;
@@ -56,6 +59,8 @@ export interface ResolvedSession {
 	userId: string;
 	/** When this session token was minted (ISO). */
 	createdAt: string;
+	/** Last credential proof for this session (null when minted by /auth/switch). */
+	authenticatedAt: string | null;
 }
 
 /**
@@ -71,13 +76,17 @@ export async function resolveSession(
 	const keyHash = await hashToken(authHeader.slice(7));
 	const apiKey = await db
 		.selectFrom("api_keys")
-		.select(["user_id", "token_type", "expires_at", "created_at"])
+		.select(["user_id", "token_type", "expires_at", "created_at", "authenticated_at"])
 		.where("key_hash", "=", keyHash)
 		.executeTakeFirst();
 	if (!apiKey || apiKey.token_type !== "session") return null;
 	if (apiKey.expires_at && new Date(apiKey.expires_at) <= new Date()) return null;
 	await refreshSessionExpiry(db, keyHash, apiKey.expires_at);
-	return { userId: apiKey.user_id, createdAt: apiKey.created_at };
+	return {
+		userId: apiKey.user_id,
+		createdAt: apiKey.created_at,
+		authenticatedAt: apiKey.authenticated_at ?? null,
+	};
 }
 
 export async function resolveSessionUserId(

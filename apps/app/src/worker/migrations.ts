@@ -6,7 +6,7 @@ import { computedSourceSql } from "./lib/source-sql";
  * Version the live schema must reach. Bump it whenever a step is appended to
  * VERSIONED_STEPS; a DB already at this version costs one SELECT per isolate.
  */
-export const SCHEMA_VERSION = 22;
+export const SCHEMA_VERSION = 23;
 
 const migrated = new WeakSet<D1Database>();
 
@@ -115,6 +115,11 @@ const VERSIONED_STEPS: MigrationStep[] = [
 	},
 	{ version: 21, run: accountLinksSchema },
 	{ version: 22, run: accountLinkFlowsSchema },
+	{
+		version: 23,
+		// Set only by password login, register and Google sign-in; switch-minted sessions stay NULL.
+		run: (d1) => runDdl(d1, "ALTER TABLE api_keys ADD COLUMN authenticated_at TEXT"),
+	},
 ];
 
 /** Server-side linked accounts (switcher) and the one-time intents behind Google linking. */

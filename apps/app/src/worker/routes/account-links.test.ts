@@ -458,13 +458,17 @@ describe("linked accounts: account takeover hardening", () => {
 	it("Google-only accounts need a session minted in the last 10 minutes", async () => {
 		const { t, tokens } = await setup();
 		t.db.prepare("UPDATE users SET password_hash = '' WHERE id = 'alice'").run();
+		// a session minted by a credential proof just now
+		t.db
+			.prepare("UPDATE api_keys SET authenticated_at = ? WHERE user_id = 'alice'")
+			.run(new Date().toISOString());
 		const fresh = await t.call("POST", "/api/auth/links/google-intent", {
 			token: tokens.alice!,
 			body: {},
 		});
 		expect(fresh.status).toBe(200);
 		t.db
-			.prepare("UPDATE api_keys SET created_at = ? WHERE user_id = 'alice'")
+			.prepare("UPDATE api_keys SET authenticated_at = ? WHERE user_id = 'alice'")
 			.run(new Date(Date.now() - 11 * 60_000).toISOString());
 		const stale = await t.call("POST", "/api/auth/links/google-intent", {
 			token: tokens.alice!,
@@ -519,5 +523,100 @@ describe("linked accounts: account takeover hardening", () => {
 			body: { email: "bob@example.com", password: PASSWORD },
 		});
 		expect(login.status).toBe(429);
+	});
+
+	it("a chained switch session (A to B to C to B) is revoked when A and B unlink", async () => {
+		const { t, tokens } = await setup();
+		await link(t, tokens.alice!, "bob@example.com");
+		await link(t, tokens.bob!, "carol@example.com");
+		const hop = async (token: string, to: string) =>
+			(
+				(await (
+					await t.call("POST", "/api/auth/switch", { token, body: { user_id: to } })
+				).json()) as Json
+			).data?.token as string;
+		const s1 = await hop(tokens.alice!, "bob");
+		const s2 = await hop(s1, "carol");
+		const s3 = await hop(s2, "bob");
+		const id = (await list(t, tokens.alice!))[0]!.id;
+		expect((await t.call("DELETE", `/api/auth/links/${id}`, { token: tokens.alice! })).status).toBe(
+			200,
+		);
+		expect((await t.call("GET", "/api/auth/links", { token: s1 })).status).toBe(401);
+		expect((await t.call("GET", "/api/auth/links", { token: s3 })).status).toBe(401);
+		// bob's own login session is untouched
+		expect((await t.call("GET", "/api/auth/links", { token: tokens.bob! })).status).toBe(200);
+	});
+
+	it("a switch-minted session cannot satisfy the recent-login step-up (G to L to G)", async () => {
+		const { t, tokens } = await setup();
+		// G (alice) is Google-only with a fresh credential-proven session; L (bob) has a password
+		t.db.prepare("UPDATE users SET password_hash = '' WHERE id = 'alice'").run();
+		t.db
+			.prepare("UPDATE api_keys SET authenticated_at = ? WHERE user_id = 'alice'")
+			.run(new Date().toISOString());
+		t.db
+			.prepare(
+				"INSERT INTO account_links (id, user_a, user_b, created_at, created_by) VALUES ('l1','alice','bob',?,'alice')",
+			)
+			.run(new Date().toISOString());
+		const hop = async (token: string, to: string) =>
+			(
+				(await (
+					await t.call("POST", "/api/auth/switch", { token, body: { user_id: to } })
+				).json()) as Json
+			).data?.token as string;
+		const viaL = await hop(tokens.alice!, "bob");
+		const backToG = await hop(viaL, "alice");
+		for (const [path, body] of [
+			["/api/auth/links/google-intent", {}],
+			["/api/auth/links", { email: "carol@example.com", password: PASSWORD }],
+		] as const) {
+			const res = await t.call("POST", path, { token: backToG, body });
+			expect(res.status).toBe(403);
+			expect(((await res.json()) as Json).error).toBe("recent_login_required");
+		}
+		// the original credential-proven session still passes
+		expect(
+			(await t.call("POST", "/api/auth/links/google-intent", { token: tokens.alice!, body: {} }))
+				.status,
+		).toBe(200);
+	});
+
+	it("limits link-mode redirect_to to the web origin or the exact native callback", async () => {
+		const { t, tokens } = await setup();
+		const intent = async () =>
+			(
+				(await (
+					await t.call("POST", "/api/auth/links/google-intent", {
+						token: tokens.alice!,
+						body: { current_password: PASSWORD },
+					})
+				).json()) as Json
+			).data?.intent as string;
+		for (const bad of [
+			"revklik://evil/path",
+			"revklik-new://auth/callback",
+			"https://evil.example/x",
+		]) {
+			const res = await t.call(
+				"GET",
+				`/api/auth/google?link=${await intent()}&redirect_to=${encodeURIComponent(bad)}`,
+			);
+			expect(res.status).toBe(400);
+		}
+		const ok = await t.call(
+			"GET",
+			`/api/auth/google?link=${await intent()}&redirect_to=${encodeURIComponent("revklik://auth/callback")}`,
+		);
+		expect(ok.status).toBe(302);
+	});
+
+	it("requires both sides to be verified", async () => {
+		const { t, tokens } = await setup();
+		t.db.prepare("UPDATE users SET email_verified_at = NULL WHERE id = 'alice'").run();
+		const res = await link(t, tokens.alice!, "bob@example.com");
+		expect(res.status).toBe(403);
+		expect(((await res.json()) as Json).error).toBe("unverified");
 	});
 });

@@ -82,14 +82,18 @@ export async function createLink(
 	targetUserId: string,
 ): Promise<{ ok: true; id: string } | { ok: false; reason: LinkFailure }> {
 	if (currentUserId === targetUserId) return { ok: false, reason: "self" };
-	const target = await db
+	const sides = await db
 		.selectFrom("users")
-		.select("email_verified_at")
-		.where("id", "=", targetUserId)
-		.executeTakeFirst();
-	if (!target) return { ok: false, reason: "not_found" };
+		.select(["id", "email_verified_at"])
+		.where("id", "in", [currentUserId, targetUserId])
+		.execute();
+	const target = sides.find((u) => u.id === targetUserId);
+	const current = sides.find((u) => u.id === currentUserId);
+	if (!target || !current) return { ok: false, reason: "not_found" };
 	// An unverified address may belong to someone else (pre-registered account).
-	if (!target.email_verified_at) return { ok: false, reason: "unverified" };
+	if (!target.email_verified_at || !current.email_verified_at) {
+		return { ok: false, reason: "unverified" };
+	}
 	if (await areLinked(db, currentUserId, targetUserId)) {
 		return { ok: false, reason: "already_linked" };
 	}
@@ -231,25 +235,37 @@ export async function deletePendingLink(db: Db, stateHash: string): Promise<void
 /** Session name that tags tokens minted by /auth/switch, so unlinking can revoke them. */
 export const switchSessionName = (sourceUserId: string): string => `switch:${sourceUserId}`;
 
-/** Unlinking (or recovery of an account) kills the sessions each side minted into the other. */
+/**
+ * Unlinking revokes EVERY switch-minted session of both participants. A chain
+ * (A to B to C to B) re-tags sessions with the middle account, so matching on
+ * the source id would miss them; the sessions are cheap to remint.
+ */
 export async function revokeSwitchSessions(db: Db, x: string, y: string): Promise<void> {
 	await db
 		.deleteFrom("api_keys")
-		.where((eb) =>
-			eb.or([
-				eb.and([eb("user_id", "=", x), eb("name", "=", switchSessionName(y))]),
-				eb.and([eb("user_id", "=", y), eb("name", "=", switchSessionName(x))]),
-			]),
-		)
+		.where("user_id", "in", [x, y])
+		.where("token_type", "=", "session")
+		.where("name", "like", "switch:%")
 		.execute();
 }
 
 /**
  * Account recovery (password reset, Google takeover of an unverified account):
  * drop every link, pending Google flow and switch session that involves the
- * user, so a recovered account cannot be reached through an old link.
+ * user or its former link partners, so a recovered account cannot be reached
+ * through an old link or a chained switch session.
  */
 export async function removeAccountLinks(db: Db, userId: string): Promise<void> {
+	const links = await db
+		.selectFrom("account_links")
+		.select(["user_a", "user_b"])
+		.where((eb) => eb.or([eb("user_a", "=", userId), eb("user_b", "=", userId)]))
+		.execute();
+	const affected = new Set<string>([userId]);
+	for (const l of links) {
+		affected.add(l.user_a);
+		affected.add(l.user_b);
+	}
 	await db
 		.deleteFrom("account_links")
 		.where((eb) => eb.or([eb("user_a", "=", userId), eb("user_b", "=", userId)]))
@@ -259,6 +275,10 @@ export async function removeAccountLinks(db: Db, userId: string): Promise<void> 
 		.deleteFrom("account_link_flows")
 		.where((eb) => eb.or([eb("owner_id", "=", userId), eb("target_id", "=", userId)]))
 		.execute();
-	// Sessions this user minted into other accounts.
-	await db.deleteFrom("api_keys").where("name", "=", switchSessionName(userId)).execute();
+	await db
+		.deleteFrom("api_keys")
+		.where("user_id", "in", [...affected])
+		.where("token_type", "=", "session")
+		.where("name", "like", "switch:%")
+		.execute();
 }

@@ -63,7 +63,10 @@ async function requireStepUp(
 		.executeTakeFirst();
 	if (!me) return { ok: false, status: 403, error: "current_password_invalid" };
 	if (!me.password_hash) {
-		const age = Date.now() - new Date(session.createdAt).getTime();
+		// Only a credential proof counts; a session minted by /auth/switch has none.
+		const age = session.authenticatedAt
+			? Date.now() - new Date(session.authenticatedAt).getTime()
+			: Number.POSITIVE_INFINITY;
 		return age <= STEP_UP_SESSION_MS
 			? { ok: true }
 			: { ok: false, status: 403, error: "recent_login_required" };
@@ -287,7 +290,7 @@ accountLinkRoutes.post("/switch", async (c) => {
 		.where("id", "=", targetId)
 		.executeTakeFirst();
 	if (!user) return c.json({ error: "Account not linked", success: false }, 403);
-	const token = await issueSessionToken(db, user.id, switchSessionName(userId));
+	const token = await issueSessionToken(db, user.id, switchSessionName(userId), null);
 	return c.json({
 		data: {
 			user: { id: user.id, name: user.name, email: user.email, role: user.role },
