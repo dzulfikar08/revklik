@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Migrating from Plausible to RevKlik: 3 Steps | RevKlik Blog</title>
+<meta name="description" content="A complete guide to migrating from Plausible to RevKlik. Just 3 steps: export your data, swap the script, connect the webhook. No downtime, no data loss.">
+<meta name="robots" content="index, follow">
+<meta property="og:title" content="Migrating from Plausible to RevKlik: 3 Steps">
+<meta property="og:description" content="A complete guide to migrating from Plausible to RevKlik. Just 3 steps, no downtime, no data loss.">
+<meta property="og:type" content="article">
+<link rel="canonical" href="https://revklik.com/en/blog/migration-plausible.html">
+<link rel="alternate" hreflang="id" href="https://revklik.com/blog/migration-plausible.html">
+<link rel="alternate" hreflang="en" href="https://revklik.com/en/blog/migration-plausible.html">
+<link rel="alternate" hreflang="x-default" href="https://revklik.com/blog/migration-plausible.html">
+<link rel="icon" type="image/svg+xml" href="/favicon.svg">
+<link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.webp">
+<script type="application/ld+json">
+{
+  "@context":"https://schema.org",
+  "@type":"BlogPosting",
+  "headline":"Migrating from Plausible to RevKlik: 3 Steps",
+  "datePublished":"2026-05-14",
+  "dateModified":"2026-05-14",
+  "author":{"@type":"Organization","name":"RevKlik"},
+  "publisher":{"@type":"Organization","name":"RevKlik"},
+  "description":"A complete guide to migrating from Plausible to RevKlik. Just 3 steps: export your data, swap the script, connect the webhook. No downtime, no data loss.",
+  "mainEntityOfPage":"https://revklik.com/blog/migration-plausible.html"
+}
+</script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/css/pages.css">
+<script defer data-site-id="d9701d64-9e78-4b73-9726-e4f41593b843" src="https://app.revklik.com/klikapa.js"></script>
+<meta property="og:locale" content="en_US">
+</head>
+<body>
+
+<nav>
+  <div class="container">
+    <a href="/en/" class="logo"><svg class="brand-mark" viewBox="0 0 283.57 214.25" width="28" height="21.2" aria-hidden="true" focusable="false"><path fill="#F3B243" d="M0 174.21Q0 170.21 3.75 168.83L29.69 159.25Q32.5 158.21 32.5 161.21L32.5 207.21Q32.5 210.21 29.5 210.21L3 210.21Q0 210.21 0 207.21ZM45 146.71Q45 142.71 48.71 141.23L74.71 130.83Q77.5 129.71 77.5 132.71L77.5 207.21Q77.5 210.21 74.5 210.21L48 210.21Q45 210.21 45 207.21Z"/><path fill="#F99D4E" d="M90 108.71Q90 104.21 94.03 102.22L135.36 81.77Q138.5 80.21 138.5 83.71L138.5 207.21Q138.5 210.21 135.5 210.21L93 210.21Q90 210.21 90 207.21ZM152.5 2.96Q152.5 -1.54 156.36 0.78L281.64 76.14Q285.5 78.46 281.63 80.77L238.5 106.46L280.98 179.26Q283 182.71 279.91 185.26L246.09 213.17Q243 215.71 241 212.25L195 132.71L159.49 161.54Q152.5 167.21 152.5 158.21Z"/></svg>Rev<em>Klik</em></a>
+    <div class="nav-links">
+      <button class="nav-close" onclick="document.querySelector('.nav-links').classList.remove('open')" aria-label="Close"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+      <a href="/en/">Home</a>
+      <a href="/en/#features">Features</a>
+      <a href="/en/blog.html">Blog</a>
+      <a href="/en/" class="nav-cta">Starting at Rp 16.000 &rarr;</a>
+      <div class="lang-switch" role="group" aria-label="Language"><a href="/blog/migration-plausible.html" class="lang-opt" lang="id" hreflang="id" aria-label="Bahasa Indonesia">ID</a><a href="/en/blog/migration-plausible.html" class="lang-opt" lang="en" hreflang="en" aria-label="English" aria-current="true">EN</a></div>
+    </div>
+  </div>
+</nav>
+
+<article>
+  <div class="article-header">
+    <div class="container">
+      <div class="article-tag">Migration &bull; Plausible</div>
+      <h1>Migrating from Plausible to RevKlik: 3 Steps</h1>
+      <div class="article-meta">
+        <span>May 14, 2026</span>
+        <span>6 min read</span>
+        <span>By the RevKlik Team</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="article-body">
+    <p>Plausible is a good analytics tool: light, cookie-free, and respectful of privacy. But as your business grows, you need more than pageviews and bounce rate. You need to know <strong>how much revenue each page generates</strong>, how users move through the funnel, and where they drop out.</p>
+
+    <p>RevKlik was built to answer those questions, and migrating takes just 3 simple steps.</p>
+
+    <h2>Why Move Away from Plausible?</h2>
+
+    <p>Plausible focuses on simplicity. That works well for a personal blog, but for a growing SaaS or digital product, several important things are missing:</p>
+
+    <ul>
+      <li><strong>Revenue attribution</strong>: Plausible cannot connect traffic to payments. You do not know whether visitors from Google Ads actually paid.</li>
+      <li><strong>User journey</strong>: there is no visualization of a visitor's path from the first page to conversion.</li>
+      <li><strong>Scroll-depth funnel</strong>: you cannot tell how far visitors read on your landing page.</li>
+    </ul>
+
+    <blockquote>Plausible answers "how many visitors?" RevKlik answers "how much revenue?" That difference changes business decisions.</blockquote>
+
+    <h2>3 Migration Steps</h2>
+
+    <div class="step">
+      <div class="step-number">Step 1</div>
+      <h3>Export Your Plausible Data (Optional)</h3>
+      <p>If you want to keep your historical data, open your Plausible dashboard &rarr; Settings &rarr; Export Data. Download the CSV file that contains all your visit statistics.</p>
+      <p>This step is optional because <strong>you will not lose any data during the migration</strong>. Plausible keeps running as long as you have not removed its script.</p>
+    </div>
+
+    <div class="step">
+      <div class="step-number">Step 2</div>
+      <h3>Swap the Plausible Script for RevKlik</h3>
+      <p>Open your site's HTML. Find the Plausible script tag, which looks like this:</p>
+
+      <div class="code-label">Before (Plausible)</div>
+      <pre><code>&lt;script defer data-domain="domainanda.com"
+  src="https://plausible.io/js/script.js"&gt;&lt;/script&gt;</code></pre>
+
+      <p>Replace it with the RevKlik script:</p>
+
+      <div class="code-label">After (RevKlik)</div>
+      <pre><code>&lt;script defer data-site-id="YOUR-SITE-ID"
+  src="https://app.revklik.com/klikapa.js"&gt;&lt;/script&gt;</code></pre>
+
+      <p>That is all. One line removed, one line added. Deploy the change and RevKlik starts collecting data within seconds.</p>
+    </div>
+
+    <div class="step">
+      <div class="step-number">Step 3</div>
+      <h3>Connect the Polar Webhook</h3>
+      <p>This is the step that sets RevKlik apart from Plausible. In the RevKlik dashboard, open the <strong>Integrations</strong> page and add a webhook endpoint for your payment processor.</p>
+      <p>Go to your Polar dashboard &rarr; Settings &rarr; Webhooks &rarr; Add endpoint.</p>
+      <p>Once connected, every payment is automatically attributed to the correct traffic source. <strong>Done.</strong></p>
+    </div>
+
+    <h2>Plausible vs RevKlik: Full Comparison</h2>
+
+    <table class="comparison-table">
+      <thead>
+        <tr>
+          <th>Feature</th>
+          <th>Plausible</th>
+          <th>RevKlik</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Starting price</td>
+          <td>$9/month (10K pageviews)</td>
+          <td class="highlight">Rp 16.000/month (50K events)</td>
+        </tr>
+        <tr>
+          <td>Revenue attribution</td>
+          <td>None</td>
+          <td class="highlight">Yes (webhook)</td>
+        </tr>
+        <tr>
+          <td>User journey</td>
+          <td>None</td>
+          <td class="highlight">Full visualization</td>
+        </tr>
+        <tr>
+          <td>Conversion funnel</td>
+          <td>Simple goals</td>
+          <td class="highlight">Multi-step + scroll-depth</td>
+        </tr>
+        <tr>
+          <td>Script size</td>
+          <td>&lt;1 KB</td>
+          <td>~4 KB (gzip)</td>
+        </tr>
+        <tr>
+          <td>Cookie-free</td>
+          <td>Yes</td>
+          <td>Yes</td>
+        </tr>
+        <tr>
+          <td>GDPR compliant</td>
+          <td>Yes</td>
+          <td>Yes</td>
+        </tr>
+        <tr>
+          <td>Infrastructure</td>
+          <td>Self-hosted or cloud</td>
+          <td class="highlight">Global edge (300+ locations)</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h2>Can You Run Both at the Same Time?</h2>
+
+    <p>Yes. If you want to compare data during the transition, just add the RevKlik script <strong>alongside</strong> the Plausible script. Both are light and will not slow your site down significantly.</p>
+
+    <div class="code-label">Both running together</div>
+    <pre><code>&lt;!-- Plausible (temporary) --&gt;
+&lt;script defer data-domain="domainanda.com"
+  src="https://plausible.io/js/script.js"&gt;&lt;/script&gt;
+
+&lt;!-- RevKlik --&gt;
+&lt;script defer data-site-id="YOUR-SITE-ID"
+  src="https://app.revklik.com/klikapa.js"&gt;&lt;/script&gt;</code></pre>
+
+    <p>Once you are confident the RevKlik data is accurate (usually 2-3 days), remove the Plausible script.</p>
+
+    <h2>FAQ</h2>
+
+    <div class="faq-item">
+      <div class="faq-question">Will I lose my historical data?</div>
+      <p class="faq-answer">No. Your old data in Plausible stays where it is. RevKlik starts collecting new data from the moment the script is installed. If you want to import your history, the CSV export from Plausible can be used as a reference.</p>
+    </div>
+
+    <div class="faq-item">
+      <div class="faq-question">Can I run Plausible and RevKlik at the same time?</div>
+      <p class="faq-answer">Yes. The two scripts run independently and do not interfere with each other. Both are light: Plausible under 1 KB, RevKlik about 4 KB (gzip). Run both during the transition, then remove Plausible once you are comfortable.</p>
+    </div>
+
+    <div class="faq-item">
+      <div class="faq-question">What about GDPR compliance?</div>
+      <p class="faq-answer">Both platforms are GDPR compliant. RevKlik is also compliant with Indonesia's PDP Law. No cookies are used, no personal data is collected, and all data is processed on the global edge network.</p>
+    </div>
+
+    <div class="faq-item">
+      <div class="faq-question">How long does the migration take?</div>
+      <p class="faq-answer">Less than 5 minutes. Swap the script (1 minute) + connect the webhook (2 minutes) + deploy (1 minute). Data starts flowing right after deploy.</p>
+    </div>
+
+    <div class="faq-item">
+      <div class="faq-question">Can RevKlik be self-hosted like Plausible?</div>
+      <p class="faq-answer">RevKlik runs as a managed service on a global edge network, so you do not need to manage your own servers. The benefits: lower latency, higher uptime, and we cover the infrastructure costs.</p>
+    </div>
+
+    <div class="callout">
+      <div class="callout-title">Try RevKlik</div>
+      <p>Analytics with revenue attribution, user journey, and funnels, all without cookies. <a href="/en/">Get started</a>. Migration takes just 3 steps.</p>
+    </div>
+  </div>
+</article>
+
+<div class="article-nav">
+  <div class="container">
+    <a href="/en/blog.html">&larr; All Articles</a>
+    <a href="/en/blog/migration-datafast.html">Migrating from DataFast to RevKlik &rarr;</a>
+  </div>
+</div>
+
+<footer>
+  <div class="container">
+    <div class="footer-left">
+      <span><svg class="brand-mark" viewBox="0 0 283.57 214.25" width="22" height="16.6" aria-hidden="true" focusable="false"><path fill="#F3B243" d="M0 174.21Q0 170.21 3.75 168.83L29.69 159.25Q32.5 158.21 32.5 161.21L32.5 207.21Q32.5 210.21 29.5 210.21L3 210.21Q0 210.21 0 207.21ZM45 146.71Q45 142.71 48.71 141.23L74.71 130.83Q77.5 129.71 77.5 132.71L77.5 207.21Q77.5 210.21 74.5 210.21L48 210.21Q45 210.21 45 207.21Z"/><path fill="#F99D4E" d="M90 108.71Q90 104.21 94.03 102.22L135.36 81.77Q138.5 80.21 138.5 83.71L138.5 207.21Q138.5 210.21 135.5 210.21L93 210.21Q90 210.21 90 207.21ZM152.5 2.96Q152.5 -1.54 156.36 0.78L281.64 76.14Q285.5 78.46 281.63 80.77L238.5 106.46L280.98 179.26Q283 182.71 279.91 185.26L246.09 213.17Q243 215.71 241 212.25L195 132.71L159.49 161.54Q152.5 167.21 152.5 158.21Z"/></svg>Rev<em>Klik</em></span>
+      <span class="footer-copy">&copy; 2026. Analytics for builders.</span>
+    </div>
+    <div class="footer-links">
+      <a href="/en/privacy.html">Privacy</a>
+      <a href="/en/terms.html">Terms</a>
+      <a href="/en/support.html">Support</a>
+    </div>
+  </div>
+</footer>
+
+</body>
+</html>

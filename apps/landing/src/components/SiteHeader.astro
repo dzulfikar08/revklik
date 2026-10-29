@@ -9,6 +9,7 @@ interface Props {
 }
 const { c, locale } = Astro.props;
 const home = locale === 'en' ? '/en/' : '/';
+const blog = locale === 'en' ? '/en/blog.html' : '/blog.html';
 const options = [
 	{ value: 'id', label: 'ID', name: c.locale_id_name, href: '/' },
 	{ value: 'en', label: 'EN', name: c.locale_en_name, href: '/en/' },
@@ -22,7 +23,7 @@ const options = [
       <a class="nav-link" href="#cara-pasang">{c.nav_how}</a>
       <a class="nav-link" href="#pricing">{c.nav_pricing}</a>
       <a class="nav-link" href="#faq">{c.nav_faq}</a>
-      <a class="nav-link" href="/blog.html">{c.nav_blog}</a>
+      <a class="nav-link" href={blog}>{c.nav_blog}</a>
       <div class="lang-switch" role="group" aria-label={c.locale_label}>
         {options.map((o) => (
           <a

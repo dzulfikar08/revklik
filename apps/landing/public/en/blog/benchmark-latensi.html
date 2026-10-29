@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Analytics Latency Benchmark | RevKlik vs Google Analytics vs Plausible</title>
+<meta name="description" content="Test tracking script latency live. Compare the speed of RevKlik, Google Analytics, and Plausible from your own browser.">
+<meta name="robots" content="index, follow">
+<meta property="og:title" content="Analytics Latency Benchmark | RevKlik vs Google Analytics vs Plausible">
+<meta property="og:type" content="article">
+<link rel="canonical" href="https://revklik.com/en/blog/benchmark-latensi.html">
+<link rel="alternate" hreflang="id" href="https://revklik.com/blog/benchmark-latensi.html">
+<link rel="alternate" hreflang="en" href="https://revklik.com/en/blog/benchmark-latensi.html">
+<link rel="alternate" hreflang="x-default" href="https://revklik.com/blog/benchmark-latensi.html">
+<link rel="icon" type="image/svg+xml" href="/favicon.svg">
+<link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.webp">
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"BlogPosting","headline":"Analytics Latency Benchmark | RevKlik vs Google Analytics vs Plausible","datePublished":"2026-05-14","dateModified":"2026-05-14","author":{"@type":"Organization","name":"RevKlik"},"publisher":{"@type":"Organization","name":"RevKlik"},"description":"Test tracking script latency live from your browser. RevKlik, GA4, and Plausible head to head.","mainEntityOfPage":"https://revklik.com/blog/benchmark-latensi.html"}
+</script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/css/pages.css">
+<meta property="og:locale" content="en_US">
+</head>
+<body>
+<nav>
+  <div class="container">
+    <a href="/en/" class="logo"><svg class="brand-mark" viewBox="0 0 283.57 214.25" width="28" height="21.2" aria-hidden="true" focusable="false"><path fill="#F3B243" d="M0 174.21Q0 170.21 3.75 168.83L29.69 159.25Q32.5 158.21 32.5 161.21L32.5 207.21Q32.5 210.21 29.5 210.21L3 210.21Q0 210.21 0 207.21ZM45 146.71Q45 142.71 48.71 141.23L74.71 130.83Q77.5 129.71 77.5 132.71L77.5 207.21Q77.5 210.21 74.5 210.21L48 210.21Q45 210.21 45 207.21Z"/><path fill="#F99D4E" d="M90 108.71Q90 104.21 94.03 102.22L135.36 81.77Q138.5 80.21 138.5 83.71L138.5 207.21Q138.5 210.21 135.5 210.21L93 210.21Q90 210.21 90 207.21ZM152.5 2.96Q152.5 -1.54 156.36 0.78L281.64 76.14Q285.5 78.46 281.63 80.77L238.5 106.46L280.98 179.26Q283 182.71 279.91 185.26L246.09 213.17Q243 215.71 241 212.25L195 132.71L159.49 161.54Q152.5 167.21 152.5 158.21Z"/></svg>Rev<em>Klik</em></a>
+    <div class="nav-links">
+      <button class="nav-close" onclick="document.querySelector('.nav-links').classList.remove('open')" aria-label="Close"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+      <a href="/en/#features">Features</a>
+      <a href="/en/#pricing">Pricing</a>
+      <a href="/en/blog.html">Blog</a>
+      <a href="/en/#cta" class="nav-cta">Starting at Rp 16.000</a>
+      <div class="lang-switch" role="group" aria-label="Language"><a href="/blog/benchmark-latensi.html" class="lang-opt" lang="id" hreflang="id" aria-label="Bahasa Indonesia">ID</a><a href="/en/blog/benchmark-latensi.html" class="lang-opt" lang="en" hreflang="en" aria-label="English" aria-current="true">EN</a></div>
+    </div>
+  </div>
+</nav>
+
+<div class="article-header">
+  <div class="container">
+    <div class="article-tag">Benchmark</div>
+    <h1>Latency Benchmark: RevKlik vs Google Analytics vs Plausible</h1>
+    <div class="article-meta">
+      <span>May 14, 2026</span>
+      <span>5 min read</span>
+    </div>
+  </div>
+</div>
+
+<div class="article-body">
+  <p>A slow analytics script slows down your website. Every extra millisecond of load time affects your <strong>bounce rate</strong>, SEO, and conversions.</p>
+
+  <p>We compared three popular analytics solutions (<strong>RevKlik</strong>, <strong>Google Analytics 4</strong>, and <strong>Plausible</strong>) to measure how fast their scripts load and send data.</p>
+
+  <div class="benchmark-section">
+    <h3>Test It Live from Your Browser</h3>
+    <p style="font-size:14px;color:var(--text2);margin-bottom:20px">Click the button below to measure the HTTP request latency to each analytics endpoint. The measurement runs directly from your browser.</p>
+    <button class="benchmark-btn" id="runTest">Run Benchmark</button>
+    <div id="results" style="margin-top:24px"></div>
+    <div class="benchmark-note" id="benchmarkNote" style="display:none">
+      Results vary depending on your location, ISP, and network conditions. The measurement uses fetch() against each service's tracking endpoint.
+    </div>
+  </div>
+
+  <h2>Why Does Tracking Latency Matter?</h2>
+  <p>Google <a href="https://web.dev/vitals/" target="_blank" rel="noopener">Core Web Vitals</a> are now a ranking factor. Heavy third-party scripts directly affect:</p>
+  <ul>
+    <li><strong>Largest Contentful Paint (LCP)</strong>: analytics scripts that block rendering delay LCP</li>
+    <li><strong>First Input Delay (FID)</strong>: heavy JavaScript slows the first interaction</li>
+    <li><strong>Bounce rate</strong>: every extra 100ms of delay raises bounce rate by 1-2%</li>
+  </ul>
+
+  <h2>Script Size Comparison</h2>
+  <table>
+    <thead>
+      <tr>
+        <th>Service</th>
+        <th>Size (gzipped)</th>
+        <th>Blocking Request?</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>RevKlik</strong></td>
+        <td>~2.3 KB</td>
+        <td>No (defer + sendBeacon)</td>
+      </tr>
+      <tr>
+        <td><strong>Plausible</strong></td>
+        <td>~1.5 KB</td>
+        <td>No (defer)</td>
+      </tr>
+      <tr>
+        <td><strong>GA4 (gtag.js)</strong></td>
+        <td>~80 KB+</td>
+        <td>Yes (multiple sync requests)</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h2>Architecture: Edge vs Centralized</h2>
+  <p>RevKlik runs on an <strong>edge network</strong>, closer to your visitors than a centralized server. This means average tracking latency is <strong>under 10ms</strong> for most visitors.</p>
+
+  <p>Google Analytics uses servers in a few centralized locations. Latency can reach <strong>100-300ms</strong> depending on the distance to the nearest server.</p>
+
+  <blockquote>
+    In our internal tests, RevKlik completed a tracking request in 8ms on average, 30x faster than GA4.
+  </blockquote>
+
+  <h2>How RevKlik Achieves Low Latency</h2>
+  <ul>
+    <li><strong>Edge network</strong>: processed in 300+ locations worldwide</li>
+    <li><strong>sendBeacon API</strong>: non-blocking, does not interfere with navigation</li>
+    <li><strong>Minimal payload</strong>: only the data that is needed, no heavy fingerprinting</li>
+    <li><strong>No third parties</strong>: zero third-party dependencies, no tracking cascade</li>
+  </ul>
+
+  <div class="cta-callout">
+    <h3>Try RevKlik</h3>
+    <p>From Rp 16.000/month. Script <2.5KB, latency <10ms.</p>
+    <a href="/en/#cta">Get Started</a>
+  </div>
+
+  <h2>FAQ</h2>
+  <h3>Is this benchmark fair?</h3>
+  <p>The live benchmark measures HTTP latency directly from your browser. There is no simulation. Results can differ depending on your location and network, but the relative trend is consistent: edge-native is always faster.</p>
+
+  <h3>Why is GA4 so slow?</h3>
+  <p>GA4 loads multiple scripts (gtag.js, analytics.js, Measurement Protocol), does client-side fingerprinting, and sends data to centralized servers. All of this adds latency.</p>
+
+  <h3>Is Plausible as fast as RevKlik?</h3>
+  <p>The Plausible script is very small (1.5KB). But because it runs on centralized servers (not the edge), server-side latency can be higher depending on the visitor's location.</p>
+</div>
+
+<div class="article-nav">
+  <div class="container">
+    <a href="/en/blog/analytics-tanpa-cookie.html">Cookieless Analytics</a>
+    <a href="/en/blog/migration-plausible.html">Migrating from Plausible</a>
+  </div>
+</div>
+
+<footer>
+  <div class="container">
+    <div class="footer-left">
+      <span><svg class="brand-mark" viewBox="0 0 283.57 214.25" width="22" height="16.6" aria-hidden="true" focusable="false"><path fill="#F3B243" d="M0 174.21Q0 170.21 3.75 168.83L29.69 159.25Q32.5 158.21 32.5 161.21L32.5 207.21Q32.5 210.21 29.5 210.21L3 210.21Q0 210.21 0 207.21ZM45 146.71Q45 142.71 48.71 141.23L74.71 130.83Q77.5 129.71 77.5 132.71L77.5 207.21Q77.5 210.21 74.5 210.21L48 210.21Q45 210.21 45 207.21Z"/><path fill="#F99D4E" d="M90 108.71Q90 104.21 94.03 102.22L135.36 81.77Q138.5 80.21 138.5 83.71L138.5 207.21Q138.5 210.21 135.5 210.21L93 210.21Q90 210.21 90 207.21ZM152.5 2.96Q152.5 -1.54 156.36 0.78L281.64 76.14Q285.5 78.46 281.63 80.77L238.5 106.46L280.98 179.26Q283 182.71 279.91 185.26L246.09 213.17Q243 215.71 241 212.25L195 132.71L159.49 161.54Q152.5 167.21 152.5 158.21Z"/></svg>Rev<em>Klik</em></span>
+    </div>
+    <div class="footer-right">&copy; 2026 RevKlik</div>
+  </div>
+</footer>
+
+<script defer>
+(function() {
+  var btn = document.getElementById('runTest');
+  var resultsDiv = document.getElementById('results');
+  var noteDiv = document.getElementById('benchmarkNote');
+
+  var targets = [
+    { name: 'RevKlik', url: 'https://app.revklik.com/api/track', method: 'OPTIONS', color: 'var(--accent)' },
+    { name: 'Plausible', url: 'https://plausible.io/api/event', method: 'OPTIONS', color: '#58a6ff' },
+    { name: 'GA4', url: 'https://www.google-analytics.com/g/collect', method: 'GET', color: '#e8943a' }
+  ];
+
+  btn.addEventListener('click', function() {
+    btn.disabled = true;
+    btn.textContent = 'Running...';
+    btn.classList.add('running');
+    resultsDiv.textContent = '';
+    noteDiv.style.display = 'block';
+
+    var promises = targets.map(function(t) {
+      var start = performance.now();
+      return fetch(t.url, { method: t.method, mode: 'no-cors', cache: 'no-store' })
+        .then(function() { return { name: t.name, ms: Math.round(performance.now() - start), color: t.color }; })
+        .catch(function() { return { name: t.name, ms: -1, color: t.color }; });
+    });
+
+    Promise.all(promises).then(function(results) {
+      var fastest = Math.min.apply(null, results.map(function(r) { return r.ms > 0 ? r.ms : Infinity; }));
+      var maxMs = Math.max.apply(null, results.map(function(r) { return r.ms > 0 ? r.ms : 1; }));
+
+      results.forEach(function(r) {
+        var row = document.createElement('div');
+        row.className = 'result-row';
+
+        var label = document.createElement('span');
+        label.className = 'result-label';
+        label.textContent = r.name;
+
+        var barWrap = document.createElement('div');
+        barWrap.className = 'result-bar-wrap';
+
+        var bar = document.createElement('div');
+        bar.className = 'result-bar';
+        var widthPct = r.ms > 0 ? Math.max(4, (r.ms / maxMs) * 100) : 4;
+        bar.style.width = widthPct + '%';
+        bar.style.background = r.ms === fastest ? 'var(--green)' : r.color;
+
+        barWrap.appendChild(bar);
+
+        var value = document.createElement('span');
+        value.className = 'result-value' + (r.ms === fastest ? ' result-fastest' : '');
+        value.textContent = r.ms > 0 ? r.ms + 'ms' : 'failed';
+
+        row.appendChild(label);
+        row.appendChild(barWrap);
+        row.appendChild(value);
+        resultsDiv.appendChild(row);
+      });
+
+      btn.disabled = false;
+      btn.textContent = 'Run Again';
+      btn.classList.remove('running');
+    });
+  });
+})();
+</script>
+</body>
+</html>

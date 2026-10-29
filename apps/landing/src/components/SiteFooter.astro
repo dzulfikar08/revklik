@@ -5,17 +5,18 @@ interface Props {
 	c: Copy;
 }
 const { c } = Astro.props;
+const prefix = c.lang === 'en' ? '/en' : '';
 ---
 <footer class="site-footer">
   <div class="wrap">
     <div class="footer-main">
       <p class="footer-brand"><BrandMark width={26} /><span>Rev<b>Klik</b></span><span class="footer-copy">{c.footer_copy}</span></p>
       <ul class="footer-links">
-        <li><a href="/privacy.html">{c.f_privacy}</a></li>
-        <li><a href="/terms.html">{c.f_terms}</a></li>
-        <li><a href="/support.html">{c.f_support}</a></li>
+        <li><a href={`${prefix}/privacy.html`}>{c.f_privacy}</a></li>
+        <li><a href={`${prefix}/terms.html`}>{c.f_terms}</a></li>
+        <li><a href={`${prefix}/support.html`}>{c.f_support}</a></li>
         <li><a href="https://docs.revklik.com">{c.f_docs}</a></li>
-        <li><a href="/blog.html">{c.nav_blog}</a></li>
+        <li><a href={`${prefix}/blog.html`}>{c.nav_blog}</a></li>
       </ul>
     </div>
     <div class="footer-network">

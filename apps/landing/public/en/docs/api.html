@@ -1,0 +1,393 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RevKlik Public API | API Reference Documentation</title>
+<meta name="description" content="RevKlik Public API: access analytics data via REST API. Token authentication, rate limiting, and full endpoints for analytics, sites, and token management.">
+<meta name="keywords" content="analytics API, REST API, analytics documentation, API reference, RevKlik API, analytics endpoint, scoped tokens">
+<meta name="robots" content="index, follow">
+<link rel="canonical" href="https://revklik.com/en/docs/api.html">
+<link rel="alternate" hreflang="id" href="https://revklik.com/docs/api.html">
+<link rel="alternate" hreflang="en" href="https://revklik.com/en/docs/api.html">
+<link rel="alternate" hreflang="x-default" href="https://revklik.com/docs/api.html">
+<link rel="icon" type="image/svg+xml" href="/favicon.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/css/pages.css">
+<script defer data-site-id="d9701d64-9e78-4b73-9726-e4f41593b843" src="https://app.revklik.com/klikapa.js"></script>
+<meta property="og:locale" content="en_US">
+</head>
+<body>
+
+<nav id="nav">
+  <div class="container">
+    <a href="/en/" class="logo"><svg class="brand-mark" viewBox="0 0 283.57 214.25" width="28" height="21.2" aria-hidden="true" focusable="false"><path fill="#F3B243" d="M0 174.21Q0 170.21 3.75 168.83L29.69 159.25Q32.5 158.21 32.5 161.21L32.5 207.21Q32.5 210.21 29.5 210.21L3 210.21Q0 210.21 0 207.21ZM45 146.71Q45 142.71 48.71 141.23L74.71 130.83Q77.5 129.71 77.5 132.71L77.5 207.21Q77.5 210.21 74.5 210.21L48 210.21Q45 210.21 45 207.21Z"/><path fill="#F99D4E" d="M90 108.71Q90 104.21 94.03 102.22L135.36 81.77Q138.5 80.21 138.5 83.71L138.5 207.21Q138.5 210.21 135.5 210.21L93 210.21Q90 210.21 90 207.21ZM152.5 2.96Q152.5 -1.54 156.36 0.78L281.64 76.14Q285.5 78.46 281.63 80.77L238.5 106.46L280.98 179.26Q283 182.71 279.91 185.26L246.09 213.17Q243 215.71 241 212.25L195 132.71L159.49 161.54Q152.5 167.21 152.5 158.21Z"/></svg>Rev<em>Klik</em></a>
+    <div class="nav-links">
+      <button class="nav-close" onclick="document.querySelector('.nav-links').classList.remove('open')" aria-label="Close"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+      <a href="/en/">Home</a>
+      <a href="/en/docs.html">Docs</a>
+      <a href="/en/docs/cli.html">CLI</a>
+      <div class="lang-switch" role="group" aria-label="Language"><a href="/docs/api.html" class="lang-opt" lang="id" hreflang="id" aria-label="Bahasa Indonesia">ID</a><a href="/en/docs/api.html" class="lang-opt" lang="en" hreflang="en" aria-label="English" aria-current="true">EN</a></div>
+    </div>
+    <div class="nav-right">
+      <a href="https://app.revklik.com/register" class="nav-cta">Start from $1 &rarr;</a>
+    </div>
+    <button class="burger" onclick="document.querySelector('.nav-links').classList.toggle('open')" aria-label="Menu">
+      <svg width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+    </button>
+  </div>
+</nav>
+
+<section class="page-hero">
+  <div class="container">
+    <div class="fade-up">
+      <div class="eyebrow">API Reference</div>
+      <h1>Public API <em>Documentation</em></h1>
+      <p>Access RevKlik analytics data programmatically through the REST API. Authenticate with scoped tokens, rate-limited per plan, with standardized JSON responses.</p>
+    </div>
+  </div>
+</section>
+
+<div class="container">
+  <div class="doc-layout">
+
+    <div class="toc">
+      <h4>Contents</h4>
+      <a href="#auth">Authentication</a>
+      <a href="#tokens">Token Types</a>
+      <a href="#scopes">Scopes</a>
+      <a href="#rate-limits">Rate Limits</a>
+      <a href="#whoami">Whoami</a>
+      <a href="#sites">Sites</a>
+      <a href="#analytics">Analytics</a>
+      <a href="#token-mgmt">Token Management</a>
+      <a href="#errors">Error Codes</a>
+      <a href="#sdk-examples">SDK Examples</a>
+    </div>
+
+    <div class="doc-body">
+
+      <!-- AUTH -->
+      <div class="doc-section" id="auth">
+        <h2>Authentication <em>&</em> Base URL</h2>
+        <p>Every request to the Public API must include an <code>Authorization: Bearer</code> header with a valid API token. Tokens start with the prefix <code>rvt_</code> (account) or <code>rv_</code> (site-scoped).</p>
+
+        <h3>Base URL</h3>
+        <div class="code-block"><code>https://app.revklik.com/api/v1</code></div>
+
+        <h3>Example Request</h3>
+        <div class="code-block"><code><span class="kw">curl</span> https://app.revklik.com/api/v1/whoami \
+  -H <span class="str">"Authorization: Bearer rvt_your_token_here"</span></code></div>
+
+        <div class="callout">
+          <strong>Token Prefix:</strong> The Public API only accepts <code>rvt_</code> and <code>rv_</code> tokens. <code>kp_</code> session tokens only work in the internal dashboard.
+        </div>
+      </div>
+
+      <!-- TOKEN TYPES -->
+      <div class="doc-section" id="tokens">
+        <h2>Token <em>Types</em></h2>
+        <p>RevKlik offers two types of API token with different access levels:</p>
+
+        <table class="param-table">
+          <tr><th>Prefix</th><th>Type</th><th>Access</th></tr>
+          <tr><td><code>rvt_</code></td><td>Account Token</td><td>Access to all sites and features according to the granted scopes.</td></tr>
+          <tr><td><code>rv_</code></td><td>Site Token</td><td>Limited to a single site. Default scopes: <code>analytics:read</code>, <code>analytics:export</code>.</td></tr>
+        </table>
+
+        <p>Tokens are stored as SHA-256 hashes in the database. The full token is shown only once, when it is created.</p>
+      </div>
+
+      <!-- SCOPES -->
+      <div class="doc-section" id="scopes">
+        <h2>Scopes <em>&amp; Permissions</em></h2>
+        <p>Each token has a list of scopes that determines which endpoints it can access.</p>
+
+        <table class="param-table">
+          <tr><th>Scope</th><th>Access</th><th>Default</th></tr>
+          <tr><td><code>sites:read</code></td><td>List sites and view site details</td><td>Account</td></tr>
+          <tr><td><code>analytics:read</code></td><td>Query analytics data</td><td>Account &amp; Site</td></tr>
+          <tr><td><code>analytics:export</code></td><td>Export CSV/JSON data</td><td>Account &amp; Site</td></tr>
+          <tr><td><code>tokens:read</code></td><td>List API tokens</td><td>Account</td></tr>
+          <tr><td><code>tokens:write</code></td><td>Create &amp; revoke tokens</td><td>Account</td></tr>
+        </table>
+      </div>
+
+      <!-- RATE LIMITS -->
+      <div class="doc-section" id="rate-limits">
+        <h2>Rate <em>Limits</em></h2>
+        <p>Each API key has a per-minute rate limit based on your subscription plan.</p>
+
+        <table class="param-table">
+          <tr><th>Plan</th><th>Limit</th><th>Max Tokens</th></tr>
+          <tr><td>Free / Micro</td><td>30 req/min</td><td>2</td></tr>
+          <tr><td>Starter</td><td>120 req/min</td><td>5</td></tr>
+          <tr><td>Growth</td><td>300 req/min</td><td>Unlimited</td></tr>
+        </table>
+
+        <h3>Rate Limit Headers</h3>
+        <p>Every response includes standard headers:</p>
+        <div class="code-block"><code>X-RateLimit-Limit: 120
+X-RateLimit-Remaining: 87
+X-RateLimit-Reset: 1715800000</code></div>
+
+        <p>When the limit is exceeded, the API returns <code>429 Too Many Requests</code>.</p>
+      </div>
+
+      <!-- WHOAMI -->
+      <div class="doc-section" id="whoami">
+        <h2>Whoami</h2>
+
+        <h3><span class="method get">GET</span> /whoami</h3>
+        <p>Get information about the token in use, the user, and the plan.</p>
+        <p><span class="scope-badge required">sites:read</span></p>
+
+        <div class="code-label">Response</div>
+        <div class="code-block"><code>{
+  <span class="hl">"user"</span>: {
+    <span class="hl">"id"</span>: <span class="str">"abc123"</span>,
+    <span class="hl">"name"</span>: <span class="str">"John Doe"</span>,
+    <span class="hl">"email"</span>: <span class="str">"john@example.com"</span>
+  },
+  <span class="hl">"plan"</span>: <span class="str">"starter"</span>,
+  <span class="hl">"token"</span>: {
+    <span class="hl">"type"</span>: <span class="str">"account"</span>,
+    <span class="hl">"scopes"</span>: [<span class="str">"sites:read"</span>, <span class="str">"analytics:read"</span>, <span class="str">"..."</span>],
+    <span class="hl">"site_id"</span>: null,
+    <span class="hl">"name"</span>: <span class="str">"My CLI Token"</span>,
+    <span class="hl">"created_at"</span>: <span class="str">"2026-05-15T00:00:00Z"</span>
+  }
+}</code></div>
+      </div>
+
+      <!-- SITES -->
+      <div class="doc-section" id="sites">
+        <h2>Sites</h2>
+
+        <h3><span class="method get">GET</span> /sites</h3>
+        <p>List all sites. Account tokens see all sites; site tokens only see the site they are bound to.</p>
+        <p><span class="scope-badge required">sites:read</span></p>
+
+        <div class="code-label">Response</div>
+        <div class="code-block"><code>[
+  {
+    <span class="hl">"id"</span>: <span class="str">"site_abc123"</span>,
+    <span class="hl">"name"</span>: <span class="str">"My Website"</span>,
+    <span class="hl">"domain"</span>: <span class="str">"mysite.com"</span>,
+    <span class="hl">"created_at"</span>: <span class="str">"2026-01-15T00:00:00Z"</span>
+  }
+]</code></div>
+
+        <h3><span class="method get">GET</span> /sites/:siteId</h3>
+        <p>Details of a single site by ID.</p>
+      </div>
+
+      <!-- ANALYTICS -->
+      <div class="doc-section" id="analytics">
+        <h2>Analytics <em>Endpoints</em></h2>
+        <p>All analytics endpoints require the <code>site_id</code> and <code>range</code> parameters.</p>
+
+        <h3>Parameters</h3>
+        <table class="param-table">
+          <tr><th>Parameter</th><th>Type</th><th>Description</th></tr>
+          <tr><td>site_id</td><td><code>string</code></td><td>ID of the site to query. Required.</td></tr>
+          <tr><td>range</td><td><code>string</code></td><td>Period: <code>1h</code>, <code>6h</code>, <code>12h</code>, <code>24h</code>, <code>7d</code>, <code>30d</code>, <code>90d</code></td></tr>
+          <tr><td>limit</td><td><code>number</code></td><td>Number of results (default 10, max 100). Optional.</td></tr>
+        </table>
+
+        <p><span class="scope-badge required">analytics:read</span></p>
+
+        <h3>Overview</h3>
+        <p><span class="method get">GET</span> /analytics/overview?site_id=xxx&amp;range=7d</p>
+        <div class="code-label">Response</div>
+        <div class="code-block"><code>{
+  <span class="hl">"pageviews"</span>: 12483,
+  <span class="hl">"visitors"</span>: 3241,
+  <span class="hl">"sessions"</span>: 4812,
+  <span class="hl">"bounceRate"</span>: 0.342,
+  <span class="hl">"avgDuration"</span>: 252,
+  <span class="hl">"revenue"</span>: 2490000,
+  <span class="hl">"conversions"</span>: 87
+}</code></div>
+
+        <h3>Timeseries</h3>
+        <p><span class="method get">GET</span> /analytics/timeseries?site_id=xxx&amp;range=7d</p>
+        <div class="code-label">Response</div>
+        <div class="code-block"><code>[
+  { <span class="hl">"date"</span>: <span class="str">"2026-05-09"</span>, <span class="hl">"pageviews"</span>: 1520, <span class="hl">"visitors"</span>: 412 },
+  { <span class="hl">"date"</span>: <span class="str">"2026-05-10"</span>, <span class="hl">"pageviews"</span>: 1689, <span class="hl">"visitors"</span>: 467 }
+]</code></div>
+
+        <h3>Pages</h3>
+        <p><span class="method get">GET</span> /analytics/pages?site_id=xxx&amp;range=7d&amp;limit=10</p>
+        <div class="code-label">Response</div>
+        <div class="code-block"><code>[
+  { <span class="hl">"path"</span>: <span class="str">"/"</span>, <span class="hl">"pageviews"</span>: 4521, <span class="hl">"visitors"</span>: 1892 },
+  { <span class="hl">"path"</span>: <span class="str">"/pricing"</span>, <span class="hl">"pageviews"</span>: 2104, <span class="hl">"visitors"</span>: 987 }
+]</code></div>
+
+        <h3>Referrers</h3>
+        <p><span class="method get">GET</span> /analytics/referrers?site_id=xxx&amp;range=7d</p>
+
+        <h3>Geo</h3>
+        <p><span class="method get">GET</span> /analytics/geo?site_id=xxx&amp;range=7d</p>
+
+        <h3>Devices</h3>
+        <p><span class="method get">GET</span> /analytics/devices?site_id=xxx&amp;range=7d</p>
+        <div class="code-label">Response</div>
+        <div class="code-block"><code>{
+  <span class="hl">"devices"</span>: [{ <span class="hl">"device"</span>: <span class="str">"Mobile"</span>, <span class="hl">"visitors"</span>: 1823, <span class="hl">"percentage"</span>: 56.2 }],
+  <span class="hl">"os"</span>: [{ <span class="hl">"device"</span>: <span class="str">"iOS"</span>, <span class="hl">"visitors"</span>: 987, <span class="hl">"percentage"</span>: 30.4 }],
+  <span class="hl">"browsers"</span>: [{ <span class="hl">"device"</span>: <span class="str">"Chrome"</span>, <span class="hl">"visitors"</span>: 2456, <span class="hl">"percentage"</span>: 75.7 }]
+}</code></div>
+
+        <h3>Revenue</h3>
+        <p><span class="method get">GET</span> /analytics/revenue?site_id=xxx&amp;range=30d</p>
+
+        <h3>Export</h3>
+        <p><span class="method get">GET</span> /analytics/export?site_id=xxx&amp;range=30d&amp;format=csv&amp;type=events</p>
+        <p><span class="scope-badge required">analytics:export</span></p>
+        <p><code>format</code> parameter: <code>csv</code> or <code>json</code>. <code>type</code> parameter: <code>events</code>, <code>visitors</code>, or <code>sessions</code>.</p>
+      </div>
+
+      <!-- TOKEN MANAGEMENT -->
+      <div class="doc-section" id="token-mgmt">
+        <h2>Token <em>Management</em></h2>
+
+        <h3><span class="method get">GET</span> /tokens</h3>
+        <p>List all API tokens (masked).</p>
+        <p><span class="scope-badge required">tokens:read</span></p>
+
+        <h3><span class="method post">POST</span> /tokens</h3>
+        <p>Create a new API token.</p>
+        <p><span class="scope-badge required">tokens:write</span></p>
+
+        <div class="code-label">Request Body</div>
+        <div class="code-block"><code>{
+  <span class="hl">"name"</span>: <span class="str">"My CLI Token"</span>,
+  <span class="hl">"type"</span>: <span class="str">"account"</span>,
+  <span class="hl">"scopes"</span>: [<span class="str">"sites:read"</span>, <span class="str">"analytics:read"</span>],
+  <span class="hl">"site_id"</span>: null
+}</code></div>
+
+        <div class="callout">
+          <strong>Important:</strong> The full token is only shown in the response when it is created. It cannot be viewed again afterwards. Store it securely.
+        </div>
+
+        <div class="code-label">Response</div>
+        <div class="code-block"><code>{
+  <span class="hl">"id"</span>: <span class="str">"tok_abc123"</span>,
+  <span class="hl">"token"</span>: <span class="str">"rvt_a1b2c3d4e5f6..."</span>,
+  <span class="hl">"prefix"</span>: <span class="str">"rvt_a1b"</span>,
+  <span class="hl">"name"</span>: <span class="str">"My CLI Token"</span>,
+  <span class="hl">"type"</span>: <span class="str">"account"</span>,
+  <span class="hl">"scopes"</span>: [<span class="str">"sites:read"</span>, <span class="str">"analytics:read"</span>],
+  <span class="hl">"created_at"</span>: <span class="str">"2026-05-15T00:00:00Z"</span>
+}</code></div>
+
+        <h3><span class="method del">DELETE</span> /tokens/:id</h3>
+        <p>Revoke an API token. A revoked token stops working immediately.</p>
+        <p><span class="scope-badge required">tokens:write</span></p>
+      </div>
+
+      <!-- ERRORS -->
+      <div class="doc-section" id="errors">
+        <h2>Error <em>Codes</em></h2>
+
+        <table class="param-table">
+          <tr><th>Code</th><th>Meaning</th></tr>
+          <tr><td><code>200</code></td><td>Success</td></tr>
+          <tr><td><code>400</code></td><td>Invalid or missing parameter</td></tr>
+          <tr><td><code>401</code></td><td>Token is invalid, expired, or revoked</td></tr>
+          <tr><td><code>403</code></td><td>Insufficient scope for this endpoint</td></tr>
+          <tr><td><code>404</code></td><td>Resource not found</td></tr>
+          <tr><td><code>429</code></td><td>Rate limit exceeded. Try again after X-RateLimit-Reset.</td></tr>
+          <tr><td><code>500</code></td><td>Internal server error</td></tr>
+        </table>
+
+        <div class="code-label">Error Response Format</div>
+        <div class="code-block"><code>{
+  <span class="hl">"success"</span>: false,
+  <span class="hl">"error"</span>: <span class="str">"Insufficient scope: analytics:export required"</span>
+}</code></div>
+      </div>
+
+      <!-- SDK EXAMPLES -->
+      <div class="doc-section" id="sdk-examples">
+        <h2>SDK <em>Examples</em></h2>
+
+        <h3>JavaScript / Node.js</h3>
+        <div class="code-block"><code><span class="kw">const</span> token = <span class="str">"rvt_your_token_here"</span>;
+<span class="kw">const</span> base = <span class="str">"https://app.revklik.com/api/v1"</span>;
+
+<span class="cmt">// Get analytics overview</span>
+<span class="kw">const</span> res = <span class="kw">await</span> fetch(
+  <span class="str">`${base}/analytics/overview?site_id=SITE_ID&range=7d`</span>,
+  { headers: { <span class="hl">Authorization</span>: <span class="str">`Bearer ${token}`</span> } }
+);
+<span class="kw">const</span> data = <span class="kw">await</span> res.json();
+console.log(data.data);</code></div>
+
+        <h3>Python</h3>
+        <div class="code-block"><code><span class="kw">import</span> requests
+
+TOKEN = <span class="str">"rvt_your_token_here"</span>
+BASE = <span class="str">"https://app.revklik.com/api/v1"</span>
+HEADERS = {<span class="str">"Authorization"</span>: f<span class="str">"Bearer {TOKEN}"</span>}
+
+<span class="cmt"># List sites</span>
+sites = requests.get(f<span class="str">"{BASE}/sites"</span>, headers=HEADERS).json()
+
+<span class="cmt"># Get analytics overview</span>
+params = {<span class="str">"site_id"</span>: <span class="str">"SITE_ID"</span>, <span class="str">"range"</span>: <span class="str">"7d"</span>}
+overview = requests.get(
+    f<span class="str">"{BASE}/analytics/overview"</span>,
+    params=params, headers=HEADERS
+).json()
+print(overview[<span class="str">"data"</span>])</code></div>
+
+        <h3>cURL</h3>
+        <div class="code-block"><code><span class="cmt"># Get timeseries data</span>
+<span class="kw">curl</span> <span class="str">"https://app.revklik.com/api/v1/analytics/timeseries?site_id=SITE_ID&range=30d"</span> \
+  -H <span class="str">"Authorization: Bearer rvt_your_token_here"</span></code></div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<footer>
+  <div class="container">
+    <div class="footer-left">
+      <span><svg class="brand-mark" viewBox="0 0 283.57 214.25" width="20" height="15.1" aria-hidden="true" focusable="false"><path fill="#F3B243" d="M0 174.21Q0 170.21 3.75 168.83L29.69 159.25Q32.5 158.21 32.5 161.21L32.5 207.21Q32.5 210.21 29.5 210.21L3 210.21Q0 210.21 0 207.21ZM45 146.71Q45 142.71 48.71 141.23L74.71 130.83Q77.5 129.71 77.5 132.71L77.5 207.21Q77.5 210.21 74.5 210.21L48 210.21Q45 210.21 45 207.21Z"/><path fill="#F99D4E" d="M90 108.71Q90 104.21 94.03 102.22L135.36 81.77Q138.5 80.21 138.5 83.71L138.5 207.21Q138.5 210.21 135.5 210.21L93 210.21Q90 210.21 90 207.21ZM152.5 2.96Q152.5 -1.54 156.36 0.78L281.64 76.14Q285.5 78.46 281.63 80.77L238.5 106.46L280.98 179.26Q283 182.71 279.91 185.26L246.09 213.17Q243 215.71 241 212.25L195 132.71L159.49 161.54Q152.5 167.21 152.5 158.21Z"/></svg>Rev<em>Klik</em></span>
+      <span class="footer-copy">&copy; 2026 Joyo Digitama</span>
+    </div>
+    <div class="footer-links">
+      <a href="/en/">Home</a>
+      <a href="/en/docs.html">Documentation</a>
+      <a href="/en/docs/cli.html">CLI</a>
+      <a href="/en/privacy.html">Privacy</a>
+      <a href="/en/terms.html">Terms</a>
+    </div>
+  </div>
+</footer>
+
+<script>
+function toggleMenu(){document.querySelector('.nav-links').classList.toggle('open')}
+const obs=new IntersectionObserver(es=>es.forEach(e=>{if(e.isIntersecting){e.target.classList.add('vis');obs.unobserve(e.target)}}),{threshold:.15});
+document.querySelectorAll('.fade-up').forEach(el=>obs.observe(el));
+window.addEventListener('scroll',()=>{document.getElementById('nav').classList.toggle('scrolled',window.scrollY>40)});
+
+// Active TOC tracking
+const tocLinks=document.querySelectorAll('.toc a');
+const sections=document.querySelectorAll('.doc-section[id]');
+window.addEventListener('scroll',()=>{
+  let current='';
+  sections.forEach(s=>{if(window.scrollY>=s.offsetTop-120)current=s.id});
+  tocLinks.forEach(a=>{a.classList.toggle('active',a.getAttribute('href')==='#'+current)});
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,386 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RevKlik CLI | Terminal Analytics Tool</title>
+<meta name="description" content="RevKlik CLI: access analytics from your terminal. Install via npm, log in with an API token, and query analytics data straight from the command line.">
+<meta name="keywords" content="analytics CLI, terminal analytics, npm CLI, command line analytics, RevKlik CLI, @revklik/cli, analytics terminal tool">
+<meta name="robots" content="index, follow">
+<link rel="canonical" href="https://revklik.com/en/docs/cli.html">
+<link rel="alternate" hreflang="id" href="https://revklik.com/docs/cli.html">
+<link rel="alternate" hreflang="en" href="https://revklik.com/en/docs/cli.html">
+<link rel="alternate" hreflang="x-default" href="https://revklik.com/docs/cli.html">
+<link rel="icon" type="image/svg+xml" href="/favicon.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/css/pages.css">
+<script defer data-site-id="d9701d64-9e78-4b73-9726-e4f41593b843" src="https://app.revklik.com/klikapa.js"></script>
+<meta property="og:locale" content="en_US">
+</head>
+<body>
+
+<nav id="nav">
+  <div class="container">
+    <a href="/en/" class="logo"><svg class="brand-mark" viewBox="0 0 283.57 214.25" width="28" height="21.2" aria-hidden="true" focusable="false"><path fill="#F3B243" d="M0 174.21Q0 170.21 3.75 168.83L29.69 159.25Q32.5 158.21 32.5 161.21L32.5 207.21Q32.5 210.21 29.5 210.21L3 210.21Q0 210.21 0 207.21ZM45 146.71Q45 142.71 48.71 141.23L74.71 130.83Q77.5 129.71 77.5 132.71L77.5 207.21Q77.5 210.21 74.5 210.21L48 210.21Q45 210.21 45 207.21Z"/><path fill="#F99D4E" d="M90 108.71Q90 104.21 94.03 102.22L135.36 81.77Q138.5 80.21 138.5 83.71L138.5 207.21Q138.5 210.21 135.5 210.21L93 210.21Q90 210.21 90 207.21ZM152.5 2.96Q152.5 -1.54 156.36 0.78L281.64 76.14Q285.5 78.46 281.63 80.77L238.5 106.46L280.98 179.26Q283 182.71 279.91 185.26L246.09 213.17Q243 215.71 241 212.25L195 132.71L159.49 161.54Q152.5 167.21 152.5 158.21Z"/></svg>Rev<em>Klik</em></a>
+    <div class="nav-links">
+      <button class="nav-close" onclick="document.querySelector('.nav-links').classList.remove('open')" aria-label="Close"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+      <a href="/en/">Home</a>
+      <a href="/en/docs.html">Docs</a>
+      <a href="/en/docs/api.html">API</a>
+      <div class="lang-switch" role="group" aria-label="Language"><a href="/docs/cli.html" class="lang-opt" lang="id" hreflang="id" aria-label="Bahasa Indonesia">ID</a><a href="/en/docs/cli.html" class="lang-opt" lang="en" hreflang="en" aria-label="English" aria-current="true">EN</a></div>
+    </div>
+    <div class="nav-right">
+      <a href="https://app.revklik.com/register" class="nav-cta">Start from $1 &rarr;</a>
+    </div>
+    <button class="burger" onclick="document.querySelector('.nav-links').classList.toggle('open')" aria-label="Menu">
+      <svg width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+    </button>
+  </div>
+</nav>
+
+<section class="page-hero">
+  <div class="container">
+    <div class="fade-up">
+      <div class="eyebrow">CLI Tool</div>
+      <h1>RevKlik <em>CLI</em></h1>
+      <p>Access analytics from your terminal. Install via npm, log in with an API token, and query analytics data straight from the command line, or pipe it to jq for automated pipelines.</p>
+    </div>
+  </div>
+</section>
+
+<div class="container">
+  <div class="doc-layout">
+    <div class="toc">
+      <h4>Contents</h4>
+      <a href="#install">Installation</a>
+      <a href="#login">Login</a>
+      <a href="#whoami">Whoami</a>
+      <a href="#sites">Sites</a>
+      <a href="#analytics">Analytics</a>
+      <a href="#tokens">Tokens</a>
+      <a href="#global-flags">Global Flags</a>
+      <a href="#env-vars">Environment Variables</a>
+      <a href="#config">Config File</a>
+    </div>
+
+    <div class="doc-body">
+
+      <!-- INSTALL -->
+      <div class="doc-section" id="install">
+        <h2>Installation</h2>
+        <p>Install the CLI globally via npm. Requires Node.js 18+.</p>
+
+        <div class="code-block"><code><span class="prompt">$</span> <span class="cmd">npm install -g @revklik/cli</span></code></div>
+
+        <p>After installing, the <code>revklik</code> command is available in your terminal.</p>
+
+        <div class="code-block"><code><span class="prompt">$</span> <span class="cmd">revklik --version</span>
+<span class="out">1.2.0</span>
+
+<span class="prompt">$</span> <span class="cmd">revklik --help</span>
+<span class="out">RevKlik CLI — Analytics from your terminal
+
+Commands:
+  revklik login              Authenticate with API token
+  revklik whoami             Show current auth info
+  revklik sites list         List your sites
+  revklik analytics overview Show analytics summary
+  revklik analytics events   Raw event log
+  revklik analytics timeseries  Time series data
+  revklik analytics pages    Top pages
+  revklik analytics referrers  Traffic sources
+  revklik analytics geo      Geo breakdown
+  revklik analytics journeys  Customer journey summaries
+  revklik analytics export   Export data (CSV/JSON)
+  revklik tokens list        List API tokens
+  revklik tokens create      Create new token
+  revklik tokens revoke      Revoke a token
+
+Flags:
+  --json     Output raw JSON
+  --verbose  Debug output
+  --help     Show help</span></code></div>
+      </div>
+
+      <!-- LOGIN -->
+      <div class="doc-section" id="login">
+        <h2>Login</h2>
+        <p>Authenticate with an API token from the RevKlik dashboard. Create a token at <a href="https://app.revklik.com/settings/api-tokens" style="color:var(--accent)">Settings &gt; API Tokens</a>.</p>
+
+        <h3>With a Token</h3>
+        <div class="code-block"><code><span class="prompt">$</span> <span class="cmd">revklik login --token rvt_a1b2c3d4e5f6...</span>
+<span class="out">Token saved to ~/.config/revklik/config.json
+Logged in as john@example.com (starter plan)</span></code></div>
+
+        <h3>Interactive Login</h3>
+        <div class="code-block"><code><span class="prompt">$</span> <span class="cmd">revklik login</span>
+<span class="out">Enter your API token: ****
+Token saved. Logged in as john@example.com</span></code></div>
+
+        <div class="callout">
+          <strong>Tip:</strong> Create an account token (<code>rvt_</code>) with the <code>sites:read</code> and <code>analytics:read</code> scopes for the CLI. Do not use a <code>kp_</code> session token.
+        </div>
+      </div>
+
+      <!-- WHOAMI -->
+      <div class="doc-section" id="whoami">
+        <h2>Whoami</h2>
+        <p>Show information about the active token.</p>
+
+        <div class="code-block"><code><span class="prompt">$</span> <span class="cmd">revklik whoami</span>
+<span class="out">User:    John Doe (john@example.com)
+Plan:    starter
+Token:   My CLI Token (account)
+Scopes:  sites:read, analytics:read, analytics:export
+Created: 2026-05-15</span></code></div>
+      </div>
+
+      <!-- SITES -->
+      <div class="doc-section" id="sites">
+        <h2>Sites</h2>
+
+        <h3>revklik sites list</h3>
+        <p>Show all sites registered to your account.</p>
+
+        <div class="code-block"><code><span class="prompt">$</span> <span class="cmd">revklik sites list</span>
+<span class="out">  ID             Name              Domain
+  ────────────── ───────────────── ──────────────────
+  site_abc123    My Website        mysite.com
+  site_def456    Blog              blog.mysite.com</span></code></div>
+
+        <div class="code-block"><code><span class="prompt">$</span> <span class="cmd">revklik sites list --json</span>
+<span class="out">[{"id":"site_abc123","name":"My Website","domain":"mysite.com","created_at":"2026-01-15T00:00:00Z"}]</span></code></div>
+      </div>
+
+      <!-- ANALYTICS -->
+      <div class="doc-section" id="analytics">
+        <h2>Analytics</h2>
+
+        <h3>Overview</h3>
+        <div class="code-block"><code><span class="prompt">$</span> <span class="cmd">revklik analytics overview --site site_abc123 --range 7d</span>
+<span class="out">  Pageviews     12,483     Visitors     3,241
+  Sessions      4,812      Bounce Rate  34.2%
+  Avg Duration  4m 12s     Revenue      Rp 2,490,000
+  Conversions   87</span></code></div>
+
+        <h3>Timeseries</h3>
+        <div class="code-block"><code><span class="prompt">$</span> <span class="cmd">revklik analytics timeseries --site site_abc123 --range 7d</span>
+<span class="out">  Date        Pageviews  Visitors
+  ─────────── ────────── ─────────
+  2026-05-09  1,520      412
+  2026-05-10  1,689      467
+  2026-05-11  2,104      589
+  2026-05-12  1,823      501
+  2026-05-13  1,956      534
+  2026-05-14  2,341      623
+  2026-05-15  1,050      315</span></code></div>
+
+        <h3>Top Pages</h3>
+        <div class="code-block"><code><span class="prompt">$</span> <span class="cmd">revklik analytics pages --site site_abc123 --range 30d</span>
+<span class="out">  Path           Pageviews  Visitors
+  ────────────── ────────── ─────────
+  /              4,521      1,892
+  /pricing       2,104      987
+  /docs          1,823      756
+  /blog          1,456      634
+  /register      1,203      489</span></code></div>
+
+        <h3>Referrers</h3>
+        <div class="code-block"><code><span class="prompt">$</span> <span class="cmd">revklik analytics referrers --site site_abc123 --range 7d</span></code></div>
+
+        <h3>Geo</h3>
+        <div class="code-block"><code><span class="prompt">$</span> <span class="cmd">revklik analytics geo --site site_abc123 --range 7d</span>
+<span class="out">  Country        Region         City          Visitors
+  ────────────── ────────────── ───────────── ─────────
+  Indonesia      Jakarta        Jakarta       1,245
+  Indonesia      Jawa Barat     Bandung       412
+  Singapore      Central        Singapore     289
+  Malaysia       Kuala Lumpur   KL            156</span></code></div>
+
+        <h3>Export</h3>
+        <div class="code-block"><code><span class="prompt">$</span> <span class="cmd">revklik analytics export --site site_abc123 --range 30d --format csv --type events</span>
+<span class="out">Exported to analytics_events_2026-05-15.csv</span></code></div>
+
+        <h3>Events</h3>
+        <p>Query the raw event log with a type filter. See every pageview, conversion, and custom event that was recorded.</p>
+
+        <div class="code-block"><code><span class="prompt">$</span> <span class="cmd">revklik analytics events --site site_abc123 --range 7d --limit 10</span>
+<span class="out">Events — 7d
+
+  Time              Type       Path              Visitor    Country    Revenue
+  ───────────────── ────────── ───────────────── ────────── ────────── ────────
+  2026-05-20 04:04  pageview   /                 643a004e   ID         -
+  2026-05-20 03:58  conversion /checkout         a1b2c3d4   ID         $24.00
+  2026-05-20 03:55  pageview   /pricing          643a004e   ID         -
+  2026-05-20 03:50  custom     /signup           e5f6a7b8   SG         -
+  2026-05-20 03:45  pageview   /                 c9d0e1f2   US         -
+
+  Total: 1482 events | Pageviews: 156 | Conversions: 12 | Custom: 89 | Revenue: $288.00</span></code></div>
+
+        <div class="code-block"><code><span class="cmt"># Filter by event type</span>
+<span class="prompt">$</span> <span class="cmd">revklik analytics events --site site_abc123 --type conversion --range 30d</span>
+
+<span class="cmt"># Output JSON for pipeline</span>
+<span class="prompt">$</span> <span class="cmd">revklik analytics events --site site_abc123 --json --limit 100</span></code></div>
+
+        <table>
+          <thead><tr><th>Flag</th><th>Description</th><th>Default</th></tr></thead>
+          <tbody>
+            <tr><td><code>--type</code></td><td>Filter: pageview, conversion, custom, all</td><td><code>all</code></td></tr>
+            <tr><td><code>--limit</code></td><td>Max events to show</td><td><code>50</code></td></tr>
+            <tr><td><code>--range</code></td><td>Date range (24h, 7d, 30d, 90d)</td><td><code>7d</code></td></tr>
+          </tbody>
+        </table>
+
+        <h3>Customer Journey Summaries</h3>
+        <p>See customer journey summaries: who is most engaged, where they came from, and who is worth following up. Sort by steps, revenue, source, device, or date.</p>
+
+        <div class="code-block"><code><span class="prompt">$</span> <span class="cmd">revklik analytics journeys --site site_abc123 --sort steps --limit 10</span>
+<span class="out">Customer Journeys — 7d
+
+  Visitor        Steps  Source          Device   Revenue  Date              Country
+  ────────────── ────── ─────────────── ──────── ──────── ───────────────── ────────
+  John Doe *     16     google          desktop  $24.00   2026-05-17 02:09  ID
+  7177428f-cac   10     direct          desktop  $0.00    2026-05-19 08:44  ID
+  8885accf-772   10     direct          desktop  $0.00    2026-05-17 12:26  ID
+  Jane Smith *   5      facebook        mobile   $12.50   2026-05-17 18:38  SE
+  2a6084bf-2af   2      facebook        desktop  $0.00    2026-05-19 08:46  US
+
+  Total: 10 journeys | Avg steps: 5.0 | Revenue: $36.50 | Converting: 2</span></code></div>
+
+        <div class="code-block"><code><span class="cmt"># Sort by revenue to find highest-value visitors</span>
+<span class="prompt">$</span> <span class="cmd">revklik analytics journeys --site site_abc123 --sort revenue --range 30d</span>
+
+<span class="cmt"># Output JSON for pipeline automation</span>
+<span class="prompt">$</span> <span class="cmd">revklik analytics journeys --site site_abc123 --json --limit 5</span></code></div>
+
+        <table class="cmd-table">
+          <tr><th>Flag</th><th>Description</th><th>Default</th></tr>
+          <tr><td><code>--sort</code></td><td>Sort by: steps, revenue, source, device, date</td><td><code>steps</code></td></tr>
+          <tr><td><code>--limit</code></td><td>Max journeys to show (max 100)</td><td><code>20</code></td></tr>
+          <tr><td><code>--range</code></td><td>Date range: 24h, 7d, 30d, 90d</td><td><code>7d</code></td></tr>
+        </table>
+
+        <h3>JSON Pipeline</h3>
+        <div class="callout blue">
+          <strong>Power user tip:</strong> Use the <code>--json</code> flag and pipe to <code>jq</code> for filtering, or to a script for automation.
+        </div>
+
+        <div class="code-block"><code><span class="cmt"># Get bounce rate only</span>
+<span class="prompt">$</span> <span class="cmd">revklik analytics overview --site site_abc123 --range 7d --json | jq .bounceRate</span>
+<span class="out">0.342</span>
+
+<span class="cmt"># Top 3 pages by visitors</span>
+<span class="prompt">$</span> <span class="cmd">revklik analytics pages --site site_abc123 --range 7d --json | jq 'sort_by(-.visitors) | .[0:3]'</span>
+
+<span class="cmt"># Export to file</span>
+<span class="prompt">$</span> <span class="cmd">revklik analytics overview --site site_abc123 --range 30d --json > overview.json</span></code></div>
+      </div>
+
+      <!-- TOKENS -->
+      <div class="doc-section" id="tokens">
+        <h2>Tokens</h2>
+
+        <h3>revklik tokens list</h3>
+        <div class="code-block"><code><span class="prompt">$</span> <span class="cmd">revklik tokens list</span>
+<span class="out">  ID            Prefix    Name             Type      Scopes                Last Used
+  ────────────── ───────── ───────────────── ───────── ────────────────────── ────────────
+  tok_abc123     rvt_a1b   My CLI Token     account   sites:read, analytics  2 hours ago
+  tok_def456     rv_x2y3   Site Tracker     site      analytics:read         Never</span></code></div>
+
+        <h3>revklik tokens create</h3>
+        <div class="code-block"><code><span class="prompt">$</span> <span class="cmd">revklik tokens create --name "CI Pipeline" --type account</span>
+<span class="out">  Token created!
+  ID:      tok_ghi789
+  Token:   rvt_f4g5h6i7j8k9...
+
+  ⚠ Save this token now — it won't be shown again.</span></code></div>
+
+        <h3>revklik tokens revoke</h3>
+        <div class="code-block"><code><span class="prompt">$</span> <span class="cmd">revklik tokens revoke tok_ghi789</span>
+<span class="out">Token tok_ghi789 revoked.</span></code></div>
+      </div>
+
+      <!-- GLOBAL FLAGS -->
+      <div class="doc-section" id="global-flags">
+        <h2>Global <em>Flags</em></h2>
+
+        <table class="cmd-table">
+          <tr><th>Flag</th><th>Description</th></tr>
+          <tr><td><code>--json</code></td><td>Output raw JSON (machine-readable). Good for piping to jq or scripts.</td></tr>
+          <tr><td><code>--verbose</code></td><td>Show debug info: URL, headers, response time.</td></tr>
+          <tr><td><code>--help</code></td><td>Show help for any command.</td></tr>
+          <tr><td><code>--version</code></td><td>Show the CLI version.</td></tr>
+        </table>
+      </div>
+
+      <!-- ENV VARS -->
+      <div class="doc-section" id="env-vars">
+        <h2>Environment <em>Variables</em></h2>
+
+        <table class="cmd-table">
+          <tr><th>Variable</th><th>Description</th><th>Default</th></tr>
+          <tr><td><code>REVKLIK_TOKEN</code></td><td>API token (skips login). Useful for CI/CD.</td><td>—</td></tr>
+          <tr><td><code>REVKLIK_API_BASE</code></td><td>Custom API base URL. For self-hosted setups.</td><td><code>https://app.revklik.com/api</code></td></tr>
+        </table>
+
+        <h3>CI/CD Example</h3>
+        <div class="code-block"><code><span class="cmt"># GitHub Actions</span>
+<span class="kw">env:</span>
+  <span class="hl">REVKLIK_TOKEN</span>: <span class="str">${{ secrets.REVKLIK_API_TOKEN }}</span>
+
+<span class="kw">steps:</span>
+  - <span class="kw">run:</span> <span class="cmd">npx @revklik/cli analytics overview --site $SITE_ID --range 24h --json</span></code></div>
+      </div>
+
+      <!-- CONFIG -->
+      <div class="doc-section" id="config">
+        <h2>Config <em>File</em></h2>
+        <p>The CLI stores its configuration in <code>~/.config/revklik/config.json</code>.</p>
+
+        <div class="code-block"><code>{
+  <span class="hl">"token"</span>: <span class="str">"rvt_a1b2c3d4e5f6..."</span>,
+  <span class="hl">"apiBase"</span>: <span class="str">"https://app.revklik.com/api"</span>
+}</code></div>
+
+        <p>To change the token, run <code>revklik login</code> again. The old token is overwritten.</p>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<footer>
+  <div class="container">
+    <div class="footer-left">
+      <span><svg class="brand-mark" viewBox="0 0 283.57 214.25" width="20" height="15.1" aria-hidden="true" focusable="false"><path fill="#F3B243" d="M0 174.21Q0 170.21 3.75 168.83L29.69 159.25Q32.5 158.21 32.5 161.21L32.5 207.21Q32.5 210.21 29.5 210.21L3 210.21Q0 210.21 0 207.21ZM45 146.71Q45 142.71 48.71 141.23L74.71 130.83Q77.5 129.71 77.5 132.71L77.5 207.21Q77.5 210.21 74.5 210.21L48 210.21Q45 210.21 45 207.21Z"/><path fill="#F99D4E" d="M90 108.71Q90 104.21 94.03 102.22L135.36 81.77Q138.5 80.21 138.5 83.71L138.5 207.21Q138.5 210.21 135.5 210.21L93 210.21Q90 210.21 90 207.21ZM152.5 2.96Q152.5 -1.54 156.36 0.78L281.64 76.14Q285.5 78.46 281.63 80.77L238.5 106.46L280.98 179.26Q283 182.71 279.91 185.26L246.09 213.17Q243 215.71 241 212.25L195 132.71L159.49 161.54Q152.5 167.21 152.5 158.21Z"/></svg>Rev<em>Klik</em></span>
+      <span class="footer-copy">&copy; 2026 Joyo Digitama</span>
+    </div>
+    <div class="footer-links">
+      <a href="/en/">Home</a>
+      <a href="/en/docs.html">Documentation</a>
+      <a href="/en/docs/api.html">API Reference</a>
+      <a href="/en/privacy.html">Privacy</a>
+      <a href="/en/terms.html">Terms</a>
+    </div>
+  </div>
+</footer>
+
+<script>
+function toggleMenu(){document.querySelector('.nav-links').classList.toggle('open')}
+const obs=new IntersectionObserver(es=>es.forEach(e=>{if(e.isIntersecting){e.target.classList.add('vis');obs.unobserve(e.target)}}),{threshold:.15});
+document.querySelectorAll('.fade-up').forEach(el=>obs.observe(el));
+window.addEventListener('scroll',()=>{document.getElementById('nav').classList.toggle('scrolled',window.scrollY>40)});
+
+const tocLinks=document.querySelectorAll('.toc a');
+const sections=document.querySelectorAll('.doc-section[id]');
+window.addEventListener('scroll',()=>{
+  let current='';
+  sections.forEach(s=>{if(window.scrollY>=s.offsetTop-120)current=s.id});
+  tocLinks.forEach(a=>{a.classList.toggle('active',a.getAttribute('href')==='#'+current)});
+});
+</script>
+</body>
+</html>

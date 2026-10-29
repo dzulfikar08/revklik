@@ -23,112 +23,355 @@
   </url>
   <url>
     <loc>https://revklik.com/blog.html</loc>
+    <xhtml:link rel="alternate" hreflang="id" href="https://revklik.com/blog.html"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://revklik.com/en/blog.html"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://revklik.com/blog.html"/>
+    <changefreq>weekly</changefreq>
+    <priority>0.9</priority>
+  </url>
+  <url>
+    <loc>https://revklik.com/en/blog.html</loc>
+    <xhtml:link rel="alternate" hreflang="id" href="https://revklik.com/blog.html"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://revklik.com/en/blog.html"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://revklik.com/blog.html"/>
     <changefreq>weekly</changefreq>
     <priority>0.9</priority>
   </url>
   <url>
     <loc>https://revklik.com/blog/atribusi-pendapatan.html</loc>
+    <xhtml:link rel="alternate" hreflang="id" href="https://revklik.com/blog/atribusi-pendapatan.html"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://revklik.com/en/blog/atribusi-pendapatan.html"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://revklik.com/blog/atribusi-pendapatan.html"/>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://revklik.com/en/blog/atribusi-pendapatan.html</loc>
+    <xhtml:link rel="alternate" hreflang="id" href="https://revklik.com/blog/atribusi-pendapatan.html"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://revklik.com/en/blog/atribusi-pendapatan.html"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://revklik.com/blog/atribusi-pendapatan.html"/>
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>
   </url>
   <url>
     <loc>https://revklik.com/blog/revklik-vs-google-analytics.html</loc>
+    <xhtml:link rel="alternate" hreflang="id" href="https://revklik.com/blog/revklik-vs-google-analytics.html"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://revklik.com/en/blog/revklik-vs-google-analytics.html"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://revklik.com/blog/revklik-vs-google-analytics.html"/>
+    <changefreq>monthly</changefreq>
+    <priority>0.9</priority>
+  </url>
+  <url>
+    <loc>https://revklik.com/en/blog/revklik-vs-google-analytics.html</loc>
+    <xhtml:link rel="alternate" hreflang="id" href="https://revklik.com/blog/revklik-vs-google-analytics.html"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://revklik.com/en/blog/revklik-vs-google-analytics.html"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://revklik.com/blog/revklik-vs-google-analytics.html"/>
     <changefreq>monthly</changefreq>
     <priority>0.9</priority>
   </url>
   <url>
     <loc>https://revklik.com/blog/analytics-tanpa-cookie.html</loc>
+    <xhtml:link rel="alternate" hreflang="id" href="https://revklik.com/blog/analytics-tanpa-cookie.html"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://revklik.com/en/blog/analytics-tanpa-cookie.html"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://revklik.com/blog/analytics-tanpa-cookie.html"/>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://revklik.com/en/blog/analytics-tanpa-cookie.html</loc>
+    <xhtml:link rel="alternate" hreflang="id" href="https://revklik.com/blog/analytics-tanpa-cookie.html"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://revklik.com/en/blog/analytics-tanpa-cookie.html"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://revklik.com/blog/analytics-tanpa-cookie.html"/>
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>
   </url>
   <url>
     <loc>https://revklik.com/blog/cloudflare-analytics.html</loc>
+    <xhtml:link rel="alternate" hreflang="id" href="https://revklik.com/blog/cloudflare-analytics.html"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://revklik.com/en/blog/cloudflare-analytics.html"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://revklik.com/blog/cloudflare-analytics.html"/>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://revklik.com/en/blog/cloudflare-analytics.html</loc>
+    <xhtml:link rel="alternate" hreflang="id" href="https://revklik.com/blog/cloudflare-analytics.html"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://revklik.com/en/blog/cloudflare-analytics.html"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://revklik.com/blog/cloudflare-analytics.html"/>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
     <loc>https://revklik.com/blog/cloudflare-workers-d1.html</loc>
+    <xhtml:link rel="alternate" hreflang="id" href="https://revklik.com/blog/cloudflare-workers-d1.html"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://revklik.com/en/blog/cloudflare-workers-d1.html"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://revklik.com/blog/cloudflare-workers-d1.html"/>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://revklik.com/en/blog/cloudflare-workers-d1.html</loc>
+    <xhtml:link rel="alternate" hreflang="id" href="https://revklik.com/blog/cloudflare-workers-d1.html"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://revklik.com/en/blog/cloudflare-workers-d1.html"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://revklik.com/blog/cloudflare-workers-d1.html"/>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
     <loc>https://revklik.com/blog/atribusi-revenue.html</loc>
+    <xhtml:link rel="alternate" hreflang="id" href="https://revklik.com/blog/atribusi-revenue.html"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://revklik.com/en/blog/atribusi-revenue.html"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://revklik.com/blog/atribusi-revenue.html"/>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://revklik.com/en/blog/atribusi-revenue.html</loc>
+    <xhtml:link rel="alternate" hreflang="id" href="https://revklik.com/blog/atribusi-revenue.html"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://revklik.com/en/blog/atribusi-revenue.html"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://revklik.com/blog/atribusi-revenue.html"/>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
     <loc>https://revklik.com/blog/funnel-konversi.html</loc>
+    <xhtml:link rel="alternate" hreflang="id" href="https://revklik.com/blog/funnel-konversi.html"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://revklik.com/en/blog/funnel-konversi.html"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://revklik.com/blog/funnel-konversi.html"/>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://revklik.com/en/blog/funnel-konversi.html</loc>
+    <xhtml:link rel="alternate" hreflang="id" href="https://revklik.com/blog/funnel-konversi.html"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://revklik.com/en/blog/funnel-konversi.html"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://revklik.com/blog/funnel-konversi.html"/>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
     <loc>https://revklik.com/blog/migration-plausible.html</loc>
+    <xhtml:link rel="alternate" hreflang="id" href="https://revklik.com/blog/migration-plausible.html"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://revklik.com/en/blog/migration-plausible.html"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://revklik.com/blog/migration-plausible.html"/>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://revklik.com/en/blog/migration-plausible.html</loc>
+    <xhtml:link rel="alternate" hreflang="id" href="https://revklik.com/blog/migration-plausible.html"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://revklik.com/en/blog/migration-plausible.html"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://revklik.com/blog/migration-plausible.html"/>
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>
   </url>
   <url>
     <loc>https://revklik.com/blog/migration-datafast.html</loc>
+    <xhtml:link rel="alternate" hreflang="id" href="https://revklik.com/blog/migration-datafast.html"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://revklik.com/en/blog/migration-datafast.html"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://revklik.com/blog/migration-datafast.html"/>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://revklik.com/en/blog/migration-datafast.html</loc>
+    <xhtml:link rel="alternate" hreflang="id" href="https://revklik.com/blog/migration-datafast.html"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://revklik.com/en/blog/migration-datafast.html"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://revklik.com/blog/migration-datafast.html"/>
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>
   </url>
   <url>
     <loc>https://revklik.com/blog/benchmark-latensi.html</loc>
+    <xhtml:link rel="alternate" hreflang="id" href="https://revklik.com/blog/benchmark-latensi.html"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://revklik.com/en/blog/benchmark-latensi.html"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://revklik.com/blog/benchmark-latensi.html"/>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://revklik.com/en/blog/benchmark-latensi.html</loc>
+    <xhtml:link rel="alternate" hreflang="id" href="https://revklik.com/blog/benchmark-latensi.html"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://revklik.com/en/blog/benchmark-latensi.html"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://revklik.com/blog/benchmark-latensi.html"/>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
     <loc>https://revklik.com/docs.html</loc>
+    <xhtml:link rel="alternate" hreflang="id" href="https://revklik.com/docs.html"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://revklik.com/en/docs.html"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://revklik.com/docs.html"/>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://revklik.com/en/docs.html</loc>
+    <xhtml:link rel="alternate" hreflang="id" href="https://revklik.com/docs.html"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://revklik.com/en/docs.html"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://revklik.com/docs.html"/>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
   </url>
   <url>
     <loc>https://revklik.com/docs/api.html</loc>
+    <xhtml:link rel="alternate" hreflang="id" href="https://revklik.com/docs/api.html"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://revklik.com/en/docs/api.html"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://revklik.com/docs/api.html"/>
+    <changefreq>weekly</changefreq>
+    <priority>0.9</priority>
+  </url>
+  <url>
+    <loc>https://revklik.com/en/docs/api.html</loc>
+    <xhtml:link rel="alternate" hreflang="id" href="https://revklik.com/docs/api.html"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://revklik.com/en/docs/api.html"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://revklik.com/docs/api.html"/>
     <changefreq>weekly</changefreq>
     <priority>0.9</priority>
   </url>
   <url>
     <loc>https://revklik.com/docs/cli.html</loc>
+    <xhtml:link rel="alternate" hreflang="id" href="https://revklik.com/docs/cli.html"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://revklik.com/en/docs/cli.html"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://revklik.com/docs/cli.html"/>
+    <changefreq>weekly</changefreq>
+    <priority>0.9</priority>
+  </url>
+  <url>
+    <loc>https://revklik.com/en/docs/cli.html</loc>
+    <xhtml:link rel="alternate" hreflang="id" href="https://revklik.com/docs/cli.html"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://revklik.com/en/docs/cli.html"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://revklik.com/docs/cli.html"/>
     <changefreq>weekly</changefreq>
     <priority>0.9</priority>
   </url>
   <url>
     <loc>https://revklik.com/docs/hermes-daily-analytics.html</loc>
+    <xhtml:link rel="alternate" hreflang="id" href="https://revklik.com/docs/hermes-daily-analytics.html"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://revklik.com/en/docs/hermes-daily-analytics.html"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://revklik.com/docs/hermes-daily-analytics.html"/>
+    <lastmod>2026-05-19</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://revklik.com/en/docs/hermes-daily-analytics.html</loc>
+    <xhtml:link rel="alternate" hreflang="id" href="https://revklik.com/docs/hermes-daily-analytics.html"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://revklik.com/en/docs/hermes-daily-analytics.html"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://revklik.com/docs/hermes-daily-analytics.html"/>
     <lastmod>2026-05-19</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>
   </url>
   <url>
     <loc>https://revklik.com/privacy.html</loc>
+    <xhtml:link rel="alternate" hreflang="id" href="https://revklik.com/privacy.html"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://revklik.com/en/privacy.html"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://revklik.com/privacy.html"/>
+    <changefreq>monthly</changefreq>
+    <priority>0.3</priority>
+  </url>
+  <url>
+    <loc>https://revklik.com/en/privacy.html</loc>
+    <xhtml:link rel="alternate" hreflang="id" href="https://revklik.com/privacy.html"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://revklik.com/en/privacy.html"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://revklik.com/privacy.html"/>
     <changefreq>monthly</changefreq>
     <priority>0.3</priority>
   </url>
   <url>
     <loc>https://revklik.com/terms.html</loc>
+    <xhtml:link rel="alternate" hreflang="id" href="https://revklik.com/terms.html"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://revklik.com/en/terms.html"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://revklik.com/terms.html"/>
+    <changefreq>monthly</changefreq>
+    <priority>0.3</priority>
+  </url>
+  <url>
+    <loc>https://revklik.com/en/terms.html</loc>
+    <xhtml:link rel="alternate" hreflang="id" href="https://revklik.com/terms.html"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://revklik.com/en/terms.html"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://revklik.com/terms.html"/>
     <changefreq>monthly</changefreq>
     <priority>0.3</priority>
   </url>
   <url>
     <loc>https://revklik.com/support.html</loc>
+    <xhtml:link rel="alternate" hreflang="id" href="https://revklik.com/support.html"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://revklik.com/en/support.html"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://revklik.com/support.html"/>
+    <changefreq>monthly</changefreq>
+    <priority>0.5</priority>
+  </url>
+  <url>
+    <loc>https://revklik.com/en/support.html</loc>
+    <xhtml:link rel="alternate" hreflang="id" href="https://revklik.com/support.html"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://revklik.com/en/support.html"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://revklik.com/support.html"/>
     <changefreq>monthly</changefreq>
     <priority>0.5</priority>
   </url>
   <url>
     <loc>https://revklik.com/success.html</loc>
+    <xhtml:link rel="alternate" hreflang="id" href="https://revklik.com/success.html"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://revklik.com/en/success.html"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://revklik.com/success.html"/>
+    <changefreq>monthly</changefreq>
+    <priority>0.3</priority>
+  </url>
+  <url>
+    <loc>https://revklik.com/en/success.html</loc>
+    <xhtml:link rel="alternate" hreflang="id" href="https://revklik.com/success.html"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://revklik.com/en/success.html"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://revklik.com/success.html"/>
     <changefreq>monthly</changefreq>
     <priority>0.3</priority>
   </url>
   <url>
     <loc>https://revklik.com/blog/analytics-patuh-uu-pdp.html</loc>
+    <xhtml:link rel="alternate" hreflang="id" href="https://revklik.com/blog/analytics-patuh-uu-pdp.html"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://revklik.com/en/blog/analytics-patuh-uu-pdp.html"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://revklik.com/blog/analytics-patuh-uu-pdp.html"/>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://revklik.com/en/blog/analytics-patuh-uu-pdp.html</loc>
+    <xhtml:link rel="alternate" hreflang="id" href="https://revklik.com/blog/analytics-patuh-uu-pdp.html"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://revklik.com/en/blog/analytics-patuh-uu-pdp.html"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://revklik.com/blog/analytics-patuh-uu-pdp.html"/>
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>
   </url>
   <url>
     <loc>https://revklik.com/blog/analytics-untuk-umkm.html</loc>
+    <xhtml:link rel="alternate" hreflang="id" href="https://revklik.com/blog/analytics-untuk-umkm.html"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://revklik.com/en/blog/analytics-untuk-umkm.html"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://revklik.com/blog/analytics-untuk-umkm.html"/>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://revklik.com/en/blog/analytics-untuk-umkm.html</loc>
+    <xhtml:link rel="alternate" hreflang="id" href="https://revklik.com/blog/analytics-untuk-umkm.html"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://revklik.com/en/blog/analytics-untuk-umkm.html"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://revklik.com/blog/analytics-untuk-umkm.html"/>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
     <loc>https://revklik.com/blog/tracking-revenue-shopee-tokopedia.html</loc>
+    <xhtml:link rel="alternate" hreflang="id" href="https://revklik.com/blog/tracking-revenue-shopee-tokopedia.html"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://revklik.com/en/blog/tracking-revenue-shopee-tokopedia.html"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://revklik.com/blog/tracking-revenue-shopee-tokopedia.html"/>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://revklik.com/en/blog/tracking-revenue-shopee-tokopedia.html</loc>
+    <xhtml:link rel="alternate" hreflang="id" href="https://revklik.com/blog/tracking-revenue-shopee-tokopedia.html"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://revklik.com/en/blog/tracking-revenue-shopee-tokopedia.html"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://revklik.com/blog/tracking-revenue-shopee-tokopedia.html"/>
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>
   </url>
