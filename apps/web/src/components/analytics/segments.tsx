@@ -93,11 +93,11 @@ const SegmentPopover = ({
 								saveMut.mutate();
 							}
 						}}
-						className="h-8 text-xs"
+						className="pointer-coarse:h-11 h-9 text-[13px]"
 					/>
 					<Button
 						size="sm"
-						className="h-8 text-xs"
+						className="pointer-coarse:h-11 h-9 text-[13px]"
 						disabled={!name.trim() || filters.length === 0 || saveMut.isPending}
 						onClick={() => saveMut.mutate()}
 					>
@@ -185,7 +185,7 @@ export const SegmentControls = ({
 								description: t("segments.filterCount", { n: parsed.length }),
 							});
 						}}
-						className={`focus-visible:outline-ring inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium outline-offset-2 focus-visible:outline-2 ${
+						className={`focus-visible:outline-ring inline-flex items-center gap-1 rounded-full pointer-coarse:min-h-11 min-h-8 px-3 text-[13px] font-medium outline-offset-2 focus-visible:outline-2 ${
 							active
 								? "bg-(--chart) text-background"
 								: "bg-muted/70 hover:bg-muted text-muted-foreground"
@@ -201,7 +201,7 @@ export const SegmentControls = ({
 				aria-label={t("segments.saveOrManage")}
 				aria-expanded={open}
 				onClick={() => setOpen((v) => !v)}
-				className={`focus-visible:outline-ring inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium outline-offset-2 focus-visible:outline-2 ${
+				className={`focus-visible:outline-ring inline-flex items-center gap-1 rounded-full pointer-coarse:min-h-11 min-h-8 px-3 text-[13px] font-medium outline-offset-2 focus-visible:outline-2 ${
 					open ? "bg-muted text-foreground" : "bg-muted/70 hover:bg-muted text-muted-foreground"
 				}`}
 			>

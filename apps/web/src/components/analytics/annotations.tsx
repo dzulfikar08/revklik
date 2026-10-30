@@ -76,7 +76,7 @@ export const AnnotationsControl = ({
 				aria-label={t("annotations.ariaCount", { n: annotations.length })}
 				aria-expanded={open}
 				onClick={() => setOpen((v) => !v)}
-				className={`focus-visible:outline-ring inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-medium outline-offset-2 focus-visible:outline-2 ${
+				className={`focus-visible:outline-ring inline-flex items-center gap-1 rounded-lg pointer-coarse:min-h-11 min-h-8 px-2.5 text-[13px] font-medium outline-offset-2 focus-visible:outline-2 ${
 					open
 						? "bg-muted text-foreground"
 						: "text-muted-foreground hover:bg-muted/70 hover:text-foreground"
