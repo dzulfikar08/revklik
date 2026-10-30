@@ -14,6 +14,8 @@ import { Check, Copy, KeyRound, Plus, RefreshCw } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 
+import { formatDate, useLocale, useT } from "@/lib/i18n";
+import type { MessageKey } from "@/lib/i18n";
 import { fetchSites } from "@/lib/legacy/api";
 import type { SiteWithStats } from "@/lib/legacy/api";
 import {
@@ -37,32 +39,12 @@ import type { ApiTokenInfo } from "@/lib/legacy/share-widget-tokens";
 
 import { Panel, PanelTabs } from "./ui";
 
-/* ------------------------------ active site ------------------------------- */
-
-/**
- * Same active-site derivation as the dashboard (localStorage seeded, falls
- * back to the first site) — the settings view has no site picker of its own.
- */
-const useActiveSite = (): {
-	siteId: string;
-	sites: SiteWithStats[];
-	sitesLoading: boolean;
-} => {
-	const sitesQ = useQuery({
-		queryFn: () => fetchSites("30d"),
-		queryKey: ["legacy", "sites", "30d"],
-		retry: false,
-		staleTime: 60_000,
-	});
-	const sites = sitesQ.data ?? [];
-	const stored = localStorage.getItem("kp_active_site") ?? "";
-	const siteId = sites.some((s) => s.id === stored) ? stored : (sites[0]?.id ?? "");
-	return { siteId, sites, sitesLoading: sitesQ.isLoading };
-};
-
 /* -------------------------------- helpers --------------------------------- */
 
-const NoSite = () => <p className="text-muted-foreground text-xs">Select a site first.</p>;
+const NoSite = () => {
+	const t = useT();
+	return <p className="text-muted-foreground text-xs">{t("share.selectSite")}</p>;
+};
 
 const LiveBadge = ({ label }: { label: string }) => (
 	<span className="rounded-full border border-(--up)/20 bg-(--up)/10 px-2 py-0.5 font-mono text-[10px] tracking-wide text-(--up)">
@@ -70,15 +52,8 @@ const LiveBadge = ({ label }: { label: string }) => (
 	</span>
 );
 
-const CopyButton = ({
-	text,
-	label = "Copy",
-	className,
-}: {
-	text: string;
-	label?: string;
-	className?: string;
-}) => {
+const CopyButton = ({ text, label, className }: { text: string; label?: string; className?: string }) => {
+	const t = useT();
 	const [copied, setCopied] = useState(false);
 	return (
 		<Button
@@ -91,7 +66,7 @@ const CopyButton = ({
 					setCopied(true);
 					setTimeout(() => setCopied(false), 1600);
 				} catch {
-					toast.error("Couldn't copy to clipboard");
+					toast.error(t("share.copyFailed"));
 				}
 			}}
 		>
@@ -100,7 +75,7 @@ const CopyButton = ({
 			) : (
 				<Copy className="size-3.5" aria-hidden />
 			)}
-			{copied ? "Copied" : label}
+			{copied ? t("share.copied") : (label ?? t("share.copy"))}
 		</Button>
 	);
 };
@@ -108,6 +83,7 @@ const CopyButton = ({
 /* ------------------------------ share panel ------------------------------- */
 
 const SharePanel = ({ siteId }: { siteId: string }) => {
+	const t = useT();
 	const qc = useQueryClient();
 	const shareQ = useQuery({
 		enabled: Boolean(siteId),
@@ -121,7 +97,7 @@ const SharePanel = ({ siteId }: { siteId: string }) => {
 		mutationFn: () => toggleShare(siteId),
 		onSuccess: (data) => {
 			qc.setQueryData(["legacy", "share", siteId], data);
-			toast.success(data.public ? "Public dashboard enabled" : "Public dashboard disabled");
+			toast.success(data.public ? t("share.public.enabledToast") : t("share.public.disabledToast"));
 		},
 		onError: (e: Error) => toast.error(e.message),
 	});
@@ -131,14 +107,11 @@ const SharePanel = ({ siteId }: { siteId: string }) => {
 	const url = isPublic && token ? shareUrl(token) : "";
 
 	return (
-		<Panel
-			title="Public dashboard"
-			hint="Share a read-only live dashboard page, its JSON feed, and an embed snippet."
-		>
+		<Panel title={t("share.public.title")} hint={t("share.public.hint")}>
 			{!siteId ? (
 				<NoSite />
 			) : shareQ.isLoading ? (
-				<p className="text-muted-foreground text-xs">Loading…</p>
+				<p className="text-muted-foreground text-xs">{t("share.loading")}</p>
 			) : (
 				<div className="grid gap-2">
 					<div className="flex flex-wrap items-center gap-2">
@@ -147,9 +120,9 @@ const SharePanel = ({ siteId }: { siteId: string }) => {
 							disabled={toggleMut.isPending || shareQ.isFetching}
 							onClick={() => toggleMut.mutate()}
 						>
-							{isPublic ? "Disable public link" : "Enable public link"}
+							{isPublic ? t("share.public.disable") : t("share.public.enable")}
 						</Button>
-						{isPublic && <LiveBadge label="Public" />}
+						{isPublic && <LiveBadge label={t("share.public.badge")} />}
 					</div>
 					{url && (
 						<div className="flex items-center gap-1.5">
@@ -158,21 +131,18 @@ const SharePanel = ({ siteId }: { siteId: string }) => {
 								value={url}
 								onFocus={(e) => e.target.select()}
 								className="h-7 font-mono text-[11px]"
-								aria-label="Public dashboard URL"
+								aria-label={t("share.public.urlLabel")}
 							/>
 							<CopyButton text={url} className="shrink-0" />
 						</div>
 					)}
 					{isPublic && token && (
 						<div className="flex flex-wrap items-center gap-2">
-							<CopyButton text={publicPageUrl(token)} label="Copy public link" />
-							<CopyButton text={publicEmbedCode(token)} label="Copy embed code" />
+							<CopyButton text={publicPageUrl(token)} label={t("share.public.copyLink")} />
+							<CopyButton text={publicEmbedCode(token)} label={t("share.public.copyEmbed")} />
 						</div>
 					)}
-					<p className="text-muted-foreground text-[11px]">
-						The public link opens a live dashboard page anyone can view; embed code drops it into
-						any site via an iframe. The JSON URL stays available for integrations.
-					</p>
+					<p className="text-muted-foreground text-[11px]">{t("share.public.note")}</p>
 				</div>
 			)}
 		</Panel>
@@ -197,6 +167,7 @@ const fmtOffset = (min: number): string => {
 };
 
 const WidgetPanel = ({ siteId }: { siteId: string }) => {
+	const t = useT();
 	const qc = useQueryClient();
 	const [mode, setMode] = useState<"bubble" | "badge">("bubble");
 
@@ -219,7 +190,7 @@ const WidgetPanel = ({ siteId }: { siteId: string }) => {
 		mutationFn: () => regenerateWidgetToken(siteId),
 		onSuccess: () => {
 			invalidate();
-			toast.success("Widget token regenerated — update the embed snippet");
+			toast.success(t("share.widget.regeneratedToast"));
 		},
 		onError: (e: Error) => toast.error(e.message),
 	});
@@ -241,11 +212,11 @@ const WidgetPanel = ({ siteId }: { siteId: string }) => {
 	const tzValue = widgetQ.data?.tz_offset ?? browserOffset;
 
 	return (
-		<Panel title="Live widget" hint="Embeddable live-visitor bubble for your website.">
+		<Panel title={t("share.widget.title")} hint={t("share.widget.hint")}>
 			{!siteId ? (
 				<NoSite />
 			) : widgetQ.isLoading ? (
-				<p className="text-muted-foreground text-xs">Loading…</p>
+				<p className="text-muted-foreground text-xs">{t("share.loading")}</p>
 			) : (
 				<div className="grid gap-2.5">
 					<div className="flex flex-wrap items-center gap-2">
@@ -254,9 +225,9 @@ const WidgetPanel = ({ siteId }: { siteId: string }) => {
 							disabled={toggleMut.isPending || widgetQ.isFetching}
 							onClick={() => toggleMut.mutate()}
 						>
-							{enabled ? "Disable widget" : "Enable widget"}
+							{enabled ? t("share.widget.disable") : t("share.widget.enable")}
 						</Button>
-						{enabled && <LiveBadge label="Enabled" />}
+						{enabled && <LiveBadge label={t("share.widget.badge")} />}
 						{enabled && (
 							<Button
 								variant="outline"
@@ -265,7 +236,7 @@ const WidgetPanel = ({ siteId }: { siteId: string }) => {
 								onClick={() => regenerateMut.mutate()}
 							>
 								<RefreshCw className="size-3.5" aria-hidden />
-								Regenerate token
+								{t("share.widget.regenerate")}
 							</Button>
 						)}
 					</div>
@@ -277,8 +248,8 @@ const WidgetPanel = ({ siteId }: { siteId: string }) => {
 									value={mode}
 									onChange={setMode}
 									tabs={[
-										{ key: "bubble", label: "Bubble" },
-										{ key: "badge", label: "Badge" },
+										{ key: "bubble", label: t("share.widget.bubble") },
+										{ key: "badge", label: t("share.widget.badgeMode") },
 									]}
 								/>
 								<pre className="bg-muted/50 ring-foreground/10 overflow-x-auto rounded-lg p-2.5 ring-1 font-mono text-[11px] break-all whitespace-pre-wrap">
@@ -289,13 +260,13 @@ const WidgetPanel = ({ siteId }: { siteId: string }) => {
 
 							<div className="grid gap-1">
 								<Label className="text-muted-foreground text-[10px] tracking-wider uppercase">
-									Timezone for "today"
+									{t("share.widget.tz")}
 								</Label>
 								<Select value={String(tzValue)} onValueChange={(v) => configMut.mutate(Number(v))}>
 									<SelectTrigger
 										className="h-7 w-56 text-xs"
 										disabled={configMut.isPending}
-										aria-label="Widget timezone offset"
+										aria-label={t("share.widget.tzAria")}
 									>
 										<SelectValue />
 									</SelectTrigger>
@@ -303,14 +274,12 @@ const WidgetPanel = ({ siteId }: { siteId: string }) => {
 										{TZ_OFFSETS.map((min) => (
 											<SelectItem key={min} value={String(min)}>
 												{fmtOffset(min)}
-												{min === browserOffset ? " — you" : ""}
+												{min === browserOffset ? ` (${t("share.widget.tzYou")})` : ""}
 											</SelectItem>
 										))}
 									</SelectContent>
 								</Select>
-								<p className="text-muted-foreground text-[11px]">
-									Day boundaries for the widget's visitor counts.
-								</p>
+								<p className="text-muted-foreground text-[11px]">{t("share.widget.tzNote")}</p>
 							</div>
 						</>
 					)}
@@ -322,24 +291,16 @@ const WidgetPanel = ({ siteId }: { siteId: string }) => {
 
 /* ------------------------------ tokens panel ------------------------------ */
 
-const SCOPES = [
-	{ key: "sites:read", label: "Sites: Read", desc: "List and view sites" },
-	{
-		key: "analytics:read",
-		label: "Analytics: Read",
-		desc: "View analytics data",
-	},
+const SCOPES: readonly { key: string; label: string; desc: MessageKey }[] = [
+	{ key: "sites:read", label: "Sites: Read", desc: "share.tokens.scope.sitesRead" },
+	{ key: "analytics:read", label: "Analytics: Read", desc: "share.tokens.scope.analyticsRead" },
 	{
 		key: "analytics:export",
 		label: "Analytics: Export",
-		desc: "Export analytics data",
+		desc: "share.tokens.scope.analyticsExport",
 	},
-	{ key: "tokens:read", label: "Tokens: Read", desc: "List API tokens" },
-	{
-		key: "tokens:write",
-		label: "Tokens: Write",
-		desc: "Create and revoke tokens",
-	},
+	{ key: "tokens:read", label: "Tokens: Read", desc: "share.tokens.scope.tokensRead" },
+	{ key: "tokens:write", label: "Tokens: Write", desc: "share.tokens.scope.tokensWrite" },
 ];
 const DEFAULT_ACCOUNT_SCOPES = [
 	"sites:read",
@@ -361,6 +322,8 @@ const TokenRow = ({
 	onRevoke: (id: string) => void;
 	revoking: boolean;
 }) => {
+	const t = useT();
+	const locale = useLocale();
 	const [confirming, setConfirming] = useState(false);
 
 	return (
@@ -375,7 +338,7 @@ const TokenRow = ({
 								: "border-(--up)/20 bg-(--up)/10 text-(--up)"
 						}`}
 					>
-						{token.type}
+						{token.type === "account" ? t("share.tokens.typeAccount") : t("share.tokens.typeSite")}
 					</span>
 					<span className="bg-muted/60 rounded-md px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground">
 						{token.prefix}…
@@ -391,40 +354,28 @@ const TokenRow = ({
 						</span>
 					))}
 				</div>
-				<div className="text-muted-foreground flex flex-wrap gap-3 font-mono text-[10px]">
-					<span>
-						Created{" "}
-						{new Date(token.created_at).toLocaleDateString("en-GB", {
-							day: "numeric",
-							month: "short",
-							year: "numeric",
-						})}
-					</span>
+				<div className="text-muted-foreground flex flex-wrap gap-3 text-[11px]">
+					<span>{t("share.tokens.createdOn", { date: formatDate(token.created_at, locale) })}</span>
 					{token.last_used_at && (
 						<span>
-							Last used{" "}
-							{new Date(token.last_used_at).toLocaleDateString("en-GB", {
-								day: "numeric",
-								month: "short",
-								year: "numeric",
-							})}
+							{t("share.tokens.lastUsed", { date: formatDate(token.last_used_at, locale) })}
 						</span>
 					)}
 				</div>
 			</div>
 			{confirming ? (
 				<div className="flex items-center gap-1.5">
-					<span className="text-(--down) font-mono text-[11px]">Revoke?</span>
+					<span className="text-(--down) text-[11px]">{t("share.tokens.revokeConfirm")}</span>
 					<Button
 						variant="destructive"
 						size="xs"
 						disabled={revoking}
 						onClick={() => onRevoke(token.id)}
 					>
-						Yes
+						{t("share.tokens.yes")}
 					</Button>
 					<Button variant="ghost" size="xs" onClick={() => setConfirming(false)}>
-						No
+						{t("share.tokens.no")}
 					</Button>
 				</div>
 			) : (
@@ -434,7 +385,7 @@ const TokenRow = ({
 					className="text-(--down)"
 					onClick={() => setConfirming(true)}
 				>
-					Revoke
+					{t("share.tokens.revoke")}
 				</Button>
 			)}
 		</div>
@@ -442,6 +393,7 @@ const TokenRow = ({
 };
 
 const TokensPanel = ({ sites }: { sites: SiteWithStats[] }) => {
+	const t = useT();
 	const qc = useQueryClient();
 	const [createOpen, setCreateOpen] = useState(false);
 	const [name, setName] = useState("");
@@ -477,7 +429,7 @@ const TokensPanel = ({ sites }: { sites: SiteWithStats[] }) => {
 		mutationFn: (id: string) => revokeApiToken(id),
 		onSuccess: () => {
 			qc.invalidateQueries({ queryKey: ["legacy", "tokens"] });
-			toast.success("Token revoked");
+			toast.success(t("share.tokens.revokedToast"));
 		},
 		onError: (e: Error) => toast.error(e.message),
 	});
@@ -522,17 +474,33 @@ const TokensPanel = ({ sites }: { sites: SiteWithStats[] }) => {
 		setSelectedSiteId("");
 	};
 
-	return (
-		<Panel
-			title="API tokens"
-			hint="Authenticate CLI commands or API requests against the revklik API."
+	const typeButton = (kind: "account" | "site", label: string, desc: string) => (
+		<button
+			type="button"
+			onClick={() => handleTypeChange(kind)}
+			className={`flex-1 rounded-lg border p-2 text-left text-[13px] transition-colors ${
+				type === kind ? "border-primary/40 bg-primary/10" : "hover:bg-muted/60 border-transparent"
+			}`}
 		>
+			<span className="block font-medium">{label}</span>
+			<span className="text-muted-foreground block text-[11px]">{desc}</span>
+		</button>
+	);
+
+	return (
+		<Panel title={t("share.tokens.title")} hint={t("share.tokens.hint")}>
 			<div className="grid gap-2.5">
 				<div className="flex flex-wrap items-center gap-2">
-					<span className="text-muted-foreground flex items-center gap-1.5 font-mono text-[11px]">
+					<span className="text-muted-foreground flex items-center gap-1.5 text-[11px]">
 						<KeyRound className="size-3.5" aria-hidden />
-						{plan} plan — {used} token{used === 1 ? "" : "s"} used ·{" "}
-						{remaining === null ? "unlimited" : `${remaining} remaining`}
+						{t("share.tokens.usage", {
+							plan,
+							remaining:
+								remaining === null
+									? t("share.tokens.unlimited")
+									: t("share.tokens.remaining", { n: remaining }),
+							used: t("share.tokens.used", { n: used }),
+						})}
 					</span>
 					<Button
 						variant="outline"
@@ -542,14 +510,13 @@ const TokensPanel = ({ sites }: { sites: SiteWithStats[] }) => {
 						onClick={() => setCreateOpen(true)}
 					>
 						<Plus className="size-3.5" aria-hidden />
-						Create token
+						{t("share.tokens.create")}
 					</Button>
 				</div>
 
 				{limitReached && (
 					<p className="text-(--down) rounded-lg bg-(--down)/10 px-2.5 py-1.5 text-[11px]">
-						Token limit reached — your {plan} plan allows up to{" "}
-						{Number.isFinite(limit) ? limit : "unlimited"} tokens.
+						{t("share.tokens.limitReached", { limit, plan })}
 					</p>
 				)}
 
@@ -558,7 +525,7 @@ const TokensPanel = ({ sites }: { sites: SiteWithStats[] }) => {
 						{created ? (
 							<div className="grid gap-2">
 								<p className="text-(--down) rounded-lg bg-(--down)/10 px-2.5 py-1.5 text-[11px] font-semibold">
-									Copy this token now — it won't be shown again.
+									{t("share.tokens.copyOnce")}
 								</p>
 								<div className="flex items-center gap-1.5">
 									<code className="bg-muted/50 ring-foreground/10 min-w-0 flex-1 rounded-lg p-2.5 font-mono text-[12px] break-all ring-1">
@@ -566,10 +533,12 @@ const TokensPanel = ({ sites }: { sites: SiteWithStats[] }) => {
 									</code>
 									<CopyButton text={created.token} className="shrink-0" />
 								</div>
-								<p className="text-muted-foreground text-[11px]">Token "{created.name}" created.</p>
+								<p className="text-muted-foreground text-[11px]">
+									{t("share.tokens.created", { name: created.name })}
+								</p>
 								<div>
 									<Button size="sm" onClick={closeCreate}>
-										Done
+										{t("share.tokens.done")}
 									</Button>
 								</div>
 							</div>
@@ -580,50 +549,28 @@ const TokensPanel = ({ sites }: { sites: SiteWithStats[] }) => {
 										htmlFor="token-name"
 										className="text-muted-foreground text-[10px] tracking-wider uppercase"
 									>
-										Token name
+										{t("share.tokens.name")}
 									</Label>
 									<Input
 										id="token-name"
 										value={name}
 										onChange={(e) => setName(e.target.value)}
-										placeholder="e.g. My CLI, CI/CD, Analytics Export"
+										placeholder={t("share.tokens.namePlaceholder")}
 										className="h-8 text-[13px]"
 									/>
 								</div>
 
 								<div className="grid gap-1">
 									<span className="text-muted-foreground text-[10px] tracking-wider uppercase">
-										Token type
+										{t("share.tokens.type")}
 									</span>
 									<div className="flex gap-2">
-										<button
-											type="button"
-											onClick={() => handleTypeChange("account")}
-											className={`flex-1 rounded-lg border p-2 text-left text-[13px] transition-colors ${
-												type === "account"
-													? "border-primary/40 bg-primary/10"
-													: "hover:bg-muted/60 border-transparent"
-											}`}
-										>
-											<span className="block font-medium">Account</span>
-											<span className="text-muted-foreground block text-[11px]">
-												Full access across all sites (rvt_…)
-											</span>
-										</button>
-										<button
-											type="button"
-											onClick={() => handleTypeChange("site")}
-											className={`flex-1 rounded-lg border p-2 text-left text-[13px] transition-colors ${
-												type === "site"
-													? "border-primary/40 bg-primary/10"
-													: "hover:bg-muted/60 border-transparent"
-											}`}
-										>
-											<span className="block font-medium">Site</span>
-											<span className="text-muted-foreground block text-[11px]">
-												Scoped to a single site (rv_…)
-											</span>
-										</button>
+										{typeButton(
+											"account",
+											t("share.tokens.typeAccount"),
+											t("share.tokens.typeAccountDesc"),
+										)}
+										{typeButton("site", t("share.tokens.typeSite"), t("share.tokens.typeSiteDesc"))}
 									</div>
 								</div>
 
@@ -633,19 +580,19 @@ const TokensPanel = ({ sites }: { sites: SiteWithStats[] }) => {
 											htmlFor="token-site"
 											className="text-muted-foreground text-[10px] tracking-wider uppercase"
 										>
-											Select site
+											{t("share.tokens.selectSite")}
 										</Label>
 										<Select
 											value={selectedSiteId}
 											onValueChange={(v) => setSelectedSiteId(String(v))}
 										>
-											<SelectTrigger className="h-8 text-[13px]" aria-label="Token site">
-												<SelectValue placeholder="Choose a site…" />
+											<SelectTrigger className="h-8 text-[13px]" aria-label={t("share.tokens.siteAria")}>
+												<SelectValue placeholder={t("share.tokens.sitePlaceholder")} />
 											</SelectTrigger>
 											<SelectContent>
 												{sites.map((s) => (
 													<SelectItem key={s.id} value={s.id}>
-														{s.name} — {s.domain}
+														{s.name} ({s.domain})
 													</SelectItem>
 												))}
 											</SelectContent>
@@ -655,7 +602,7 @@ const TokensPanel = ({ sites }: { sites: SiteWithStats[] }) => {
 
 								<div className="grid gap-1">
 									<span className="text-muted-foreground text-[10px] tracking-wider uppercase">
-										Scopes
+										{t("share.tokens.scopes")}
 									</span>
 									<div className="grid gap-1">
 										{availableScopes.map((scope) => (
@@ -673,7 +620,7 @@ const TokensPanel = ({ sites }: { sites: SiteWithStats[] }) => {
 														{scope.label}
 													</span>
 													<span className="text-muted-foreground block text-[11px]">
-														{scope.desc}
+														{t(scope.desc)}
 													</span>
 												</span>
 											</label>
@@ -687,10 +634,10 @@ const TokensPanel = ({ sites }: { sites: SiteWithStats[] }) => {
 										disabled={createMut.isPending || !canCreate}
 										onClick={() => createMut.mutate()}
 									>
-										{createMut.isPending ? "Creating…" : "Create token"}
+										{createMut.isPending ? t("share.tokens.creating") : t("share.tokens.create")}
 									</Button>
 									<Button variant="ghost" size="sm" onClick={closeCreate}>
-										Cancel
+										{t("share.tokens.cancel")}
 									</Button>
 								</div>
 							</div>
@@ -699,10 +646,10 @@ const TokensPanel = ({ sites }: { sites: SiteWithStats[] }) => {
 				)}
 
 				{tokensQ.isLoading ? (
-					<p className="text-muted-foreground text-xs">Loading…</p>
+					<p className="text-muted-foreground text-xs">{t("share.loading")}</p>
 				) : tokens.length === 0 ? (
 					<p className="text-muted-foreground rounded-xl bg-muted/40 px-3 py-6 text-center text-xs">
-						No API tokens yet — create one to authenticate CLI commands or API requests.
+						{t("share.tokens.empty")}
 					</p>
 				) : (
 					<div className="grid gap-1.5">
@@ -723,16 +670,27 @@ const TokensPanel = ({ sites }: { sites: SiteWithStats[] }) => {
 
 /* ------------------------------ composed view ----------------------------- */
 
-export const ShareWidgetTokensView = () => {
-	const { siteId, sites } = useActiveSite();
+/**
+ * `siteId` is the site in the URL. It is the only source of truth for the
+ * public link and the widget: reading a remembered selection here once made
+ * "Enable public link" act on a different site than the one on screen.
+ */
+export const ShareWidgetTokensView = ({ siteId }: { siteId: string }) => {
+	const t = useT();
+	const sitesQ = useQuery({
+		queryFn: () => fetchSites("30d"),
+		queryKey: ["legacy", "sites", "30d"],
+		retry: false,
+		staleTime: 60_000,
+	});
+	const sites = sitesQ.data ?? [];
 	const domain = sites.find((s) => s.id === siteId)?.domain;
 	return (
 		<main className="mx-auto max-w-7xl px-3 pt-3 pb-6 md:px-4">
 			<div className="mb-2.5">
-				<h1 className="text-lg font-semibold tracking-tight">Share &amp; access</h1>
+				<h1 className="text-lg font-semibold tracking-tight">{t("share.title")}</h1>
 				<p className="text-muted-foreground text-xs">
-					Public dashboard link, live widget embed, and API tokens
-					{domain ? ` — ${domain}` : ""}
+					{domain ? t("share.subtitle", { domain }) : t("share.subtitleNoSite")}
 				</p>
 			</div>
 			<div className="grid gap-2.5 md:grid-cols-2">

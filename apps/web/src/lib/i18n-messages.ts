@@ -5,6 +5,8 @@
  * Indonesian side never needs them.
  */
 
+import { viewsEn, viewsId } from "./i18n-messages-views";
+
 const en = {
 	// language toggle
 	"locale.label": "Language",
@@ -361,6 +363,7 @@ const en = {
 		"Google confirmed {email}. Once linked, you can switch between it and this account.",
 	"accounts.confirmLink": "Link account",
 	"accounts.keepOthers": "Keep my other accounts signed in on this device",
+	...viewsEn,
 } as const;
 
 export type MessageKey = keyof typeof en;
@@ -711,6 +714,7 @@ const id: Record<BaseKey, string> = {
 		"Google memastikan {email}. Setelah tertaut, kamu bisa pindah antara akun itu dan akun ini.",
 	"accounts.confirmLink": "Tautkan akun",
 	"accounts.keepOthers": "Biarkan akunku yang lain tetap masuk di perangkat ini",
+	...viewsId,
 };
 
 export const MESSAGES: {
