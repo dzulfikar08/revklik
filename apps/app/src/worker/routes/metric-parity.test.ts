@@ -296,3 +296,20 @@ describe("comparison period", () => {
 		expect(dash.prev_timeseries.some((p) => p.pageviews > 0)).toBe(true);
 	});
 });
+
+describe("click-to-filter dimensions", () => {
+	it("narrows every panel by canonical source", async () => {
+		const { t, session } = await fixture();
+		const dash = await data<Dashboard>(
+			await t.call(
+				"GET",
+				`/api/analytics/dashboard?site_id=${SITE}&range=7d&filters=${encodeURIComponent("source:is:google.com")}`,
+				{ token: session },
+			),
+		);
+		// Only A's /pricing pageview arrived from google.
+		expect(dash.stats.pageviews).toBe(1);
+		expect(dash.stats.visitors).toBe(1);
+		expect(dash.topPages).toHaveLength(1);
+	});
+});

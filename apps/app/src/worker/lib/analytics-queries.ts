@@ -76,12 +76,13 @@ export function hasEventOnlyFilter(filters: ParsedFilter[] | undefined): boolean
 /**
  * Canonical traffic source of a row, the same label the Sources and
  * revenue-by-source panels group by: the stamped `source`, else computed from
- * utm_source / referrer / browser. A joined query names the table (`alias`)
- * because both sides carry those columns.
+ * utm_source / referrer / browser. In a joined query (`alias` set) both tables
+ * carry those columns, so only the stamped value of the named table is used;
+ * ingest stamps every row and the v17 backfill covers older ones.
  */
 function sourceColumn(alias?: string): RawBuilder<string> {
 	return alias
-		? sql<string>`COALESCE(${sql.ref(`${alias}.source`)}, ${computedSourceSql})`
+		? sql<string>`${sql.ref(`${alias}.source`)}`
 		: sql<string>`COALESCE(${sql.ref("source")}, ${computedSourceSql})`;
 }
 
