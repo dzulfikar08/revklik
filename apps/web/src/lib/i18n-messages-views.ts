@@ -79,6 +79,13 @@ export const viewsEn = {
 	"share.tokens.yes": "Yes",
 	"share.tokens.no": "No",
 	"share.tokens.revokedToast": "Token revoked",
+	// billing extras
+	"billing.lifetime": "Lifetime access",
+	"billing.overSites":
+		"You have {used} sites but {plan} includes {limit}. All of them keep tracking, but you can't add more until you upgrade or remove some.",
+	"billing.overEvents":
+		"You've used this month's event allowance. New events aren't recorded until the next period, or until you upgrade.",
+
 	// run-rate forecast
 	"forecast.title": "Run-rate forecast",
 	"forecast.hint": "Next {days} days, straight line",
@@ -172,6 +179,13 @@ export const viewsId: Record<Exclude<keyof typeof viewsEn, `${string}_one`>, str
 	"share.tokens.yes": "Ya",
 	"share.tokens.no": "Tidak",
 	"share.tokens.revokedToast": "Token dicabut",
+
+	// billing extras
+	"billing.lifetime": "Akses seumur hidup",
+	"billing.overSites":
+		"Kamu punya {used} situs, sedangkan paket {plan} mencakup {limit}. Semuanya tetap dilacak, tapi kamu belum bisa menambah situs sampai upgrade atau menghapus beberapa.",
+	"billing.overEvents":
+		"Kuota event bulan ini sudah habis. Event baru tidak tercatat sampai periode berikutnya, atau sampai kamu upgrade.",
 
 	// run-rate forecast
 	"forecast.title": "Proyeksi pendapatan",
