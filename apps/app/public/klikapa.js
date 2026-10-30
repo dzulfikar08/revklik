@@ -17,19 +17,52 @@
 		return;
 	const ENDPOINT = `${new URL(el.src).origin}/api/track`;
 
+	// Global Privacy Control and Do Not Track switch tracking off: nothing is stored or sent.
+	if (
+		navigator.globalPrivacyControl === true ||
+		navigator.doNotTrack === "1" ||
+		w.doNotTrack === "1"
+	) {
+		const none = () => "";
+		w.klikapa = {
+			pageview() {},
+			track() {},
+			conversion() {},
+			identify() {},
+			consent() {},
+			getSessionId: none,
+			getVisitorId: none,
+			getUtmSource: none,
+			getUtmMedium: none,
+			getUtmCampaign: none,
+		};
+		return;
+	}
+
 	// Guard against double-init (duplicated tags, prerendering, SPA re-execution)
 	if (w.__klikapaLoaded) return;
 	w.__klikapaLoaded = true;
 
+	// Consent. Without data-consent="required" the tracker runs as soon as it loads; with it,
+	// nothing is stored or sent until klikapa.consent(true), which is remembered here.
+	const CONSENT_KEY = "_kp_consent";
+	let consented =
+		el.getAttribute("data-consent") !== "required" || localStorage.getItem(CONSENT_KEY) === "1";
+
 	// Session & visitor
-	const sid =
-		sessionStorage.getItem("_kp_sid") ||
-		(sessionStorage.setItem("_kp_sid", crypto.randomUUID()),
-		sessionStorage.getItem("_kp_sid"));
-	let vid =
-		localStorage.getItem("_kp_vid") ||
-		(localStorage.setItem("_kp_vid", crypto.randomUUID()),
-		localStorage.getItem("_kp_vid"));
+	let sid = "";
+	let vid = "";
+	function startVisitor() {
+		sid =
+			sessionStorage.getItem("_kp_sid") ||
+			(sessionStorage.setItem("_kp_sid", crypto.randomUUID()),
+			sessionStorage.getItem("_kp_sid"));
+		vid =
+			localStorage.getItem("_kp_vid") ||
+			(localStorage.setItem("_kp_vid", crypto.randomUUID()),
+			localStorage.getItem("_kp_vid"));
+	}
+	if (consented) startVisitor();
 
 	// Device detection
 	const ua = navigator.userAgent;
@@ -110,7 +143,7 @@
 		}
 	}
 	function rememberUTM(utm) {
-		if (!utm.us && !utm.um && !utm.uc) return;
+		if (!consented || (!utm.us && !utm.um && !utm.uc)) return;
 		try {
 			sessionStorage.setItem(ATTR_KEY, JSON.stringify(utm));
 		} catch {
@@ -123,6 +156,7 @@
 	let flushTimer;
 
 	function send(payload) {
+		if (!consented) return;
 		// Stored campaign first so an event's own UTM fields always win.
 		queue.push({
 			...loadAttr(),
@@ -151,7 +185,7 @@
 			.then((r) => {
 				if (r.ok)
 					r.json().then((d) => {
-						if (d.vid && d.vid !== vid) {
+						if (consented && d.vid && d.vid !== vid) {
 							vid = d.vid;
 							localStorage.setItem("_kp_vid", vid);
 						}
@@ -166,6 +200,7 @@
 	// Page view
 	let lastPath = "";
 	function pageview() {
+		if (!consented) return;
 		const p = w.location.pathname;
 		if (p === lastPath) return;
 		lastPath = p;
@@ -318,16 +353,20 @@
 		}
 	});
 
-	// Init
-	pageview();
-
-	// Lazy-load heatmap module if enabled
-	if (el.getAttribute("data-heatmap") === "true") {
-		var hm = d.createElement("script");
+	// Lazy-load the heatmap module if enabled, once tracking is allowed.
+	let heatmapLoaded = false;
+	function loadHeatmap() {
+		if (!consented || heatmapLoaded || el.getAttribute("data-heatmap") !== "true") return;
+		heatmapLoaded = true;
+		const hm = d.createElement("script");
 		hm.src = el.src.replace("klikapa.js", "klikapa-heatmap.js");
 		hm.setAttribute("data-site-id", SITE_ID);
 		d.head.appendChild(hm);
 	}
+
+	// Init
+	pageview();
+	loadHeatmap();
 
 	// SPA support
 	const origPush = history.pushState;
@@ -395,6 +434,7 @@
 			return parseUTM().uc || "";
 		},
 		identify(data) {
+			if (!consented) return;
 			flush();
 			fetch(ENDPOINT.replace("/track", "/identify"), {
 				method: "POST",
@@ -402,6 +442,30 @@
 				headers: { "Content-Type": "application/json" },
 				keepalive: true,
 			});
+		},
+		// consent(true) starts tracking (data-consent="required" holds everything back until
+		// then); consent(false) stops it and erases the identifiers stored in this browser.
+		consent(granted) {
+			if (granted) {
+				if (consented && sid) return;
+				consented = true;
+				try {
+					localStorage.setItem(CONSENT_KEY, "1");
+				} catch {
+					/* storage blocked: consent lasts for this page only */
+				}
+				startVisitor();
+				lastPath = "";
+				pageview();
+				loadHeatmap();
+			} else {
+				consented = false;
+				clearTimeout(flushTimer);
+				queue.length = 0;
+				for (const k of [CONSENT_KEY, "_kp_vid"]) localStorage.removeItem(k);
+				for (const k of ["_kp_sid", ATTR_KEY]) sessionStorage.removeItem(k);
+				sid = vid = "";
+			}
 		},
 	};
 })(window, document);
