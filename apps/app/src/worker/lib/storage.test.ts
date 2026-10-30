@@ -100,15 +100,15 @@ describe("site delete (DEV-35)", () => {
 });
 
 describe("retention (DEV-35)", () => {
-	it("hard delete is off unless RETENTION_HARD_DELETE_DAYS is set", async () => {
+	it("self-hosted hard delete stays off unless RETENTION_HARD_DELETE_DAYS is set", async () => {
 		const t = await createMigratedTestApp();
 		await t.seedUser({ id: "u-ret", plan: "growth", withSite: "s-ret" });
 		addEvent(t, "s-ret", 400);
 		addEvent(t, "s-ret", 1);
-		expect(await purgeExpiredRows(t.d1, undefined)).toBe(0);
-		expect(await purgeExpiredRows(t.d1, "")).toBe(0);
+		expect(await purgeExpiredRows(t.d1, { selfHosted: true })).toBe(0);
+		expect(await purgeExpiredRows(t.d1, { selfHosted: true, hardDeleteDays: "" })).toBe(0);
 		expect(count(t, "events", "s-ret")).toBe(2);
-		expect(await purgeExpiredRows(t.d1, "365")).toBe(1);
+		expect(await purgeExpiredRows(t.d1, { selfHosted: true, hardDeleteDays: "365" })).toBe(1);
 		expect(count(t, "events", "s-ret")).toBe(1);
 	});
 

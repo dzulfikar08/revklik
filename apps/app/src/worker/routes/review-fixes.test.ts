@@ -451,7 +451,7 @@ describe("Pakasir plan change, site delete, purge, quota (review #10-14)", () =>
 		expect(rest.unfinished).toEqual([]);
 	});
 
-	it("refuses hard-delete horizons under 90 days", async () => {
+	it("self-hosted refuses hard-delete horizons under 30 days", async () => {
 		const t = await createMigratedTestApp();
 		await t.seedUser({ id: "u-p90", withSite: "s-p90" });
 		t.db
@@ -459,9 +459,10 @@ describe("Pakasir plan change, site delete, purge, quota (review #10-14)", () =>
 				"INSERT INTO events (id, site_id, session_id, visitor_id, timestamp, path) VALUES ('old','s-p90','s','v',?,'/')",
 			)
 			.run(new Date(Date.now() - 60 * DAY).toISOString());
-		expect(await purgeExpiredRows(t.d1, "30")).toBe(0);
-		expect(await purgeExpiredRows(t.d1, "90")).toBe(0);
+		expect(await purgeExpiredRows(t.d1, { selfHosted: true, hardDeleteDays: "7" })).toBe(0);
+		expect(await purgeExpiredRows(t.d1, { selfHosted: true, hardDeleteDays: "29" })).toBe(0);
 		expect((t.db.query("SELECT COUNT(*) AS n FROM events").get() as { n: number }).n).toBe(1);
+		expect(await purgeExpiredRows(t.d1, { selfHosted: true, hardDeleteDays: "30" })).toBe(1);
 	});
 
 	it("a batch is truncated to the remaining allowance", async () => {
