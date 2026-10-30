@@ -30,6 +30,28 @@ async function validateHmac(body: string, secret: string, signature: string): Pr
 	return timingSafeEqual(computed, signature);
 }
 
+/** A webhook body as an object: JSON, or Mailchimp's form encoding (`data[email]=…`). Null when neither. */
+function parseWebhookBody(raw: string, contentType: string | undefined): Record<string, unknown> | null {
+	if (contentType?.includes("application/x-www-form-urlencoded")) {
+		const parsed: Record<string, unknown> = {};
+		const data: Record<string, string> = {};
+		for (const [key, value] of new URLSearchParams(raw)) {
+			const nested = /^data\[(.+)\]$/.exec(key);
+			if (nested?.[1]) data[nested[1]] = value;
+			else parsed[key] = value;
+		}
+		return { ...parsed, data };
+	}
+	try {
+		const json: unknown = JSON.parse(raw);
+		return json && typeof json === "object" && !Array.isArray(json)
+			? (json as Record<string, unknown>)
+			: null;
+	} catch {
+		return null;
+	}
+}
+
 async function findIntegration(db: Kysely<KlikapaDatabase>, siteId: string, type: string) {
 	return db
 		.selectFrom("integrations")
@@ -151,15 +173,19 @@ webhookRoutes.post("/mailchimp", async (c) => {
 	const config = JSON.parse((integration.config as string) || "{}");
 	const rawBody = await c.req.text();
 
+	// Mailchimp does not sign webhooks: the secret rides in the URL (?token=) it was given.
+	// Without a saved secret every request is refused, so nobody can post events for this site.
 	const webhookSecret = config.webhook_secret;
-	if (webhookSecret) {
-		const signature = c.req.header("X-Mailchimp-Signature") || "";
-		if (!signature || !(await validateHmac(rawBody, webhookSecret, signature))) {
-			return c.json({ error: "Invalid webhook signature", success: false }, 401);
-		}
-	}
+	const signature = c.req.header("X-Mailchimp-Signature") || "";
+	const urlToken = c.req.query("token") || "";
+	const authentic =
+		Boolean(webhookSecret) &&
+		(timingSafeEqual(urlToken, webhookSecret) ||
+			(signature !== "" && (await validateHmac(rawBody, webhookSecret, signature))));
+	if (!authentic) return c.json({ error: "Invalid webhook credentials", success: false }, 401);
 
-	const body = JSON.parse(rawBody) as Record<string, unknown>;
+	const body = parseWebhookBody(rawBody, c.req.header("content-type"));
+	if (!body) return c.json({ error: "Invalid body", success: false }, 400);
 
 	try {
 		const email = (body.data as Record<string, string>)?.email || (body.email as string) || "";
@@ -198,11 +224,12 @@ webhookRoutes.post("/convertkit", async (c) => {
 	const apiKey = config.api_key;
 
 	const providedKey = c.req.header("X-ConvertKit-Api-Key") || c.req.query("api_key") || "";
-	if (apiKey && !timingSafeEqual(providedKey, apiKey)) {
+	if (!apiKey || !timingSafeEqual(providedKey, apiKey)) {
 		return c.json({ error: "Invalid API key", success: false }, 401);
 	}
 
-	const body = await c.req.json<Record<string, unknown>>();
+	const body = parseWebhookBody(await c.req.text(), c.req.header("content-type"));
+	if (!body) return c.json({ error: "Invalid body", success: false }, 400);
 	const payloadStr = JSON.stringify(body);
 
 	try {
@@ -246,11 +273,12 @@ webhookRoutes.post("/kit", async (c) => {
 	const apiKey = config.api_key;
 
 	const providedKey = c.req.header("X-Kit-Api-Key") || c.req.query("api_key") || "";
-	if (apiKey && !timingSafeEqual(providedKey, apiKey)) {
+	if (!apiKey || !timingSafeEqual(providedKey, apiKey)) {
 		return c.json({ error: "Invalid API key", success: false }, 401);
 	}
 
-	const body = await c.req.json<Record<string, unknown>>();
+	const body = parseWebhookBody(await c.req.text(), c.req.header("content-type"));
+	if (!body) return c.json({ error: "Invalid body", success: false }, 400);
 	const payloadStr = JSON.stringify(body);
 
 	try {
@@ -287,14 +315,14 @@ webhookRoutes.post("/beehiiv", async (c) => {
 	const secret = config.webhook_secret;
 
 	const rawBody = await c.req.text();
-	if (secret) {
-		const signature = c.req.header("X-Beehiiv-Signature") || "";
-		if (!signature || !(await validateHmac(rawBody, secret, signature))) {
-			return c.json({ error: "Invalid webhook signature", success: false }, 401);
-		}
+	// Fail closed: without a saved secret anyone could post subscriber events for this site.
+	const signature = c.req.header("X-Beehiiv-Signature") || "";
+	if (!secret || !signature || !(await validateHmac(rawBody, secret, signature))) {
+		return c.json({ error: "Invalid webhook signature", success: false }, 401);
 	}
 
-	const body = JSON.parse(rawBody) as Record<string, unknown>;
+	const body = parseWebhookBody(rawBody, c.req.header("content-type"));
+	if (!body) return c.json({ error: "Invalid body", success: false }, 400);
 
 	try {
 		const email = (body.data as Record<string, string>)?.email || (body.email as string) || "";

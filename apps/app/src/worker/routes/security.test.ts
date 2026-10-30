@@ -287,6 +287,54 @@ describe("webhook activity logs", () => {
 	});
 });
 
+describe("generic email-list webhooks", () => {
+	function integration(t: MigratedTestApp, type: string, config: Record<string, string>) {
+		// Events are only recorded for a known subscriber.
+		t.db
+			.prepare(
+				"INSERT OR IGNORE INTO visitor_profiles (id, site_id, visitor_id, email) VALUES ('vp-sub', ?, 'vid-sub', 'sari@example.com')",
+			)
+			.run(SITE);
+		t.db
+			.prepare(
+				"INSERT INTO integrations (id, site_id, user_id, type, name, config) VALUES (?, ?, 'u-owner', ?, ?, ?)",
+			)
+			.run(`in-${type}`, SITE, type, type, JSON.stringify(config));
+	}
+	const events = (t: MigratedTestApp) =>
+		t.db.query("SELECT COUNT(*) AS n FROM events WHERE device_type = 'webhook'").get();
+
+	it("refuse every request while no secret is saved", async () => {
+		const { t } = await setup();
+		for (const type of ["mailchimp", "convertkit", "kit", "beehiiv"]) integration(t, type, {});
+		for (const type of ["mailchimp", "convertkit", "kit", "beehiiv"]) {
+			const res = await t.call("POST", `/api/webhooks/${type}?site_id=${SITE}`, {
+				body: { type: "subscribe", email: "sari@example.com", data: { email: "sari@example.com" } },
+			});
+			expect(res.status, type).toBe(401);
+		}
+		expect(events(t)).toEqual({ n: 0 });
+	});
+
+	it("accept a Mailchimp form post carrying the URL token", async () => {
+		const { t } = await setup();
+		integration(t, "mailchimp", { webhook_secret: "tok-123" });
+		const form = "type=subscribe&data%5Bemail%5D=sari%40example.com";
+		const headers = { "content-type": "application/x-www-form-urlencoded" };
+		const wrong = await t.call("POST", `/api/webhooks/mailchimp?site_id=${SITE}&token=nope`, {
+			body: form,
+			headers,
+		});
+		expect(wrong.status).toBe(401);
+		const ok = await t.call("POST", `/api/webhooks/mailchimp?site_id=${SITE}&token=tok-123`, {
+			body: form,
+			headers,
+		});
+		expect(ok.status).toBe(200);
+		expect(events(t)).toEqual({ n: 1 });
+	});
+});
+
 describe("error responses", () => {
 	it("do not echo internal error text", async () => {
 		const { t, owner } = await setup();
