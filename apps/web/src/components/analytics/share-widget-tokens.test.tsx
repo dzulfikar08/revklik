@@ -20,6 +20,13 @@ vi.mock("@/lib/legacy/share-widget-tokens", async (importOriginal) => ({
 	fetchSubscriptionPlan: vi.fn().mockResolvedValue({ plan: "growth" }),
 	fetchWidgetStatus: share.fetchWidgetStatus,
 }));
+vi.mock("@/lib/legacy/site-access", async (importOriginal) => ({
+	...(await importOriginal<typeof import("@/lib/legacy/site-access")>()),
+	fetchSiteAccess: vi.fn().mockResolvedValue({
+		can: { manage: true, owner: true, read: true, write: true },
+		role: "owner",
+	}),
+}));
 vi.mock("@/lib/legacy/api", async (importOriginal) => ({
 	...(await importOriginal<typeof import("@/lib/legacy/api")>()),
 	fetchSites: vi.fn().mockResolvedValue([

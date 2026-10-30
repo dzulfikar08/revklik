@@ -516,7 +516,10 @@ const FALLBACK_COPY: Record<InsightLang, FallbackCopy> = {
 	},
 };
 
-export function generateFallbackInsights(data: AggregatedData, lang: InsightLang = "en"): RawInsight[] {
+export function generateFallbackInsights(
+	data: AggregatedData,
+	lang: InsightLang = "en",
+): RawInsight[] {
 	const c = FALLBACK_COPY[lang];
 	const insights: RawInsight[] = [];
 	const sharePct = (part: number): number =>
@@ -528,7 +531,11 @@ export function generateFallbackInsights(data: AggregatedData, lang: InsightLang
 		insights.push({
 			type: "revenue_drivers",
 			title: c.revenueTitle(top.utm_source),
-			summary: c.revenueSummary(top.utm_source, formatMoney(top.revenue, data.currency), top.visitors),
+			summary: c.revenueSummary(
+				top.utm_source,
+				formatMoney(top.revenue, data.currency),
+				top.visitors,
+			),
 			detail: c.revenueDetail(top.utm_source, sharePct(top.revenue)),
 			confidence: 0.85,
 			action: c.revenueAction(top.utm_source),

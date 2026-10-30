@@ -38,6 +38,7 @@ import {
 import type { ApiTokenInfo } from "@/lib/legacy/share-widget-tokens";
 
 import { Panel, PanelTabs } from "./ui";
+import { useSiteAccess } from "./use-site-access";
 
 /* -------------------------------- helpers --------------------------------- */
 
@@ -47,7 +48,7 @@ const NoSite = () => {
 };
 
 const LiveBadge = ({ label }: { label: string }) => (
-	<span className="rounded-full border border-(--up)/20 bg-(--up)/10 px-2 py-0.5 font-mono text-[10px] tracking-wide text-(--up)">
+	<span className="rounded-full border border-(--up)/20 bg-(--up)/10 px-2 py-0.5 font-mono text-xs tracking-wide text-(--up)">
 		{label}
 	</span>
 );
@@ -90,7 +91,7 @@ const CopyButton = ({
 
 /* ------------------------------ share panel ------------------------------- */
 
-const SharePanel = ({ siteId }: { siteId: string }) => {
+const SharePanel = ({ canEdit, siteId }: { canEdit: boolean; siteId: string }) => {
 	const t = useT();
 	const qc = useQueryClient();
 	const shareQ = useQuery({
@@ -125,7 +126,7 @@ const SharePanel = ({ siteId }: { siteId: string }) => {
 					<div className="flex flex-wrap items-center gap-2">
 						<Button
 							size="sm"
-							disabled={toggleMut.isPending || shareQ.isFetching}
+							disabled={!canEdit || toggleMut.isPending || shareQ.isFetching}
 							onClick={() => toggleMut.mutate()}
 						>
 							{isPublic ? t("share.public.disable") : t("share.public.enable")}
@@ -138,7 +139,7 @@ const SharePanel = ({ siteId }: { siteId: string }) => {
 								readOnly
 								value={url}
 								onFocus={(e) => e.target.select()}
-								className="h-7 font-mono text-[11px]"
+								className="h-7 font-mono text-xs"
 								aria-label={t("share.public.urlLabel")}
 							/>
 							<CopyButton text={url} className="shrink-0" />
@@ -150,7 +151,8 @@ const SharePanel = ({ siteId }: { siteId: string }) => {
 							<CopyButton text={publicEmbedCode(token)} label={t("share.public.copyEmbed")} />
 						</div>
 					)}
-					<p className="text-muted-foreground text-[11px]">{t("share.public.note")}</p>
+					<p className="text-muted-foreground text-xs">{t("share.public.note")}</p>
+					{canEdit ? null : <p className="text-muted-foreground text-xs">{t("share.ownerOnly")}</p>}
 				</div>
 			)}
 		</Panel>
@@ -174,7 +176,7 @@ const fmtOffset = (min: number): string => {
 	return `UTC${sign}${h}:${m}`;
 };
 
-const WidgetPanel = ({ siteId }: { siteId: string }) => {
+const WidgetPanel = ({ canEdit, siteId }: { canEdit: boolean; siteId: string }) => {
 	const t = useT();
 	const qc = useQueryClient();
 	const [mode, setMode] = useState<"bubble" | "badge">("bubble");
@@ -230,7 +232,7 @@ const WidgetPanel = ({ siteId }: { siteId: string }) => {
 					<div className="flex flex-wrap items-center gap-2">
 						<Button
 							size="sm"
-							disabled={toggleMut.isPending || widgetQ.isFetching}
+							disabled={!canEdit || toggleMut.isPending || widgetQ.isFetching}
 							onClick={() => toggleMut.mutate()}
 						>
 							{enabled ? t("share.widget.disable") : t("share.widget.enable")}
@@ -240,7 +242,7 @@ const WidgetPanel = ({ siteId }: { siteId: string }) => {
 							<Button
 								variant="outline"
 								size="sm"
-								disabled={regenerateMut.isPending}
+								disabled={!canEdit || regenerateMut.isPending}
 								onClick={() => regenerateMut.mutate()}
 							>
 								<RefreshCw className="size-3.5" aria-hidden />
@@ -260,23 +262,25 @@ const WidgetPanel = ({ siteId }: { siteId: string }) => {
 										{ key: "badge", label: t("share.widget.badgeMode") },
 									]}
 								/>
-								<pre className="bg-muted/50 ring-foreground/10 overflow-x-auto rounded-lg p-2.5 ring-1 font-mono text-[11px] break-all whitespace-pre-wrap">
+								<pre className="bg-muted/50 ring-foreground/10 overflow-x-auto rounded-lg p-2.5 ring-1 font-mono text-xs break-all whitespace-pre-wrap">
 									{snippet}
 								</pre>
 								<CopyButton text={snippet} />
 							</div>
 
 							<div className="grid gap-1">
-								<Label className="text-muted-foreground text-[10px] tracking-wider uppercase">
+								<Label className="text-muted-foreground text-xs tracking-wider uppercase">
 									{t("share.widget.tz")}
 								</Label>
 								<Select value={String(tzValue)} onValueChange={(v) => configMut.mutate(Number(v))}>
 									<SelectTrigger
 										className="h-7 w-56 text-xs"
-										disabled={configMut.isPending}
+										disabled={!canEdit || configMut.isPending}
 										aria-label={t("share.widget.tzAria")}
 									>
-										<SelectValue />
+										<SelectValue>
+											{(value: string | null) => fmtOffset(Number(value ?? tzValue))}
+										</SelectValue>
 									</SelectTrigger>
 									<SelectContent>
 										{TZ_OFFSETS.map((min) => (
@@ -287,7 +291,10 @@ const WidgetPanel = ({ siteId }: { siteId: string }) => {
 										))}
 									</SelectContent>
 								</Select>
-								<p className="text-muted-foreground text-[11px]">{t("share.widget.tzNote")}</p>
+								<p className="text-muted-foreground text-xs">{t("share.widget.tzNote")}</p>
+								{canEdit ? null : (
+									<p className="text-muted-foreground text-xs">{t("share.ownerOnly")}</p>
+								)}
 							</div>
 						</>
 					)}
@@ -340,7 +347,7 @@ const TokenRow = ({
 				<div className="mb-1 flex flex-wrap items-center gap-2">
 					<span className="truncate text-[13px] font-medium">{token.name}</span>
 					<span
-						className={`rounded-full border px-2 py-0.5 font-mono text-[9px] tracking-wide uppercase ${
+						className={`rounded-full border px-2 py-0.5 font-mono text-xs tracking-wide uppercase ${
 							token.type === "account"
 								? "border-primary/20 bg-primary/10 text-primary"
 								: "border-(--up)/20 bg-(--up)/10 text-(--up)"
@@ -348,7 +355,7 @@ const TokenRow = ({
 					>
 						{token.type === "account" ? t("share.tokens.typeAccount") : t("share.tokens.typeSite")}
 					</span>
-					<span className="bg-muted/60 rounded-md px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground">
+					<span className="bg-muted/60 rounded-md px-1.5 py-0.5 font-mono text-xs text-muted-foreground">
 						{token.prefix}…
 					</span>
 				</div>
@@ -356,13 +363,13 @@ const TokenRow = ({
 					{token.scopes.map((scope) => (
 						<span
 							key={scope}
-							className="text-muted-foreground rounded border px-1.5 py-px font-mono text-[9px]"
+							className="text-muted-foreground rounded border px-1.5 py-px font-mono text-xs"
 						>
 							{scope}
 						</span>
 					))}
 				</div>
-				<div className="text-muted-foreground flex flex-wrap gap-3 text-[11px]">
+				<div className="text-muted-foreground flex flex-wrap gap-3 text-xs">
 					<span>{t("share.tokens.createdOn", { date: formatDate(token.created_at, locale) })}</span>
 					{token.last_used_at && (
 						<span>
@@ -373,7 +380,7 @@ const TokenRow = ({
 			</div>
 			{confirming ? (
 				<div className="flex items-center gap-1.5">
-					<span className="text-(--down) text-[11px]">{t("share.tokens.revokeConfirm")}</span>
+					<span className="text-(--down) text-xs">{t("share.tokens.revokeConfirm")}</span>
 					<Button
 						variant="destructive"
 						size="xs"
@@ -491,7 +498,7 @@ const TokensPanel = ({ sites }: { sites: SiteWithStats[] }) => {
 			}`}
 		>
 			<span className="block font-medium">{label}</span>
-			<span className="text-muted-foreground block text-[11px]">{desc}</span>
+			<span className="text-muted-foreground block text-xs">{desc}</span>
 		</button>
 	);
 
@@ -499,7 +506,7 @@ const TokensPanel = ({ sites }: { sites: SiteWithStats[] }) => {
 		<Panel title={t("share.tokens.title")} hint={t("share.tokens.hint")}>
 			<div className="grid gap-2.5">
 				<div className="flex flex-wrap items-center gap-2">
-					<span className="text-muted-foreground flex items-center gap-1.5 text-[11px]">
+					<span className="text-muted-foreground flex items-center gap-1.5 text-xs">
 						<KeyRound className="size-3.5" aria-hidden />
 						{t("share.tokens.usage", {
 							plan,
@@ -523,7 +530,7 @@ const TokensPanel = ({ sites }: { sites: SiteWithStats[] }) => {
 				</div>
 
 				{limitReached && (
-					<p className="text-(--down) rounded-lg bg-(--down)/10 px-2.5 py-1.5 text-[11px]">
+					<p className="text-(--down) rounded-lg bg-(--down)/10 px-2.5 py-1.5 text-xs">
 						{t("share.tokens.limitReached", { limit, plan })}
 					</p>
 				)}
@@ -532,7 +539,7 @@ const TokensPanel = ({ sites }: { sites: SiteWithStats[] }) => {
 					<div className="ring-foreground/10 grid gap-2.5 rounded-xl p-3 ring-1">
 						{created ? (
 							<div className="grid gap-2">
-								<p className="text-(--down) rounded-lg bg-(--down)/10 px-2.5 py-1.5 text-[11px] font-semibold">
+								<p className="text-(--down) rounded-lg bg-(--down)/10 px-2.5 py-1.5 text-xs font-semibold">
 									{t("share.tokens.copyOnce")}
 								</p>
 								<div className="flex items-center gap-1.5">
@@ -541,7 +548,7 @@ const TokensPanel = ({ sites }: { sites: SiteWithStats[] }) => {
 									</code>
 									<CopyButton text={created.token} className="shrink-0" />
 								</div>
-								<p className="text-muted-foreground text-[11px]">
+								<p className="text-muted-foreground text-xs">
 									{t("share.tokens.created", { name: created.name })}
 								</p>
 								<div>
@@ -555,7 +562,7 @@ const TokensPanel = ({ sites }: { sites: SiteWithStats[] }) => {
 								<div className="grid gap-1">
 									<Label
 										htmlFor="token-name"
-										className="text-muted-foreground text-[10px] tracking-wider uppercase"
+										className="text-muted-foreground text-xs tracking-wider uppercase"
 									>
 										{t("share.tokens.name")}
 									</Label>
@@ -569,7 +576,7 @@ const TokensPanel = ({ sites }: { sites: SiteWithStats[] }) => {
 								</div>
 
 								<div className="grid gap-1">
-									<span className="text-muted-foreground text-[10px] tracking-wider uppercase">
+									<span className="text-muted-foreground text-xs tracking-wider uppercase">
 										{t("share.tokens.type")}
 									</span>
 									<div className="flex gap-2">
@@ -586,7 +593,7 @@ const TokensPanel = ({ sites }: { sites: SiteWithStats[] }) => {
 									<div className="grid gap-1">
 										<Label
 											htmlFor="token-site"
-											className="text-muted-foreground text-[10px] tracking-wider uppercase"
+											className="text-muted-foreground text-xs tracking-wider uppercase"
 										>
 											{t("share.tokens.selectSite")}
 										</Label>
@@ -598,7 +605,14 @@ const TokensPanel = ({ sites }: { sites: SiteWithStats[] }) => {
 												className="h-8 text-[13px]"
 												aria-label={t("share.tokens.siteAria")}
 											>
-												<SelectValue placeholder={t("share.tokens.sitePlaceholder")} />
+												<SelectValue placeholder={t("share.tokens.sitePlaceholder")}>
+													{(value: string | null) => {
+														const picked = sites.find((x) => x.id === value);
+														return picked
+															? `${picked.name} (${picked.domain})`
+															: t("share.tokens.sitePlaceholder");
+													}}
+												</SelectValue>
 											</SelectTrigger>
 											<SelectContent>
 												{sites.map((s) => (
@@ -612,7 +626,7 @@ const TokensPanel = ({ sites }: { sites: SiteWithStats[] }) => {
 								)}
 
 								<div className="grid gap-1">
-									<span className="text-muted-foreground text-[10px] tracking-wider uppercase">
+									<span className="text-muted-foreground text-xs tracking-wider uppercase">
 										{t("share.tokens.scopes")}
 									</span>
 									<div className="grid gap-1">
@@ -627,10 +641,10 @@ const TokensPanel = ({ sites }: { sites: SiteWithStats[] }) => {
 													aria-label={scope.label}
 												/>
 												<span>
-													<span className="block font-mono text-[11px] font-semibold">
+													<span className="block font-mono text-xs font-semibold">
 														{scope.label}
 													</span>
-													<span className="text-muted-foreground block text-[11px]">
+													<span className="text-muted-foreground block text-xs">
 														{t(scope.desc)}
 													</span>
 												</span>
@@ -688,6 +702,7 @@ const TokensPanel = ({ sites }: { sites: SiteWithStats[] }) => {
  */
 export const ShareWidgetTokensView = ({ siteId }: { siteId: string }) => {
 	const t = useT();
+	const access = useSiteAccess(siteId);
 	const sitesQ = useQuery({
 		queryFn: () => fetchSites("30d"),
 		queryKey: ["legacy", "sites", "30d"],
@@ -705,8 +720,8 @@ export const ShareWidgetTokensView = ({ siteId }: { siteId: string }) => {
 				</p>
 			</div>
 			<div className="grid gap-2.5 md:grid-cols-2">
-				<SharePanel siteId={siteId} />
-				<WidgetPanel siteId={siteId} />
+				<SharePanel canEdit={access.can.owner} siteId={siteId} />
+				<WidgetPanel canEdit={access.can.owner} siteId={siteId} />
 				<div className="md:col-span-2">
 					<TokensPanel sites={sites} />
 				</div>

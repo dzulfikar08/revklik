@@ -80,7 +80,7 @@ export const RunRateForecastPanel = ({
 							n: rate.sales,
 						})}
 					</p>
-					<p className="text-muted-foreground text-[11px] text-pretty">{t("forecast.caveat")}</p>
+					<p className="text-muted-foreground text-xs text-pretty">{t("forecast.caveat")}</p>
 				</div>
 			) : (
 				<div className={BODY}>

@@ -19,6 +19,7 @@ import {
 import { deleteLegacySite, SiteDeleteTimeoutError } from "@/lib/legacy/sites";
 
 import { Panel } from "./ui";
+import { useSiteAccess } from "./use-site-access";
 
 /** Server error codes from the delete-account route, mapped to our own copy. */
 const ACCOUNT_ERRORS: Record<string, MessageKey> = {
@@ -374,11 +375,12 @@ export const PrivacySection = ({
 	siteId: string;
 }) => {
 	const t = useT();
+	const access = useSiteAccess(siteId);
 	return (
 		<Panel title={t("settings.privacy.title")} hint={t("settings.privacy.hint")}>
 			<div className="grid gap-5 pt-1">
-				<VisitorDataForm siteId={siteId} />
-				{domain ? (
+				{access.can.write ? <VisitorDataForm siteId={siteId} /> : null}
+				{domain && access.can.owner ? (
 					<div className="border-(--border) border-t pt-4">
 						<DeleteSiteForm domain={domain} siteId={siteId} />
 					</div>

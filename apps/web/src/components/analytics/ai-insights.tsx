@@ -48,7 +48,7 @@ const InsightCard = ({ insight }: { insight: AiInsight }) => {
 			</span>
 			<div className="min-w-0 flex-1">
 				<p className="text-[13px] leading-5 font-semibold text-pretty">{insight.title}</p>
-				<p className="text-muted-foreground mt-0.5 text-[11px] tabular-nums">
+				<p className="text-muted-foreground mt-0.5 text-xs tabular-nums">
 					{t("insights.confidence", { pct: Math.round(insight.confidence * 100) })}
 				</p>
 				<p className="text-foreground/80 mt-1.5 text-xs leading-relaxed text-pretty">
@@ -127,7 +127,7 @@ export const AiInsightsPanel = ({
 								: t("insights.tagline")}
 						</span>
 						<button
-							className="bg-muted hover:bg-muted/70 text-muted-foreground hover:text-foreground focus-visible:outline-ring ml-auto flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium transition-colors outline-offset-2 focus-visible:outline-2 disabled:cursor-wait"
+							className="bg-muted hover:bg-muted/70 text-muted-foreground hover:text-foreground focus-visible:outline-ring ml-auto flex items-center gap-1.5 rounded-full px-3 py-1 text-xs pointer-coarse:min-h-11 font-medium transition-colors outline-offset-2 focus-visible:outline-2 disabled:cursor-wait"
 							disabled={refresh.isPending}
 							onClick={() => refresh.mutate()}
 							type="button"

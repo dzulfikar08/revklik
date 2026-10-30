@@ -186,9 +186,15 @@ export const deletePaymentProvider = (siteId: string, provider: string): Promise
 
 /* -------------------------- Google Search Console -------------------------- */
 
-/** Start URL for the Google OAuth flow — the worker answers with a redirect. */
-export const gscAuthUrl = (siteId: string): string =>
-	`${LEGACY_API_BASE}/gsc/auth?site_id=${encodeURIComponent(siteId)}`;
+/**
+ * Ask the worker for the Google OAuth consent URL. The route is authenticated
+ * and admin/owner only (403 otherwise); the caller sends the browser there.
+ */
+export const fetchGscAuthUrl = (siteId: string): Promise<{ url: string }> =>
+	legacyFetch("/gsc/auth-url", {
+		method: "POST",
+		body: JSON.stringify({ site_id: siteId }),
+	});
 
 export const syncGsc = (siteId: string): Promise<{ synced: number }> =>
 	legacyFetch(`/gsc/sync?site_id=${encodeURIComponent(siteId)}`, {
@@ -197,6 +203,75 @@ export const syncGsc = (siteId: string): Promise<{ synced: number }> =>
 
 export const fetchGscQueries = (siteId: string): Promise<GscQueryRow[]> =>
 	legacyFetch(`/gsc/queries?site_id=${encodeURIComponent(siteId)}`);
+
+/** One search query summed over every date the API returned for it. */
+export interface GscQueryTotal {
+	query: string;
+	clicks: number;
+	impressions: number;
+	/** clicks / impressions, 0..1 */
+	ctr: number;
+	/** Impression-weighted average position. */
+	position: number;
+}
+
+/**
+ * The API returns one row per query per date. Collapse them to one row per
+ * query, biggest traffic first (clicks, then impressions, then query text).
+ */
+export const aggregateGscQueries = (rows: readonly GscQueryRow[]): GscQueryTotal[] => {
+	const byQuery = new Map<
+		string,
+		{
+			clicks: number;
+			impressions: number;
+			weightedPosition: number;
+			positionSum: number;
+			n: number;
+		}
+	>();
+	for (const r of rows) {
+		const acc = byQuery.get(r.query) ?? {
+			clicks: 0,
+			impressions: 0,
+			n: 0,
+			positionSum: 0,
+			weightedPosition: 0,
+		};
+		acc.clicks += r.clicks;
+		acc.impressions += r.impressions;
+		acc.weightedPosition += r.position * r.impressions;
+		acc.positionSum += r.position;
+		acc.n += 1;
+		byQuery.set(r.query, acc);
+	}
+	return [...byQuery.entries()]
+		.map(([query, a]) => ({
+			clicks: a.clicks,
+			ctr: a.impressions > 0 ? a.clicks / a.impressions : 0,
+			impressions: a.impressions,
+			// A query with zero impressions has no weights; fall back to the plain mean.
+			position: a.impressions > 0 ? a.weightedPosition / a.impressions : a.positionSum / a.n,
+			query,
+		}))
+		.toSorted(
+			(x, y) =>
+				y.clicks - x.clicks || y.impressions - x.impressions || x.query.localeCompare(y.query),
+		);
+};
+
+/** A sync older than this many days gets a "refresh me" notice. */
+export const SYNC_STALE_DAYS = 3;
+
+const DAY_MS = 86_400_000;
+
+export const isSyncStale = (lastSync: string | null, now: number = Date.now()): boolean => {
+	if (!lastSync) {
+		return false;
+	}
+	const at = new Date(lastSync).getTime();
+	return Number.isFinite(at) && now - at > SYNC_STALE_DAYS * DAY_MS;
+};
 
 /* -------------------------------- marketplace ------------------------------ */
 

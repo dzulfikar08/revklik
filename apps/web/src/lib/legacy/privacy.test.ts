@@ -14,7 +14,10 @@ beforeEach(() => {
 	localStorage.clear();
 	legacyLogout();
 	localStorage.setItem("kp_token", "kp_live");
-	localStorage.setItem("kp_user", JSON.stringify({ email: "a@b.id", id: "u1", name: "A", role: "user" }));
+	localStorage.setItem(
+		"kp_user",
+		JSON.stringify({ email: "a@b.id", id: "u1", name: "A", role: "user" }),
+	);
 	localStorage.setItem("kp_tokens", JSON.stringify({ u1: "kp_live", u2: "kp_other" }));
 });
 
@@ -36,7 +39,10 @@ describe("deleteAccount", () => {
 		const [url, init] = fetch.mock.calls[0] as [string, RequestInit];
 		expect(url).toBe(`${LEGACY_API_BASE}/auth/account`);
 		expect(init.method).toBe("DELETE");
-		expect(JSON.parse(init.body as string)).toEqual({ confirm_email: "a@b.id", current_password: "pw" });
+		expect(JSON.parse(init.body as string)).toEqual({
+			confirm_email: "a@b.id",
+			current_password: "pw",
+		});
 		expect((fetch.mock.calls[1] as [string, RequestInit])[1].body).toBe(init.body);
 		expect(localStorage.getItem("kp_token")).toBeNull();
 		expect(JSON.parse(localStorage.getItem("kp_tokens") ?? "{}")).toEqual({ u2: "kp_other" });
@@ -65,7 +71,10 @@ describe("deleteAccount", () => {
 	});
 
 	it("times out instead of looping forever", async () => {
-		vi.stubGlobal("fetch", vi.fn().mockImplementation(async () => reply(202, { success: true })));
+		vi.stubGlobal(
+			"fetch",
+			vi.fn().mockImplementation(async () => reply(202, { success: true })),
+		);
 		await expect(
 			deleteAccount({ confirmEmail: "a@b.id" }, { delayMs: 0, maxAttempts: 3 }),
 		).rejects.toBeInstanceOf(AccountDeleteTimeoutError);
@@ -77,6 +86,8 @@ describe("deleteVisitorData", () => {
 		const fetch = vi.fn().mockResolvedValue(reply(200, { data: { events: 4 }, success: true }));
 		vi.stubGlobal("fetch", fetch);
 		await expect(deleteVisitorData("s 1", "v/2")).resolves.toMatchObject({ events: 4 });
-		expect((fetch.mock.calls[0] as [string])[0]).toBe(`${LEGACY_API_BASE}/sites/s%201/visitors/v%2F2`);
+		expect((fetch.mock.calls[0] as [string])[0]).toBe(
+			`${LEGACY_API_BASE}/sites/s%201/visitors/v%2F2`,
+		);
 	});
 });

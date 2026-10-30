@@ -17,12 +17,11 @@ import {
 	X,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
-import type { KeyboardEvent as ReactKeyboardEvent, ReactNode } from "react";
+import type { KeyboardEvent as ReactKeyboardEvent } from "react";
 import { toast } from "sonner";
 import { useT } from "@/lib/i18n";
-import type { MessageKey } from "@/lib/i18n";
 
-import { dayLabel, timeLabel, visitorAvatar, visitorName } from "./data";
+import { dayLabel, fmt, timeLabel, visitorAvatar, visitorName } from "./data";
 import type { Visitor, VisitorEvent } from "./data";
 
 const eventIcon = (kind: VisitorEvent["kind"]) => {
@@ -44,60 +43,47 @@ const eventIcon = (kind: VisitorEvent["kind"]) => {
 	return Target;
 };
 
-const chip = "bg-muted rounded px-1.5 py-0.5 font-mono text-[11px] text-foreground/90";
+const chip = "bg-muted rounded px-1.5 py-0.5 font-mono text-xs text-foreground/90";
 
 const isConversionKind = (ev: VisitorEvent): boolean => ev.kind === "conversion";
 
-const StepText = ({ k, children }: { k: MessageKey; children: ReactNode }) => {
-	const t = useT();
-	const [before, after] = t(k, { value: "\u0000" }).split("\u0000");
-	return (
-		<>
-			{before}
-			{children}
-			{after}
-		</>
-	);
-};
-
 const VisitorStep = ({ ev }: { ev: VisitorEvent }) => {
+	const t = useT();
 	const isConversion = ev.kind === "conversion";
 	return (
 		<span
 			className={`flex flex-wrap items-center gap-1.5 ${isConversion ? "font-medium text-(--up)" : ""}`}
 		>
 			{ev.kind === "view" ? (
-				<StepText k="visitor.step.view">
-					<span className={chip}>{ev.page}</span>
-				</StepText>
+				<>
+					{t("visitor.viewedPage")} <span className={chip}>{ev.page}</span>
+				</>
 			) : null}
 			{ev.kind === "scroll" ? (
-				<StepText k="visitor.step.scroll">
-					<span className={chip}>{ev.milestone}%</span>
-				</StepText>
+				<>
+					{t("visitor.scrolledTo")} <span className={chip}>{ev.milestone}%</span>
+				</>
 			) : null}
 			{ev.kind === "section" ? (
-				<StepText k="visitor.step.section">
-					<span className={chip}>{ev.section}</span>
-				</StepText>
+				<>
+					{t("visitor.readSection")} <span className={chip}>{ev.section}</span>
+				</>
 			) : null}
 			{ev.kind === "click" ? (
-				<StepText k="visitor.step.click">
-					<span className={chip}>{ev.click}</span>
-				</StepText>
+				<>
+					{t("visitor.clicked")} <span className={chip}>{ev.click}</span>
+				</>
 			) : null}
 			{ev.kind === "conversion" ? (
 				<>
-					<StepText k="visitor.step.conversion">
-						<span className={chip}>{ev.event}</span>
-					</StepText>
+					{t("visitor.conversion")} <span className={chip}>{ev.event}</span>
 					{ev.revenue ? <span className="font-mono">{ev.revenue}</span> : null}
 				</>
 			) : null}
 			{ev.kind === "event" ? (
-				<StepText k="visitor.step.event">
-					<span className={chip}>{ev.event}</span>
-				</StepText>
+				<>
+					{t("visitor.triggered")} <span className={chip}>{ev.event}</span>
+				</>
 			) : null}
 		</span>
 	);
@@ -108,7 +94,7 @@ const PropChips = ({ props }: { props: [string, string][] }) => (
 		{props.map(([k, v]) => (
 			<span
 				key={k}
-				className="bg-muted text-muted-foreground rounded px-1.5 py-0.5 font-mono text-[10px]"
+				className="bg-muted text-muted-foreground rounded px-1.5 py-0.5 font-mono text-xs"
 			>
 				{k}: {v}
 			</span>
@@ -119,7 +105,7 @@ const PropChips = ({ props }: { props: [string, string][] }) => (
 const ParamRow = ({ name }: { name: string }) => (
 	<div className="flex items-center justify-between">
 		<span className="font-mono text-xs">{name}</span>
-		<span className="bg-muted rounded px-1.5 font-mono text-[10px]">****</span>
+		<span className="bg-muted rounded px-1.5 font-mono text-xs">****</span>
 	</div>
 );
 
@@ -127,10 +113,13 @@ export const VisitorSheet = ({
 	visitor,
 	onClose,
 	onSave,
+	readOnly = false,
 }: {
 	visitor: Visitor;
 	onClose: () => void;
 	onSave: (patch: { tags: string[]; note: string }) => Promise<void>;
+	/** Viewers can read notes and tags but not change them. */
+	readOnly?: boolean;
 }) => {
 	const t = useT();
 	const [oldestFirst, setOldestFirst] = useState(true);
@@ -197,7 +186,7 @@ export const VisitorSheet = ({
 						<VisitorStep ev={ev} />
 						{ev.props ? <PropChips props={ev.props} /> : null}
 					</div>
-					<span className="text-muted-foreground shrink-0 font-mono text-[11px] tabular-nums">
+					<span className="text-muted-foreground shrink-0 font-mono text-xs tabular-nums">
 						{timeLabel(ev.time)}
 					</span>
 				</div>
@@ -209,7 +198,7 @@ export const VisitorSheet = ({
 		<div className="fixed inset-0 z-40">
 			<dialog
 				open
-				aria-label={t("visitor.journeyAria", { name: displayName })}
+				aria-label={t("visitor.journeyFor", { name: displayName })}
 				className="fixed inset-0 z-40 m-0 h-svh max-h-none w-full max-w-none overflow-visible border-0 bg-transparent p-0"
 			>
 				<button
@@ -221,7 +210,7 @@ export const VisitorSheet = ({
 				<aside
 					role="dialog"
 					aria-modal="true"
-					aria-label={t("visitor.journeyAria", { name: displayName })}
+					aria-label={t("visitor.journeyFor", { name: displayName })}
 					tabIndex={-1}
 					autoFocus
 					className="bg-card ring-foreground/10 animate-in slide-in-from-right-8 absolute inset-y-0 right-0 flex w-full max-w-[560px] flex-col rounded-l-2xl ring-1 duration-200 outline-none"
@@ -229,15 +218,18 @@ export const VisitorSheet = ({
 					<div className="border-border/60 flex items-center gap-2 border-b p-3">
 						<p className="truncate text-sm font-semibold">
 							{t("visitor.journey")} <span className="text-muted-foreground">· {displayName}</span>
-							<span className="bg-muted text-muted-foreground ml-1.5 rounded px-1 py-0.5 font-mono text-[10px]">
-								{t("visitor.events", { n: visitor.events.length })}
+							<span className="bg-muted text-muted-foreground ml-1.5 rounded px-1 py-0.5 font-mono text-xs">
+								{t("visitor.events", {
+									count: fmt(visitor.events.length),
+									n: visitor.events.length,
+								})}
 							</span>
 						</p>
 						<div className="ms-auto flex items-center gap-1">
 							<button
 								type="button"
 								onClick={() => setOldestFirst(!oldestFirst)}
-								className="text-muted-foreground hover:text-foreground hover:bg-muted focus-visible:outline-ring focus-visible:outline-2 outline-offset-2 inline-flex items-center gap-1 rounded-md px-1.5 py-1 font-mono text-[10px] tracking-wider uppercase"
+								className="text-muted-foreground hover:text-foreground hover:bg-muted focus-visible:outline-ring focus-visible:outline-2 outline-offset-2 inline-flex items-center gap-1 rounded-md px-1.5 py-1 font-mono text-xs tracking-wider uppercase"
 							>
 								<ArrowDownUp className="size-3" aria-hidden />
 								{oldestFirst ? t("visitor.oldestFirst") : t("visitor.newestFirst")}
@@ -245,14 +237,14 @@ export const VisitorSheet = ({
 							<button
 								type="button"
 								onClick={copy}
-								className="text-muted-foreground hover:text-foreground hover:bg-muted focus-visible:outline-ring focus-visible:outline-2 outline-offset-2 inline-flex items-center gap-1 rounded-md px-1.5 py-1 font-mono text-[10px] tracking-wider uppercase"
+								className="text-muted-foreground hover:text-foreground hover:bg-muted focus-visible:outline-ring focus-visible:outline-2 outline-offset-2 inline-flex items-center gap-1 rounded-md px-1.5 py-1 font-mono text-xs tracking-wider uppercase"
 							>
 								{copied ? (
 									<Check className="size-3" aria-hidden />
 								) : (
 									<Copy className="size-3" aria-hidden />
 								)}
-								{copied ? t("visitor.copied") : t("visitor.copy")}
+								{copied ? t("share.copied") : t("share.copy")}
 							</button>
 							<button
 								type="button"
@@ -277,13 +269,17 @@ export const VisitorSheet = ({
 								<p className="flex flex-wrap items-center gap-2 font-semibold">
 									{displayName}
 									{visitor.customer ? (
-										<span className="rounded-full bg-(--chart)/10 px-2 py-0.5 text-[10px] font-medium text-(--chart)">
+										<span className="rounded-full bg-(--chart)/10 px-2 py-0.5 text-xs font-medium text-(--chart)">
 											{t("visitor.customer")}
 										</span>
 									) : null}
 								</p>
 								<p className="text-muted-foreground font-mono text-xs">
 									{visitor.email ?? t("visitor.notIdentified")}
+								</p>
+								<p className="text-muted-foreground mt-0.5 flex min-w-0 items-center gap-1.5 text-xs">
+									<span className="shrink-0">{t("visitor.id")}</span>
+									<span className="truncate font-mono select-all">{visitor.visitorId}</span>
 								</p>
 								<div className="text-muted-foreground mt-2 grid gap-1 text-[13px]">
 									<span>
@@ -308,7 +304,7 @@ export const VisitorSheet = ({
 
 						{visitor.params.length > 0 ? (
 							<div className="border-border/60 border-b p-4">
-								<p className="text-muted-foreground mb-1.5 text-[11px] tracking-wider uppercase">
+								<p className="text-muted-foreground mb-1.5 text-xs tracking-wider uppercase">
 									{t("visitor.parameters")}
 								</p>
 								<div className="grid gap-1">
@@ -327,66 +323,73 @@ export const VisitorSheet = ({
 								{tags.map((tag) => (
 									<span
 										key={tag}
-										className="inline-flex items-center gap-1 rounded-full bg-(--chart)/10 px-2 py-0.5 text-[11px] font-medium text-(--chart)"
+										className="inline-flex items-center gap-1 rounded-full bg-(--chart)/10 px-2 py-0.5 text-xs font-medium text-(--chart)"
 									>
 										{tag}
-										<button
-											type="button"
-											aria-label={t("visitor.removeTag", { tag })}
-											onClick={() => setTags(tags.filter((x) => x !== tag))}
-											className="hover:text-foreground focus-visible:outline-ring outline-offset-2 focus-visible:outline-2"
-										>
-											<X className="size-3" aria-hidden />
-										</button>
+										{readOnly ? null : (
+											<button
+												type="button"
+												aria-label={t("visitor.removeTag", { tag })}
+												onClick={() => setTags(tags.filter((x) => x !== tag))}
+												className="hover:text-foreground focus-visible:outline-ring outline-offset-2 focus-visible:outline-2"
+											>
+												<X className="size-3" aria-hidden />
+											</button>
+										)}
 									</span>
 								))}
 								{tags.length === 0 ? (
 									<span className="text-muted-foreground text-xs">{t("visitor.noTags")}</span>
 								) : null}
 							</div>
-							<div className="flex gap-2">
-								<Input
-									id="visitor-tags"
-									value={tagDraft}
-									placeholder={t("visitor.addTagPlaceholder")}
-									onChange={(e) => setTagDraft(e.target.value)}
-									onKeyDown={onTagKey}
-									className="h-8 text-xs"
-								/>
-								<Button variant="outline" size="sm" onClick={addTag}>
-									<Plus className="size-3.5" aria-hidden />
-									{t("visitor.add")}
-								</Button>
-							</div>
+							{readOnly ? null : (
+								<div className="flex gap-2">
+									<Input
+										id="visitor-tags"
+										value={tagDraft}
+										placeholder={t("visitor.addTagPlaceholder")}
+										onChange={(e) => setTagDraft(e.target.value)}
+										onKeyDown={onTagKey}
+										className="h-8 text-xs"
+									/>
+									<Button variant="outline" size="sm" onClick={addTag}>
+										<Plus className="size-3.5" aria-hidden />
+										{t("visitor.add")}
+									</Button>
+								</div>
+							)}
 							<div className="mt-3 grid gap-1.5">
 								<Label htmlFor="visitor-note">{t("visitor.notes")}</Label>
 								<Textarea
 									id="visitor-note"
 									rows={3}
 									value={note}
-									placeholder={t("visitor.notesPlaceholder")}
+									placeholder={t("visitor.notePlaceholder")}
 									onChange={(e) => setNote(e.target.value)}
 									className="text-xs"
+									readOnly={readOnly}
 								/>
-								<div>
-									<Button
-										variant="outline"
-										size="sm"
-										disabled={saving}
-										onClick={async () => {
-											setSaving(true);
-											try {
-												await onSave({ note, tags });
-												toast.success(t("visitor.saved"));
-											} catch {
-												toast.error(t("visitor.saveFailed"));
-											}
-											setSaving(false);
-										}}
-									>
-										{t("visitor.save")}
-									</Button>
-								</div>
+								{readOnly ? null : (
+									<div>
+										<Button
+											variant="outline"
+											size="sm"
+											disabled={saving}
+											onClick={async () => {
+												setSaving(true);
+												try {
+													await onSave({ note, tags });
+													toast.success(t("visitor.saved"));
+												} catch {
+													toast.error(t("visitor.saveFailed"));
+												}
+												setSaving(false);
+											}}
+										>
+											{t("visitor.save")}
+										</Button>
+									</div>
+								)}
 							</div>
 						</div>
 
@@ -395,8 +398,11 @@ export const VisitorSheet = ({
 								{events[0] ? dayLabel(events[0].time) : ""}
 							</p>
 							<ol className="grid gap-0.5">{events.map(renderEvent)}</ol>
-							<p className="text-muted-foreground mt-3 text-center font-mono text-[11px] tabular-nums">
-								{t("visitor.steps", { n: visitor.events.length })}
+							<p className="text-muted-foreground mt-3 text-center font-mono text-xs tabular-nums">
+								{t("visitor.steps", {
+									count: fmt(visitor.events.length),
+									n: visitor.events.length,
+								})}
 								{visitor.source ? ` · ${visitor.source}` : ""}
 							</p>
 						</div>

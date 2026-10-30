@@ -108,7 +108,12 @@ export const EmailReportsSection = ({ siteId }: { siteId: string }) => {
 								aria-label={t("emailReports.frequencyLabel")}
 								className="h-8 w-32 text-xs"
 							>
-								<SelectValue />
+								<SelectValue>
+									{(value: string | null) => {
+										const f = FREQUENCIES.find((x) => x.value === value);
+										return f ? t(f.labelKey) : null;
+									}}
+								</SelectValue>
 							</SelectTrigger>
 							<SelectContent>
 								{FREQUENCIES.map((f) => (

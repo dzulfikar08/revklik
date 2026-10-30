@@ -41,8 +41,6 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const errMsg = (e: unknown, fallback: string): string =>
 	e instanceof LegacyApiError ? e.message : fallback;
 
-const roleBadge = "bg-muted text-muted-foreground rounded-full px-2 py-0.5 text-[11px] font-medium";
-
 const MemberRow = ({
 	member,
 	onRole,
@@ -77,7 +75,12 @@ const MemberRow = ({
 			</span>
 			<Select value={member.role} onValueChange={(v) => onRole(member.id, String(v) as TeamRole)}>
 				<SelectTrigger aria-label={t("team.roleFor", { who })} className="h-7 w-24 text-xs">
-					<SelectValue />
+					<SelectValue>
+						{(value: string | null) => {
+							const r = ROLES.find((x) => x.value === value);
+							return r ? t(r.labelKey) : null;
+						}}
+					</SelectValue>
 				</SelectTrigger>
 				<SelectContent>
 					{ROLES.map((r) => (
@@ -186,7 +189,12 @@ export const TeamSection = ({ siteId }: { siteId: string }) => {
 						/>
 						<Select value={role} onValueChange={(v) => setRole(String(v) as TeamRole)}>
 							<SelectTrigger aria-label={t("team.inviteeRole")} className="h-8 w-28 text-xs">
-								<SelectValue />
+								<SelectValue>
+									{(value: string | null) => {
+										const r = ROLES.find((x) => x.value === value);
+										return r ? t(r.labelKey) : null;
+									}}
+								</SelectValue>
 							</SelectTrigger>
 							<SelectContent>
 								{ROLES.map((r) => (
