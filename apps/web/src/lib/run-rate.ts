@@ -42,10 +42,17 @@ export type RunRate =
  * starts on the first day the site recorded anything, so a site that is only
  * a week old is not averaged against a month of days before it existed.
  */
-export const computeRunRate = (revenue: readonly DailyRevenue[], visitors: readonly DailyVisitors[]): RunRate => {
+export const computeRunRate = (
+	revenue: readonly DailyRevenue[],
+	visitors: readonly DailyVisitors[],
+): RunRate => {
 	const completed = revenue.slice(0, -1);
-	const trafficDates = new Set(visitors.filter((v) => v.visitors > 0).map((v) => v.date.slice(0, 10)));
-	const firstActive = completed.findIndex((d) => d.revenue !== 0 || trafficDates.has(d.date.slice(0, 10)));
+	const trafficDates = new Set(
+		visitors.filter((v) => v.visitors > 0).map((v) => v.date.slice(0, 10)),
+	);
+	const firstActive = completed.findIndex(
+		(d) => d.revenue !== 0 || trafficDates.has(d.date.slice(0, 10)),
+	);
 	const window = firstActive === -1 ? [] : completed.slice(firstActive);
 
 	const sales = window.reduce((sum, d) => sum + d.conversions, 0);

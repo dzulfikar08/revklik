@@ -20,6 +20,13 @@ vi.mock("@/lib/legacy/share-widget-tokens", async (importOriginal) => ({
 	fetchSubscriptionPlan: vi.fn().mockResolvedValue({ plan: "growth" }),
 	fetchWidgetStatus: share.fetchWidgetStatus,
 }));
+vi.mock("@/lib/legacy/site-access", async (importOriginal) => ({
+	...(await importOriginal<typeof import("@/lib/legacy/site-access")>()),
+	fetchSiteAccess: vi.fn().mockResolvedValue({
+		can: { manage: true, owner: true, read: true, write: true },
+		role: "owner",
+	}),
+}));
 vi.mock("@/lib/legacy/api", async (importOriginal) => ({
 	...(await importOriginal<typeof import("@/lib/legacy/api")>()),
 	fetchSites: vi.fn().mockResolvedValue([
@@ -38,7 +45,11 @@ describe("ShareWidgetTokensView", () => {
 	beforeEach(() => {
 		(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 		share.fetchShareStatus.mockResolvedValue({ public: false, share_token: null });
-		share.fetchWidgetStatus.mockResolvedValue({ enabled: false, tz_offset: 420, widget_token: null });
+		share.fetchWidgetStatus.mockResolvedValue({
+			enabled: false,
+			tz_offset: 420,
+			widget_token: null,
+		});
 		container = document.createElement("div");
 		document.body.append(container);
 	});

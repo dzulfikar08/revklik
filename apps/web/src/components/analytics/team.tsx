@@ -41,8 +41,6 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const errMsg = (e: unknown, fallback: string): string =>
 	e instanceof LegacyApiError ? e.message : fallback;
 
-const roleBadge = "bg-muted text-muted-foreground rounded-full px-2 py-0.5 text-[11px] font-medium";
-
 const MemberRow = ({
 	member,
 	onRole,

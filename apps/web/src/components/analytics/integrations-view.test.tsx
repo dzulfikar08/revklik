@@ -10,7 +10,12 @@ import { describe, expect, it } from "vitest";
 import { t } from "@/lib/i18n";
 import { aggregateGscQueries, isSyncStale } from "@/lib/legacy/integrations";
 
-import { IntegrationForm, IntegrationsView, WEBHOOK_PROVIDERS, fieldLabel } from "./integrations-view";
+import {
+	IntegrationForm,
+	IntegrationsView,
+	WEBHOOK_PROVIDERS,
+	fieldLabel,
+} from "./integrations-view";
 
 const ascMeta = WEBHOOK_PROVIDERS.find((p) => p.type === "appstoreconnect");
 if (!ascMeta) throw new Error("appstoreconnect provider meta missing");
@@ -62,12 +67,20 @@ describe("App Store Connect integration form", () => {
 	});
 
 	it("describes what the card does", () => {
-		expect(t(ascMeta.descriptionKey)).toContain("Sync App Store downloads, proceeds, and price changes");
+		expect(t(ascMeta.descriptionKey)).toContain(
+			"Sync App Store downloads, proceeds, and price changes",
+		);
 	});
 });
 
 describe("Search Console aggregation", () => {
-	const row = (query: string, date: string, clicks: number, impressions: number, position: number) => ({
+	const row = (
+		query: string,
+		date: string,
+		clicks: number,
+		impressions: number,
+		position: number,
+	) => ({
 		clicks,
 		ctr: impressions ? clicks / impressions : 0,
 		date,

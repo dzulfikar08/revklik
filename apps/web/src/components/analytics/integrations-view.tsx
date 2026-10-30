@@ -66,6 +66,7 @@ import type {
 import { ImportsView } from "./imports-view";
 import { PolarConnectPanel } from "./polar-connect-panel";
 import { Panel, PanelTabs, StatusPill } from "./ui";
+import { useSiteAccess } from "./use-site-access";
 
 type Translate = (key: MessageKey, vars?: Record<string, string | number>) => string;
 
@@ -142,7 +143,10 @@ const AscInstructions = () => {
 	const t = useT();
 	const tags: RichTags = {
 		...BOLD,
-		a: linkTag("https://appstoreconnect.apple.com/access/integrations/api", "underline underline-offset-2"),
+		a: linkTag(
+			"https://appstoreconnect.apple.com/access/integrations/api",
+			"underline underline-offset-2",
+		),
 	};
 	return (
 		<div className="bg-muted/50 border-border/60 grid gap-1.5 rounded-lg border px-3 py-2.5 text-[11px] leading-relaxed">
@@ -554,7 +558,9 @@ export const IntegrationForm = ({
 		onSuccess: () => {
 			qc.invalidateQueries({ queryKey: ["legacy", "integrations", siteId] });
 			toast.success(
-				integration ? t("integrations.configSaved") : t("integrations.connected", { name: meta.name }),
+				integration
+					? t("integrations.configSaved")
+					: t("integrations.connected", { name: meta.name }),
 			);
 			onDone();
 		},
@@ -1360,7 +1366,9 @@ const GscPanel = ({
 				>
 					<Search className="size-4" aria-hidden />
 				</span>
-				<p className="text-muted-foreground text-xs leading-relaxed">{t("integrations.gsc.desc")}</p>
+				<p className="text-muted-foreground text-xs leading-relaxed">
+					{t("integrations.gsc.desc")}
+				</p>
 			</div>
 			{connected && lastSync ? (
 				<p className="text-muted-foreground mt-2 font-mono text-[10px] tabular-nums">
@@ -1369,7 +1377,7 @@ const GscPanel = ({
 			) : null}
 			{stale && lastSync ? (
 				<p
-					className="mt-2 rounded-lg bg-amber-500/10 px-3 py-2 text-xs text-amber-800 dark:text-amber-300"
+					className="mt-2 rounded-lg bg-(--money)/10 px-3 py-2 text-xs text-(--money)"
 					role="status"
 				>
 					{t("integrations.gsc.stale", {
@@ -1447,7 +1455,9 @@ const GscPanel = ({
 											<td className="py-1.5 pr-3 font-mono tabular-nums">
 												{percentFmt.format(q.ctr)}
 											</td>
-											<td className="py-1.5 font-mono tabular-nums">{positionFmt.format(q.position)}</td>
+											<td className="py-1.5 font-mono tabular-nums">
+												{positionFmt.format(q.position)}
+											</td>
 										</tr>
 									))}
 								</tbody>
@@ -1484,6 +1494,7 @@ const SHOWN_PROVIDERS: ReadonlySet<LegacyIntegrationType> = new Set([
 
 export const IntegrationsView = ({ siteId }: { siteId: string }) => {
 	const t = useT();
+	const access = useSiteAccess(siteId);
 	const [tab, setTab] = useState<IntegrationsTabKey>("payments");
 
 	const tabs: readonly { readonly key: IntegrationsTabKey; readonly label: string }[] = [
@@ -1494,13 +1505,13 @@ export const IntegrationsView = ({ siteId }: { siteId: string }) => {
 	];
 
 	const integrationsQ = useQuery({
-		enabled: Boolean(siteId),
+		enabled: Boolean(siteId) && access.can.owner,
 		queryFn: () => fetchIntegrations(siteId),
 		queryKey: ["legacy", "integrations", siteId],
 		retry: false,
 	});
 	const providersQ = useQuery({
-		enabled: Boolean(siteId),
+		enabled: Boolean(siteId) && access.can.owner,
 		queryFn: () => fetchPaymentProviders(siteId),
 		queryKey: ["legacy", "payment-providers", siteId],
 		retry: false,
@@ -1517,6 +1528,17 @@ export const IntegrationsView = ({ siteId }: { siteId: string }) => {
 			: providersQ.error instanceof Error
 				? providersQ.error.message
 				: "";
+
+	if (!access.can.owner) {
+		return (
+			<main className="mx-auto max-w-7xl px-3 pt-3 pb-6 md:px-4">
+				<h1 className="text-lg font-semibold tracking-tight">{t("integrations.title")}</h1>
+				<p className="text-muted-foreground mt-1 max-w-prose text-sm">
+					{t("integrations.ownerOnly")}
+				</p>
+			</main>
+		);
+	}
 
 	return (
 		<main className="mx-auto max-w-7xl px-3 pt-3 pb-6 md:px-4">
