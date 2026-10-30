@@ -1,10 +1,13 @@
 ---
 import type { Copy } from '../data/copy';
+import { localePath } from '../data/seo';
 interface Props {
 	c: Copy;
 }
 const { c } = Astro.props;
 const lead = c.feat_lead;
+const locale = c.lang === 'en' ? 'en' : 'id';
+const internal = (href: string) => (href.startsWith('/') ? localePath(locale, href) : href);
 ---
 <section class="features" id="features" data-section="features">
   <div class="wrap split">
@@ -28,6 +31,7 @@ const lead = c.feat_lead;
           <article class="feature-row">
             <h3>{f.title}</h3>
             <p>{f.desc}</p>
+            {f.href && <a class="link-plain" href={internal(f.href)}>{f.link}</a>}
           </article>
         ))}
       </div>

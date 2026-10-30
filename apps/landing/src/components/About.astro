@@ -1,0 +1,41 @@
+---
+import type { Copy } from '../data/copy';
+import { localePath } from '../data/seo';
+import { proof } from '../data/proof';
+interface Props {
+	c: Copy;
+}
+const { c } = Astro.props;
+const locale = c.lang === 'en' ? 'en' : 'id';
+const internal = (href: string) => (href.startsWith('/') ? localePath(locale, href) : href);
+const quotes = proof.filter((q) => q.lang === locale);
+---
+<section class="about" id="tentang" data-section="about">
+  <div class="wrap">
+    <div class="section-head">
+      <h2>{c.about_title}</h2>
+      <p>{c.about_desc}</p>
+    </div>
+    <dl class="about-facts">
+      {c.about_facts.map((f) => (
+        <div class="about-fact">
+          <dt>{f.title}</dt>
+          <dd>
+            {f.desc}
+            <a class="link-plain" href={internal(f.href)}>{f.link}</a>
+          </dd>
+        </div>
+      ))}
+    </dl>
+    {quotes.length > 0 && (
+      <ul class="quotes">
+        {quotes.map((q) => (
+          <li>
+            <blockquote>{q.quote}</blockquote>
+            <p class="quote-by">{q.name}, {q.role}{q.url && <> (<a href={q.url}>{new URL(q.url).hostname}</a>)</>}</p>
+          </li>
+        ))}
+      </ul>
+    )}
+  </div>
+</section>

@@ -1,0 +1,11 @@
+---
+import type { Copy } from '../data/copy';
+import { appLink, REGISTER_URL } from '../data/site';
+interface Props {
+	c: Copy;
+}
+const { c } = Astro.props;
+---
+<div class="sticky-cta" data-sticky-cta hidden>
+  <a href={appLink(REGISTER_URL, c.lang)} class="btn btn-primary" data-cta data-revklik-goal="register_click" data-revklik-goal-location="sticky_mobile">{c.sticky_cta}</a>
+</div>

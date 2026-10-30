@@ -1,6 +1,6 @@
 ---
 import type { Copy } from '../data/copy';
-import { TRACKER_URL } from '../data/site';
+import { DOCS_URL, TRACKER_URL } from '../data/site';
 const snippet = `<script defer data-site-id="your-site-id" src="${TRACKER_URL}"></scr` + `ipt>`;
 interface Props {
 	c: Copy;
@@ -32,7 +32,7 @@ const { c } = Astro.props;
         </div>
         <pre class="snippet-code"><code>&lt;script defer data-site-id="<span class="ph">your-site-id</span>" src="{TRACKER_URL}"&gt;&lt;/script&gt;</code></pre>
         <p class="snippet-status" role="status" data-copy-status></p>
-        <a class="link-plain" href="https://docs.revklik.com">{c.code_docs}</a>
+        <a class="link-plain" href={`${DOCS_URL}${c.lang === 'en' ? '' : '/id'}/getting-started/`}>{c.code_docs}</a>
       </div>
     </div>
   </div>

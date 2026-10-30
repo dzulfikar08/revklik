@@ -2,7 +2,19 @@
 import HomePage from '../components/HomePage.astro';
 import RootLayout from '../layouts/RootLayout.astro';
 import { ID } from '../data/copy';
+import { homeJsonLd } from '../data/jsonld';
 ---
-<RootLayout c={ID} locale="id">
+<RootLayout
+	c={ID}
+	locale="id"
+	home
+	path="/"
+	alternates={{ id: '/', en: '/en/' }}
+	title={ID.meta_title}
+	description={ID.meta_description}
+	ogTitle={ID.og_title}
+	ogDescription={ID.og_description}
+	jsonLd={homeJsonLd(ID, 'id', '/')}
+>
 	<HomePage c={ID} />
 </RootLayout>
