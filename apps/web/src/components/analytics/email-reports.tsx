@@ -25,6 +25,8 @@ import {
 } from "@/lib/legacy/analytics-settings";
 import { LegacyApiError } from "@/lib/legacy/api";
 import { formatDate, useLocale, useT } from "@/lib/i18n";
+
+import { useSiteAccess } from "./use-site-access";
 import type { MessageKey } from "@/lib/i18n";
 
 import { Panel } from "./ui";
@@ -42,6 +44,7 @@ export const EmailReportsSection = ({ siteId }: { siteId: string }) => {
 	const qc = useQueryClient();
 	const t = useT();
 	const locale = useLocale();
+	const canWrite = useSiteAccess(siteId).can.write;
 	const [frequency, setFrequency] = useState("weekly");
 
 	const frequencyLabel = (value: string): string => {
@@ -98,40 +101,42 @@ export const EmailReportsSection = ({ siteId }: { siteId: string }) => {
 				</p>
 			) : (
 				<>
-					<div className="mb-2.5 flex flex-wrap items-center gap-2">
-						<span className="text-muted-foreground flex items-center gap-1 text-xs">
-							<CalendarClock className="size-3.5" aria-hidden />
-							{t("emailReports.schedule")}
-						</span>
-						<Select value={frequency} onValueChange={(v) => setFrequency(String(v))}>
-							<SelectTrigger
-								aria-label={t("emailReports.frequencyLabel")}
-								className="h-8 w-32 text-xs"
+					{canWrite ? (
+						<div className="mb-2.5 flex flex-wrap items-center gap-2">
+							<span className="text-muted-foreground flex items-center gap-1 text-xs">
+								<CalendarClock className="size-3.5" aria-hidden />
+								{t("emailReports.schedule")}
+							</span>
+							<Select value={frequency} onValueChange={(v) => setFrequency(String(v))}>
+								<SelectTrigger
+									aria-label={t("emailReports.frequencyLabel")}
+									className="h-8 w-32 text-xs"
+								>
+									<SelectValue>
+										{(value: string | null) => {
+											const f = FREQUENCIES.find((x) => x.value === value);
+											return f ? t(f.labelKey) : null;
+										}}
+									</SelectValue>
+								</SelectTrigger>
+								<SelectContent>
+									{FREQUENCIES.map((f) => (
+										<SelectItem key={f.value} value={f.value}>
+											{t(f.labelKey)}
+										</SelectItem>
+									))}
+								</SelectContent>
+							</Select>
+							<Button
+								size="sm"
+								className="h-8 text-xs"
+								disabled={createMut.isPending}
+								onClick={() => createMut.mutate()}
 							>
-								<SelectValue>
-									{(value: string | null) => {
-										const f = FREQUENCIES.find((x) => x.value === value);
-										return f ? t(f.labelKey) : null;
-									}}
-								</SelectValue>
-							</SelectTrigger>
-							<SelectContent>
-								{FREQUENCIES.map((f) => (
-									<SelectItem key={f.value} value={f.value}>
-										{t(f.labelKey)}
-									</SelectItem>
-								))}
-							</SelectContent>
-						</Select>
-						<Button
-							size="sm"
-							className="h-8 text-xs"
-							disabled={createMut.isPending}
-							onClick={() => createMut.mutate()}
-						>
-							{t("emailReports.create")}
-						</Button>
-					</div>
+								{t("emailReports.create")}
+							</Button>
+						</div>
+					) : null}
 
 					{isLoading ? (
 						<p className="text-muted-foreground py-3 text-center text-xs">
@@ -149,36 +154,48 @@ export const EmailReportsSection = ({ siteId }: { siteId: string }) => {
 									className="bg-muted/40 hover:bg-muted/60 flex flex-wrap items-center gap-2 rounded-lg px-2.5 py-2"
 								>
 									<span className="w-20 font-mono text-xs">{frequencyLabel(r.frequency)}</span>
-									<button
-										type="button"
-										aria-label={t(
-											r.enabled ? "emailReports.disableAria" : "emailReports.enableAria",
-											{
-												frequency: frequencyLabel(r.frequency).toLowerCase(),
-											},
-										)}
-										disabled={toggleMut.isPending}
-										onClick={() => toggleMut.mutate({ id: r.id, enabled: !r.enabled })}
-										className={`focus-visible:outline-ring rounded-full px-2 py-0.5 text-[11px] font-medium outline-offset-2 focus-visible:outline-2 ${
-											r.enabled ? "bg-(--up)/10 text-(--up)" : "bg-muted text-muted-foreground"
-										}`}
-									>
-										{r.enabled ? t("emailReports.enabled") : t("emailReports.disabled")}
-									</button>
+									{canWrite ? (
+										<button
+											type="button"
+											aria-label={t(
+												r.enabled ? "emailReports.disableAria" : "emailReports.enableAria",
+												{
+													frequency: frequencyLabel(r.frequency).toLowerCase(),
+												},
+											)}
+											disabled={toggleMut.isPending}
+											onClick={() => toggleMut.mutate({ id: r.id, enabled: !r.enabled })}
+											className={`focus-visible:outline-ring rounded-full px-2 py-0.5 text-[11px] font-medium outline-offset-2 focus-visible:outline-2 ${
+												r.enabled ? "bg-(--up)/10 text-(--up)" : "bg-muted text-muted-foreground"
+											}`}
+										>
+											{r.enabled ? t("emailReports.enabled") : t("emailReports.disabled")}
+										</button>
+									) : (
+										<span
+											className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${
+												r.enabled ? "bg-(--up)/10 text-(--up)" : "bg-muted text-muted-foreground"
+											}`}
+										>
+											{r.enabled ? t("emailReports.enabled") : t("emailReports.disabled")}
+										</span>
+									)}
 									<span className="text-muted-foreground ml-auto font-mono text-[11px] tabular-nums">
 										{t("emailReports.lastSent", { when: sentLabel(r.last_sent) })}
 									</span>
-									<button
-										type="button"
-										aria-label={t("emailReports.deleteAria", {
-											frequency: frequencyLabel(r.frequency).toLowerCase(),
-										})}
-										disabled={deleteMut.isPending}
-										onClick={() => deleteMut.mutate(r.id)}
-										className="text-muted-foreground hover:text-(--down) focus-visible:outline-ring rounded p-1 outline-offset-2 focus-visible:outline-2 disabled:opacity-40"
-									>
-										<Trash2 className="size-3.5" aria-hidden />
-									</button>
+									{canWrite ? (
+										<button
+											type="button"
+											aria-label={t("emailReports.deleteAria", {
+												frequency: frequencyLabel(r.frequency).toLowerCase(),
+											})}
+											disabled={deleteMut.isPending}
+											onClick={() => deleteMut.mutate(r.id)}
+											className="text-muted-foreground hover:text-(--down) focus-visible:outline-ring rounded p-1 outline-offset-2 focus-visible:outline-2 disabled:opacity-40"
+										>
+											<Trash2 className="size-3.5" aria-hidden />
+										</button>
+									) : null}
 								</li>
 							))}
 						</ul>

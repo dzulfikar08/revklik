@@ -28,6 +28,7 @@ import type { Point, RangeKey } from "./data";
 import { GrowthLocked } from "./growth-locked";
 import { EmptyBlock, ErrorBlock, PanelState } from "./panel-state";
 import { CountBarRow, FunnelChart, Panel, PanelTabs, SortHint, TrafficChart } from "./ui";
+import { useSiteAccess } from "./use-site-access";
 import { VisitorSheet } from "./visitors";
 
 const NO_JOURNEYS: VisitorJourney[] = [];
@@ -258,6 +259,7 @@ export const ExplorePanel = ({
 	const [exploreTab, setExploreTab] = useState<"users" | "journeys">("users");
 	const [visitorRowId, setVisitorRowId] = useState<string | null>(null);
 	const queryClient = useQueryClient();
+	const canWrite = useSiteAccess(siteId).can.write;
 
 	const visitorsQ = useQuery({
 		enabled: Boolean(siteId),
@@ -465,6 +467,7 @@ export const ExplorePanel = ({
 				<VisitorSheet
 					key={activeVisitor.id}
 					visitor={activeVisitor}
+					readOnly={!canWrite}
 					onClose={() => setVisitorRowId(null)}
 					onSave={async (patch) => {
 						await saveVisitor.mutateAsync({ id: activeVisitor.id, patch });

@@ -14,6 +14,8 @@ import { createSegment, deleteSegment, fetchSegments } from "@/lib/legacy/analyt
 import type { LegacySegment } from "@/lib/legacy/analytics-settings";
 import { encodeFilterString, LegacyApiError } from "@/lib/legacy/api";
 import { useT } from "@/lib/i18n";
+
+import { useSiteAccess } from "./use-site-access";
 import type { LegacyFilter } from "@/lib/legacy/api";
 
 const parseSegmentFilters = (raw: string): LegacyFilter[] => {
@@ -156,6 +158,7 @@ export const SegmentControls = ({
 	onApply: (filters: LegacyFilter[]) => void;
 }) => {
 	const t = useT();
+	const canWrite = useSiteAccess(siteId).can.write;
 	const [open, setOpen] = useState(false);
 	const { data: segments = [] } = useQuery({
 		enabled: Boolean(siteId),
@@ -196,19 +199,21 @@ export const SegmentControls = ({
 					</button>
 				);
 			})}
-			<button
-				type="button"
-				aria-label={t("segments.saveOrManage")}
-				aria-expanded={open}
-				onClick={() => setOpen((v) => !v)}
-				className={`focus-visible:outline-ring inline-flex items-center gap-1 rounded-full pointer-coarse:min-h-11 min-h-8 px-3 text-[13px] font-medium outline-offset-2 focus-visible:outline-2 ${
-					open ? "bg-muted text-foreground" : "bg-muted/70 hover:bg-muted text-muted-foreground"
-				}`}
-			>
-				<Bookmark className="size-3" aria-hidden />
-				{t("segments.save")}
-			</button>
-			{open ? (
+			{canWrite ? (
+				<button
+					type="button"
+					aria-label={t("segments.saveOrManage")}
+					aria-expanded={open}
+					onClick={() => setOpen((v) => !v)}
+					className={`focus-visible:outline-ring inline-flex items-center gap-1 rounded-full pointer-coarse:min-h-11 min-h-8 px-3 text-[13px] font-medium outline-offset-2 focus-visible:outline-2 ${
+						open ? "bg-muted text-foreground" : "bg-muted/70 hover:bg-muted text-muted-foreground"
+					}`}
+				>
+					<Bookmark className="size-3" aria-hidden />
+					{t("segments.save")}
+				</button>
+			) : null}
+			{canWrite && open ? (
 				<SegmentPopover
 					siteId={siteId}
 					filters={filters}

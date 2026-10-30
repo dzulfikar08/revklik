@@ -66,7 +66,7 @@ export const shellEn = {
 
 	// home: toolbar, KPIs
 	"home.vsPrevious": "vs the period before",
-	"home.vsPreviousShort": "vs previous period",
+	"home.vsPreviousShort": "vs prior",
 	"home.noPrevious": "Nothing earlier to compare",
 	"home.export": "Export CSV",
 	"home.exported": "Exported {name}",
@@ -290,7 +290,7 @@ export const shellId: Record<Exclude<ShellKey, `${string}_one`>, string> = {
 	"sort.asc": "Urutkan menurut {label}, terkecil dulu",
 
 	"home.vsPrevious": "dibanding periode sebelumnya",
-	"home.vsPreviousShort": "vs periode lalu",
+	"home.vsPreviousShort": "vs lalu",
 	"home.noPrevious": "Belum ada data sebelumnya",
 	"home.export": "Ekspor CSV",
 	"home.exported": "{name} sudah diekspor",

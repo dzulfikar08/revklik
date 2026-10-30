@@ -122,12 +122,10 @@ free allowances) and Bun.
    bunx wrangler secret put GOOGLE_CLIENT_SECRET --config wrangler.selfhost.jsonc
    ```
 
-   | Name                                                                | Purpose                                                                                                       |
-   | ------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
-   | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`                          | "Continue with Google" sign-in and Search Console connect. Redirect URI: `<APP_URL>/api/auth/google/callback` |
-   | `SHOPEE_PARTNER_ID`, `SHOPEE_SHOP_ID`                               | Shopee marketplace sync                                                                                       |
-   | `TOKOPEDIA_CLIENT_ID`, `TOKOPEDIA_CLIENT_SECRET`, `TOKOPEDIA_FS_ID` | Tokopedia marketplace sync                                                                                    |
-   | `EXPO_ACCESS_TOKEN`                                                 | Phone sale alerts: only needed when "enhanced push security" is on for your Expo project                      |
+   | Name                                       | Purpose                                                                                                       |
+   | ------------------------------------------ | ------------------------------------------------------------------------------------------------------------- |
+   | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | "Continue with Google" sign-in and Search Console connect. Redirect URI: `<APP_URL>/api/auth/google/callback` |
+   | `EXPO_ACCESS_TOKEN`                        | Phone sale alerts: only needed when "enhanced push security" is on for your Expo project                      |
 
    Plain `vars` (in the wrangler config, not secrets): `SELF_HOSTED`, `APP_URL`,
    `SUPER_ADMIN_EMAIL`, `EMAIL_FROM`, `FX_USD_IDR`, `RETENTION_HARD_DELETE_DAYS`,

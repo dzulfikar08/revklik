@@ -18,6 +18,8 @@ import type { LegacyAnnotation } from "@/lib/legacy/analytics-settings";
 import { LegacyApiError } from "@/lib/legacy/api";
 import { formatDate, useLocale, useT } from "@/lib/i18n";
 
+import { useSiteAccess } from "./use-site-access";
+
 const errMsg = (e: unknown, fallback: string): string =>
 	e instanceof LegacyApiError ? e.message : fallback;
 
@@ -34,6 +36,7 @@ export const AnnotationsControl = ({
 	const qc = useQueryClient();
 	const t = useT();
 	const locale = useLocale();
+	const canWrite = useSiteAccess(siteId).can.write;
 
 	const { data, isLoading } = useQuery({
 		enabled: Boolean(siteId),
@@ -94,38 +97,42 @@ export const AnnotationsControl = ({
 						onClick={() => setOpen(false)}
 					/>
 					<div className="bg-popover ring-foreground/10 absolute top-full right-0 z-40 mt-1.5 w-72 rounded-xl p-2.5 ring-1 shadow-lg">
-						<p className="text-muted-foreground mb-1.5 text-[11px] font-medium tracking-wide uppercase">
-							{t("annotations.new")}
-						</p>
-						<div className="flex gap-1.5">
-							<Input
-								type="date"
-								value={date}
-								onChange={(e) => setDate(e.target.value)}
-								aria-label={t("annotations.date")}
-								className="h-8 w-[7.5rem] px-2 font-mono text-[11px]"
-							/>
-							<Input
-								value={text}
-								placeholder={t("annotations.placeholder")}
-								onChange={(e) => setText(e.target.value)}
-								aria-label={t("annotations.label")}
-								onKeyDown={(e) => {
-									if (e.key === "Enter" && text.trim() && date) {
-										createMut.mutate();
-									}
-								}}
-								className="h-8 flex-1 text-xs"
-							/>
-							<Button
-								size="sm"
-								className="h-8 text-xs"
-								disabled={!text.trim() || !date || createMut.isPending}
-								onClick={() => createMut.mutate()}
-							>
-								{t("annotations.add")}
-							</Button>
-						</div>
+						{canWrite ? (
+							<>
+								<p className="text-muted-foreground mb-1.5 text-[11px] font-medium tracking-wide uppercase">
+									{t("annotations.new")}
+								</p>
+								<div className="flex gap-1.5">
+									<Input
+										type="date"
+										value={date}
+										onChange={(e) => setDate(e.target.value)}
+										aria-label={t("annotations.date")}
+										className="h-8 w-[7.5rem] px-2 font-mono text-[11px]"
+									/>
+									<Input
+										value={text}
+										placeholder={t("annotations.placeholder")}
+										onChange={(e) => setText(e.target.value)}
+										aria-label={t("annotations.label")}
+										onKeyDown={(e) => {
+											if (e.key === "Enter" && text.trim() && date) {
+												createMut.mutate();
+											}
+										}}
+										className="h-8 flex-1 text-xs"
+									/>
+									<Button
+										size="sm"
+										className="h-8 text-xs"
+										disabled={!text.trim() || !date || createMut.isPending}
+										onClick={() => createMut.mutate()}
+									>
+										{t("annotations.add")}
+									</Button>
+								</div>
+							</>
+						) : null}
 
 						<p className="text-muted-foreground mt-2.5 mb-1 text-[11px] font-medium tracking-wide uppercase">
 							{t("annotations.onThisSite")}
@@ -145,15 +152,17 @@ export const AnnotationsControl = ({
 											{formatDate(a.date, locale)}
 										</span>
 										<span className="min-w-0 flex-1 truncate text-xs">{a.text}</span>
-										<button
-											type="button"
-											aria-label={t("annotations.deleteAria", { text: a.text })}
-											disabled={deleteMut.isPending}
-											onClick={() => deleteMut.mutate(a.id)}
-											className="text-muted-foreground hover:text-(--down) focus-visible:outline-ring rounded p-1 outline-offset-2 focus-visible:outline-2 disabled:opacity-40"
-										>
-											<Trash2 className="size-3.5" aria-hidden />
-										</button>
+										{canWrite ? (
+											<button
+												type="button"
+												aria-label={t("annotations.deleteAria", { text: a.text })}
+												disabled={deleteMut.isPending}
+												onClick={() => deleteMut.mutate(a.id)}
+												className="text-muted-foreground hover:text-(--down) focus-visible:outline-ring rounded p-1 outline-offset-2 focus-visible:outline-2 disabled:opacity-40"
+											>
+												<Trash2 className="size-3.5" aria-hidden />
+											</button>
+										) : null}
 									</li>
 								))}
 							</ul>
