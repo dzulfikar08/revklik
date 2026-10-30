@@ -339,6 +339,7 @@ export function PublicDashboardView({
 	embed,
 }: PublicDashboardViewProps) {
 	const t = useT();
+	const locale = useLocale();
 	const hourly = range === "24h";
 	const points: Point[] = useMemo(
 		() =>
@@ -347,7 +348,7 @@ export function PublicDashboardView({
 				date: p.date,
 				current: p.visitors,
 			})),
-		[dash, hourly],
+		[dash, hourly, locale],
 	);
 
 	// Revenue bars aligned to the visitor buckets by date (24h = hourly buckets).

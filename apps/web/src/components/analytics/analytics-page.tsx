@@ -211,7 +211,8 @@ const AnalyticsPage = ({
 				current: p.visitors,
 				date: p.date,
 			})),
-		[dash, hourly],
+		// Labels are formatted in the active language.
+		[dash, hourly, locale],
 	);
 
 	// Revenue bars aligned to the visitor buckets by date (24h = hourly buckets).

@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowRight, Check } from "lucide-react";
 import { useMemo, useState } from "react";
 
-import { useT } from "@/lib/i18n";
+import { useLocale, useT } from "@/lib/i18n";
 import type { MessageKey } from "@/lib/i18n";
 import {
 	countryFlag,
@@ -63,6 +63,7 @@ const slotValue = (slot: CrawlerSlot, tab: CrawlerTabKey): number =>
  */
 export const CrawlersPanel = ({ siteId, rangeKey }: { siteId: string; rangeKey: RangeKey }) => {
 	const tr = useT();
+	const locale = useLocale();
 	const [crawlerTab, setCrawlerTab] = useState<CrawlerTabKey>("all");
 	const crawlersQ = useQuery({
 		enabled: Boolean(siteId),
@@ -82,7 +83,7 @@ export const CrawlersPanel = ({ siteId, rangeKey }: { siteId: string; rangeKey: 
 				date: slot.date,
 				current: slotValue(slot, crawlerTab),
 			})),
-		[crawlerTab, data, hourly],
+		[crawlerTab, data, hourly, locale],
 	);
 
 	const botRows = useMemo(() => {
