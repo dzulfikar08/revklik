@@ -1,6 +1,7 @@
 import { Hono } from "hono";
 import type { Kysely } from "kysely";
 import type { Integration, IntegrationType, KlikapaDatabase } from "@revklik/shared";
+import { requireSiteAccess } from "../lib/site-access";
 import { generateId } from "../utils";
 import { signAscToken } from "../lib/appstoreconnect";
 
@@ -56,24 +57,14 @@ function rowToIntegration(row: Record<string, unknown>): Integration {
 	};
 }
 
-function validateSite(db: Kysely<KlikapaDatabase>, userId: string, siteId: string) {
-	return db
-		.selectFrom("sites")
-		.select(["id"])
-		.where("id", "=", siteId)
-		.where("user_id", "=", userId)
-		.executeTakeFirst();
-}
-
 // GET / - List integrations for a site
 integrationRoutes.get("/", async (c) => {
 	const db = c.get("db");
-	const userId = c.get("userId");
 	const siteId = c.req.query("site_id");
 	if (!siteId) return c.json({ error: "site_id required", success: false }, 400);
 
-	const site = await validateSite(db, userId, siteId);
-	if (!site) return c.json({ error: "Site not found", success: false }, 404);
+	const access = await requireSiteAccess(c, siteId, "owner");
+	if (access instanceof Response) return access;
 
 	const rows = await db
 		.selectFrom("integrations")
@@ -109,8 +100,8 @@ integrationRoutes.post("/", async (c) => {
 		return c.json({ error: "config must be an object", success: false }, 400);
 	}
 
-	const site = await validateSite(db, userId, site_id);
-	if (!site) return c.json({ error: "Site not found", success: false }, 404);
+	const access = await requireSiteAccess(c, site_id, "owner");
+	if (access instanceof Response) return access;
 
 	// Check for duplicate type on same site
 	const existing = await db
@@ -159,7 +150,6 @@ integrationRoutes.post("/", async (c) => {
 // PATCH /:id - Update integration
 integrationRoutes.patch("/:id", async (c) => {
 	const db = c.get("db");
-	const userId = c.get("userId");
 	const integrationId = c.req.param("id");
 	const body = await c.req.json();
 
@@ -170,8 +160,8 @@ integrationRoutes.patch("/:id", async (c) => {
 		.executeTakeFirst();
 	if (!integration) return c.json({ error: "Integration not found", success: false }, 404);
 
-	const site = await validateSite(db, userId, integration.site_id);
-	if (!site) return c.json({ error: "Not found", success: false }, 404);
+	const access = await requireSiteAccess(c, integration.site_id, "owner");
+	if (access instanceof Response) return access;
 
 	const updates: Record<string, unknown> = {};
 	if (body.name !== undefined) updates.name = body.name;
@@ -208,7 +198,6 @@ integrationRoutes.patch("/:id", async (c) => {
 // DELETE /:id - Delete integration
 integrationRoutes.delete("/:id", async (c) => {
 	const db = c.get("db");
-	const userId = c.get("userId");
 	const integrationId = c.req.param("id");
 
 	const integration = await db
@@ -218,8 +207,8 @@ integrationRoutes.delete("/:id", async (c) => {
 		.executeTakeFirst();
 	if (!integration) return c.json({ error: "Integration not found", success: false }, 404);
 
-	const site = await validateSite(db, userId, integration.site_id);
-	if (!site) return c.json({ error: "Not found", success: false }, 404);
+	const access = await requireSiteAccess(c, integration.site_id, "owner");
+	if (access instanceof Response) return access;
 
 	await db.deleteFrom("webhook_events").where("integration_id", "=", integrationId).execute();
 	await db.deleteFrom("integrations").where("id", "=", integrationId).execute();
@@ -230,7 +219,6 @@ integrationRoutes.delete("/:id", async (c) => {
 // POST /:id/test - Test integration connection
 integrationRoutes.post("/:id/test", async (c) => {
 	const db = c.get("db");
-	const userId = c.get("userId");
 	const integrationId = c.req.param("id");
 
 	const integration = await db
@@ -240,8 +228,8 @@ integrationRoutes.post("/:id/test", async (c) => {
 		.executeTakeFirst();
 	if (!integration) return c.json({ error: "Integration not found", success: false }, 404);
 
-	const site = await validateSite(db, userId, integration.site_id);
-	if (!site) return c.json({ error: "Not found", success: false }, 404);
+	const access = await requireSiteAccess(c, integration.site_id, "owner");
+	if (access instanceof Response) return access;
 
 	const config = JSON.parse((integration.config as string) || "{}");
 	const intType = integration.type as IntegrationType;
@@ -291,7 +279,6 @@ integrationRoutes.post("/:id/test", async (c) => {
 // GET /:id/events - Get webhook event log
 integrationRoutes.get("/:id/events", async (c) => {
 	const db = c.get("db");
-	const userId = c.get("userId");
 	const integrationId = c.req.param("id");
 
 	const integration = await db
@@ -301,8 +288,8 @@ integrationRoutes.get("/:id/events", async (c) => {
 		.executeTakeFirst();
 	if (!integration) return c.json({ error: "Integration not found", success: false }, 404);
 
-	const site = await validateSite(db, userId, integration.site_id);
-	if (!site) return c.json({ error: "Not found", success: false }, 404);
+	const access = await requireSiteAccess(c, integration.site_id, "owner");
+	if (access instanceof Response) return access;
 
 	const rows = await db
 		.selectFrom("webhook_events")

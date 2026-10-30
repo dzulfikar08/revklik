@@ -3,14 +3,17 @@ import type { Kysely } from "kysely";
 import type { KlikapaDatabase } from "@revklik/shared";
 import { primeSiteInfo, type SiteInfo } from "../lib/public-api-queries";
 import { sql } from "../db";
+import type { RateLimitBindings } from "../lib/rate-limit";
 import { hashToken } from "../utils";
 
-type Bindings = { DB: D1Database; FX_USD_IDR?: string; SELF_HOSTED?: string };
+type Bindings = RateLimitBindings & { DB: D1Database; FX_USD_IDR?: string; SELF_HOSTED?: string };
 type Variables = {
 	db: Kysely<KlikapaDatabase>;
 	userId: string;
 	tokenScopes: string[];
 	tokenSiteId: string | null;
+	/** api_keys row of the calling token: the rate-limit bucket key. */
+	tokenId: string;
 	tokenType: "account" | "site";
 	/** Subscription plan read with the token; undefined when the caller must look it up. */
 	plan?: string | null;
@@ -110,6 +113,7 @@ export const publicAuthMiddleware = createMiddleware<PublicApiEnv>(async (c, nex
 	c.set("userId", apiKey.user_id);
 	c.set("tokenScopes", scopes);
 	c.set("tokenSiteId", apiKey.site_id);
+	c.set("tokenId", apiKey.id);
 	c.set("tokenType", apiKey.token_type as "account" | "site");
 	c.set("plan", apiKey.plan ?? null);
 	if (requestedSite && d1) {

@@ -214,9 +214,9 @@ describe("Connect Polar: saving the secret", () => {
 		expect(
 			(await t.call("GET", `/api/polar/status?site_id=${SITE}`, { token: viewer })).status,
 		).toBe(200);
-		expect((await putConfig(t, viewer, { webhook_secret: "polar_whs_evil" })).status).toBe(404);
+		expect((await putConfig(t, viewer, { webhook_secret: "polar_whs_evil" })).status).toBe(403);
 		expect((await t.call("DELETE", `/api/polar?site_id=${SITE}`, { token: viewer })).status).toBe(
-			404,
+			403,
 		);
 	});
 });

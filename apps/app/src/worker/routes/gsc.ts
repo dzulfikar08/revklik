@@ -9,6 +9,8 @@ import {
 	GscServiceAccountError,
 	parseServiceAccountKey,
 } from "../lib/gsc-service-account";
+import { checkSiteAccess, requireSiteAccess } from "../lib/site-access";
+import { signOAuthState, verifyOAuthState } from "../lib/oauth-state";
 
 export const gscRoutes = new Hono<Env>();
 
@@ -39,28 +41,7 @@ const gscAuth = createMiddleware<Env>(async (c, next) => {
 gscRoutes.use("/queries/*", gscAuth);
 gscRoutes.use("/sync/*", gscAuth);
 gscRoutes.use("/service-account/*", gscAuth);
-
-// Helper: validate user owns the site
-async function validateSite(db: Kysely<KlikapaDatabase>, userId: string, siteId: string) {
-	return db
-		.selectFrom("sites")
-		.select(["id", "domain"])
-		.where("id", "=", siteId)
-		.where((eb) =>
-			eb.or([
-				eb("user_id", "=", userId),
-				eb.exists(
-					eb
-						.selectFrom("team_members")
-						.select("id")
-						.where("site_id", "=", siteId)
-						.where("user_id", "=", userId)
-						.where("accepted_at", "is not", null),
-				),
-			]),
-		)
-		.executeTakeFirst();
-}
+gscRoutes.use("/auth-url", gscAuth);
 
 // Helper: refresh access token using refresh token
 async function refreshAccessToken(
@@ -160,14 +141,22 @@ async function fetchSearchAnalytics(
 	};
 }
 
-// GET /auth - Start Google OAuth flow for GSC
-gscRoutes.get("/auth", async (c) => {
-	const siteId = c.req.query("site_id");
+// POST /auth-url - Start the Google OAuth flow for GSC. Authenticated: the consent
+// redirect carries a signed state naming the user and site, which /callback verifies.
+gscRoutes.post("/auth-url", async (c) => {
+	const body = (await c.req.json().catch(() => null)) as { site_id?: string } | null;
+	const siteId = body?.site_id;
 	if (!siteId) return c.json({ error: "site_id required", success: false }, 400);
+	const access = await requireSiteAccess(c, siteId, "manage");
+	if (access instanceof Response) return access;
 
 	const clientId = c.env.GOOGLE_CLIENT_ID || "";
+	const secret = c.env.GOOGLE_CLIENT_SECRET || "";
+	if (!clientId || !secret) {
+		return c.json({ error: "Google sign-in is not configured", success: false }, 503);
+	}
 	const redirectUri = `${new URL(c.req.url).origin}/api/gsc/callback`;
-	const state = JSON.stringify({ site_id: siteId, nonce: crypto.randomUUID() });
+	const state = await signOAuthState(secret, { u: c.get("userId"), s: siteId });
 
 	const params = new URLSearchParams({
 		client_id: clientId,
@@ -179,7 +168,10 @@ gscRoutes.get("/auth", async (c) => {
 		prompt: "consent",
 	});
 
-	return c.redirect(`https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`);
+	return c.json({
+		data: { url: `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}` },
+		success: true,
+	});
 });
 
 // GET /callback - Handle Google OAuth callback
@@ -191,13 +183,14 @@ gscRoutes.get("/callback", async (c) => {
 	const stateStr = c.req.query("state");
 	if (!code || !stateStr) return c.json({ error: "Missing code or state", success: false }, 400);
 
-	let state: { site_id: string; nonce: string };
-	try {
-		state = JSON.parse(stateStr);
-	} catch {
-		return c.json({ error: "Invalid state parameter", success: false }, 400);
+	const secret = c.env.GOOGLE_CLIENT_SECRET || "";
+	const state = secret ? await verifyOAuthState(secret, stateStr) : null;
+	if (!state) {
+		return c.json({ error: "Invalid or expired state parameter", success: false }, 400);
 	}
-	if (!state.site_id) return c.json({ error: "Missing site_id in state", success: false }, 400);
+	// The user who started the flow must still be allowed to connect credentials to the site.
+	const { denied } = await checkSiteAccess(db, state.u, state.s, "manage");
+	if (denied) return c.json({ error: denied.error, success: false }, denied.status);
 
 	const clientId = c.env.GOOGLE_CLIENT_ID || "";
 	const clientSecret = c.env.GOOGLE_CLIENT_SECRET || "";
@@ -243,7 +236,7 @@ gscRoutes.get("/callback", async (c) => {
 	}
 
 	// Pick the GSC property that matches this site's domain (fallback: first entry)
-	const siteId = state.site_id;
+	const siteId = state.s;
 	let googleSiteUrl = "";
 	try {
 		const [siteRow, sitesRes] = await Promise.all([
@@ -293,7 +286,7 @@ gscRoutes.get("/callback", async (c) => {
 			.values({
 				id: generateId(),
 				site_id: siteId,
-				user_id: "", // Not tied to a specific user in callback context; will be associated via site ownership
+				user_id: state.u,
 				type: "google_search_console",
 				name: "Google Search Console",
 				config,
@@ -326,8 +319,8 @@ gscRoutes.post("/service-account", async (c) => {
 		return c.json({ error: "site_id and key required", success: false }, 400);
 	}
 
-	const site = await validateSite(db, userId, body.site_id);
-	if (!site) return c.json({ error: "Site not found", success: false }, 404);
+	const access = await requireSiteAccess(c, body.site_id, "manage");
+	if (access instanceof Response) return access;
 
 	let key;
 	try {
@@ -347,18 +340,21 @@ gscRoutes.post("/service-account", async (c) => {
 			if (!res.ok) throw new Error(`GSC sites list failed (${res.status})`);
 			const data = (await res.json()) as { siteEntry?: Array<{ siteUrl: string }> };
 			googleSiteUrl =
-				(data.siteEntry ?? []).find((e) => gscSiteMatchesDomain(e.siteUrl, site.domain))
+				(data.siteEntry ?? []).find((e) => gscSiteMatchesDomain(e.siteUrl, access.domain))
 					?.siteUrl ?? "";
 		} catch (err) {
 			return c.json(
-				{ error: err instanceof Error ? err.message : "Service account check failed", success: false },
+				{
+					error: err instanceof Error ? err.message : "Service account check failed",
+					success: false,
+				},
 				401,
 			);
 		}
 		if (!googleSiteUrl) {
 			return c.json(
 				{
-					error: `No Search Console property for ${site.domain} is shared with ${key.client_email}. Add it as a user in Search Console, or pass google_site_url.`,
+					error: `No Search Console property for ${access.domain} is shared with ${key.client_email}. Add it as a user in Search Console, or pass google_site_url.`,
 					success: false,
 				},
 				409,
@@ -400,14 +396,13 @@ gscRoutes.post("/service-account", async (c) => {
 // GET /queries - Fetch search query data
 gscRoutes.get("/queries", async (c) => {
 	const db = c.get("db");
-	const userId = c.get("userId");
 	if (!db) return c.json({ error: "DB unavailable", success: false }, 503);
 
 	const siteId = c.req.query("site_id");
 	if (!siteId) return c.json({ error: "site_id required", success: false }, 400);
 
-	const site = await validateSite(db, userId, siteId);
-	if (!site) return c.json({ error: "Site not found", success: false }, 404);
+	const access = await requireSiteAccess(c, siteId, "read");
+	if (access instanceof Response) return access;
 
 	// Return last 30 days of stored search console data
 	const thirtyDaysAgo = new Date(Date.now() - 30 * 86400000).toISOString().split("T")[0] ?? "";
@@ -427,14 +422,13 @@ gscRoutes.get("/queries", async (c) => {
 // POST /sync - Force sync last 7 days of search console data
 gscRoutes.post("/sync", async (c) => {
 	const db = c.get("db");
-	const userId = c.get("userId");
 	if (!db) return c.json({ error: "DB unavailable", success: false }, 503);
 
 	const siteId = c.req.query("site_id");
 	if (!siteId) return c.json({ error: "site_id required", success: false }, 400);
 
-	const site = await validateSite(db, userId, siteId);
-	if (!site) return c.json({ error: "Site not found", success: false }, 404);
+	const access = await requireSiteAccess(c, siteId, "write");
+	if (access instanceof Response) return access;
 
 	// Get GSC integration config
 	const integration = await getGSCIntegration(db, siteId);

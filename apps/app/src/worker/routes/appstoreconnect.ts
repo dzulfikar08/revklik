@@ -2,6 +2,7 @@ import { Hono } from "hono";
 import type { Kysely } from "kysely";
 import type { AscMetricsResponse, AscPriceEntry, KlikapaDatabase } from "@revklik/shared";
 import type { Env } from "../types";
+import { requireSiteAccess } from "../lib/site-access";
 import {
 	AscAuthError,
 	AscConfigError,
@@ -12,27 +13,6 @@ import {
 type Variables = { db: Kysely<KlikapaDatabase>; userId: string };
 
 export const ascRoutes = new Hono<{ Bindings: Env["Bindings"]; Variables: Variables }>();
-
-function validateSite(db: Kysely<KlikapaDatabase>, userId: string, siteId: string) {
-	return db
-		.selectFrom("sites")
-		.select(["id"])
-		.where("id", "=", siteId)
-		.where((eb) =>
-			eb.or([
-				eb("user_id", "=", userId),
-				eb.exists(
-					eb
-						.selectFrom("team_members")
-						.select("id")
-						.where("site_id", "=", siteId)
-						.where("user_id", "=", userId)
-						.where("accepted_at", "is not", null),
-				),
-			]),
-		)
-		.executeTakeFirst();
-}
 
 const RANGE_DAYS: Record<string, number> = {
 	"24h": 2,
@@ -48,6 +28,8 @@ ascRoutes.get("/metrics", async (c) => {
 	const db = c.get("db");
 	const siteId = c.req.query("site_id");
 	if (!siteId) return c.json({ error: "site_id required", success: false }, 400);
+	const access = await requireSiteAccess(c, siteId, "read");
+	if (access instanceof Response) return access;
 	const days = RANGE_DAYS[c.req.query("range") ?? "30d"] ?? 30;
 	const since = new Date(Date.now() - days * 86400_000).toISOString().slice(0, 10);
 
@@ -126,6 +108,8 @@ ascRoutes.get("/prices", async (c) => {
 	const db = c.get("db");
 	const siteId = c.req.query("site_id");
 	if (!siteId) return c.json({ error: "site_id required", success: false }, 400);
+	const access = await requireSiteAccess(c, siteId, "read");
+	if (access instanceof Response) return access;
 	const rows = await latestCountryPrices(db, siteId);
 	const data: AscPriceEntry[] = rows
 		.map((r) => ({
@@ -141,12 +125,11 @@ ascRoutes.get("/prices", async (c) => {
 // POST /sync { site_id, days? } — manual sync (cron runs the same logic).
 ascRoutes.post("/sync", async (c) => {
 	const db = c.get("db");
-	const userId = c.get("userId");
 	const body = await c.req.json().catch(() => ({}));
 	const { site_id, days } = body as { site_id?: string; days?: number };
 	if (!site_id) return c.json({ error: "site_id required", success: false }, 400);
-	const site = await validateSite(db, userId, site_id);
-	if (!site) return c.json({ error: "Site not found", success: false }, 404);
+	const access = await requireSiteAccess(c, site_id, "write");
+	if (access instanceof Response) return access;
 
 	const integration = await db
 		.selectFrom("integrations")

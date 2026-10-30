@@ -1,6 +1,7 @@
 import { Hono } from "hono";
 import type { Env } from "../types";
 import { odsDay, odsEventTimestamp } from "../lib/ods-import";
+import { requireSiteAccess } from "../lib/site-access";
 import { generateId } from "../utils";
 
 export const importRoutes = new Hono<Env>();
@@ -8,32 +9,14 @@ export const importRoutes = new Hono<Env>();
 // POST /onedollarstats — Import OneDollarStats data into site analytics
 importRoutes.post("/onedollarstats", async (c) => {
 	const db = c.get("db");
-	const userId = c.get("userId");
 	if (!db) return c.json({ error: "DB unavailable", success: false }, 503);
 	const body = await c.req.json();
 	const { site_id, api_key, ods_site_id, date_range } = body;
 	if (!site_id || !api_key || !ods_site_id)
 		return c.json({ error: "site_id, api_key, and ods_site_id required", success: false }, 400);
 
-	const site = await db
-		.selectFrom("sites")
-		.select(["id"])
-		.where("id", "=", site_id)
-		.where((eb) =>
-			eb.or([
-				eb("user_id", "=", userId),
-				eb.exists(
-					eb
-						.selectFrom("team_members")
-						.select("id")
-						.where("site_id", "=", site_id)
-						.where("user_id", "=", userId)
-						.where("accepted_at", "is not", null),
-				),
-			]),
-		)
-		.executeTakeFirst();
-	if (!site) return c.json({ error: "Site not found", success: false }, 404);
+	const access = await requireSiteAccess(c, site_id, "manage");
+	if (access instanceof Response) return access;
 
 	const range = date_range || "all";
 	let imported = 0;

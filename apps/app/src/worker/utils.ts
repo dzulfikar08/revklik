@@ -70,7 +70,6 @@ export function normalizeEmail(raw: unknown): string {
 
 export function generateApiKey(type: "session" | "account" | "site" = "session"): {
 	key: string;
-	hash: string;
 	prefix: string;
 } {
 	const bytes = new Uint8Array(32);
@@ -79,7 +78,7 @@ export function generateApiKey(type: "session" | "account" | "site" = "session")
 	const prefixMap = { session: "kp_", account: "rvt_", site: "rv_" };
 	const key = `${prefixMap[type]}${hex}`;
 	const prefix = key.slice(0, 7);
-	return { key, hash: prefix, prefix };
+	return { key, prefix };
 }
 
 export async function hashToken(token: string): Promise<string> {

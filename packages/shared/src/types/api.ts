@@ -429,7 +429,6 @@ export type IntegrationType =
 	| "midtrans"
 	| "xendit"
 	| "doku"
-	| "nicepay"
 	| "paywuz"
 	| "mayar"
 	| "stripe"

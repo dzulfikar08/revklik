@@ -1,8 +1,9 @@
 import { Hono } from "hono";
 import type { Kysely } from "kysely";
-import type { KlikapaDatabase } from "@revklik/shared";
+import { SCOPES, type KlikapaDatabase } from "@revklik/shared";
+import { sql } from "../db";
 import { dayBucketSql, pageviewsSql, visitorsSql } from "../lib/metrics";
-import { hashToken } from "../utils";
+import { authenticateApiToken } from "../lib/token-auth";
 
 type Variables = { db: Kysely<KlikapaDatabase> };
 export const widgetRoutes = new Hono<{ Variables: Variables }>();
@@ -18,21 +19,18 @@ widgetRoutes.get("/", async (c) => {
 		return c.json({ error: "api_key and site_id required", success: false }, 400);
 	}
 
-	// Verify API key
-	const keyHash = await hashToken(apiKey);
-	const keyRow = await db
-		.selectFrom("api_keys")
-		.select(["user_id"])
-		.where("key_hash", "=", keyHash)
-		.executeTakeFirst();
-	if (!keyRow) return c.json({ error: "Invalid api_key", success: false }, 401);
-
-	// Verify user owns the site
+	// Session tokens (kp_) are never accepted in a URL: they leak into logs and referrers.
+	// Use an rv_ site token (or rvt_ account token) with the analytics:read scope.
+	const auth = await authenticateApiToken(db, apiKey, {
+		scope: SCOPES.ANALYTICS_READ,
+		siteId,
+		action: "read",
+	});
+	if (!auth.ok) return c.json({ error: auth.error, success: false }, auth.status);
 	const site = await db
 		.selectFrom("sites")
 		.select(["name"])
 		.where("id", "=", siteId)
-		.where("user_id", "=", keyRow.user_id)
 		.executeTakeFirst();
 	if (!site) return c.json({ error: "Site not found", success: false }, 404);
 

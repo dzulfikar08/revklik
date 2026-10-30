@@ -17,7 +17,6 @@ export type LegacyIntegrationType =
 	| "midtrans"
 	| "xendit"
 	| "doku"
-	| "nicepay"
 	| "paywuz"
 	| "mayar"
 	| "stripe"

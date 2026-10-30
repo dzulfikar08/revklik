@@ -296,7 +296,7 @@ describe("sale alerts", () => {
 	});
 
 	it("never alerts from the public tracker endpoints", async () => {
-		const { t, owner } = await setup();
+		const { t, owner, writer } = await setup();
 		await register(t, owner, tokenA);
 		const batch = await t.call("POST", "/api/track", {
 			headers: { "user-agent": BROWSER_UA },
@@ -314,7 +314,12 @@ describe("sale alerts", () => {
 			],
 		});
 		expect(batch.status).toBe(202);
+		const anonymous = await t.call("POST", "/api/track/payment", {
+			body: { s: "s-push", amount: 49, transaction_id: "trk-0" },
+		});
+		expect(anonymous.status).toBe(401);
 		const payment = await t.call("POST", "/api/track/payment", {
+			token: writer,
 			body: { s: "s-push", amount: 49, transaction_id: "trk-1" },
 		});
 		expect(payment.status).toBe(200);

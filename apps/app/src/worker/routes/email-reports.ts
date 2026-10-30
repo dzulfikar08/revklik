@@ -1,37 +1,19 @@
 import { Hono } from "hono";
 import type { Kysely } from "kysely";
 import type { KlikapaDatabase } from "@revklik/shared";
+import { requireSiteAccess } from "../lib/site-access";
 import { generateId } from "../utils";
 
 type Variables = { db: Kysely<KlikapaDatabase>; userId: string };
 
 export const emailReportRoutes = new Hono<{ Variables: Variables }>();
 
-function validateSite(db: Kysely<KlikapaDatabase>, userId: string, siteId: string) {
-	return db
-		.selectFrom("sites")
-		.select(["id"])
-		.where("id", "=", siteId)
-		.where((eb) =>
-			eb.or([
-				eb("user_id", "=", userId),
-				eb.exists(
-					eb
-						.selectFrom("team_members")
-						.select("id")
-						.where("site_id", "=", siteId)
-						.where("user_id", "=", userId)
-						.where("accepted_at", "is not", null),
-				),
-			]),
-		)
-		.executeTakeFirst();
-}
-
 emailReportRoutes.get("/", async (c) => {
 	const db = c.get("db");
 	const siteId = c.req.query("site_id");
 	if (!siteId) return c.json({ error: "site_id required", success: false }, 400);
+	const access = await requireSiteAccess(c, siteId, "read");
+	if (access instanceof Response) return access;
 
 	const reports = await db
 		.selectFrom("email_reports")
@@ -51,8 +33,8 @@ emailReportRoutes.post("/", async (c) => {
 	if (!["daily", "weekly", "monthly"].includes(frequency))
 		return c.json({ error: "frequency must be daily, weekly, or monthly", success: false }, 400);
 
-	const site = await validateSite(db, userId, site_id);
-	if (!site) return c.json({ error: "Site not found", success: false }, 404);
+	const access = await requireSiteAccess(c, site_id, "write");
+	if (access instanceof Response) return access;
 
 	const id = generateId();
 	await db
@@ -86,7 +68,6 @@ emailReportRoutes.post("/", async (c) => {
 
 emailReportRoutes.put("/:reportId", async (c) => {
 	const db = c.get("db");
-	const userId = c.get("userId");
 	const reportId = c.req.param("reportId");
 	const { frequency, enabled } = await c.req.json();
 
@@ -97,8 +78,8 @@ emailReportRoutes.put("/:reportId", async (c) => {
 		.executeTakeFirst();
 	if (!report) return c.json({ error: "Report not found", success: false }, 404);
 
-	const site = await validateSite(db, userId, report.site_id);
-	if (!site) return c.json({ error: "Not found", success: false }, 404);
+	const access = await requireSiteAccess(c, report.site_id, "write");
+	if (access instanceof Response) return access;
 
 	const updates: Record<string, unknown> = {};
 	if (frequency !== undefined) updates.frequency = frequency;
@@ -111,7 +92,6 @@ emailReportRoutes.put("/:reportId", async (c) => {
 
 emailReportRoutes.delete("/:reportId", async (c) => {
 	const db = c.get("db");
-	const userId = c.get("userId");
 	const reportId = c.req.param("reportId");
 
 	const report = await db
@@ -121,8 +101,8 @@ emailReportRoutes.delete("/:reportId", async (c) => {
 		.executeTakeFirst();
 	if (!report) return c.json({ error: "Report not found", success: false }, 404);
 
-	const site = await validateSite(db, userId, report.site_id);
-	if (!site) return c.json({ error: "Not found", success: false }, 404);
+	const access = await requireSiteAccess(c, report.site_id, "write");
+	if (access instanceof Response) return access;
 
 	await db.deleteFrom("email_reports").where("id", "=", reportId).execute();
 	return c.json({ success: true });

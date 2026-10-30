@@ -11,7 +11,7 @@ import {
 	summarizeSync,
 	syncPolarOrders,
 } from "../lib/polar-sync";
-import { WRITE_ROLES, accessibleSite } from "../lib/site-roles";
+import { requireSiteAccess } from "../lib/site-access";
 import type { Env } from "../types";
 import { generateId } from "../utils";
 
@@ -81,9 +81,8 @@ polarConnectRoutes.get("/status", async (c) => {
 	const db = c.get("db");
 	const siteId = c.req.query("site_id");
 	if (!siteId) return c.json({ error: "site_id required", success: false }, 400);
-	if (!(await accessibleSite(db, c.get("userId"), siteId))) {
-		return c.json({ error: "Site not found", success: false }, 404);
-	}
+	const access = await requireSiteAccess(c, siteId, "read");
+	if (access instanceof Response) return access;
 	return c.json({ data: await loadStatus(db, publicOrigin(c), siteId), success: true });
 });
 
@@ -103,9 +102,8 @@ polarConnectRoutes.put("/config", async (c) => {
 	const body = (await c.req.json().catch(() => null)) as Record<string, unknown> | null;
 	const siteId = typeof body?.site_id === "string" ? body.site_id : "";
 	if (!body || !siteId) return c.json({ error: "site_id required", success: false }, 400);
-	if (!(await accessibleSite(db, c.get("userId"), siteId, WRITE_ROLES))) {
-		return c.json({ error: "Site not found", success: false }, 404);
-	}
+	const access = await requireSiteAccess(c, siteId, "write");
+	if (access instanceof Response) return access;
 
 	const secret = secretField(body, "webhook_secret");
 	const token = secretField(body, "access_token");
@@ -178,9 +176,8 @@ polarConnectRoutes.post("/sync", async (c) => {
 	} | null;
 	const siteId = typeof body?.site_id === "string" ? body.site_id : "";
 	if (!siteId) return c.json({ error: "site_id required", success: false }, 400);
-	if (!(await accessibleSite(db, c.get("userId"), siteId, WRITE_ROLES))) {
-		return c.json({ error: "Site not found", success: false }, 404);
-	}
+	const access = await requireSiteAccess(c, siteId, "write");
+	if (access instanceof Response) return access;
 
 	const days = body?.days ?? DEFAULT_LOOKBACK_DAYS;
 	const lookbackDays =
@@ -228,9 +225,8 @@ polarConnectRoutes.delete("/", async (c) => {
 	const db = c.get("db");
 	const siteId = c.req.query("site_id");
 	if (!siteId) return c.json({ error: "site_id required", success: false }, 400);
-	if (!(await accessibleSite(db, c.get("userId"), siteId, WRITE_ROLES))) {
-		return c.json({ error: "Site not found", success: false }, 404);
-	}
+	const access = await requireSiteAccess(c, siteId, "write");
+	if (access instanceof Response) return access;
 	const provider = await findPolarProvider(db, siteId);
 	if (provider) {
 		await db.deleteFrom("webhook_events").where("integration_id", "=", provider.id).execute();

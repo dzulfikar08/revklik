@@ -20,8 +20,8 @@ amount or is unknown. Tapping the notification opens the Earnings tab.
 
 Only verified sources alert: the authenticated [server events API](/integrations) (`POST
 /api/v1/events/server`) and the signature-verified Polar, Stripe, Lemon Squeezy, Midtrans, Xendit,
-DOKU, Mayar and Paywuz webhooks. Revenue sent by the browser tracker (`/track`, `/track/payment`)
-never alerts, because anyone who knows a site id can call those endpoints. A retried delivery of
+DOKU, Mayar and Paywuz webhooks. Revenue sent by the browser tracker (`/track`) never alerts, because
+anyone who knows a site id can call that endpoint. A retried delivery of
 the same payment (same `external_id` or provider order) never alerts twice.
 
 ## Who gets them

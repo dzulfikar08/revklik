@@ -1,36 +1,30 @@
-import type { Kysely } from "kysely";
-import type { KlikapaDatabase } from "@revklik/shared";
-
-/** Team roles that may change a site's payment secrets; viewers read only. */
-export const WRITE_ROLES = ["admin", "editor"];
+export type SiteRole = "owner" | "admin" | "editor" | "viewer";
 
 /**
- * The site when the caller owns it or is an accepted teammate. With `roles`, a teammate
- * must hold one of them (the owner always passes).
+ * What a caller is doing on a site.
+ * - read: see the site's data.
+ * - write: change analytics-side content and config (annotations, segments, reports,
+ *   visitor notes, syncs, payment providers).
+ * - manage: hand RevKlik credentials or bulk data (GSC service account, imports).
+ * - owner: account-level decisions (delete the site, share it publicly, integrations, token scope).
  */
-export function accessibleSite(
-	db: Kysely<KlikapaDatabase>,
-	userId: string,
-	siteId: string,
-	roles?: string[],
-) {
-	return db
-		.selectFrom("sites")
-		.select("id")
-		.where("id", "=", siteId)
-		.where((eb) =>
-			eb.or([
-				eb("user_id", "=", userId),
-				eb.exists(
-					eb
-						.selectFrom("team_members")
-						.select("id")
-						.where("site_id", "=", siteId)
-						.where("user_id", "=", userId)
-						.where("accepted_at", "is not", null)
-						.$if(Boolean(roles), (qb) => qb.where("role", "in", roles ?? [])),
-				),
-			]),
-		)
-		.executeTakeFirst();
+export type SiteAction = "read" | "write" | "manage" | "owner";
+
+/** The single source of truth for who may do what on a site. Viewers are read-only. */
+export const ROLE_TABLE: Record<SiteRole, Record<SiteAction, boolean>> = {
+	owner: { read: true, write: true, manage: true, owner: true },
+	admin: { read: true, write: true, manage: true, owner: false },
+	editor: { read: true, write: true, manage: false, owner: false },
+	viewer: { read: true, write: false, manage: false, owner: false },
+};
+
+const TEAM_ROLES: readonly string[] = ["admin", "editor", "viewer"];
+
+/** A stored team role; anything unrecognised is treated as the least privileged. */
+export function normalizeTeamRole(role: string | null | undefined): SiteRole {
+	return TEAM_ROLES.includes(role ?? "") ? (role as SiteRole) : "viewer";
+}
+
+export function roleCan(role: SiteRole | null, action: SiteAction): boolean {
+	return role !== null && ROLE_TABLE[role][action];
 }
