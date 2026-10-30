@@ -48,6 +48,8 @@ export type Bindings = RateLimitBindings & {
 	// "1" or "true": fully unlocked self-hosted install. No plans, limits, trials,
 	// checkout or referral payouts. Unset = hosted RevKlik behavior.
 	SELF_HOSTED?: string;
+	// "1" or "true": mount the unfinished Shopee/Tokopedia routes. Unset = they answer 404.
+	MARKETPLACES_ENABLED?: string;
 	// Hard-delete raw analytics older than N days (unset = never; default off)
 	RETENTION_HARD_DELETE_DAYS?: string;
 	// Expo push access token; only needed when "enhanced push security" is on for the EAS project

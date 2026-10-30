@@ -56,7 +56,10 @@ import {
 } from "./lib/plan-gate";
 import { isSelfHosted } from "./lib/entitlement";
 import { refreshSessionExpiry } from "./lib/session";
-import { beginRequestAccess } from "./lib/site-access";
+import { marketplacesEnabled } from "./lib/features";
+import { siteAccessRoutes } from "./routes/site-access";
+import { allowRequest } from "./lib/rate-limit";
+import { beginRequestAccess, requireSiteAccess } from "./lib/site-access";
 import type { Env } from "./types";
 import { hashToken } from "./utils";
 
@@ -129,6 +132,22 @@ const hostedOnly = (feature: string) =>
 		);
 	});
 
+/** 404 on the unfinished Shopee/Tokopedia routes unless the operator opted in. */
+const marketplaceGate = createMiddleware<Env>(async (c, next) => {
+	if (marketplacesEnabled(c.env)) return next();
+	return c.json({ error: "Not found", success: false }, 404);
+});
+
+/** GET /webhooks/:provider/test?siteId= reads webhook activity: require read access to that site. */
+const webhookLogAccess = createMiddleware<Env>(async (c, next) => {
+	const access = await requireSiteAccess(c, c.req.query("siteId"), "read");
+	if (access instanceof Response) return access;
+	await next();
+});
+
+const PUBLIC_RANGES = ["24h", "7d", "30d", "90d"];
+const PUBLIC_DASHBOARD_LIMIT_PER_MINUTE = 60;
+
 export function createApp(): Hono<Env> {
 	const app = new Hono<Env>().basePath("/api");
 	app.use(cors());
@@ -139,6 +158,7 @@ export function createApp(): Hono<Env> {
 			message: "klikapa",
 			version: "0.7.0",
 			self_hosted: isSelfHosted(c.env),
+			marketplaces: marketplacesEnabled(c.env),
 			success: true,
 		}),
 	);
@@ -181,6 +201,7 @@ export function createApp(): Hono<Env> {
 	app.route("/auth", accountLinkRoutes);
 
 	app.use("/sites/*", authMiddleware);
+	app.route("/sites", siteAccessRoutes);
 	app.route("/sites", siteRoutes);
 
 	app.use("/analytics/*", authMiddleware);
@@ -213,6 +234,9 @@ export function createApp(): Hono<Env> {
 
 	app.use("/tokens/*", authMiddleware);
 	app.route("/tokens", tokenRoutes);
+
+	// Per-provider webhook activity logs: a signed-in teammate of the site only.
+	app.use("/webhooks/:provider/test", authMiddleware, webhookLogAccess);
 
 	app.route("/webhooks", webhookRoutes);
 	app.route("/webhooks/midtrans", midtransWebhookRoutes);
@@ -324,13 +348,18 @@ export function createApp(): Hono<Env> {
 	app.use("/affiliates/*", authMiddleware);
 	app.route("/affiliates", affiliateRoutes);
 
-	// Marketplace routes: auth/callback are public (OAuth flow), sync/orders are authenticated
+	// Marketplace routes are unfinished and answer 404 unless MARKETPLACES_ENABLED is set.
+	app.use("/marketplace/*", marketplaceGate);
 	app.route("/marketplace/shopee", shopeeRoutes);
 	app.route("/marketplace/tokopedia", tokopediaRoutes);
 
 	// Public dashboard (no auth)
 	app.route("/public", publicLiveRoutes);
 	app.get("/public/:token", async (c) => {
+		const ip = c.req.header("cf-connecting-ip") || "unknown";
+		if (!(await allowRequest(c.env.RL_TRACK, `pubdash:${ip}`, PUBLIC_DASHBOARD_LIMIT_PER_MINUTE))) {
+			return c.json({ error: "Too many requests", success: false }, 429);
+		}
 		const db = c.get("db") as Kysely<KlikapaDatabase> | undefined;
 		if (!db) return c.json({ error: "DB unavailable", success: false }, 503);
 		const token = c.req.param("token");
@@ -344,7 +373,9 @@ export function createApp(): Hono<Env> {
 
 		const { getDateRange } = await import("./utils");
 		const { resolveQueryScope } = await import("./lib/site-scope");
-		const range = c.req.query("range") || "7d";
+		const requested = c.req.query("range");
+		// Anonymous callers get presets only: a custom range would let anyone force a full-history scan.
+		const range = requested && PUBLIC_RANGES.includes(requested) ? requested : "7d";
 		const { start } = getDateRange(range);
 		const startIso = start.toISOString();
 		const scope = await resolveQueryScope(db, site.id, c.env, c.req.query("tz"));
@@ -428,8 +459,10 @@ export function createApp(): Hono<Env> {
 	app.route("/admin", adminRoutes);
 
 	app.onError((err, c) => {
-		console.error("Server error:", err);
-		return c.json({ error: err.message, success: false }, 500);
+		// The message can carry SQL or internals: log it, tell the client only a reference.
+		const requestId = crypto.randomUUID();
+		console.error(`Server error [${requestId}]:`, err);
+		return c.json({ error: "Internal server error", request_id: requestId, success: false }, 500);
 	});
 
 	return app;

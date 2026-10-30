@@ -40,6 +40,17 @@
 			"bucket_name": "klikapa-backups",
 		},
 	],
+	// Workers Rate Limiting: enforced per Cloudflare location across isolates. The `limit`
+	// values must match the per-minute caps in lib/rate-limit.ts and routes/track.ts;
+	// without a binding the worker falls back to a per-isolate in-memory limiter.
+	"ratelimits": [
+		{ "name": "RL_TRACK", "namespace_id": "7101", "simple": { "limit": 120, "period": 60 } },
+		{ "name": "RL_TRACK_HEAVY", "namespace_id": "7102", "simple": { "limit": 30, "period": 60 } },
+		{ "name": "RL_API_30", "namespace_id": "7103", "simple": { "limit": 30, "period": 60 } },
+		{ "name": "RL_API_120", "namespace_id": "7104", "simple": { "limit": 120, "period": 60 } },
+		{ "name": "RL_API_300", "namespace_id": "7105", "simple": { "limit": 300, "period": 60 } },
+		{ "name": "RL_API_6000", "namespace_id": "7106", "simple": { "limit": 6000, "period": 60 } },
+	],
 	"triggers": {
 		// 03:00 backup (+ opt-in retention purge), 18:00 App Store Connect sync,
 		// :15 hourly Polar order sync and bot reclassification of recent sessions, every 5 minutes the
