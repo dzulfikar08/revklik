@@ -14,11 +14,11 @@ import { accountUsageIncrement } from "../lib/account-usage";
 import { executeBatch } from "../lib/d1-batch";
 import { isSelfHosted } from "../lib/entitlement";
 import { enforceSiteQuota, incrementCachedUsage } from "../lib/subscription-cache";
+import { siteFingerprint } from "../lib/visitor-hash";
 import {
 	countryFromTimezone,
 	classifyCrawler,
 	classifyDatacenterVisitor,
-	fingerprintFromRequest,
 	generateId,
 	isBotUserAgent,
 } from "../utils";
@@ -98,6 +98,11 @@ trackRoutes.post("/track", async (c) => {
 	const ip = c.req.header("cf-connecting-ip") || "unknown";
 	if (!rateLimit(ip, 120, 60_000)) {
 		return c.json({ error: "Rate limit exceeded", success: false }, 429);
+	}
+
+	// Visitors who send Global Privacy Control or Do Not Track are not recorded.
+	if (c.req.header("sec-gpc") === "1" || c.req.header("dnt") === "1") {
+		return c.json({ success: true, excluded: true, reason: "privacy_signal" }, { status: 202 });
 	}
 
 	const db = c.get("db");
@@ -254,8 +259,8 @@ trackRoutes.post("/track", async (c) => {
 	if (botUa && /WhatsApp\/\d/.test(botUa)) browser = "WhatsApp";
 	const os = first.os ?? null;
 
-	// Cookieless attribution: compute fingerprint from request headers
-	const fingerprint = await fingerprintFromRequest(c.req.raw, first.sr);
+	// Per-site salted fingerprint (the raw IP is never stored); used for self-traffic exclusion.
+	const fingerprint = await siteFingerprint(db, siteId, c.req.raw, first.sr);
 
 	// Resolve visitor ID via fingerprint — prefer existing visitor for journey continuity
 	let resolvedVid = first.vid;
@@ -494,7 +499,7 @@ trackRoutes.post("/identify", async (c) => {
 		return c.json({ success: true, reason: enforcement.reason }, { status: 202 });
 	}
 
-	const fingerprint = await fingerprintFromRequest(c.req.raw);
+	const fingerprint = await siteFingerprint(db, siteId, c.req.raw);
 
 	await db
 		.insertInto("visitor_profiles")

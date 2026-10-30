@@ -104,6 +104,8 @@ export interface SiteTable {
 	revenue_currency?: string;
 	/** NULL until inferred by the cron; then 'auto', or 'user'/'default' when set explicitly. */
 	revenue_currency_source?: string | null;
+	/** Secret per-site key for visitor fingerprints (lib/visitor-hash.ts); never returned by any route. */
+	visitor_salt?: string | null;
 }
 
 export interface UserTable {
@@ -449,6 +451,8 @@ export interface IntegrationTable {
 	config: string;
 	enabled: number;
 	last_sync: string | null;
+	/** Newest day whose report was fully synced (appstoreconnect only); the next run resumes after it. */
+	synced_through?: string | null;
 	created_at: string;
 }
 
