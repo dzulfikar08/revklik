@@ -349,7 +349,7 @@ trackRoutes.post("/track", async (c) => {
 		// The profile write runs before the session upsert in this transaction, so
 		// the sessions row exists only if an earlier request (or an earlier event of
 		// this batch) created it: count a session once, on the event that opens it.
-		const newSession = sql<number>`CASE WHEN EXISTS (SELECT 1 FROM sessions WHERE id = ${payload.sid} AND site_id = ${payload.s}) THEN 0 ELSE 1 END`;
+		const newSession = sql<number>`CASE WHEN EXISTS (SELECT 1 FROM sessions WHERE id = ${payload.sid}) THEN 0 ELSE 1 END`;
 
 		writes.push(
 			db
@@ -419,18 +419,22 @@ trackRoutes.post("/track", async (c) => {
 					active_seconds: 0,
 					as_org: cfAsOrg,
 				})
+				// A sid already owned by another site is never updated from this site's payload.
 				.onConflict((oc) =>
-					oc.column("id").doUpdateSet({
-						exit_path: payload.p,
-						// Out-of-order batches never move the end backwards, and a gap
-						// (idle tab, abandoned session) adds at most the cap.
-						active_seconds: sql`COALESCE(active_seconds, 0) + CAST(ROUND(MIN(${SESSION_GAP_CAP_SECONDS}, MAX(0, (julianday(${ts}) - julianday(COALESCE(ended_at, started_at))) * 86400))) AS INTEGER)`,
-						ended_at: sql`MAX(COALESCE(ended_at, started_at), ${ts})`,
-						page_count: sql`page_count + 1`,
-						is_bounce: 0,
-						is_bot: sql`MAX(is_bot, ${isBot})`,
-						bot_reason: sql`COALESCE(bot_reason, ${botReason})`,
-					}),
+					oc
+						.column("id")
+						.doUpdateSet({
+							exit_path: payload.p,
+							// Out-of-order batches never move the end backwards, and a gap
+							// (idle tab, abandoned session) adds at most the cap.
+							active_seconds: sql`COALESCE(active_seconds, 0) + CAST(ROUND(MIN(${SESSION_GAP_CAP_SECONDS}, MAX(0, (julianday(${ts}) - julianday(COALESCE(ended_at, started_at))) * 86400))) AS INTEGER)`,
+							ended_at: sql`MAX(COALESCE(ended_at, started_at), ${ts})`,
+							page_count: sql`page_count + 1`,
+							is_bounce: 0,
+							is_bot: sql`MAX(is_bot, ${isBot})`,
+							bot_reason: sql`COALESCE(bot_reason, ${botReason})`,
+						})
+						.where(sql<boolean>`sessions.site_id = excluded.site_id`),
 				),
 		);
 

@@ -82,3 +82,21 @@ describe("visitor session counter", () => {
 		expect(real.n).toBe(2);
 	});
 });
+
+describe("session ids across sites", () => {
+	it("never lets a payload for one site update another site's session", async () => {
+		const t = await setup();
+		t.db
+			.prepare("INSERT INTO sites (id, user_id, name, domain, created_at) VALUES (?,?,?,?,?)")
+			.run("s-other", "u-id", "other", "other.example.com", new Date().toISOString());
+		await track(t, { sid: "shared-sid", vid: "vid-aaaaaaaa", p: "/a" });
+		await t.call("POST", "/api/track", {
+			headers: { "user-agent": BROWSER_UA },
+			body: [{ s: "s-other", t: "p", p: "/b", sid: "shared-sid", vid: "vid-bbbbbbbb" }],
+		});
+		const row = t.db
+			.query("SELECT site_id, exit_path, page_count FROM sessions WHERE id = 'shared-sid'")
+			.get() as { site_id: string; exit_path: string; page_count: number };
+		expect(row).toEqual({ site_id: SITE, exit_path: "/a", page_count: 1 });
+	});
+});
