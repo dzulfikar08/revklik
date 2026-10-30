@@ -19,7 +19,6 @@
 		// tracker scripts are high-volume fetches from customer sites and must be served
 		// directly by the assets runtime.
 		"run_worker_first": [
-			"/api/*",
 			"/*",
 			"!/assets/*",
 			"!/klikapa*.js",
