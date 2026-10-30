@@ -38,6 +38,12 @@ export const shellEn = {
 	"snippet.consentHint":
 		'Adds data-consent="required". Nothing is stored or sent until you call klikapa.consent(true) after the visitor accepts.',
 
+	"public.title": "Public dashboard",
+	"public.error": "Couldn't load the dashboard. Reload the page to try again.",
+	"public.updated": "updated {time}",
+	"public.noData": "No data yet.",
+	"public.poweredBy": "Powered by RevKlik",
+
 	// ranges
 	"range.24h": "Last 24 hours",
 	"range.7d": "Last 7 days",
@@ -72,7 +78,7 @@ export const shellEn = {
 		"Some sales have no fee reported by the payment provider, so their fee comes from your fee rules.",
 	"home.sales": "Sales",
 	"home.conversion": "Visitor to sale",
-	"home.conversionNote": "{sales} sales from {visitors} visitors",
+	"home.conversionNote": "{sales} of {visitors} visitors",
 	"kpi.visitors": "Visitors",
 	"kpi.pageviews": "Pageviews",
 	"kpi.bounce": "Bounce rate",
@@ -259,6 +265,12 @@ export const shellId: Record<Exclude<ShellKey, `${string}_one`>, string> = {
 	"snippet.consentHint":
 		'Menambahkan data-consent="required". Tidak ada yang disimpan atau dikirim sampai kamu memanggil klikapa.consent(true) setelah pengunjung setuju.',
 
+	"public.title": "Dashboard publik",
+	"public.error": "Dashboard gagal dimuat. Muat ulang halaman untuk mencoba lagi.",
+	"public.updated": "diperbarui {time}",
+	"public.noData": "Belum ada data.",
+	"public.poweredBy": "Didukung RevKlik",
+
 	"range.24h": "24 jam terakhir",
 	"range.7d": "7 hari terakhir",
 	"range.30d": "30 hari terakhir",
@@ -290,7 +302,7 @@ export const shellId: Record<Exclude<ShellKey, `${string}_one`>, string> = {
 		"Sebagian penjualan tidak melaporkan biaya dari penyedia pembayaran, jadi biayanya dihitung dari aturan biayamu.",
 	"home.sales": "Penjualan",
 	"home.conversion": "Pengunjung jadi pembeli",
-	"home.conversionNote": "{sales} penjualan dari {visitors} pengunjung",
+	"home.conversionNote": "{sales} dari {visitors} pengunjung",
 	"kpi.visitors": "Pengunjung",
 	"kpi.pageviews": "Tayangan halaman",
 	"kpi.bounce": "Rasio pentalan",

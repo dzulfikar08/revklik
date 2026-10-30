@@ -3,10 +3,19 @@ import { useMemo, useState } from "react";
 import type { ReactNode } from "react";
 
 import { CountBarRow, Panel, PanelTabs, StatTile, TrafficChart } from "@/components/analytics/ui";
-import { RANGES, fmt, fmtC, money, pointLabel } from "@/components/analytics/data";
+import {
+	RANGES,
+	fmt,
+	fmtC,
+	fmtDecimal,
+	money,
+	pointLabel,
+	timeLabel,
+} from "@/components/analytics/data";
 import type { Point, RangeKey } from "@/components/analytics/data";
 import { paymentMethodLabel, paymentProviderLabel } from "@/components/analytics/payment-labels";
-import { useT } from "@/lib/i18n";
+import { countryName } from "@/components/analytics/dashboard-mapping";
+import { useLocale, useT } from "@/lib/i18n";
 
 /**
  * The public dashboard view shared by /public/:token (live API data) and
@@ -87,31 +96,36 @@ const PanelBody = ({
 	emptyText: string;
 	children: ReactNode;
 }) => {
+	const t = useT();
 	if (loading) {
-		return <p className="text-muted-foreground py-6 text-center text-xs">Loading…</p>;
+		return (
+			<p className="text-muted-foreground py-6 text-center text-[13px]">{t("dash.loading")}</p>
+		);
 	}
 	if (!hasData) {
-		return <p className="text-muted-foreground py-6 text-center text-xs">{emptyText}</p>;
+		return <p className="text-muted-foreground py-6 text-center text-[13px]">{emptyText}</p>;
 	}
 	return <>{children}</>;
 };
 
-const LivePill = ({ online, updatedAt }: LiveState) => (
-	<span className="flex items-center gap-2 rounded-full border border-(--up)/20 bg-(--up)/10 px-2.5 py-1 text-[11px] text-(--up)">
-		<span className="relative flex size-2" aria-hidden>
-			<span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-(--up) opacity-75" />
-			<span className="relative inline-flex size-2 rounded-full bg-(--up)" />
-		</span>
-		<span className="font-mono tabular-nums">{online === null ? "…" : fmtC(online)}</span>
-		online
-		{updatedAt ? (
-			<span className="text-muted-foreground tabular-nums">
-				· upd{" "}
-				{new Date(updatedAt).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" })}
+const LivePill = ({ online, updatedAt }: LiveState) => {
+	const t = useT();
+	return (
+		<span className="flex items-center gap-2 rounded-full border border-(--up)/20 bg-(--up)/10 px-2.5 py-1 text-xs text-(--up)">
+			<span className="relative flex size-2" aria-hidden>
+				<span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-(--up) opacity-75" />
+				<span className="relative inline-flex size-2 rounded-full bg-(--up)" />
 			</span>
-		) : null}
-	</span>
-);
+			<span className="tabular-nums">{online === null ? "…" : fmtC(online)}</span>
+			{t("hdr.online")}
+			{updatedAt ? (
+				<span className="text-muted-foreground tabular-nums">
+					· {t("public.updated", { time: timeLabel(updatedAt) })}
+				</span>
+			) : null}
+		</span>
+	);
+};
 
 const deviceGlyph = (device: string): ReactNode => {
 	if (device === "mobile") {
@@ -122,15 +136,6 @@ const deviceGlyph = (device: string): ReactNode => {
 	}
 	return <Monitor className="text-muted-foreground size-4 shrink-0" aria-hidden />;
 };
-
-const MONEY_GLYPH = (
-	<span
-		className="grid size-4 shrink-0 place-items-center rounded-[5px] bg-(--money)/15 font-mono text-[9px] font-bold text-(--money)"
-		aria-hidden
-	>
-		$
-	</span>
-);
 
 interface LabelledRow {
 	label: string;
@@ -143,7 +148,7 @@ const RowsBody = ({
 	loading,
 	isMoney,
 	currency,
-	emptyText = "No data yet.",
+	emptyText,
 }: {
 	rows: LabelledRow[];
 	loading: boolean;
@@ -151,14 +156,19 @@ const RowsBody = ({
 	currency?: string;
 	emptyText?: string;
 }) => {
+	const t = useT();
 	const total = rows.reduce((acc, r) => acc + r.value, 0);
 	return (
-		<PanelBody loading={loading} hasData={rows.length > 0} emptyText={emptyText}>
+		<PanelBody
+			loading={loading}
+			hasData={rows.length > 0}
+			emptyText={emptyText ?? t("public.noData")}
+		>
 			<div className="grid max-h-[420px] gap-1 overflow-y-auto">
 				{rows.map((r) => (
 					<CountBarRow
 						key={r.label}
-						glyph={r.glyph ?? (isMoney ? MONEY_GLYPH : undefined)}
+						glyph={r.glyph}
 						label={r.label}
 						value={isMoney ? money(r.value, currency) : fmtC(r.value)}
 						share={total > 0 ? (r.value / total) * 100 : 0}
@@ -173,6 +183,7 @@ const RowsBody = ({
 /* ------------------------------- sub panels ------------------------------- */
 
 function SourcesPanel({ dash, loading }: { dash: PublicDashboard | undefined; loading: boolean }) {
+	const t = useT();
 	const [tab, setTab] = useState<"referrer" | "channel">("referrer");
 	const rows: LabelledRow[] = useMemo(
 		() =>
@@ -187,14 +198,14 @@ function SourcesPanel({ dash, loading }: { dash: PublicDashboard | undefined; lo
 	);
 	return (
 		<Panel
-			title="Sources"
+			title={t("traffic.sources.title")}
 			tabs={
 				<PanelTabs
 					value={tab}
 					onChange={setTab}
 					tabs={[
-						{ key: "referrer", label: "Referrer" },
-						{ key: "channel", label: "Channel" },
+						{ key: "referrer", label: t("traffic.sources.referrer") },
+						{ key: "channel", label: t("rev.tab.channel") },
 					]}
 				/>
 			}
@@ -205,6 +216,7 @@ function SourcesPanel({ dash, loading }: { dash: PublicDashboard | undefined; lo
 }
 
 function PlatformPanel({ dash, loading }: { dash: PublicDashboard | undefined; loading: boolean }) {
+	const t = useT();
 	const [tab, setTab] = useState<"device" | "os" | "browser">("device");
 	const rows: LabelledRow[] = useMemo(() => {
 		const src =
@@ -221,15 +233,15 @@ function PlatformPanel({ dash, loading }: { dash: PublicDashboard | undefined; l
 	}, [dash, tab]);
 	return (
 		<Panel
-			title="Platform"
+			title={t("traffic.platform.title")}
 			tabs={
 				<PanelTabs
 					value={tab}
 					onChange={setTab}
 					tabs={[
-						{ key: "device", label: "Device" },
-						{ key: "os", label: "OS" },
-						{ key: "browser", label: "Browser" },
+						{ key: "device", label: t("traffic.platform.device") },
+						{ key: "os", label: t("traffic.platform.os") },
+						{ key: "browser", label: t("traffic.platform.browser") },
 					]}
 				/>
 			}
@@ -241,11 +253,15 @@ function PlatformPanel({ dash, loading }: { dash: PublicDashboard | undefined; l
 
 function RevenuePanel({ dash, loading }: { dash: PublicDashboard | undefined; loading: boolean }) {
 	const tr = useT();
+	const locale = useLocale();
 	const [tab, setTab] = useState<"source" | "country" | "payment">("source");
 	const [paymentView, setPaymentView] = useState<"method" | "provider">("method");
 	const rows: LabelledRow[] = useMemo(() => {
 		if (tab === "country") {
-			return (dash?.revenueByCountry ?? []).map((r) => ({ label: r.country, value: r.revenue }));
+			return (dash?.revenueByCountry ?? []).map((r) => ({
+				label: countryName(r.country, locale),
+				value: r.revenue,
+			}));
 		}
 		if (tab === "payment") {
 			return paymentView === "provider"
@@ -262,14 +278,14 @@ function RevenuePanel({ dash, loading }: { dash: PublicDashboard | undefined; lo
 	}, [dash, tab, paymentView]);
 	return (
 		<Panel
-			title="Revenue"
+			title={tr("chart.revenue")}
 			tabs={
 				<PanelTabs
 					value={tab}
 					onChange={setTab}
 					tabs={[
-						{ key: "source", label: "Source" },
-						{ key: "country", label: "Country" },
+						{ key: "source", label: tr("rev.tab.source") },
+						{ key: "country", label: tr("rev.tab.country") },
 						{ key: "payment", label: tr("dash.payment.tab") },
 					]}
 				/>
@@ -292,7 +308,7 @@ function RevenuePanel({ dash, loading }: { dash: PublicDashboard | undefined; lo
 				loading={loading}
 				isMoney
 				currency={dash?.currency}
-				emptyText={tab === "payment" ? tr("dash.payment.empty") : undefined}
+				emptyText={tr(tab === "payment" ? "dash.payment.empty" : "rev.empty")}
 			/>
 		</Panel>
 	);
@@ -322,13 +338,14 @@ export function PublicDashboardView({
 	live,
 	embed,
 }: PublicDashboardViewProps) {
+	const t = useT();
 	const hourly = range === "24h";
 	const points: Point[] = useMemo(
 		() =>
-			(dash?.timeseries ?? []).map((t) => ({
-				...pointLabel(t.date, hourly),
-				date: t.date,
-				current: t.visitors,
+			(dash?.timeseries ?? []).map((p) => ({
+				...pointLabel(p.date, hourly),
+				date: p.date,
+				current: p.visitors,
 			})),
 		[dash, hourly],
 	);
@@ -345,13 +362,17 @@ export function PublicDashboardView({
 
 	const stats = dash?.stats;
 	const topPages = dash?.topPages ?? [];
-	const pad = embed ? "p-2" : "px-3 pt-3 pb-6 md:px-4";
-	const title = site?.name ?? site?.domain ?? "Public dashboard";
+	const pad = embed ? "p-2" : "px-3 pt-4 pb-6 md:px-4";
+	const title = site?.name ?? site?.domain ?? t("public.title");
+	const conversion =
+		stats && stats.visitors > 0
+			? `${fmtDecimal((stats.conversions / stats.visitors) * 100, 1)}%`
+			: "–";
 
 	return (
 		<div className="bg-background text-foreground min-h-svh">
 			<main className={`mx-auto max-w-7xl ${pad}`}>
-				<header className="mb-2.5 flex flex-wrap items-center justify-between gap-2">
+				<header className="mb-3 flex flex-wrap items-center justify-between gap-2">
 					<div className="flex flex-wrap items-center gap-2.5">
 						<h1 className="text-lg font-semibold tracking-tight">{title}</h1>
 						<LivePill {...live} />
@@ -359,58 +380,68 @@ export function PublicDashboardView({
 					<PanelTabs
 						value={range}
 						onChange={onRangeChange}
+						label={t("overview.rangeLabel")}
 						tabs={RANGES.map((r) => ({ key: r.key, label: r.label }))}
 					/>
 				</header>
 
 				{error ? (
 					<p
-						className="bg-(--down)/10 text-(--down) mb-2.5 rounded-xl px-3 py-2 text-xs"
+						className="bg-(--down)/10 text-(--down) mb-3 rounded-xl px-3 py-2 text-[13px]"
 						role="alert"
 					>
-						Couldn't load the dashboard ({error}).
+						{t("public.error")}
 					</p>
 				) : null}
 
-				<div className="mb-2.5 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
-					<StatTile label="Online now" value={live.online === null ? "…" : fmtC(live.online)} />
-					<StatTile label="Visitors" value={stats ? fmt(stats.visitors) : "…"} />
-					<StatTile label="Pageviews" value={stats ? fmt(stats.pageviews) : "…"} />
-					<StatTile label="Sessions" value={stats ? fmt(stats.sessions) : "…"} />
-					<StatTile label="Bounce rate" value={stats ? `${stats.bounceRate.toFixed(1)}%` : "…"} />
-					<StatTile label="Revenue" value={stats ? money(stats.revenue, dash?.currency) : "…"} />
+				{/* Money first: what was earned, how many sales, how many visitors turned into them. */}
+				<div className="mb-3 grid grid-cols-2 gap-2 lg:grid-cols-5">
+					<StatTile
+						label={t("overview.revenue")}
+						value={stats ? money(stats.revenue, dash?.currency) : "…"}
+						className="col-span-2 lg:col-span-1"
+					/>
+					<StatTile label={t("home.sales")} value={stats ? fmt(stats.conversions) : "…"} />
+					<StatTile label={t("home.conversion")} value={stats ? conversion : "…"} />
+					<StatTile label={t("kpi.visitors")} value={stats ? fmt(stats.visitors) : "…"} />
+					<StatTile label={t("kpi.pageviews")} value={stats ? fmt(stats.pageviews) : "…"} />
 				</div>
 
-				<section className="bg-card ring-foreground/10 mb-2.5 rounded-2xl p-3 ring-1">
-					<div className="text-muted-foreground mb-2 flex flex-wrap items-center justify-between gap-2 text-xs">
-						<div className="flex items-center gap-4">
-							<span className="flex items-center gap-1.5">
-								<span className="h-0.5 w-4 rounded-full bg-(--chart)" aria-hidden />
-								Visitors
-							</span>
-							{revenueSeries ? (
-								<span className="flex items-center gap-1.5">
-									<span className="h-2.5 w-2.5 rounded-[3px] bg-(--money)" aria-hidden />
-									Revenue
+				<div className="mb-3 grid gap-3 lg:grid-cols-3">
+					<div className="order-last lg:order-first lg:col-span-2">
+						<section className="bg-card ring-foreground/10 h-full rounded-2xl p-3 ring-1">
+							<div className="text-muted-foreground mb-2 flex flex-wrap items-center justify-between gap-2 text-[13px]">
+								<div className="flex items-center gap-4">
+									{revenueSeries ? (
+										<span className="flex items-center gap-1.5">
+											<span className="h-2.5 w-2.5 rounded-[3px] bg-(--money)" aria-hidden />
+											{t("chart.revenue")}
+										</span>
+									) : null}
+									<span className="flex items-center gap-1.5">
+										<span className="h-0.5 w-4 rounded-full bg-(--chart)" aria-hidden />
+										{t("chart.visitors")}
+									</span>
+								</div>
+								<span className="tabular-nums">
+									{points[0]?.full}
+									{points.length > 1 ? ` – ${points.at(-1)?.full}` : ""}
 								</span>
-							) : null}
-						</div>
-						<span className="font-mono tabular-nums">
-							{points[0]?.full}
-							{points.length > 1 ? ` – ${points.at(-1)?.full}` : ""}
-						</span>
+							</div>
+							<PanelBody
+								loading={loading}
+								hasData={points.length > 0}
+								emptyText={t("home.chart.empty")}
+							>
+								<TrafficChart points={points} revenue={revenueSeries} currency={dash?.currency} />
+							</PanelBody>
+						</section>
 					</div>
-					<PanelBody
-						loading={loading}
-						hasData={points.length > 0}
-						emptyText="No traffic in this range."
-					>
-						<TrafficChart points={points} revenue={revenueSeries} currency={dash?.currency} />
-					</PanelBody>
-				</section>
+					<RevenuePanel dash={dash} loading={loading} />
+				</div>
 
-				<div className="grid gap-2.5 md:grid-cols-2 xl:grid-cols-3">
-					<Panel title="Top pages">
+				<div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+					<Panel title={t("traffic.pages.title")}>
 						<RowsBody
 							loading={loading}
 							rows={topPages.map((p) => ({
@@ -422,7 +453,6 @@ export function PublicDashboardView({
 					</Panel>
 					<SourcesPanel dash={dash} loading={loading} />
 					<PlatformPanel dash={dash} loading={loading} />
-					<RevenuePanel dash={dash} loading={loading} />
 				</div>
 			</main>
 			{!embed && <PublicFooter />}
@@ -445,7 +475,7 @@ function PublicFooter() {
 				rel="noopener noreferrer"
 				className="hover:text-foreground focus-visible:outline-ring inline-flex min-h-11 items-center rounded-sm underline-offset-2 outline-offset-2 hover:underline focus-visible:outline-2"
 			>
-				Powered by RevKlik
+				{t("public.poweredBy")}
 			</a>
 			<span aria-hidden>·</span>
 			<a

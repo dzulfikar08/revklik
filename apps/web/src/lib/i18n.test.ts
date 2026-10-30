@@ -51,6 +51,18 @@ describe("translate", () => {
 		expect(translate("id", "billing.trialEndsIn", { n: 1 })).toBe("Trial berakhir 1 hari lagi");
 	});
 
+	it("keeps the same placeholders in English and Indonesian", () => {
+		const names = (text: string): string[] =>
+			[...text.matchAll(/\{(\w+)\}/gu)].map((m) => m[1]).toSorted();
+		const mismatched = Object.entries(MESSAGES.id)
+			.filter(([key, text]) => {
+				const english = MESSAGES.en[key as keyof typeof MESSAGES.en];
+				return english !== undefined && names(english).join() !== names(text).join();
+			})
+			.map(([key]) => key);
+		expect(mismatched).toEqual([]);
+	});
+
 	it("ships no em dashes in either language (antislop R-02)", () => {
 		for (const dict of Object.values(MESSAGES)) {
 			for (const text of Object.values(dict)) {
