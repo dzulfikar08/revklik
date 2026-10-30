@@ -123,7 +123,7 @@ const STATUS_LABEL: Record<SubscriptionStatus, MessageKey> = {
 
 const StatusBadge = ({ status, label }: { status: string; label: string }) => (
 	<span
-		className={`rounded-md px-1.5 py-0.5 text-[11px] font-medium ring-1 ${
+		className={`rounded-md px-1.5 py-0.5 text-xs font-medium ring-1 ${
 			STATUS_TONE[status] ?? "bg-muted/60 text-muted-foreground ring-foreground/10"
 		}`}
 	>
@@ -309,7 +309,7 @@ const PlanCard = ({
 			<div className="flex items-center justify-between gap-2">
 				<h3 className="text-sm font-semibold">{planLabel(plan.tier)}</h3>
 				{badge && !isCurrent ? (
-					<span className="bg-(--chart)/15 text-(--chart) rounded-md px-1.5 py-0.5 text-[11px] font-medium">
+					<span className="bg-(--chart)/15 text-(--chart) rounded-md px-1.5 py-0.5 text-xs font-medium">
 						{badge === "trial" ? t("billing.trialBadge") : t("billing.pickedBadge")}
 					</span>
 				) : null}
@@ -565,9 +565,9 @@ export const BillingView = ({
 	// a paid plan without one was bought with QRIS for a single period.
 	const isQrisPlan = Boolean(
 		sub?.id &&
-			state?.paidActive &&
-			!sub.polar_subscription_id &&
-			!isOpenEnded(sub.current_period_end),
+		state?.paidActive &&
+		!sub.polar_subscription_id &&
+		!isOpenEnded(sub.current_period_end),
 	);
 	const canCancel = Boolean(
 		sub?.id && state?.paidActive && sub.polar_subscription_id && !sub.cancel_at_period_end,
@@ -606,7 +606,7 @@ export const BillingView = ({
 							{pendingPlan ? ` · ${planLabel(pendingPlan)}` : ""}
 							{pendingQris.amount ? ` · ${money(pendingQris.amount, "IDR")}` : ""}
 						</p>
-						<p className="text-muted-foreground truncate font-mono text-[11px]">
+						<p className="text-muted-foreground truncate font-mono text-xs">
 							{t("billing.qrisOrder", { id: pendingQris.orderId })}
 						</p>
 					</div>
@@ -659,7 +659,7 @@ export const BillingView = ({
 								/>
 							) : null}
 							{sub.cancel_at_period_end && state.paidActive ? (
-								<span className="text-(--down) text-[11px]">
+								<span className="text-(--down) text-xs">
 									{t("billing.cancels", { date: date(sub.current_period_end) })}
 								</span>
 							) : null}
@@ -778,9 +778,7 @@ export const BillingView = ({
 								))}
 							</div>
 							{qrisAvailable ? null : (
-								<p className="text-muted-foreground mt-2 px-1 text-[11px]">
-									{t("billing.qrisIdOnly")}
-								</p>
+								<p className="text-muted-foreground mt-2 px-1 text-xs">{t("billing.qrisIdOnly")}</p>
 							)}
 						</>
 					)}
