@@ -1,7 +1,6 @@
 import { Hono } from "hono";
 import type { Kysely } from "kysely";
 import { SCOPES, type KlikapaDatabase } from "@revklik/shared";
-import { sql } from "../db";
 import { dayBucketSql, pageviewsSql, visitorsSql } from "../lib/metrics";
 import { authenticateApiToken } from "../lib/token-auth";
 

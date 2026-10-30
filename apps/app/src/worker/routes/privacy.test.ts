@@ -162,8 +162,12 @@ describe("DELETE /api/sites/:siteId/visitors/:visitorId", () => {
 		member("u-view", "viewer");
 		member("u-edit", "editor");
 
-		for (const token of [stranger, viewer]) {
-			expect((await t.call("DELETE", "/api/sites/s1/visitors/v1", { token })).status).toBe(404);
+		// A stranger cannot learn the site exists (404); a viewer can see it but not write (403).
+		for (const [token, status] of [
+			[stranger, 404],
+			[viewer, 403],
+		] as const) {
+			expect((await t.call("DELETE", "/api/sites/s1/visitors/v1", { token })).status).toBe(status);
 		}
 		expect(rowsOf(t, "s1", "v1")).toEqual([2, 1, 1, 1, 1, 1]);
 		expect((await t.call("DELETE", "/api/sites/s1/visitors/v1", { token: editor })).status).toBe(
