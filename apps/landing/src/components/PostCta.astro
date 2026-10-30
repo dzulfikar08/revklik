@@ -1,0 +1,21 @@
+---
+import type { Copy } from '../data/copy';
+import { appLink, REGISTER_URL, DOCS_URL } from '../data/site';
+interface Props {
+	c: Copy;
+	slug: string;
+}
+const { c, slug } = Astro.props;
+const register = appLink(REGISTER_URL, c.lang, { source: 'blog', campaign: slug });
+const demo = `https://app.revklik.com/demo?lang=${c.lang}`;
+---
+<aside class="post-cta" data-section="post-cta">
+  <div>
+    <h2>{c.cta_post_title}</h2>
+    <p>{c.cta_post_desc}</p>
+  </div>
+  <div class="post-cta-actions">
+    <a href={register} class="btn btn-primary" data-cta data-revklik-goal="register_click" data-revklik-goal-location="blog_end">{c.cta_post_btn}</a>
+    <a href={demo} class="btn btn-ghost" data-cta data-revklik-goal="demo_click" data-revklik-goal-location="blog_end">{c.cta_post_demo}</a>
+  </div>
+</aside>

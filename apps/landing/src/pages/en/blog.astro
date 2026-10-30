@@ -1,0 +1,16 @@
+---
+import BlogIndex from '../../components/BlogIndex.astro';
+import RootLayout from '../../layouts/RootLayout.astro';
+import { EN } from '../../data/copy';
+---
+<RootLayout
+	c={EN}
+	locale="en"
+	current="blog"
+	path="/en/blog"
+	alternates={{ id: '/blog', en: '/en/blog' }}
+	title={EN.blog_meta_title}
+	description={EN.blog_meta_description}
+>
+	<BlogIndex c={EN} locale="en" />
+</RootLayout>
