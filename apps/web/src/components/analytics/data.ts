@@ -269,6 +269,7 @@ export const dayLabel = (iso: string): string =>
 export const FILTER_DIMS: readonly { value: string; label: MessageKey }[] = [
 	{ label: "fdim.source", value: "source" },
 	{ label: "fdim.path", value: "path" },
+	{ label: "fdim.entry_path", value: "entry_path" },
 	{ label: "fdim.country", value: "country" },
 	{ label: "fdim.region", value: "region" },
 	{ label: "fdim.city", value: "city" },

@@ -239,6 +239,7 @@ export type FilterOperator =
 
 export const FILTER_DIMENSIONS = [
 	{ value: "path", label: "Page" },
+	{ value: "entry_path", label: "Entry page" },
 	{ value: "country", label: "Country" },
 	{ value: "region", label: "Region" },
 	{ value: "city", label: "City" },

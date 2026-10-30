@@ -35,6 +35,8 @@ vi.mock("@/lib/legacy/api", async (importOriginal) => ({
 	]),
 }));
 
+import { fetchSiteAccess } from "@/lib/legacy/site-access";
+
 import { ShareWidgetTokensView } from "./share-widget-tokens";
 
 const flush = () => act(() => new Promise((resolve) => setTimeout(resolve, 20)));
@@ -77,6 +79,51 @@ describe("ShareWidgetTokensView", () => {
 		expect(share.fetchShareStatus).not.toHaveBeenCalledWith("site-stale");
 		expect(container.textContent).toContain("joyorogo.com");
 		expect(container.textContent).not.toContain("cloudagni.id");
+		await act(async () => root.unmount());
+	});
+
+	it("a viewer gets a disabled Create token button", async () => {
+		vi.mocked(fetchSiteAccess).mockResolvedValue({
+			can: { manage: false, owner: false, read: true, write: false },
+			role: "viewer",
+		});
+		const root = createRoot(container);
+		await act(async () => {
+			root.render(
+				<QueryClientProvider client={new QueryClient()}>
+					<ShareWidgetTokensView siteId="site-url" />
+				</QueryClientProvider>,
+			);
+		});
+		await flush();
+
+		const create = [...container.querySelectorAll("button")].find((b) =>
+			b.textContent?.includes("Create token"),
+		);
+		expect(create?.disabled).toBe(true);
+		expect(container.textContent).toContain("Viewers cannot create tokens");
+		await act(async () => root.unmount());
+	});
+
+	it("an editor can create a token", async () => {
+		vi.mocked(fetchSiteAccess).mockResolvedValue({
+			can: { manage: false, owner: false, read: true, write: true },
+			role: "editor",
+		});
+		const root = createRoot(container);
+		await act(async () => {
+			root.render(
+				<QueryClientProvider client={new QueryClient()}>
+					<ShareWidgetTokensView siteId="site-url" />
+				</QueryClientProvider>,
+			);
+		});
+		await flush();
+
+		const create = [...container.querySelectorAll("button")].find((b) =>
+			b.textContent?.includes("Create token"),
+		);
+		expect(create?.disabled).toBe(false);
 		await act(async () => root.unmount());
 	});
 });

@@ -99,6 +99,42 @@ describe("token scope escalation", () => {
 	});
 });
 
+describe("account tokens inherit the owner's role", () => {
+	const sale = { site_id: SITE, name: "Sale", revenue: 99, external_id: "sale-1" };
+
+	it("a viewer's account token with events:write cannot book a server sale", async () => {
+		const { t, viewer } = await setup();
+		const minted = await mint(t, viewer, "/api/tokens", {
+			name: "viewer-writer",
+			type: "account",
+			scopes: ["events:write"],
+		});
+		expect(minted.res.status).toBe(201);
+		const res = await t.call("POST", "/api/v1/events/server", {
+			token: String(minted.json.data?.token),
+			body: sale,
+		});
+		expect(res.status).toBe(403);
+		expect(t.db.query("SELECT COUNT(*) AS n FROM events WHERE revenue > 0").get()).toEqual({
+			n: 0,
+		});
+	});
+
+	it("the owner's account token with events:write still books it", async () => {
+		const { t, owner } = await setup();
+		const minted = await mint(t, owner, "/api/tokens", {
+			name: "owner-writer",
+			type: "account",
+			scopes: ["events:write"],
+		});
+		const res = await t.call("POST", "/api/v1/events/server", {
+			token: String(minted.json.data?.token),
+			body: sale,
+		});
+		expect(res.status).toBe(200);
+	});
+});
+
 describe("POST /api/track/payment", () => {
 	it("books revenue only for a token with events:write on that site", async () => {
 		const { t, owner, viewer } = await setup();

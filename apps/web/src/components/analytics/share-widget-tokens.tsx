@@ -407,7 +407,7 @@ const TokenRow = ({
 	);
 };
 
-const TokensPanel = ({ sites }: { sites: SiteWithStats[] }) => {
+const TokensPanel = ({ canWrite, sites }: { canWrite: boolean; sites: SiteWithStats[] }) => {
 	const t = useT();
 	const qc = useQueryClient();
 	const [createOpen, setCreateOpen] = useState(false);
@@ -521,13 +521,17 @@ const TokensPanel = ({ sites }: { sites: SiteWithStats[] }) => {
 						variant="outline"
 						size="sm"
 						className="ml-auto"
-						disabled={limitReached}
+						disabled={!canWrite || limitReached}
 						onClick={() => setCreateOpen(true)}
 					>
 						<Plus className="size-3.5" aria-hidden />
 						{t("share.tokens.create")}
 					</Button>
 				</div>
+
+				{canWrite ? null : (
+					<p className="text-muted-foreground text-xs">{t("share.tokens.writeOnly")}</p>
+				)}
 
 				{limitReached && (
 					<p className="text-(--down) rounded-lg bg-(--down)/10 px-2.5 py-1.5 text-xs">
@@ -723,7 +727,7 @@ export const ShareWidgetTokensView = ({ siteId }: { siteId: string }) => {
 				<SharePanel canEdit={access.can.owner} siteId={siteId} />
 				<WidgetPanel canEdit={access.can.owner} siteId={siteId} />
 				<div className="md:col-span-2">
-					<TokensPanel sites={sites} />
+					<TokensPanel canWrite={access.can.write} sites={sites} />
 				</div>
 			</div>
 		</main>

@@ -323,7 +323,7 @@ export const SellsPanel = ({
 				.map((p) => ({
 					amount: p.revenue,
 					display: money(p.revenue, currency),
-					filter: { dimension: "path", value: p.path },
+					filter: { dimension: "entry_path", value: p.path },
 					glyph,
 					key: p.path,
 					label: p.path,
@@ -480,17 +480,17 @@ export const PagesPanel = ({
 	const [dir, setDir] = useState<"desc" | "asc">("desc");
 	const items = useMemo((): RankItem[] => {
 		const glyph = <FileText className="text-muted-foreground size-4 shrink-0" aria-hidden />;
-		const toItem = (path: string, amount: number): RankItem => ({
+		const toItem = (path: string, amount: number, dimension = "path"): RankItem => ({
 			amount,
 			display: fmtC(amount),
-			filter: { dimension: "path", value: path },
+			filter: { dimension, value: path },
 			glyph,
 			key: path,
 			label: path,
 		});
 		let raw: RankItem[] = (dash?.topPages ?? []).map((p) => toItem(p.path, p.pageviews));
 		if (tab === "entry") {
-			raw = (dash?.entryPagesRevenue ?? []).map((p) => toItem(p.path, p.sessions));
+			raw = (dash?.entryPagesRevenue ?? []).map((p) => toItem(p.path, p.sessions, "entry_path"));
 		} else if (tab === "exit") {
 			raw = (dash?.exitPages ?? []).map((p) => toItem(p.path, p.exits));
 		}

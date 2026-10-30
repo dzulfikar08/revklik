@@ -525,7 +525,7 @@ export const NextStepsCard = ({
 		} else if (step.id === "bestSource") {
 			onAction({ dimension: "source", kind: "filter", value: step.source });
 		} else if (step.id === "bestPage") {
-			onAction({ dimension: "path", kind: "filter", value: step.path });
+			onAction({ dimension: "entry_path", kind: "filter", value: step.path });
 		}
 	};
 	return (

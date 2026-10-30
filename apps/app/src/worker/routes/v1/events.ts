@@ -5,10 +5,10 @@ import type { PublicApiEnv } from "../../middleware/public-auth";
 import {
 	PublicApiError,
 	assertSiteAllowed,
-	assertSiteExists,
 	publicApiCtx,
 	publicApiErrorResponse,
 } from "../../lib/public-api-queries";
+import { checkSiteAccess } from "../../lib/site-access";
 import { isValidReportedNet, MAX_RAIL_LENGTH, normalizeRail } from "../../lib/fees";
 import { notifySaleEvent, pushCtx } from "../../lib/push";
 import { recordServerEvent } from "../../lib/server-events";
@@ -67,7 +67,10 @@ v1EventsRoutes.post("/server", requireScope(SCOPES.EVENTS_WRITE), async (c) => {
 
 		const siteId = requiredString(body, "site_id", MAX_ID_LENGTH);
 		assertSiteAllowed(ctx, siteId);
-		await assertSiteExists(ctx, siteId);
+		// Booking a sale changes data: an account token inherits its owner's role, so a viewer's
+		// token can read this site but never write to it.
+		const { denied } = await checkSiteAccess(ctx.db, ctx.userId, siteId, "write");
+		if (denied) throw new PublicApiError(denied.status, denied.error);
 
 		const name = requiredString(body, "name", MAX_NAME_LENGTH);
 		const externalId = requiredString(body, "external_id", MAX_ID_LENGTH);

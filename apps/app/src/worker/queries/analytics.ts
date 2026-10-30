@@ -16,7 +16,12 @@ import type {
 } from "@revklik/shared";
 import { sql } from "../db";
 import type { ParsedFilter } from "../lib/analytics-queries";
-import { applyFilters, applySessionFilters, hasEventOnlyFilter } from "../lib/analytics-queries";
+import {
+	applyFilters,
+	applySessionFilters,
+	ENTRY_PATH,
+	hasEventOnlyFilter,
+} from "../lib/analytics-queries";
 import { D1_BATCH_CHUNK } from "../lib/d1-batch";
 import { avgSessionSecondsSql } from "../lib/session-duration";
 import { externalReferrerOnly, sourceSql } from "../lib/source-sql";
@@ -843,8 +848,12 @@ export function planEntryPagesRevenue(
 		.where("events.site_id", "=", siteId);
 	if (endIso) q = q.where("sessions.started_at", "<", endIso);
 
+	// Same rows as the panel: the entry-page filter reads the session being grouped,
+	// everything else reads the event that carries the sale.
+	const entryFilters = filters?.filter((f) => f.dimension === ENTRY_PATH);
+	const eventFilters = filters?.filter((f) => f.dimension !== ENTRY_PATH);
 	return queryPlan(
-		applyFilters(q, filters, "events")
+		applyFilters(applyFilters(q, entryFilters, "sessions"), eventFilters, "events")
 			.groupBy("sessions.entry_path")
 			.orderBy("revenue", "desc")
 			.limit(20),

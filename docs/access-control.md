@@ -32,7 +32,7 @@ editor / admin / owner, and fails on any mutating route that is not classified. 
 
 `lib/token-service.ts` backs both `/api/tokens` (dashboard session) and `/api/v1/tokens` (API token).
 A token minted through the API can never hold `tokens:write`, can never hold a scope its minting token lacks, and a
-site token cannot mint at all. A site token with `events:write` needs a write role on the site.
+site token cannot mint at all. A site token with `events:write` needs a write role on the site, and an account token's `events:write` is checked the same way on every sale it books (`POST /api/v1/events/server`), so a viewer's token never writes.
 
 Revenue can only be posted by a server holding such a token (`POST /api/v1/events/server`, or
 `POST /api/track/payment` with `Authorization: Bearer rv_…`). `POST /api/identify` only accepts a visitor the site
