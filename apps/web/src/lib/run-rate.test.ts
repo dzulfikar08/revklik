@@ -19,7 +19,10 @@ const traffic = (days: number, from = 1): DailyVisitors[] =>
 describe("computeRunRate", () => {
 	it("averages completed days and leaves out today's partial bucket", () => {
 		// 10 buckets = 9 completed days + today. Today's 900k must not count.
-		const rate = computeRunRate(series(10, { 2: 90_000, 5: 90_000, 8: 90_000, 10: 900_000 }), traffic(10));
+		const rate = computeRunRate(
+			series(10, { 2: 90_000, 5: 90_000, 8: 90_000, 10: 900_000 }),
+			traffic(10),
+		);
 		expect(rate).toMatchObject({
 			dailyAverage: 30_000,
 			projected: 900_000,
@@ -32,7 +35,10 @@ describe("computeRunRate", () => {
 
 	it("starts the window at the first tracked day, not before the site existed", () => {
 		// Tracking began on day 21 of 30: 8 completed days, not 29.
-		const rate = computeRunRate(series(30, { 22: 100_000, 25: 100_000, 28: 100_000 }), traffic(30, 21));
+		const rate = computeRunRate(
+			series(30, { 22: 100_000, 25: 100_000, 28: 100_000 }),
+			traffic(30, 21),
+		);
 		expect(rate).toMatchObject({ status: "ready", windowDays: 9 });
 		if (rate.status === "ready") {
 			expect(rate.dailyAverage).toBeCloseTo(300_000 / 9);

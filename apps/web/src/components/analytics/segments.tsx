@@ -58,8 +58,7 @@ const SegmentPopover = ({
 			setName("");
 			onDone();
 		},
-		onError: (e) =>
-			toast.error(e instanceof LegacyApiError ? e.message : t("segments.saveFailed")),
+		onError: (e) => toast.error(e instanceof LegacyApiError ? e.message : t("segments.saveFailed")),
 	});
 	const deleteMut = useMutation({
 		mutationFn: (id: string) => deleteSegment(id),
@@ -106,9 +105,7 @@ const SegmentPopover = ({
 					</Button>
 				</div>
 				{filters.length === 0 ? (
-					<p className="text-muted-foreground mt-1 text-[11px]">
-						{t("segments.addFilterFirst")}
-					</p>
+					<p className="text-muted-foreground mt-1 text-[11px]">{t("segments.addFilterFirst")}</p>
 				) : null}
 
 				<p className="text-muted-foreground mt-2.5 mb-1 text-[11px] font-medium tracking-wide uppercase">

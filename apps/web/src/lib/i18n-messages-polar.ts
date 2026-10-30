@@ -121,7 +121,8 @@ export const polarId: Record<Exclude<keyof typeof polarEn, `${string}_one`>, str
 	"polar.step1.link": "Settings, Webhooks",
 	"polar.step2": "Tempel URL di atas. Biarkan Format tetap di Raw.",
 	"polar.step3.lead": "Centang event berikut:",
-	"polar.step3.tail": "Perpanjangan langganan juga dihitung sebagai pesanan, jadi event langganan tidak perlu dicentang.",
+	"polar.step3.tail":
+		"Perpanjangan langganan juga dihitung sebagai pesanan, jadi event langganan tidak perlu dicentang.",
 	"polar.step4":
 		"Buat endpoint-nya, lalu salin secret-nya ke kolom di sebelah kanan. Secret bisa dibuatkan Polar, atau kamu tentukan sendiri.",
 	"polar.sync.error": "Sinkronisasi terakhir gagal: {error}",

@@ -223,7 +223,13 @@ export interface GscQueryTotal {
 export const aggregateGscQueries = (rows: readonly GscQueryRow[]): GscQueryTotal[] => {
 	const byQuery = new Map<
 		string,
-		{ clicks: number; impressions: number; weightedPosition: number; positionSum: number; n: number }
+		{
+			clicks: number;
+			impressions: number;
+			weightedPosition: number;
+			positionSum: number;
+			n: number;
+		}
 	>();
 	for (const r of rows) {
 		const acc = byQuery.get(r.query) ?? {

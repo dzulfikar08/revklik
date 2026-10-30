@@ -153,17 +153,19 @@ const DeliveryRow = ({ delivery }: { delivery: PolarDelivery }) => {
 	const t = useT();
 	const locale = useLocale();
 	return (
-	<li className="border-(--border) flex items-center justify-between gap-3 border-t py-1.5 text-xs first:border-t-0">
-		<code className="min-w-0 flex-1 truncate font-mono">{deliveryName(delivery.event_type, t)}</code>
-		<StatusPill
-			on={delivery.status === "processed"}
-			tone={delivery.status === "failed" ? "down" : undefined}
-			label={deliveryStatus(delivery.status, t)}
-		/>
-		<span className="text-muted-foreground w-16 shrink-0 text-right tabular-nums">
-			{agoText(delivery.created_at, t, locale)}
-		</span>
-	</li>
+		<li className="border-(--border) flex items-center justify-between gap-3 border-t py-1.5 text-xs first:border-t-0">
+			<code className="min-w-0 flex-1 truncate font-mono">
+				{deliveryName(delivery.event_type, t)}
+			</code>
+			<StatusPill
+				on={delivery.status === "processed"}
+				tone={delivery.status === "failed" ? "down" : undefined}
+				label={deliveryStatus(delivery.status, t)}
+			/>
+			<span className="text-muted-foreground w-16 shrink-0 text-right tabular-nums">
+				{agoText(delivery.created_at, t, locale)}
+			</span>
+		</li>
 	);
 };
 
@@ -195,9 +197,7 @@ const Deliveries = ({
 					{refreshing ? t("polar.refreshing") : t("polar.refresh")}
 				</Button>
 			</div>
-			{rejected ? (
-				<ErrorNote>{t("polar.deliveries.rejected")}</ErrorNote>
-			) : null}
+			{rejected ? <ErrorNote>{t("polar.deliveries.rejected")}</ErrorNote> : null}
 			{status.events.length === 0 ? (
 				<p className="text-muted-foreground text-xs leading-relaxed">
 					{status.webhook_secret_configured
@@ -303,7 +303,11 @@ const SecretForm = ({
 					className={buttonClass}
 					disabled={pending || !secret.trim()}
 				>
-					{pending ? t("polar.saving") : configured ? t("polar.secret.replace") : t("polar.secret.save")}
+					{pending
+						? t("polar.saving")
+						: configured
+							? t("polar.secret.replace")
+							: t("polar.secret.save")}
 				</Button>
 			</div>
 		</form>
@@ -554,9 +558,7 @@ export const PolarConnectPanel = ({ siteId }: { siteId: string }) => {
 			) : statusQ.error || !status ? (
 				<div className="mt-3 grid gap-2">
 					<ErrorNote>
-						{statusQ.error instanceof Error
-							? statusQ.error.message
-							: t("polar.loadFailed")}
+						{statusQ.error instanceof Error ? statusQ.error.message : t("polar.loadFailed")}
 					</ErrorNote>
 					<div>
 						<Button

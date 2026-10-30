@@ -278,7 +278,9 @@ const WidgetPanel = ({ canEdit, siteId }: { canEdit: boolean; siteId: string }) 
 										disabled={!canEdit || configMut.isPending}
 										aria-label={t("share.widget.tzAria")}
 									>
-										<SelectValue />
+										<SelectValue>
+											{(value: string | null) => fmtOffset(Number(value ?? tzValue))}
+										</SelectValue>
 									</SelectTrigger>
 									<SelectContent>
 										{TZ_OFFSETS.map((min) => (
@@ -603,7 +605,14 @@ const TokensPanel = ({ sites }: { sites: SiteWithStats[] }) => {
 												className="h-8 text-[13px]"
 												aria-label={t("share.tokens.siteAria")}
 											>
-												<SelectValue placeholder={t("share.tokens.sitePlaceholder")} />
+												<SelectValue placeholder={t("share.tokens.sitePlaceholder")}>
+													{(value: string | null) => {
+														const picked = sites.find((x) => x.id === value);
+														return picked
+															? `${picked.name} (${picked.domain})`
+															: t("share.tokens.sitePlaceholder");
+													}}
+												</SelectValue>
 											</SelectTrigger>
 											<SelectContent>
 												{sites.map((s) => (
