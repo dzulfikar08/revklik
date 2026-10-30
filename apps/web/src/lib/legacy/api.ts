@@ -11,6 +11,7 @@
  * the root route captures). It is cached in memory and localStorage.
  */
 
+import { getLocale } from "../i18n";
 import { clearTokenMap, forgetToken, listRememberedTokens, rememberToken } from "./account-tokens";
 
 const HOSTED_API_BASE = "https://app.revklik.com/api";
@@ -395,7 +396,7 @@ export const isPlanRequired = (err: unknown): err is LegacyApiError =>
  */
 const authRequest = async (
 	path: string,
-	body: Record<string, string>,
+	body: Record<string, string | boolean>,
 	query?: URLSearchParams,
 ): Promise<LegacyUser> => {
 	const qs = query && query.size > 0 ? `?${query}` : "";
@@ -431,6 +432,10 @@ export interface RegisterExtras {
 	plan?: string | null;
 	/** Tracker visitor id from the marketing site (?rk_vid=), for the signup conversion. */
 	visitorId?: string | null;
+	/** Language of the page (ID/EN), so the verification email is written in it. */
+	lang?: string;
+	/** True when the visitor submitted the form under the "by signing up you agree" line. */
+	acceptedTerms?: boolean;
 }
 
 /**
@@ -443,7 +448,7 @@ export const legacyRegister = (
 	password: string,
 	extras: RegisterExtras = {},
 ): Promise<LegacyUser> => {
-	const body: Record<string, string> = { name, email, password };
+	const body: Record<string, string | boolean> = { name, email, password };
 	const query = new URLSearchParams();
 	if (extras.ref) {
 		body.ref = extras.ref;
@@ -454,6 +459,12 @@ export const legacyRegister = (
 	}
 	if (extras.visitorId) {
 		body.rk_vid = extras.visitorId;
+	}
+	if (extras.lang) {
+		body.lang = extras.lang;
+	}
+	if (extras.acceptedTerms) {
+		body.accepted_terms = true;
 	}
 	return authRequest("/auth/register", body, query);
 };
@@ -519,7 +530,10 @@ export const verifyEmail = async (token: string): Promise<VerifyEmailResult> => 
 
 /** Send the verification email again. */
 export const resendVerification = (): Promise<unknown> =>
-	legacyFetch("/auth/resend-verification", { method: "POST" });
+	legacyFetch("/auth/resend-verification", {
+		method: "POST",
+		body: JSON.stringify({ lang: getLocale() }),
+	});
 
 /** Current user, fresh from the API (email_verified included when supported). */
 export const fetchMe = async (): Promise<LegacyUser | null> => {

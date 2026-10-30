@@ -23,6 +23,8 @@ import {
 import { appUrl } from "../lib/app-url";
 import { isSelfHosted } from "../lib/entitlement";
 import { sendEmail, sendNewSignupAlert } from "../lib/email";
+import { brandedFrom, buildVerificationEmail, resolveEmailLang } from "../lib/verification-email";
+import type { EmailLang } from "../lib/verification-email";
 import { PLANS } from "../lib/plans";
 import { issueSessionToken, refreshSessionExpiry } from "../lib/session";
 import { parseVisitorId, recordSignupEvent } from "../lib/signup-event";
@@ -81,11 +83,12 @@ function clientIp(header: string | undefined): string {
 
 const VERIFY_TTL_MS = 48 * 3_600_000;
 
-/** Mint a single-use verification token and email the link. */
+/** Mint a single-use verification token and email the link, in `lang`. */
 async function sendVerificationEmail(
 	db: Kysely<KlikapaDatabase>,
 	user: { id: string; email: string },
 	env: Env["Bindings"],
+	lang: EmailLang,
 ): Promise<void> {
 	const bytes = crypto.getRandomValues(new Uint8Array(32));
 	const token = Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
@@ -100,17 +103,14 @@ async function sendVerificationEmail(
 			created_at: new Date().toISOString(),
 		})
 		.execute();
-	const link = `${appUrl(env)}/verify-email?token=${token}`;
-	await sendEmail(
-		{
-			to: user.email,
-			from: env.EMAIL_FROM,
-			subject: "RevKlik — confirm your email",
-			html: `<p>Confirm this address for your RevKlik account:</p><p><a href="${link}">Verify email</a> (valid 48 hours).</p>`,
-			text: `Confirm your RevKlik email (valid 48 hours): ${link}`,
-		},
-		env.EMAIL,
-	);
+	const origin = appUrl(env);
+	const message = buildVerificationEmail({
+		lang,
+		link: `${origin}/verify-email?token=${token}`,
+		origin,
+		ttlHours: VERIFY_TTL_MS / 3_600_000,
+	});
+	await sendEmail({ to: user.email, from: brandedFrom(env.EMAIL_FROM), ...message }, env.EMAIL);
 }
 
 // POST /auth/register — optional `ref` (affiliate code), `plan` (intent only) and
@@ -119,7 +119,7 @@ authRoutes.post("/register", async (c) => {
 	const db = c.get("db");
 	if (!db) return c.json({ error: "DB unavailable", success: false }, 503);
 	const body = await c.req.json().catch(() => ({}));
-	const { name, password, plan, ref, rk_vid } = body as Record<string, unknown>;
+	const { name, password, plan, ref, rk_vid, lang } = body as Record<string, unknown>;
 	const email = normalizeEmail(body?.email);
 	const intendedPlan = typeof plan === "string" && plan in PLANS ? plan : null;
 	if (typeof name !== "string" || !name.trim() || !email || typeof password !== "string")
@@ -150,7 +150,12 @@ authRoutes.post("/register", async (c) => {
 		.execute();
 	const key = await issueSessionToken(db, userId, "default");
 	c.executionCtx.waitUntil(
-		sendVerificationEmail(db, { id: userId, email }, c.env).catch((err) =>
+		sendVerificationEmail(
+			db,
+			{ id: userId, email },
+			c.env,
+			resolveEmailLang(lang, c.req.header("accept-language")),
+		).catch((err) =>
 			console.error("[auth] verification email failed:", err),
 		),
 	);
@@ -387,7 +392,13 @@ authRoutes.post("/resend-verification", async (c) => {
 		return c.json({ error: "too_many_attempts", success: false }, 429);
 	}
 	await recordAttempt(db, limitKey, VERIFY_RESEND_POLICY);
-	await sendVerificationEmail(db, user, c.env);
+	const body = await c.req.json().catch(() => ({}));
+	await sendVerificationEmail(
+		db,
+		user,
+		c.env,
+		resolveEmailLang(body?.lang, c.req.header("accept-language")),
+	);
 	return c.json({ data: { sent: true }, success: true });
 });
 

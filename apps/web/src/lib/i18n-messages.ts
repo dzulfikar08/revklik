@@ -4,6 +4,7 @@
  * translated word for word. `<key>_one` entries are English singulars; the
  * Indonesian side never needs them.
  */
+import { authEn, authId } from "./i18n-messages-auth";
 
 const en = {
 	// language toggle
@@ -33,6 +34,7 @@ const en = {
 	"auth.error": "Couldn't sign you in. Try again.",
 	"auth.signUpError": "Couldn't create your account. Try again.",
 	"auth.throttled": "Too many attempts. Wait a few minutes, then try again.",
+	...authEn,
 
 	// email verification
 	"verify.title": "Email verification",
@@ -42,7 +44,7 @@ const en = {
 		"This link isn't valid. Open the latest email from us, or send a new one from the dashboard.",
 	"verify.expired": "This link has expired. Send a new one from the dashboard.",
 	"verify.error": "Couldn't verify right now. Try the link again in a minute.",
-	"verify.toDashboard": "Go to the dashboard",
+	"verify.toDashboard": "Continue to the dashboard",
 	"verify.banner": "Verify your email. We sent a link to {email}.",
 	"verify.bannerShort": "Verify your email address.",
 	"verify.resend": "Send again",
@@ -370,16 +372,16 @@ const id: Record<BaseKey, string> = {
 	"locale.label": "Bahasa",
 
 	"auth.signIn.title": "Selamat datang lagi",
-	"auth.signIn.desc": "Masuk ke dashboard RevKlik kamu",
+	"auth.signIn.desc": "Masuk ke dashboard RevKlik Anda",
 	"auth.signUp.title": "Buat akun RevKlik",
 	"auth.signUp.desc": "Coba paket Growth gratis 7 hari, tanpa kartu kredit.",
 	"auth.signUp.descSelfHosted": "Buat akun di instance RevKlik ini.",
 	"auth.signUp.descPlan":
-		"Kamu mulai dengan 7 hari Growth gratis, tanpa kartu kredit. Pindah ke paket {plan} kapan saja.",
+		"Trial Growth 7 hari dulu, tanpa kartu kredit. Pilih paket {plan} nanti, kapan saja.",
 	"auth.name": "Nama",
 	"auth.namePlaceholder": "Siti Rahma",
 	"auth.email": "Email",
-	"auth.password": "Password",
+	"auth.password": "Kata sandi",
 	"auth.signInBtn": "Masuk",
 	"auth.signUpBtn": "Buat akun",
 	"auth.or": "atau",
@@ -388,40 +390,41 @@ const id: Record<BaseKey, string> = {
 	"auth.createOne": "Daftar",
 	"auth.haveAccount": "Sudah punya akun?",
 	"auth.signInLink": "Masuk",
-	"auth.forgot": "Lupa password?",
+	"auth.forgot": "Lupa kata sandi?",
 	"auth.error": "Gagal masuk. Coba lagi.",
 	"auth.signUpError": "Akun belum berhasil dibuat. Coba lagi.",
 	"auth.throttled": "Terlalu banyak percobaan. Tunggu beberapa menit, lalu coba lagi.",
+	...authId,
 
 	"verify.title": "Verifikasi email",
-	"verify.checking": "Mengecek link…",
-	"verify.verified": "Email kamu sudah terverifikasi.",
+	"verify.checking": "Memeriksa link…",
+	"verify.verified": "Email Anda sudah terverifikasi.",
 	"verify.invalid_token":
 		"Link ini tidak berlaku. Buka email terbaru dari kami, atau kirim ulang dari dashboard.",
 	"verify.expired": "Link ini sudah kedaluwarsa. Kirim link baru dari dashboard.",
 	"verify.error": "Verifikasi belum bisa dilakukan. Coba buka link-nya lagi sebentar lagi.",
-	"verify.toDashboard": "Buka dashboard",
-	"verify.banner": "Verifikasi email kamu. Link-nya sudah kami kirim ke {email}.",
-	"verify.bannerShort": "Verifikasi alamat email kamu.",
+	"verify.toDashboard": "Lanjut ke dashboard",
+	"verify.banner": "Verifikasi email Anda. Link-nya sudah kami kirim ke {email}.",
+	"verify.bannerShort": "Verifikasi alamat email Anda.",
 	"verify.resend": "Kirim ulang",
-	"verify.resent": "Terkirim. Cek kotak masuk kamu.",
+	"verify.resent": "Terkirim. Cek kotak masuk Anda.",
 
-	"forgot.title": "Atur ulang password",
-	"forgot.desc": "Masukkan email akun kamu. Kami kirimkan link untuk membuat password baru.",
+	"forgot.title": "Atur ulang kata sandi",
+	"forgot.desc": "Masukkan email akun Anda. Kami kirimkan link untuk membuat kata sandi baru.",
 	"forgot.submit": "Kirim link",
 	"forgot.sent":
 		"Kalau {email} terdaftar di RevKlik, link-nya sudah kami kirim. Cek kotak masuk dan folder spam.",
 	"forgot.error": "Link belum terkirim. Coba lagi.",
 	"forgot.back": "Kembali ke halaman masuk",
-	"reset.title": "Buat password baru",
+	"reset.title": "Buat kata sandi baru",
 	"reset.desc": "Minimal 8 karakter.",
-	"reset.new": "Password baru",
-	"reset.confirm": "Ulangi password baru",
-	"reset.mismatch": "Kedua password belum sama.",
-	"reset.submit": "Simpan password",
-	"reset.done": "Password sudah diganti. Silakan masuk dengan password baru.",
-	"reset.missingToken": "Link reset ini tidak lengkap. Minta link baru, ya.",
-	"reset.failed": "Link ini sudah kedaluwarsa atau sudah dipakai. Minta link baru, ya.",
+	"reset.new": "Kata sandi baru",
+	"reset.confirm": "Ulangi kata sandi baru",
+	"reset.mismatch": "Kedua kata sandi belum sama.",
+	"reset.submit": "Simpan kata sandi",
+	"reset.done": "Kata sandi sudah diganti. Silakan masuk dengan kata sandi baru.",
+	"reset.missingToken": "Link reset ini tidak lengkap. Minta link baru.",
+	"reset.failed": "Link ini sudah kedaluwarsa atau sudah dipakai. Minta link baru.",
 	"reset.requestNew": "Minta link baru",
 
 	"notFound.title": "Halaman tidak ditemukan",

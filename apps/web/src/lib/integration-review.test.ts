@@ -50,7 +50,9 @@ describe("login throttling", () => {
 	});
 
 	it.each<[unknown, boolean, string]>([
-		[new LegacyApiError("Invalid credentials", 401), false, "Invalid credentials"],
+		[new LegacyApiError("Invalid credentials", 401), false, "t:auth.err.invalidCredentials"],
+		[new LegacyApiError("Email taken", 409), true, "t:auth.err.emailTaken"],
+		[new LegacyApiError("constructor", 400), true, "constructor"],
 		[new LegacyApiError("email_taken", 400), true, "t:auth.signUpError"],
 		[new LegacyApiError("Request failed (500)", 500), false, "t:auth.error"],
 		[new Error("offline"), true, "t:auth.signUpError"],

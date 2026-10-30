@@ -1,10 +1,10 @@
-import { buttonVariants } from "@revklik/ui/components/button";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { LoaderCircle } from "lucide-react";
 import { useEffect, useState } from "react";
 
-import { AuthShell, authButtonClass } from "@/components/auth-shell";
-import { useT } from "@/lib/i18n";
+import { AuthShell, authPrimaryLinkClass } from "@/components/auth-shell";
+import { authDocumentTitle } from "@/lib/auth-page";
+import { getLocale, useT } from "@/lib/i18n";
 import { verifyEmail } from "@/lib/legacy/api";
 import type { VerifyEmailResult } from "@/lib/legacy/api";
 
@@ -13,7 +13,7 @@ export const Route = createFileRoute("/verify-email")({
 	validateSearch: (search: Record<string, unknown>): { token?: string } =>
 		typeof search.token === "string" && search.token ? { token: search.token } : {},
 	component: VerifyEmail,
-	head: () => ({ meta: [{ title: "Verify email · RevKlik" }] }),
+	head: () => ({ meta: [{ title: authDocumentTitle(getLocale(), "verify") }] }),
 });
 
 function VerifyEmail() {
@@ -35,6 +35,7 @@ function VerifyEmail() {
 	return (
 		<AuthShell
 			title={t("verify.title")}
+			page="verify"
 			description={
 				<span role="status" aria-live="polite">
 					{result === null ? t("verify.checking") : t(`verify.${result}`)}
@@ -44,7 +45,7 @@ function VerifyEmail() {
 			{result === null ? (
 				<LoaderCircle className="text-muted-foreground mx-auto size-5 animate-spin" aria-hidden />
 			) : (
-				<Link to="/analytics" className={buttonVariants({ className: authButtonClass })}>
+				<Link to="/analytics" className={authPrimaryLinkClass}>
 					{t("verify.toDashboard")}
 				</Link>
 			)}
