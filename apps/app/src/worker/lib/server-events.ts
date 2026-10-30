@@ -2,7 +2,8 @@ import type { Kysely } from "kysely";
 import type { KlikapaDatabase } from "@revklik/shared";
 import { sql } from "../db";
 import { generateId } from "../utils";
-import { normalizeRail, railFromSource, resolveNet, resolveProduct } from "./fees";
+import { normalizeRail, railFromSource, refundedSaleKey, resolveNet, resolveProduct } from "./fees";
+import { fxSnapshot, type FxSnapshot } from "./fx";
 import { eventCurrency, MAX_REVENUE, resolveEventTimestamp } from "./ingest";
 import {
 	CLIENT_ORDER_MATCH_MS,
@@ -41,6 +42,12 @@ export interface ServerEventInput {
 	eventType?: "conversion" | "custom" | null;
 	/** Page path stored on the event; default `/<source>`. */
 	path?: string | null;
+	/** The provider says this is a sandbox/test-mode payment: stored, never counted. */
+	test?: boolean;
+	/** Payment method label stored on the event (`events.payment_method`). */
+	paymentMethod?: string | null;
+	/** The provider's subscription id, for renewals. */
+	subscriptionId?: string | null;
 }
 
 export interface ServerEventResult {
@@ -67,9 +74,8 @@ function eventTypeFor(
 }
 
 const COUNTRY_RE = /^[A-Za-z]{2}$/;
-const REFUND_SUFFIX = ":refund";
 
-interface NetPatch {
+interface NetPatch extends FxSnapshot {
 	rail: string;
 	net_revenue: number | null;
 	net_source: "reported" | "rule" | "refund_ratio" | null;
@@ -114,7 +120,10 @@ async function findClientConversion(
 		AND is_bot = 0 AND excluded_reason IS NULL
 		${args.visitorId === null ? sql`` : sql`AND visitor_id = ${args.visitorId}`}
 		ORDER BY ABS(julianday(timestamp) - julianday(${args.ts})) ASC
-		LIMIT 1`.execute(db);
+		LIMIT 2`.execute(db);
+	// An order that names no buyer only adopts a row when exactly one browser sale
+	// could be it; with two candidates, guessing would swap two buyers' attribution.
+	if (args.visitorId === null && rows.length > 1) return null;
 	return rows[0] ?? null;
 }
 
@@ -184,12 +193,13 @@ export async function recordServerEvent(
 		}
 	}
 	// A refund belongs to the visitor who bought: "<id>:refund" follows "<id>".
-	if (!visitorId && input.externalId.endsWith(REFUND_SUFFIX)) {
+	const refundedSale = refundedSaleKey(input.externalId);
+	if (!visitorId && refundedSale) {
 		const sale = await db
 			.selectFrom("events")
 			.select(["visitor_id", "session_id"])
 			.where("site_id", "=", site.id)
-			.where("external_id", "=", input.externalId.slice(0, -REFUND_SUFFIX.length))
+			.where("external_id", "=", refundedSale)
 			.where("is_bot", "in", [0, 1])
 			.executeTakeFirst();
 		if (sale) {
@@ -245,7 +255,10 @@ export async function recordServerEvent(
 		reportedNet: input.netRevenue,
 		env,
 	});
-	const excludedReason = testEventReason({ rail, provider: input.source, props: input.props });
+	const excludedReason = input.test
+		? "test"
+		: testEventReason({ rail, provider: input.source, props: input.props });
+	const fx = await fxSnapshot(db, currency, env);
 
 	// A sale the buyer's browser already reported is one sale: the confirmed order
 	// fills in that row instead of booking a second one.
@@ -256,10 +269,10 @@ export async function recordServerEvent(
 			rail,
 			currency: currency.toUpperCase(),
 			ts,
-			visitorId: input.externalId.endsWith(REFUND_SUFFIX) ? null : linkedVisitorId,
+			visitorId: linkedVisitorId,
 		});
 		if (clientRow) {
-			const adopted = await adoptClientConversion(db, clientRow, input, { rail, ...net });
+			const adopted = await adoptClientConversion(db, clientRow, input, { rail, ...net, ...fx });
 			if (adopted) {
 				return {
 					eventId: clientRow.id,
@@ -299,7 +312,12 @@ export async function recordServerEvent(
 				net_revenue: net.net_revenue,
 				net_source: net.net_source,
 				excluded_reason: excludedReason,
+				fx_rate: fx.fx_rate,
+				fx_date: fx.fx_date,
+				fx_status: fx.fx_status,
 				payment_provider: input.source,
+				payment_method: input.paymentMethod ?? null,
+				subscription_id: input.subscriptionId ?? null,
 				props: JSON.stringify({
 					external_id: input.externalId,
 					source: input.source,
@@ -387,6 +405,9 @@ async function adoptClientConversion(
 				rail: patch.rail,
 				net_revenue: patch.net_revenue,
 				net_source: patch.net_source,
+				fx_rate: patch.fx_rate,
+				fx_date: patch.fx_date,
+				fx_status: patch.fx_status,
 				payment_provider: input.source,
 				// The browser's product slug beats the order's display name.
 				product: row.product ?? resolveProduct(input.product, { ...supplied, ...previous }),

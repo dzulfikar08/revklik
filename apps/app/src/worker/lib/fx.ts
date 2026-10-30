@@ -67,7 +67,33 @@ export function usdRates(env?: { FX_USD_IDR?: string }): FxRates {
 const FX_FEED_URL = "https://api.frankfurter.dev/v1/latest?base=USD";
 const FX_CACHE_MS = 60 * 60_000;
 
-let storedRates: { rates: Record<string, number>; loadedAt: number } | null = null;
+interface StoredRates {
+	rates: Record<string, number>;
+	asOf: Record<string, string>;
+	loadedAt: number;
+}
+
+let storedRates: StoredRates | null = null;
+
+async function loadStored(db: Kysely<KlikapaDatabase>, nowMs: number): Promise<StoredRates> {
+	if (!storedRates || nowMs - storedRates.loadedAt > FX_CACHE_MS) {
+		try {
+			const rows = await db
+				.selectFrom("fx_rates")
+				.select(["currency", "per_usd", "as_of"])
+				.execute();
+			storedRates = {
+				rates: Object.fromEntries(rows.map((r) => [r.currency.toUpperCase(), r.per_usd])),
+				asOf: Object.fromEntries(rows.map((r) => [r.currency.toUpperCase(), r.as_of])),
+				loadedAt: nowMs,
+			};
+		} catch (err) {
+			console.error("[fx] stored rates unavailable, using the fallback table:", err);
+			storedRates = { rates: {}, asOf: {}, loadedAt: nowMs };
+		}
+	}
+	return storedRates;
+}
 
 /**
  * Today's rates: the fallback table overlaid with whatever the daily refresh
@@ -79,19 +105,44 @@ export async function loadUsdRates(
 	env?: { FX_USD_IDR?: string },
 	nowMs = Date.now(),
 ): Promise<FxRates> {
-	if (!storedRates || nowMs - storedRates.loadedAt > FX_CACHE_MS) {
-		try {
-			const rows = await db.selectFrom("fx_rates").select(["currency", "per_usd"]).execute();
-			storedRates = {
-				rates: Object.fromEntries(rows.map((r) => [r.currency.toUpperCase(), r.per_usd])),
-				loadedAt: nowMs,
-			};
-		} catch (err) {
-			console.error("[fx] stored rates unavailable, using the fallback table:", err);
-			storedRates = { rates: {}, loadedAt: nowMs };
-		}
+	const stored = await loadStored(db, nowMs);
+	return { ...usdRates(env), ...stored.rates, ...idrOverride(env) };
+}
+
+/** Rate stamped on an event when it is booked: units of `currency` per 1 USD. */
+export interface FxSnapshot {
+	fx_rate: number | null;
+	/** Date the rate is valid for (the feed's as_of, or today for fallback rates). */
+	fx_date: string | null;
+	/** "live": stored feed rate. "fallback": static table or FX_USD_IDR. "unconverted": currency unknown, nothing converts it. */
+	fx_status: "live" | "fallback" | "unconverted";
+}
+
+/**
+ * The rate to freeze on a sale at booking time. An unknown currency gets no
+ * rate (never 1:1 as dollars): the row keeps its native amount and is flagged.
+ */
+export async function fxSnapshot(
+	db: Kysely<KlikapaDatabase>,
+	currency: string,
+	env?: { FX_USD_IDR?: string },
+	nowMs = Date.now(),
+): Promise<FxSnapshot> {
+	const code = currency.toUpperCase();
+	const today = new Date(nowMs).toISOString().slice(0, 10);
+	if (code === "USD") return { fx_rate: 1, fx_date: today, fx_status: "live" };
+	const override = idrOverride(env)[code];
+	if (override) return { fx_rate: override, fx_date: today, fx_status: "fallback" };
+	const stored = await loadStored(db, nowMs);
+	const live = stored.rates[code];
+	if (live !== undefined && live > 0) {
+		return { fx_rate: live, fx_date: stored.asOf[code] ?? today, fx_status: "live" };
 	}
-	return { ...usdRates(env), ...storedRates.rates, ...idrOverride(env) };
+	const fallback = usdRates(env)[code];
+	if (fallback !== undefined && fallback > 0) {
+		return { fx_rate: fallback, fx_date: today, fx_status: "fallback" };
+	}
+	return { fx_rate: null, fx_date: null, fx_status: "unconverted" };
 }
 
 function idrOverride(env?: { FX_USD_IDR?: string }): Record<string, number> {
@@ -141,15 +192,21 @@ export function normalizeCurrency(raw: unknown): string | null {
 	return typeof raw === "string" && CURRENCY_RE.test(raw.trim()) ? raw.trim().toUpperCase() : null;
 }
 
-/** Unknown or missing source currencies are treated as USD. */
+/**
+ * A missing source currency is USD. A source currency no rate exists for is not
+ * guessed: it converts to 0 (left out of the total) unless it already is `to`.
+ */
 export function convertAmount(
 	amount: number,
 	from: string | null,
 	to: string,
 	rates: FxRates,
 ): number {
-	const fromRate = rates[(from ?? "USD").toUpperCase()] ?? 1;
-	const toRate = rates[to] ?? 1;
+	const source = (from ?? "USD").toUpperCase();
+	if (source === to.toUpperCase()) return amount;
+	const fromRate = rates[source];
+	if (fromRate === undefined || !(fromRate > 0)) return 0;
+	const toRate = rates[to.toUpperCase()] ?? 1;
 	return (amount * toRate) / fromRate;
 }
 
@@ -161,8 +218,13 @@ export interface MoneyContext {
 export const USD_MONEY: MoneyContext = { currency: "USD", rates: usdRates() };
 
 /**
- * SQL factor that converts a row's revenue into ctx.currency, keyed on the
- * row's currency column (NULL/empty/unknown = USD).
+ * SQL factor that converts a row's revenue into ctx.currency.
+ *
+ * - Same currency as the target: 1.
+ * - The row carries the rate stamped when it was booked (fx_rate, units per
+ *   USD): history does not move when today's rate does.
+ * - Otherwise today's rate by currency code (NULL/empty = USD). A code with no
+ *   rate contributes 0 instead of being summed as dollars.
  *
  * Codes and factors are inlined as literals, not bound: one CASE over every
  * known currency is ~90 parameters and D1 refuses more than 100 per query, so a
@@ -171,10 +233,18 @@ export const USD_MONEY: MoneyContext = { currency: "USD", rates: usdRates() };
  */
 export function fxFactorSql(ctx: MoneyContext, currencyColumn = "currency"): RawBuilder<number> {
 	const toRate = ctx.rates[ctx.currency] ?? 1;
+	const target = /^[A-Z]{3}$/.test(ctx.currency) ? ctx.currency : "USD";
+	const rateColumn = currencyColumn.replace(/currency$/, "fx_rate");
+	const fallbackToRate = sql.lit(Number.isFinite(toRate) ? toRate : 1);
+	const code = sql`UPPER(COALESCE(NULLIF(${sql.ref(currencyColumn)}, ''), 'USD'))`;
 	const branches = Object.entries(ctx.rates)
-		.filter(([code, rate]) => code !== "USD" && /^[A-Z]{3}$/.test(code) && Number.isFinite(toRate / rate))
-		.map(([code, rate]) => sql`WHEN ${sql.lit(code)} THEN ${sql.lit(toRate / rate)}`);
-	return sql<number>`(CASE UPPER(COALESCE(NULLIF(${sql.ref(currencyColumn)}, ''), 'USD')) ${sql.join(branches, sql` `)} ELSE ${sql.lit(Number.isFinite(toRate) ? toRate : 1)} END)`;
+		.filter(([c, rate]) => c !== "USD" && /^[A-Z]{3}$/.test(c) && Number.isFinite(toRate / rate))
+		.map(([c, rate]) => sql`WHEN ${sql.lit(c)} THEN ${sql.lit(toRate / rate)}`);
+	const stored =
+		rateColumn === currencyColumn
+			? sql``
+			: sql`WHEN typeof(${sql.ref(rateColumn)}) = 'real' AND ${sql.ref(rateColumn)} > 0 THEN ${fallbackToRate} / ${sql.ref(rateColumn)}`;
+	return sql<number>`(CASE WHEN ${code} = ${sql.lit(target)} THEN 1 ${stored} ELSE (CASE ${code} ${sql.join(branches, sql` `)} WHEN 'USD' THEN ${fallbackToRate} ELSE 0 END) END)`;
 }
 
 /** `revenue` converted into ctx.currency, ready to SUM. */

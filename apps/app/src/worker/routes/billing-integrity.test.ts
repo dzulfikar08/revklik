@@ -228,7 +228,7 @@ describe("LemonSqueezy webhook (DEV-29)", () => {
 			.run(JSON.stringify({ webhook_secret: secret }));
 		const payload = JSON.stringify({
 			meta: { event_name: "order_created", custom_data: { revklik_site_id: "s-ls" } },
-			data: { id: "12", attributes: { total: 1000, currency: "usd" } },
+			data: { id: "12", attributes: { status: "paid", total: 1000, currency: "usd" } },
 		});
 
 		const unsigned = await t.call("POST", "/api/webhooks/lemonsqueezy", { body: payload });
@@ -262,6 +262,6 @@ describe("LemonSqueezy webhook (DEV-29)", () => {
 			body: other,
 			headers: { ...headers, "x-signature": otherSig },
 		});
-		expect(((await res.json()) as { duplicate?: boolean }).duplicate).toBeUndefined();
+		expect(((await res.json()) as { duplicate?: boolean }).duplicate).toBe(false);
 	});
 });

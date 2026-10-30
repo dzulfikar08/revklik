@@ -47,7 +47,7 @@ const revenueRows = (t: MigratedTestApp, site: string) =>
 async function postStripe(t: MigratedTestApp, site: string, secret: string, id: string) {
 	const body = JSON.stringify({
 		type: "checkout.session.completed",
-		data: { object: { id, amount_total: 2500, currency: "usd", metadata: {} } },
+		data: { object: { id, payment_status: "paid", amount_total: 2500, currency: "usd", metadata: {} } },
 	});
 	const ts = Math.floor(Date.now() / 1000);
 	return t.call("POST", `/api/webhooks/stripe?site_id=${site}`, {
@@ -62,7 +62,7 @@ async function postStripe(t: MigratedTestApp, site: string, secret: string, id: 
 async function postLemon(t: MigratedTestApp, site: string, secret: string, id: string) {
 	const body = JSON.stringify({
 		meta: { event_name: "order_created" },
-		data: { id, attributes: { total: 1000, currency: "usd" } },
+		data: { id, attributes: { status: "paid", total: 1000, currency: "usd" } },
 	});
 	return t.call("POST", `/api/webhooks/lemonsqueezy?site_id=${site}`, {
 		body,

@@ -33,6 +33,18 @@ const MONEY_PRECISION = 1e6;
 const NET_EPSILON = 1e-9;
 const REFUND_SUFFIX = ":refund";
 
+/**
+ * Idempotency key of the sale a refund row belongs to: `<sale>:refund` and the
+ * later-partial form `<sale>~<step>:refund` both name `<sale>`. Null for a key
+ * that is not a refund.
+ */
+export function refundedSaleKey(externalId: string): string | null {
+	if (!externalId.endsWith(REFUND_SUFFIX)) return null;
+	const base = externalId.slice(0, -REFUND_SUFFIX.length);
+	const step = base.indexOf("~");
+	return step === -1 ? base : base.slice(0, step);
+}
+
 /** Source-name prefixes mapped to a canonical rail, first match wins. */
 const SOURCE_RAIL_PREFIXES: ReadonlyArray<readonly [string, string]> = [
 	["app_store", "apple"],
@@ -189,12 +201,13 @@ export async function resolveNet(db: Kysely<KlikapaDatabase>, input: NetInput): 
 		return { net_revenue: input.reportedNet, net_source: "reported" };
 	}
 
-	if (input.externalId?.endsWith(REFUND_SUFFIX)) {
+	const refundedSale = input.externalId ? refundedSaleKey(input.externalId) : null;
+	if (refundedSale) {
 		const sale = await db
 			.selectFrom("events")
 			.select(["revenue", "net_revenue"])
 			.where("site_id", "=", input.siteId)
-			.where("external_id", "=", input.externalId.slice(0, -REFUND_SUFFIX.length))
+			.where("external_id", "=", refundedSale)
 			// Naming is_bot opts out of the events plugin, so a test sale's refund still finds it.
 			.where("is_bot", "in", [0, 1])
 			.executeTakeFirst();
@@ -223,12 +236,4 @@ export async function resolveNet(db: Kysely<KlikapaDatabase>, input: NetInput): 
 		net_revenue: netAfterRule(input.revenue, currency, rule, rates),
 		net_source: "rule",
 	};
-}
-
-/** Columns a provider webhook adds to its events insert: rail and the computed net. */
-export async function webhookRevenueFields(
-	db: Kysely<KlikapaDatabase>,
-	input: Omit<NetInput, "reportedNet">,
-): Promise<NetFields & { rail: string }> {
-	return { rail: input.rail, ...(await resolveNet(db, input)) };
 }

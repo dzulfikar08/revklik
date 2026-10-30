@@ -30,11 +30,12 @@ function insertRevenue(t: MigratedTestApp, site: string, amount: number, currenc
 }
 
 describe("fx", () => {
-	it("converts through USD and treats unknown currencies as USD", () => {
+	it("converts through USD and leaves unknown currencies out instead of guessing USD", () => {
 		const rates = usdRates({ FX_USD_IDR: "15000" });
 		expect(convertAmount(15_000, "IDR", "USD", rates)).toBeCloseTo(1);
 		expect(convertAmount(1, "USD", "IDR", rates)).toBe(15_000);
-		expect(convertAmount(5, "XYZ", "USD", rates)).toBe(5);
+		expect(convertAmount(5, "XYZ", "USD", rates)).toBe(0);
+		expect(convertAmount(5, "XYZ", "XYZ", rates)).toBe(5);
 		expect(usdRates().IDR).toBe(16_000);
 	});
 });

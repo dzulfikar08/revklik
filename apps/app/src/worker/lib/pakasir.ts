@@ -152,58 +152,74 @@ export async function activatePakasirPayment(
 		.execute();
 	if (claimed.length === 0) return { activated: false, alreadyProcessed: true };
 
-	// Renewing the same plan stacks onto the paid end; a plan change starts a
-	// fresh 30-day period on the new plan from now.
-	const existing = await db
-		.selectFrom("subscriptions")
-		.select(["status", "plan", "current_period_end"])
-		.where("user_id", "=", userId)
-		.executeTakeFirst();
-	const existingEnd = existing?.current_period_end
-		? new Date(existing.current_period_end).getTime()
-		: 0;
-	const stacks = existing?.status === "active" && existing.plan === plan && existingEnd > nowMs;
-	const baseMs = stacks ? existingEnd : nowMs;
-	const periodStart = new Date(baseMs).toISOString();
-	const periodEnd = new Date(baseMs + PERIOD_MS).toISOString();
+	// The claim above is only valid once the period is granted: a failure in between must hand
+	// the order back to `pending`, or Pakasir's retry would meet "already processed" and the
+	// customer would have paid for nothing.
+	try {
+		// Renewing the same plan stacks onto the paid end; a plan change starts a
+		// fresh 30-day period on the new plan from now.
+		const existing = await db
+			.selectFrom("subscriptions")
+			.select(["status", "plan", "current_period_end"])
+			.where("user_id", "=", userId)
+			.executeTakeFirst();
+		const existingEnd = existing?.current_period_end
+			? new Date(existing.current_period_end).getTime()
+			: 0;
+		const stacks = existing?.status === "active" && existing.plan === plan && existingEnd > nowMs;
+		const baseMs = stacks ? existingEnd : nowMs;
+		const periodStart = new Date(baseMs).toISOString();
+		const periodEnd = new Date(baseMs + PERIOD_MS).toISOString();
 
-	await db
-		.insertInto("subscriptions")
-		.values({
-			id: generateId(),
-			user_id: userId,
-			plan,
-			status: "active",
-			current_period_start: periodStart,
-			current_period_end: periodEnd,
-			cancel_at_period_end: 0,
-			polar_subscription_id: null,
-			polar_customer_id: null,
-			pakasir_order_id: orderId,
-			pakasir_paid_until: periodEnd,
-			created_at: now,
-			updated_at: now,
-		})
-		.onConflict((oc) =>
-			oc.column("user_id").doUpdateSet({
+		await db
+			.insertInto("subscriptions")
+			.values({
+				id: generateId(),
+				user_id: userId,
 				plan,
 				status: "active",
 				current_period_start: periodStart,
 				current_period_end: periodEnd,
 				cancel_at_period_end: 0,
+				polar_subscription_id: null,
+				polar_customer_id: null,
 				pakasir_order_id: orderId,
 				pakasir_paid_until: periodEnd,
+				created_at: now,
 				updated_at: now,
-			}),
-		)
-		.execute();
+			})
+			.onConflict((oc) =>
+				oc.column("user_id").doUpdateSet({
+					plan,
+					status: "active",
+					current_period_start: periodStart,
+					current_period_end: periodEnd,
+					cancel_at_period_end: 0,
+					pakasir_order_id: orderId,
+					pakasir_paid_until: periodEnd,
+					updated_at: now,
+				}),
+			)
+			.execute();
+	} catch (err) {
+		await db
+			.updateTable("pakasir_orders")
+			.set({ status: "pending", processed_at: null })
+			.where("order_id", "=", orderId)
+			.where("status", "=", "completed")
+			.execute()
+			.catch(() => undefined);
+		throw err;
+	}
 
+	// The period is granted for good now; a commission failure must not hand the order back
+	// (a retry would stack a second period), and the commission is keyed so it can be repaired.
 	await recordReferralCommission(
 		db,
 		userId,
 		`pakasir:${orderId}`,
 		convertAmount(amount, "IDR", "USD", input.fxRates ?? usdRates()),
-	);
+	).catch((err) => console.error("[pakasir] referral commission failed for", orderId, err));
 
 	return { activated: true, alreadyProcessed: false };
 }
