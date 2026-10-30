@@ -2,7 +2,7 @@ import { Hono } from "hono";
 import { isSelfHosted } from "../lib/entitlement";
 import { deleteAccount, eraseVisitor, exportVisitor } from "../lib/erasure";
 import { resolveSession } from "../lib/session";
-import { accessibleSite, WRITE_ROLES } from "../lib/site-roles";
+import { requireSiteAccess } from "../lib/site-access";
 import type { Env } from "../types";
 import { normalizeEmail } from "../utils";
 import { requireStepUp } from "./account-links";
@@ -80,11 +80,10 @@ export const visitorPrivacyRoutes = new Hono<Env>();
 
 // DELETE /sites/:siteId/visitors/:visitorId
 visitorPrivacyRoutes.delete("/:siteId/visitors/:visitorId", async (c) => {
-	const db = c.get("db");
 	const siteId = c.req.param("siteId");
 	const visitorId = c.req.param("visitorId");
-	const site = await accessibleSite(db, c.get("userId"), siteId, WRITE_ROLES);
-	if (!site) return c.json({ error: "Site not found", success: false }, 404);
+	const access = await requireSiteAccess(c, siteId, "write");
+	if (access instanceof Response) return access;
 
 	const erased = await eraseVisitor(c.env.DB, siteId, visitorId);
 	const touched = Object.values(erased).reduce((sum, n) => sum + n, 0);
@@ -96,8 +95,8 @@ visitorPrivacyRoutes.delete("/:siteId/visitors/:visitorId", async (c) => {
 visitorPrivacyRoutes.get("/:siteId/visitors/:visitorId/export", async (c) => {
 	const db = c.get("db");
 	const siteId = c.req.param("siteId");
-	const site = await accessibleSite(db, c.get("userId"), siteId);
-	if (!site) return c.json({ error: "Site not found", success: false }, 404);
+	const access = await requireSiteAccess(c, siteId, "read");
+	if (access instanceof Response) return access;
 
 	const data = await exportVisitor(db, siteId, c.req.param("visitorId"));
 	if (!data) return c.json({ error: "Visitor not found", success: false }, 404);

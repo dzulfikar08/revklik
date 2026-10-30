@@ -140,6 +140,14 @@ const SITE_ROUTES: SiteRoute[] = [
 		seed: seedVisitor,
 	},
 	{
+		// GDPR erasure: viewers may read the export but not erase.
+		method: "DELETE",
+		pattern: "/api/sites/:siteId/visitors/:visitorId",
+		url: `/api/sites/${SITE}/visitors/vid-1`,
+		min: "write",
+		seed: seedVisitor,
+	},
+	{
 		method: "POST",
 		pattern: "/api/ai-insights/refresh",
 		url: "/api/ai-insights/refresh",
@@ -323,6 +331,7 @@ const SITE_ROUTES: SiteRoute[] = [
 
 /** Routes that only ever act on the signed-in user's own data (no site id involved). */
 const OWN_DATA_ROUTES = [
+	"DELETE /api/auth/account",
 	"DELETE /api/auth/links/:id",
 	"DELETE /api/push/devices",
 	"DELETE /api/tokens/:id",
