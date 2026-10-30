@@ -1,6 +1,7 @@
 import type { Kysely } from "kysely";
 import type { KlikapaDatabase } from "@revklik/shared";
 import type { EmailBinding } from "./lib/email";
+import type { RateLimitBindings } from "./lib/rate-limit";
 
 export type Variables = {
 	db: Kysely<KlikapaDatabase>;
@@ -9,7 +10,7 @@ export type Variables = {
 	retentionFloor?: string;
 };
 
-export type Bindings = {
+export type Bindings = RateLimitBindings & {
 	// wrangler.jsonc bindings
 	DB: D1Database;
 	EMAIL: EmailBinding;

@@ -1,6 +1,11 @@
 import { Hono } from "hono";
 import type { Compilable, Kysely } from "kysely";
-import type { IdentifyPayload, KlikapaDatabase, TrackEventPayload } from "@revklik/shared";
+import {
+	SCOPES,
+	type IdentifyPayload,
+	type KlikapaDatabase,
+	type TrackEventPayload,
+} from "@revklik/shared";
 import { sql } from "../db";
 import { classifyIngestSignals } from "../lib/bot-detection";
 import {
@@ -13,7 +18,9 @@ import { clientSaleFields, type ClientSaleFields } from "../lib/revenue-hygiene"
 import { accountUsageIncrement } from "../lib/account-usage";
 import { executeBatch } from "../lib/d1-batch";
 import { isSelfHosted } from "../lib/entitlement";
+import { allowRequest, type RateLimitBindings } from "../lib/rate-limit";
 import { enforceSiteQuota, incrementCachedUsage } from "../lib/subscription-cache";
+import { authenticateApiToken, bearerToken } from "../lib/token-auth";
 import {
 	countryFromTimezone,
 	classifyCrawler,
@@ -27,32 +34,52 @@ type Variables = { db: Kysely<KlikapaDatabase> };
 
 export const trackRoutes = new Hono<{
 	Variables: Variables;
-	Bindings: { DB: D1Database; SELF_HOSTED?: string; FX_USD_IDR?: string };
+	Bindings: RateLimitBindings & { DB: D1Database; SELF_HOSTED?: string; FX_USD_IDR?: string };
 }>();
+
+/** Per-IP, per-minute caps; the same figures the wrangler.jsonc rate limiters are declared with. */
+const TRACK_LIMIT_PER_MINUTE = 120;
+const HEARTBEAT_LIMIT_PER_MINUTE = 60;
+const HEAVY_LIMIT_PER_MINUTE = 30;
+
+const MAX_ID_LENGTH = 128;
+const MAX_PATH_LENGTH = 500;
+const MAX_SELECTOR_LENGTH = 500;
+const MAX_ELEMENT_TEXT_LENGTH = 200;
+const MAX_PROFILE_FIELD_LENGTH = 200;
+const MAX_AVATAR_LENGTH = 500;
+
+const isIdString = (value: unknown): value is string =>
+	typeof value === "string" && value.length > 0 && value.length <= MAX_ID_LENGTH;
+
+/** A non-empty string cut to `max` characters, else null. */
+const clip = (value: unknown, max: number): string | null =>
+	typeof value === "string" && value ? value.slice(0, max) : null;
+
+async function visitorKnownToSite(
+	db: Kysely<KlikapaDatabase>,
+	siteId: string,
+	visitorId: string,
+): Promise<boolean> {
+	const profile = await db
+		.selectFrom("visitor_profiles")
+		.select("id")
+		.where("site_id", "=", siteId)
+		.where("visitor_id", "=", visitorId)
+		.executeTakeFirst();
+	if (profile) return true;
+	const event = await db
+		.selectFrom("events")
+		.select("id")
+		.where("site_id", "=", siteId)
+		.where("visitor_id", "=", visitorId)
+		.limit(1)
+		.executeTakeFirst();
+	return event !== undefined;
+}
 
 /** Events accepted per /track request; larger batches are rejected with 413. */
 export const MAX_TRACK_BATCH = 50;
-
-// In-memory rate limiter (per-isolate, resets on Worker recycle)
-const rlMap = new Map<string, { count: number; resetAt: number }>();
-let lastCleanup = Date.now();
-
-function rateLimit(key: string, limit: number, windowMs: number): boolean {
-	const now = Date.now();
-	if (now - lastCleanup > 120_000) {
-		for (const [k, v] of rlMap) {
-			if (now > v.resetAt) rlMap.delete(k);
-		}
-		lastCleanup = now;
-	}
-	const entry = rlMap.get(key);
-	if (!entry || now > entry.resetAt) {
-		rlMap.set(key, { count: 1, resetAt: now + windowMs });
-		return true;
-	}
-	entry.count++;
-	return entry.count <= limit;
-}
 
 // Per-site excluded-fingerprint cache (self-traffic blocklist).
 // Workers isolate memory; cache is best-effort with a short TTL.
@@ -96,7 +123,7 @@ export function invalidateExcludedCache(siteId?: string): void {
 
 trackRoutes.post("/track", async (c) => {
 	const ip = c.req.header("cf-connecting-ip") || "unknown";
-	if (!rateLimit(ip, 120, 60_000)) {
+	if (!(await allowRequest(c.env.RL_TRACK, ip, TRACK_LIMIT_PER_MINUTE))) {
 		return c.json({ error: "Rate limit exceeded", success: false }, 429);
 	}
 
@@ -483,11 +510,30 @@ trackRoutes.post("/track", async (c) => {
 });
 
 trackRoutes.post("/identify", async (c) => {
+	const ip = c.req.header("cf-connecting-ip") || "unknown";
+	if (!(await allowRequest(c.env.RL_TRACK_HEAVY, `id:${ip}`, HEAVY_LIMIT_PER_MINUTE))) {
+		return c.json({ error: "Rate limit exceeded", success: false }, 429);
+	}
+
 	const db = c.get("db");
-	const payload: IdentifyPayload = await c.req.json();
-	const siteId = payload.s;
-	if (!siteId || !payload.vid)
+	const payload = (await c.req.json().catch(() => null)) as IdentifyPayload | null;
+	const siteId = payload?.s;
+	if (!payload || !isIdString(siteId) || !isIdString(payload.vid))
 		return c.json({ error: "site_id and visitor_id required", success: false }, 400);
+
+	const name = clip(payload.name, MAX_PROFILE_FIELD_LENGTH);
+	const email = clip(payload.email, MAX_PROFILE_FIELD_LENGTH);
+	const phone = clip(payload.phone, MAX_PROFILE_FIELD_LENGTH);
+	const avatar = clip(payload.avatar, MAX_AVATAR_LENGTH);
+	if (avatar && !/^https:\/\//i.test(avatar))
+		return c.json({ error: "avatar must be an https URL", success: false }, 400);
+
+	// A site id is public, so it cannot authorise writing personal data on its own. Only a
+	// visitor this site has already recorded (page view, session or event) can be identified,
+	// which needs the random visitor id that only that visitor's browser holds.
+	if (!(await visitorKnownToSite(db, siteId, payload.vid))) {
+		return c.json({ error: "Unknown visitor", success: false }, 404);
+	}
 
 	const enforcement = await enforceSiteQuota(db, siteId, false, isSelfHosted(c.env));
 	if (!enforcement.allowed) {
@@ -502,10 +548,10 @@ trackRoutes.post("/identify", async (c) => {
 			id: generateId(),
 			site_id: siteId,
 			visitor_id: payload.vid,
-			name: payload.name ?? null,
-			email: payload.email ?? null,
-			phone: payload.phone ?? null,
-			avatar: payload.avatar ?? null,
+			name,
+			email,
+			phone,
+			avatar,
 			first_seen: new Date().toISOString(),
 			last_seen: new Date().toISOString(),
 			total_sessions: 0,
@@ -515,10 +561,10 @@ trackRoutes.post("/identify", async (c) => {
 		})
 		.onConflict((oc) =>
 			oc.columns(["site_id", "visitor_id"]).doUpdateSet({
-				name: payload.name ?? undefined,
-				email: payload.email ?? undefined,
-				phone: payload.phone ?? undefined,
-				avatar: payload.avatar ?? undefined,
+				name: name ?? undefined,
+				email: email ?? undefined,
+				phone: phone ?? undefined,
+				avatar: avatar ?? undefined,
 				last_seen: new Date().toISOString(),
 				fingerprint: fingerprint ?? undefined,
 			}),
@@ -531,7 +577,7 @@ trackRoutes.post("/identify", async (c) => {
 // Heatmap tracking endpoint
 trackRoutes.post("/track/heatmap", async (c) => {
 	const ip = c.req.header("cf-connecting-ip") || "unknown";
-	if (!rateLimit(`hm:${ip}`, 60, 60_000)) {
+	if (!(await allowRequest(c.env.RL_TRACK, `hm:${ip}`, HEARTBEAT_LIMIT_PER_MINUTE))) {
 		return c.json({ error: "Rate limit exceeded", success: false }, 429);
 	}
 
@@ -540,6 +586,8 @@ trackRoutes.post("/track/heatmap", async (c) => {
 	const siteId = body.s;
 	if (!siteId || !body.sid || !body.vid)
 		return c.json({ error: "s, sid, vid required", success: false }, 400);
+	if (!isIdString(body.sid) || !isIdString(body.vid))
+		return c.json({ error: "sid and vid must be short strings", success: false }, 400);
 
 	const site = await db
 		.selectFrom("sites")
@@ -553,7 +601,7 @@ trackRoutes.post("/track/heatmap", async (c) => {
 		return c.json({ success: true, reason: enforcement.reason }, { status: 202 });
 	}
 
-	const path = body.p || "/";
+	const path = clip(body.p, MAX_PATH_LENGTH) ?? "/";
 	const ts = new Date().toISOString();
 
 	if (body.t === "click") {
@@ -567,8 +615,8 @@ trackRoutes.post("/track/heatmap", async (c) => {
 				path,
 				x: Number(body.x) || 0,
 				y: Number(body.y) || 0,
-				element_selector: body.sel ?? null,
-				element_text: body.txt ?? null,
+				element_selector: clip(body.sel, MAX_SELECTOR_LENGTH),
+				element_text: clip(body.txt, MAX_ELEMENT_TEXT_LENGTH),
 				viewport_width: body.vw ?? null,
 				timestamp: ts,
 			})
@@ -598,7 +646,7 @@ trackRoutes.post("/track/heatmap", async (c) => {
 // Session recording endpoint
 trackRoutes.post("/track/recording", async (c) => {
 	const ip = c.req.header("cf-connecting-ip") || "unknown";
-	if (!rateLimit(`rec:${ip}`, 30, 60_000)) {
+	if (!(await allowRequest(c.env.RL_TRACK_HEAVY, `rec:${ip}`, HEAVY_LIMIT_PER_MINUTE))) {
 		return c.json({ error: "Rate limit exceeded", success: false }, 429);
 	}
 
@@ -607,6 +655,8 @@ trackRoutes.post("/track/recording", async (c) => {
 	const siteId = body.s;
 	if (!siteId || !body.sid || !body.vid)
 		return c.json({ error: "s, sid, vid required", success: false }, 400);
+	if (!isIdString(body.sid) || !isIdString(body.vid))
+		return c.json({ error: "sid and vid must be short strings", success: false }, 400);
 	if (!Array.isArray(body.chunk) || body.chunk.length === 0)
 		return c.json({ error: "chunk required", success: false }, 400);
 	if (body.chunk.length > 200)
@@ -624,7 +674,7 @@ trackRoutes.post("/track/recording", async (c) => {
 		return c.json({ success: true, reason: enforcement.reason }, { status: 202 });
 	}
 
-	const path = body.p || "/";
+	const path = clip(body.p, MAX_PATH_LENGTH) ?? "/";
 	const ts = new Date().toISOString();
 	const chunkEvents = JSON.stringify(body.chunk);
 	const lastEvent = body.chunk[body.chunk.length - 1];
@@ -634,6 +684,7 @@ trackRoutes.post("/track/recording", async (c) => {
 	const existing = await db
 		.selectFrom("session_recordings")
 		.select(["id"])
+		.where("site_id", "=", siteId)
 		.where("session_id", "=", body.sid)
 		.executeTakeFirst();
 
@@ -675,7 +726,7 @@ trackRoutes.post("/track/recording", async (c) => {
 // Server-side Payment API — track payments from any provider (DataFast-style)
 trackRoutes.post("/track/payment", async (c) => {
 	const ip = c.req.header("cf-connecting-ip") || "unknown";
-	if (!rateLimit(`pay:${ip}`, 30, 60_000)) {
+	if (!(await allowRequest(c.env.RL_TRACK_HEAVY, `pay:${ip}`, HEAVY_LIMIT_PER_MINUTE))) {
 		return c.json({ error: "Rate limit exceeded", success: false }, 429);
 	}
 
@@ -697,6 +748,22 @@ trackRoutes.post("/track/payment", async (c) => {
 	if (revenue === null) {
 		return c.json({ error: "amount must be a number between 0 and 1e9", success: false }, 400);
 	}
+
+	// Revenue is only accepted from a trusted server: an events:write token for this site.
+	// A site id is public (it sits in the tracker snippet), so it cannot authorise a sale.
+	const token = bearerToken(c.req.header("Authorization"));
+	if (!token) {
+		return c.json(
+			{ error: "Authorization: Bearer <token with events:write> required", success: false },
+			401,
+		);
+	}
+	const auth = await authenticateApiToken(db, token, {
+		scope: SCOPES.EVENTS_WRITE,
+		siteId,
+		action: "write",
+	});
+	if (!auth.ok) return c.json({ error: auth.error, success: false }, auth.status);
 
 	const site = await db
 		.selectFrom("sites")
