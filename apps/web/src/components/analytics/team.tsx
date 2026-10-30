@@ -27,6 +27,8 @@ import {
 import type { LegacyTeamMember, TeamRole } from "@/lib/legacy/team";
 import { LegacyApiError } from "@/lib/legacy/api";
 import { useT } from "@/lib/i18n";
+
+import { useSiteAccess } from "./use-site-access";
 import type { MessageKey } from "@/lib/i18n";
 
 import { Panel } from "./ui";
@@ -46,11 +48,14 @@ const MemberRow = ({
 	onRole,
 	onRemove,
 	busy,
+	canEdit,
 }: {
 	member: LegacyTeamMember;
 	onRole: (id: string, role: TeamRole) => void;
 	onRemove: (id: string) => void;
 	busy: boolean;
+	/** Only the site owner changes roles or removes people. */
+	canEdit: boolean;
 }) => {
 	const t = useT();
 	const who = member.email ?? member.name ?? t("team.memberFallback");
@@ -73,32 +78,40 @@ const MemberRow = ({
 			>
 				{member.accepted_at ? t("team.status.active") : t("team.status.invited")}
 			</span>
-			<Select value={member.role} onValueChange={(v) => onRole(member.id, String(v) as TeamRole)}>
-				<SelectTrigger aria-label={t("team.roleFor", { who })} className="h-7 w-24 text-xs">
-					<SelectValue>
-						{(value: string | null) => {
-							const r = ROLES.find((x) => x.value === value);
-							return r ? t(r.labelKey) : null;
-						}}
-					</SelectValue>
-				</SelectTrigger>
-				<SelectContent>
-					{ROLES.map((r) => (
-						<SelectItem key={r.value} value={r.value}>
-							{t(r.labelKey)}
-						</SelectItem>
-					))}
-				</SelectContent>
-			</Select>
-			<button
-				type="button"
-				aria-label={t("team.removeWho", { who })}
-				disabled={busy}
-				onClick={() => onRemove(member.id)}
-				className="text-muted-foreground hover:text-(--down) focus-visible:outline-ring rounded p-1 outline-offset-2 focus-visible:outline-2 disabled:opacity-40"
-			>
-				<Trash2 className="size-3.5" aria-hidden />
-			</button>
+			{canEdit ? (
+				<Select value={member.role} onValueChange={(v) => onRole(member.id, String(v) as TeamRole)}>
+					<SelectTrigger aria-label={t("team.roleFor", { who })} className="h-7 w-24 text-xs">
+						<SelectValue>
+							{(value: string | null) => {
+								const r = ROLES.find((x) => x.value === value);
+								return r ? t(r.labelKey) : null;
+							}}
+						</SelectValue>
+					</SelectTrigger>
+					<SelectContent>
+						{ROLES.map((r) => (
+							<SelectItem key={r.value} value={r.value}>
+								{t(r.labelKey)}
+							</SelectItem>
+						))}
+					</SelectContent>
+				</Select>
+			) : (
+				<span className="bg-muted text-muted-foreground rounded-full px-2 py-0.5 text-[11px] font-medium">
+					{t(ROLES.find((x) => x.value === member.role)?.labelKey ?? "team.role.viewer")}
+				</span>
+			)}
+			{canEdit ? (
+				<button
+					type="button"
+					aria-label={t("team.removeWho", { who })}
+					disabled={busy}
+					onClick={() => onRemove(member.id)}
+					className="text-muted-foreground hover:text-(--down) focus-visible:outline-ring rounded p-1 outline-offset-2 focus-visible:outline-2 disabled:opacity-40"
+				>
+					<Trash2 className="size-3.5" aria-hidden />
+				</button>
+			) : null}
 		</li>
 	);
 };
@@ -106,6 +119,7 @@ const MemberRow = ({
 export const TeamSection = ({ siteId }: { siteId: string }) => {
 	const qc = useQueryClient();
 	const t = useT();
+	const canEdit = useSiteAccess(siteId).can.owner;
 	const [email, setEmail] = useState("");
 	const [role, setRole] = useState<TeamRole>("viewer");
 
@@ -169,53 +183,55 @@ export const TeamSection = ({ siteId }: { siteId: string }) => {
 				<p className="text-muted-foreground py-4 text-center text-xs">{t("team.connectSite")}</p>
 			) : (
 				<>
-					<div className="mb-2.5 flex flex-wrap items-center gap-2">
-						<span className="text-muted-foreground flex items-center gap-1 text-xs">
-							<UserPlus className="size-3.5" aria-hidden />
-							{t("team.invite")}
-						</span>
-						<Input
-							type="email"
-							value={email}
-							placeholder={t("team.emailPlaceholder")}
-							aria-label={t("team.inviteeEmail")}
-							onChange={(e) => setEmail(e.target.value)}
-							onKeyDown={(e) => {
-								if (e.key === "Enter") {
-									submitInvite();
-								}
-							}}
-							className={`h-8 w-56 text-xs ${email && !emailOk ? "border-(--down)" : ""}`}
-						/>
-						<Select value={role} onValueChange={(v) => setRole(String(v) as TeamRole)}>
-							<SelectTrigger aria-label={t("team.inviteeRole")} className="h-8 w-28 text-xs">
-								<SelectValue>
-									{(value: string | null) => {
-										const r = ROLES.find((x) => x.value === value);
-										return r ? t(r.labelKey) : null;
-									}}
-								</SelectValue>
-							</SelectTrigger>
-							<SelectContent>
-								{ROLES.map((r) => (
-									<SelectItem key={r.value} value={r.value}>
-										{t(r.labelKey)}
-									</SelectItem>
-								))}
-							</SelectContent>
-						</Select>
-						<Button
-							size="sm"
-							className="h-8 text-xs"
-							disabled={!emailOk || inviteMut.isPending}
-							onClick={submitInvite}
-						>
-							{t("team.sendInvite")}
-						</Button>
-						{email && !emailOk ? (
-							<span className="text-(--down) text-[11px]">{t("team.invalidEmail")}</span>
-						) : null}
-					</div>
+					{canEdit ? (
+						<div className="mb-2.5 flex flex-wrap items-center gap-2">
+							<span className="text-muted-foreground flex items-center gap-1 text-xs">
+								<UserPlus className="size-3.5" aria-hidden />
+								{t("team.invite")}
+							</span>
+							<Input
+								type="email"
+								value={email}
+								placeholder={t("team.emailPlaceholder")}
+								aria-label={t("team.inviteeEmail")}
+								onChange={(e) => setEmail(e.target.value)}
+								onKeyDown={(e) => {
+									if (e.key === "Enter") {
+										submitInvite();
+									}
+								}}
+								className={`h-8 w-56 text-xs ${email && !emailOk ? "border-(--down)" : ""}`}
+							/>
+							<Select value={role} onValueChange={(v) => setRole(String(v) as TeamRole)}>
+								<SelectTrigger aria-label={t("team.inviteeRole")} className="h-8 w-28 text-xs">
+									<SelectValue>
+										{(value: string | null) => {
+											const r = ROLES.find((x) => x.value === value);
+											return r ? t(r.labelKey) : null;
+										}}
+									</SelectValue>
+								</SelectTrigger>
+								<SelectContent>
+									{ROLES.map((r) => (
+										<SelectItem key={r.value} value={r.value}>
+											{t(r.labelKey)}
+										</SelectItem>
+									))}
+								</SelectContent>
+							</Select>
+							<Button
+								size="sm"
+								className="h-8 text-xs"
+								disabled={!emailOk || inviteMut.isPending}
+								onClick={submitInvite}
+							>
+								{t("team.sendInvite")}
+							</Button>
+							{email && !emailOk ? (
+								<span className="text-(--down) text-[11px]">{t("team.invalidEmail")}</span>
+							) : null}
+						</div>
+					) : null}
 
 					{isLoading ? (
 						<p className="text-muted-foreground py-3 text-center text-xs">{t("team.loading")}</p>
@@ -242,6 +258,7 @@ export const TeamSection = ({ siteId }: { siteId: string }) => {
 									key={m.id}
 									member={m}
 									busy={roleMut.isPending || removeMut.isPending}
+									canEdit={canEdit}
 									onRole={(id, next) => roleMut.mutate({ id, next })}
 									onRemove={(id) => removeMut.mutate(id)}
 								/>
