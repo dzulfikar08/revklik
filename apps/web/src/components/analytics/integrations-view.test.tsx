@@ -31,7 +31,7 @@ describe("Integrations page", () => {
 			expect(html).toContain(`>${tab}</button>`);
 		}
 		expect(html).not.toContain("Webhooks</button>");
-		expect(html).toMatch(/aria-selected="true"[^>]*>Payments</);
+		expect(html).toMatch(/aria-pressed="true"[^>]*>Payments</);
 		expect(html).not.toContain("App Store Connect");
 		expect(html).not.toContain("Pakasir");
 		expect(html.toLowerCase()).not.toContain("nicepay");
