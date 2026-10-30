@@ -10,7 +10,6 @@ import { MousePointerClick } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { fetchHeatmap, GrowthPlanLockedError } from "@/lib/legacy/growth";
-import type { HeatmapData } from "@/lib/legacy/growth";
 import { useT } from "@/lib/i18n";
 import { fmt } from "./data";
 import type { RangeKey } from "./data";
@@ -132,13 +131,9 @@ export const HeatmapPanel = ({
 	const maxElementClicks = data ? Math.max(...data.topElements.map((el) => el.clicks), 1) : 1;
 
 	return (
-		<Panel title="Heatmap" hint="clicks · scroll depth">
+		<Panel title={t("heatmap.title")} hint={t("heatmap.hint")}>
 			{q.error instanceof GrowthPlanLockedError ? (
-				<GrowthLocked
-					blurb="See where visitors click and how far they scroll on every page."
-					feature="Heatmaps"
-					onUpgrade={onUpgrade}
-				/>
+				<GrowthLocked feature={t("heatmap.feature")} onUpgrade={onUpgrade} />
 			) : q.error ? (
 				<GrowthMsg>{q.error.message}</GrowthMsg>
 			) : (
@@ -160,9 +155,11 @@ export const HeatmapPanel = ({
 							<span className="text-muted-foreground ml-auto flex items-center gap-3 font-mono text-xs tabular-nums">
 								<span className="flex items-center gap-1">
 									<MousePointerClick className="h-3.5 w-3.5" aria-hidden />
-									{fmt(data.totalClicks)} clicks
+									{t("heatmap.clicks", { c: fmt(data.totalClicks), n: data.totalClicks })}
 								</span>
-								<span>{fmt(data.totalSessions)} sessions</span>
+								<span>
+									{t("heatmap.sessions", { c: fmt(data.totalSessions), n: data.totalSessions })}
+								</span>
 							</span>
 						) : null}
 					</div>
@@ -173,7 +170,7 @@ export const HeatmapPanel = ({
 						<GrowthMsg>
 							<CodeSentence
 								template={t("heatmap.empty")}
-								codes={{ attr: 'data-heatmap="true"', consent: "klikapa_consent.heatmap" }}
+								codes={{ attr: 'data-heatmap="true"', consent: "revklik_consent.heatmap" }}
 							/>
 						</GrowthMsg>
 					) : (
@@ -183,7 +180,9 @@ export const HeatmapPanel = ({
 							</div>
 							<div className="flex min-w-0 flex-col gap-3">
 								<div>
-									<p className="text-muted-foreground mb-1.5 text-xs font-medium">Scroll depth</p>
+									<p className="text-muted-foreground mb-1.5 text-xs font-medium">
+										{t("heatmap.scrollDepth")}
+									</p>
 									<div className="flex flex-col gap-1">
 										{data.scrollDepths.map((s) => (
 											<CountBarRow
@@ -198,7 +197,7 @@ export const HeatmapPanel = ({
 								{data.topElements.length > 0 ? (
 									<div>
 										<p className="text-muted-foreground mb-1.5 text-xs font-medium">
-											Top clicked elements
+											{t("heatmap.topElements")}
 										</p>
 										<div className="flex flex-col gap-1">
 											{data.topElements.slice(0, 10).map((el) => (

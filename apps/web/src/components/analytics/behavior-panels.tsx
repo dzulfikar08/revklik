@@ -65,6 +65,7 @@ export const CrawlersPanel = ({ siteId, rangeKey }: { siteId: string; rangeKey: 
 	const [crawlerTab, setCrawlerTab] = useState<CrawlerTabKey>("all");
 	const crawlersQ = useQuery({
 		enabled: Boolean(siteId),
+		meta: { silent: true },
 		queryFn: () => fetchCrawlers(siteId, rangeKey),
 		queryKey: ["legacy", "crawlers", siteId, rangeKey],
 		retry: false,
@@ -260,6 +261,7 @@ export const ExplorePanel = ({
 
 	const visitorsQ = useQuery({
 		enabled: Boolean(siteId),
+		meta: { silent: true },
 		queryFn: () => fetchVisitors(siteId),
 		queryKey: ["legacy", "visitors", siteId],
 		retry: false,

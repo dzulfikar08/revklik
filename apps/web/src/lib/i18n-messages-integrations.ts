@@ -2,4 +2,7 @@
 
 export const integrationsEn = {} as const;
 
-export const integrationsId: Record<Exclude<keyof typeof integrationsEn, `${string}_one`>, string> = {};
+export const integrationsId: Record<
+	Exclude<keyof typeof integrationsEn, `${string}_one`>,
+	string
+> = {};

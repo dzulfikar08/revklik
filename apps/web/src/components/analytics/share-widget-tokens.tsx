@@ -52,7 +52,15 @@ const LiveBadge = ({ label }: { label: string }) => (
 	</span>
 );
 
-const CopyButton = ({ text, label, className }: { text: string; label?: string; className?: string }) => {
+const CopyButton = ({
+	text,
+	label,
+	className,
+}: {
+	text: string;
+	label?: string;
+	className?: string;
+}) => {
 	const t = useT();
 	const [copied, setCopied] = useState(false);
 	return (
@@ -586,7 +594,10 @@ const TokensPanel = ({ sites }: { sites: SiteWithStats[] }) => {
 											value={selectedSiteId}
 											onValueChange={(v) => setSelectedSiteId(String(v))}
 										>
-											<SelectTrigger className="h-8 text-[13px]" aria-label={t("share.tokens.siteAria")}>
+											<SelectTrigger
+												className="h-8 text-[13px]"
+												aria-label={t("share.tokens.siteAria")}
+											>
 												<SelectValue placeholder={t("share.tokens.sitePlaceholder")} />
 											</SelectTrigger>
 											<SelectContent>

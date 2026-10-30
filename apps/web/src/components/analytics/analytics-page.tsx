@@ -118,6 +118,8 @@ const AnalyticsPage = ({
 	const [annotations, setAnnotations] = useState<LegacyAnnotation[]>([]);
 
 	const sitesQ = useQuery({
+		// Failures render inline with a Retry button, not as a toast.
+		meta: { silent: true },
 		queryFn: () => fetchSites(rangeKey),
 		queryKey: ["legacy", "sites", rangeKey],
 		// Keep the previous list visible while a new range loads so the picker does not reset.
@@ -143,6 +145,7 @@ const AnalyticsPage = ({
 	// The URL names the site, so the dashboard loads in parallel with the site list.
 	const dashQ = useQuery({
 		enabled: Boolean(siteId),
+		meta: { silent: true },
 		queryFn: () => fetchDashboard(siteId, rangeKey, filterStr),
 		queryKey: ["legacy", "dash", siteId, rangeKey, filterStr],
 		retry: false,
@@ -327,7 +330,6 @@ const AnalyticsPage = ({
 				currency={dash?.currency}
 				annotations={annotations}
 				onAnnotations={setAnnotations}
-				period={period}
 				loading={dashState.loading}
 				error={dashState.error}
 				onRetry={dashState.onRetry}

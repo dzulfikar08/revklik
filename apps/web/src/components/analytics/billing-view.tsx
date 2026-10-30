@@ -565,9 +565,9 @@ export const BillingView = ({
 	// a paid plan without one was bought with QRIS for a single period.
 	const isQrisPlan = Boolean(
 		sub?.id &&
-			state?.paidActive &&
-			!sub.polar_subscription_id &&
-			!isOpenEnded(sub.current_period_end),
+		state?.paidActive &&
+		!sub.polar_subscription_id &&
+		!isOpenEnded(sub.current_period_end),
 	);
 	const canCancel = Boolean(
 		sub?.id && state?.paidActive && sub.polar_subscription_id && !sub.cancel_at_period_end,

@@ -11,6 +11,7 @@ import type { LucideIcon } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { useT } from "@/lib/i18n";
+import type { MessageKey } from "@/lib/i18n";
 import { agoLabel } from "./data";
 import { fetchRecording, fetchRecordings, GrowthPlanLockedError } from "@/lib/legacy/growth";
 import type { RecordingDetail, RecordingEventType, RecordingSummary } from "@/lib/legacy/growth";
@@ -32,17 +33,19 @@ const formatDuration = (ms: number): string => {
 	return `${m}m ${s % 60}s`;
 };
 
-const deviceOf = (viewport: number | null): { Icon: LucideIcon; label: string } => {
+type TFn = (key: MessageKey, vars?: Record<string, string | number>) => string;
+
+const deviceOf = (viewport: number | null, t: TFn): { Icon: LucideIcon; label: string } => {
 	if (viewport === null) {
-		return { Icon: Monitor, label: "unknown viewport" };
+		return { Icon: Monitor, label: t("recordings.viewportUnknown") };
 	}
 	if (viewport <= 640) {
-		return { Icon: Smartphone, label: `${viewport}px · mobile` };
+		return { Icon: Smartphone, label: t("recordings.deviceMobile", { px: viewport }) };
 	}
 	if (viewport <= 1024) {
-		return { Icon: Tablet, label: `${viewport}px · tablet` };
+		return { Icon: Tablet, label: t("recordings.deviceTablet", { px: viewport }) };
 	}
-	return { Icon: Monitor, label: `${viewport}px · desktop` };
+	return { Icon: Monitor, label: t("recordings.deviceDesktop", { px: viewport }) };
 };
 
 /* ------------------------------- event chrome ------------------------------ */
@@ -92,19 +95,21 @@ const EventIcon = ({ type }: { type: RecordingEventType }) => {
 	}
 };
 
-const eventLabel = (ev: RecordingDetail["events"][number]): string => {
+const eventLabel = (ev: RecordingDetail["events"][number], t: TFn): string => {
 	const d = ev.d as Record<string, unknown>;
 	switch (ev.type) {
 		case "interaction":
-			return `Click at (${d.x}, ${d.y}) on <${d.tg || "??"}>`;
+			return t("recordings.evClick", { x: String(d.x), y: String(d.y), tag: String(d.tg || "??") });
 		case "scroll":
-			return `Scroll to y=${d.y}`;
+			return t("recordings.evScroll", { y: String(d.y) });
 		case "mutation":
-			return `DOM change: ${Array.isArray(d.changes) ? d.changes.length : 0} mutation(s)`;
+			return t("recordings.evMutation", {
+				n: Array.isArray(d.changes) ? d.changes.length : 0,
+			});
 		case "resize":
-			return `Resize to ${d.w}x${d.h}`;
+			return t("recordings.evResize", { w: String(d.w), h: String(d.h) });
 		default:
-			return "Unknown event";
+			return t("recordings.evUnknown");
 	}
 };
 
@@ -122,6 +127,7 @@ const RecordingReplay = ({
 	recording: RecordingDetail;
 	onClose: () => void;
 }) => {
+	const t = useT();
 	const [playing, setPlaying] = useState(false);
 	const [playTime, setPlayTime] = useState(0);
 	const [speed, setSpeed] = useState(1);
@@ -165,19 +171,19 @@ const RecordingReplay = ({
 			<aside
 				role="dialog"
 				aria-modal="true"
-				aria-label="Session recording replay"
+				aria-label={t("recordings.replayLabel")}
 				tabIndex={-1}
 				autoFocus
 				className="bg-card ring-foreground/10 fixed top-0 right-0 z-50 flex h-dvh w-full max-w-md flex-col shadow-2xl ring-1 outline-none sm:max-w-lg"
 				onClick={(e) => e.stopPropagation()}
 			>
 				<div className="border-border/60 flex items-center gap-2 border-b px-4 py-3">
-					<h3 className="text-sm font-semibold">Session Recording</h3>
+					<h3 className="text-sm font-semibold">{t("recordings.replayTitle")}</h3>
 					<span className="text-muted-foreground flex-1 truncate font-mono text-xs">
 						{recording.path}
 					</span>
 					<button
-						aria-label="Close replay"
+						aria-label={t("recordings.close")}
 						className="text-muted-foreground hover:text-foreground hover:bg-muted focus-visible:outline-ring focus-visible:outline-2 outline-offset-2 rounded p-1"
 						onClick={onClose}
 						type="button"
@@ -190,7 +196,7 @@ const RecordingReplay = ({
 				<div className="border-border/60 flex flex-col gap-2 border-b px-4 py-3">
 					<div className="flex items-center gap-2">
 						<button
-							aria-label={playing ? "Pause" : "Play"}
+							aria-label={playing ? t("recordings.pause") : t("recordings.play")}
 							className="bg-primary text-primary-foreground hover:bg-primary/90 focus-visible:outline-ring focus-visible:outline-2 outline-offset-2 flex h-8 w-8 items-center justify-center rounded-md text-sm"
 							onClick={() => setPlaying(!playing)}
 							type="button"
@@ -198,7 +204,7 @@ const RecordingReplay = ({
 							{playing ? "⏸" : "▶"}
 						</button>
 						<button
-							aria-label="Back to start"
+							aria-label={t("recordings.restart")}
 							className="bg-muted text-foreground focus-visible:outline-ring focus-visible:outline-2 outline-offset-2 flex h-8 w-8 items-center justify-center rounded-md text-sm"
 							onClick={reset}
 							type="button"
@@ -225,7 +231,7 @@ const RecordingReplay = ({
 
 					{/* Progress bar with event markers */}
 					<div
-						aria-label="Playback position"
+						aria-label={t("recordings.position")}
 						aria-valuemax={Math.round(totalMs)}
 						aria-valuemin={0}
 						aria-valuenow={Math.round(playTime)}
@@ -267,9 +273,12 @@ const RecordingReplay = ({
 							))}
 					</div>
 					<div className="text-muted-foreground flex gap-3 text-[10px]">
-						<span>{recording.events.length} events</span>
+						<span>{t("recordings.events", { n: recording.events.length })}</span>
 						<span>
-							Viewport: {recording.viewport_width ?? "?"}×{recording.viewport_height ?? "?"}
+							{t("recordings.viewport", {
+								w: recording.viewport_width ?? "?",
+								h: recording.viewport_height ?? "?",
+							})}
 						</span>
 					</div>
 				</div>
@@ -288,10 +297,10 @@ const RecordingReplay = ({
 									{formatDuration(ev.t)}
 								</span>
 								<EventIcon type={ev.type} />
-								<span className="flex-1 truncate">{eventLabel(ev)}</span>
+								<span className="flex-1 truncate">{eventLabel(ev, t)}</span>
 							</div>
 						))}
-						{visibleEvents.length === 0 ? <GrowthMsg>Press play to replay events</GrowthMsg> : null}
+						{visibleEvents.length === 0 ? <GrowthMsg>{t("recordings.pressPlay")}</GrowthMsg> : null}
 					</div>
 				</div>
 			</aside>
@@ -348,15 +357,15 @@ export const RecordingsPanel = ({
 
 	return (
 		<Panel
-			title="Recordings"
-			hint={recordings.length ? `${recordings.length} sessions` : "sessions"}
+			title={t("recordings.title")}
+			hint={
+				recordings.length
+					? t("recordings.hintCount", { n: recordings.length })
+					: t("recordings.hintNone")
+			}
 		>
 			{listLocked ? (
-				<GrowthLocked
-					blurb="Watch exactly what visitors did with session replay."
-					feature="Session recordings"
-					onUpgrade={onUpgrade}
-				/>
+				<GrowthLocked feature={t("recordings.feature")} onUpgrade={onUpgrade} />
 			) : listQ.error ? (
 				<GrowthMsg>{listQ.error.message}</GrowthMsg>
 			) : listQ.isLoading ? (
@@ -365,23 +374,23 @@ export const RecordingsPanel = ({
 				<GrowthMsg>
 					<CodeSentence
 						template={t("recordings.empty")}
-						codes={{ attr: 'data-heatmap="true"', consent: "klikapa_consent.recording" }}
+						codes={{ attr: 'data-heatmap="true"', consent: "revklik_consent.recording" }}
 					/>
 				</GrowthMsg>
 			) : (
 				<table className="w-full text-left text-xs">
 					<thead>
 						<tr className="text-muted-foreground border-border/60 border-b">
-							<th className="py-1.5 pr-2 font-medium">Device</th>
-							<th className="py-1.5 pr-2 font-medium">Path</th>
-							<th className="py-1.5 pr-2 text-right font-medium">Duration</th>
-							<th className="py-1.5 pr-2 text-right font-medium">Events</th>
-							<th className="py-1.5 font-medium">When</th>
+							<th className="py-1.5 pr-2 font-medium">{t("recordings.colDevice")}</th>
+							<th className="py-1.5 pr-2 font-medium">{t("recordings.colPath")}</th>
+							<th className="py-1.5 pr-2 text-right font-medium">{t("recordings.colDuration")}</th>
+							<th className="py-1.5 pr-2 text-right font-medium">{t("recordings.colEvents")}</th>
+							<th className="py-1.5 font-medium">{t("recordings.colWhen")}</th>
 						</tr>
 					</thead>
 					<tbody>
 						{recordings.map((rec: RecordingSummary) => {
-							const dev = deviceOf(rec.viewport_width);
+							const dev = deviceOf(rec.viewport_width, t);
 							return (
 								<tr
 									className="hover:bg-muted/60 border-border/40 cursor-pointer border-b last:border-b-0"
@@ -432,7 +441,7 @@ export const RecordingsPanel = ({
 							<div className="p-4">
 								<GrowthMsg>
 									{detailQ.error instanceof GrowthPlanLockedError
-										? "Session recordings are a Growth feature."
+										? t("recordings.locked")
 										: detailQ.error.message}
 								</GrowthMsg>
 							</div>

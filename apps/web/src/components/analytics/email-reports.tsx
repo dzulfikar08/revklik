@@ -146,9 +146,12 @@ export const EmailReportsSection = ({ siteId }: { siteId: string }) => {
 									<span className="w-20 font-mono text-xs">{frequencyLabel(r.frequency)}</span>
 									<button
 										type="button"
-										aria-label={t(r.enabled ? "emailReports.disableAria" : "emailReports.enableAria", {
-											frequency: frequencyLabel(r.frequency).toLowerCase(),
-										})}
+										aria-label={t(
+											r.enabled ? "emailReports.disableAria" : "emailReports.enableAria",
+											{
+												frequency: frequencyLabel(r.frequency).toLowerCase(),
+											},
+										)}
 										disabled={toggleMut.isPending}
 										onClick={() => toggleMut.mutate({ id: r.id, enabled: !r.enabled })}
 										className={`focus-visible:outline-ring rounded-full px-2 py-0.5 text-[11px] font-medium outline-offset-2 focus-visible:outline-2 ${

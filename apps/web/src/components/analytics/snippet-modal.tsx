@@ -8,6 +8,7 @@ import { useT } from "@/lib/i18n";
 import { connectSSE, fetchDashboard } from "@/lib/legacy/api";
 import type { SiteWithStats } from "@/lib/legacy/api";
 import { fetchSiteSnippet } from "@/lib/legacy/sites";
+import { withConsentRequired } from "@/lib/snippet-consent";
 import { useModalDialog } from "@/lib/use-modal-dialog";
 
 /** What the modal needs from a site; a freshly created one has no stats yet. */
@@ -117,7 +118,9 @@ export const SnippetModal = ({ site, onClose }: { site: SnippetSite; onClose: ()
 		retry: false,
 	});
 
-	const snippet = snippetQ.data?.snippet ?? "";
+	const [consentRequired, setConsentRequired] = useState(false);
+	const baseSnippet = snippetQ.data?.snippet ?? "";
+	const snippet = consentRequired ? withConsentRequired(baseSnippet) : baseSnippet;
 	const agentPrompt = `Install RevKlik analytics on this website.
 
 Site ID: ${site.id}
@@ -190,6 +193,19 @@ https://revklik.com/docs.txt`;
 							? t("snippet.error")
 							: snippet}
 				</pre>
+
+				<label className="mt-3 flex items-start gap-2.5 text-[13px]">
+					<input
+						type="checkbox"
+						checked={consentRequired}
+						onChange={(e) => setConsentRequired(e.target.checked)}
+						className="accent-foreground pointer-coarse:size-5 mt-0.5 size-4 shrink-0"
+					/>
+					<span>
+						<span className="font-medium">{t("snippet.consent")}</span>
+						<span className="text-muted-foreground block">{t("snippet.consentHint")}</span>
+					</span>
+				</label>
 
 				<div className="mt-3 flex justify-end">
 					<Button

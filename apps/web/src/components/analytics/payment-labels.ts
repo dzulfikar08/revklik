@@ -44,3 +44,15 @@ export const paymentMethodLabel = (method: string): string => METHOD_LABELS[norm
 
 export const paymentProviderLabel = (provider: string): string =>
 	PROVIDER_LABELS[norm(provider)] ?? provider;
+
+const RAIL_LABELS: Record<string, string> = {
+	apple: "App Store",
+	google_play: "Google Play",
+	other: "Other",
+};
+
+/** Name for a canonical revenue rail: store rails first, then the payment providers. */
+export const railLabel = (rail: string): string => {
+	const key = norm(rail);
+	return RAIL_LABELS[key] ?? PROVIDER_LABELS[key] ?? rail;
+};

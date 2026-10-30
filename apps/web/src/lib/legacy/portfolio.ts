@@ -61,8 +61,18 @@ export type FeeRuleInput =
 	| { rail: string; percent_bps: number; fixed_amount: number; fixed_currency: string | null }
 	| { rail: string; reset: true };
 
-export const fetchPortfolio = (from: string, to: string): Promise<PortfolioRevenue> =>
-	legacyFetch(`/portfolio/revenue?from=${from}&to=${to}`);
+/** `currency` converts every figure; omitted, the API picks the owner's most common site currency. */
+export const fetchPortfolio = (
+	from: string,
+	to: string,
+	currency?: string,
+): Promise<PortfolioRevenue> => {
+	const p = new URLSearchParams({ from, to });
+	if (currency) {
+		p.set("currency", currency);
+	}
+	return legacyFetch(`/portfolio/revenue?${p}`);
+};
 
 export const fetchFeeRules = (): Promise<FeeRule[]> => legacyFetch("/fee-rules");
 

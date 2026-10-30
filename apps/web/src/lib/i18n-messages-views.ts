@@ -43,7 +43,7 @@ export const viewsEn = {
 	"share.widget.regeneratedToast": "Widget token regenerated. Update the embed snippet.",
 	"share.widget.bubble": "Bubble",
 	"share.widget.badgeMode": "Badge",
-	"share.widget.tz": "Timezone for \"today\"",
+	"share.widget.tz": 'Timezone for "today"',
 	"share.widget.tzAria": "Widget timezone offset",
 	"share.widget.tzYou": "you",
 	"share.widget.tzNote": "Day boundaries for the widget's visitor counts.",
@@ -58,10 +58,9 @@ export const viewsEn = {
 	"share.tokens.creating": "Creating…",
 	"share.tokens.cancel": "Cancel",
 	"share.tokens.done": "Done",
-	"share.tokens.limitReached":
-		"Token limit reached. Your {plan} plan allows up to {limit} tokens.",
+	"share.tokens.limitReached": "Token limit reached. Your {plan} plan allows up to {limit} tokens.",
 	"share.tokens.copyOnce": "Copy this token now. It won't be shown again.",
-	"share.tokens.created": "Token \"{name}\" created.",
+	"share.tokens.created": 'Token "{name}" created.',
 	"share.tokens.name": "Token name",
 	"share.tokens.namePlaceholder": "e.g. My CLI, CI/CD, Analytics export",
 	"share.tokens.type": "Token type",
@@ -78,7 +77,8 @@ export const viewsEn = {
 	"share.tokens.scope.analyticsExport": "Export analytics data",
 	"share.tokens.scope.tokensRead": "List API tokens",
 	"share.tokens.scope.tokensWrite": "Create and revoke tokens",
-	"share.tokens.empty": "No API tokens yet. Create one to authenticate CLI commands or API requests.",
+	"share.tokens.empty":
+		"No API tokens yet. Create one to authenticate CLI commands or API requests.",
 	"share.tokens.createdOn": "Created {date}",
 	"share.tokens.lastUsed": "Last used {date}",
 	"share.tokens.revoke": "Revoke",
@@ -214,7 +214,7 @@ export const viewsId: Record<Exclude<keyof typeof viewsEn, `${string}_one`>, str
 	"share.widget.regeneratedToast": "Token widget dibuat ulang. Perbarui kode embed-nya.",
 	"share.widget.bubble": "Gelembung",
 	"share.widget.badgeMode": "Lencana",
-	"share.widget.tz": "Zona waktu untuk \"hari ini\"",
+	"share.widget.tz": 'Zona waktu untuk "hari ini"',
 	"share.widget.tzAria": "Selisih zona waktu widget",
 	"share.widget.tzYou": "kamu",
 	"share.widget.tzNote": "Batas hari untuk hitungan pengunjung di widget.",
@@ -230,7 +230,7 @@ export const viewsId: Record<Exclude<keyof typeof viewsEn, `${string}_one`>, str
 	"share.tokens.done": "Selesai",
 	"share.tokens.limitReached": "Batas token tercapai. Paket {plan} boleh sampai {limit} token.",
 	"share.tokens.copyOnce": "Salin token ini sekarang. Token tidak akan ditampilkan lagi.",
-	"share.tokens.created": "Token \"{name}\" dibuat.",
+	"share.tokens.created": 'Token "{name}" dibuat.',
 	"share.tokens.name": "Nama token",
 	"share.tokens.namePlaceholder": "mis. CLI saya, CI/CD, ekspor analitik",
 	"share.tokens.type": "Jenis token",
@@ -304,7 +304,8 @@ export const viewsId: Record<Exclude<keyof typeof viewsEn, `${string}_one`>, str
 	"settings.privacy.err.email": "Email itu tidak cocok dengan akunmu.",
 	"settings.privacy.err.password": "Kata sandimu salah.",
 	"settings.privacy.err.recent": "Masuk lagi, lalu hapus akunmu dalam 10 menit.",
-	"settings.privacy.err.throttled": "Terlalu banyak percobaan. Tunggu beberapa menit, lalu coba lagi.",
+	"settings.privacy.err.throttled":
+		"Terlalu banyak percobaan. Tunggu beberapa menit, lalu coba lagi.",
 	"settings.privacy.err.billing":
 		"Langgananmu belum berhasil dibatalkan, jadi belum ada yang dihapus. Coba lagi sebentar lagi.",
 	"settings.privacy.err.timeout":
@@ -342,8 +343,7 @@ export const viewsId: Record<Exclude<keyof typeof viewsEn, `${string}_one`>, str
 		"Laju terbaru kamu diteruskan apa adanya. Belum memperhitungkan musim ramai, kampanye, atau refund yang akan datang.",
 	"forecast.noSales":
 		"Belum ada penjualan tercatat. Setelah ada {minSales} penjualan dalam {minDays} hari, di sini terlihat arah lajunya.",
-	"forecast.tooFewDays":
-		"Baru {have} hari penuh data. Proyeksi butuh minimal {minDays} hari.",
+	"forecast.tooFewDays": "Baru {have} hari penuh data. Proyeksi butuh minimal {minDays} hari.",
 	"forecast.tooFewSales":
 		"Baru {n} penjualan. Proyeksi butuh minimal {minSales} supaya layak ditampilkan.",
 };

@@ -38,9 +38,9 @@ describe("QueryCache error toast policy", () => {
 		).rejects.toThrow("kaboom");
 
 		expect(mocks.error).toHaveBeenCalledExactlyOnceWith(
-			"Error: kaboom",
+			"The data didn't load.",
 			expect.objectContaining({
-				action: expect.objectContaining({ label: "retry" }),
+				action: expect.objectContaining({ label: "Try again" }),
 			}),
 		);
 	});
@@ -75,7 +75,7 @@ describe("QueryCache error toast policy", () => {
 			qc.fetchQuery({ queryFn: boom, queryKey: ["loud"], retry: false }),
 		).rejects.toThrow("kaboom");
 
-		expect(mocks.error).toHaveBeenCalledExactlyOnceWith("Error: kaboom", expect.anything());
+		expect(mocks.error).toHaveBeenCalledExactlyOnceWith("The data didn't load.", expect.anything());
 	});
 
 	it("stays quiet on 402 subscription_inactive (the upgrade lock covers it)", async () => {

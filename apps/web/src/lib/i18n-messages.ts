@@ -5,11 +5,15 @@
  * Indonesian side never needs them.
  */
 
+import { behaviorEn, behaviorId } from "./i18n-messages-behavior";
 import { shellEn, shellId } from "./i18n-messages-shell";
+import { visitorsEn, visitorsId } from "./i18n-messages-visitors";
 import { viewsEn, viewsId } from "./i18n-messages-views";
 
 const en = {
 	...shellEn,
+	...behaviorEn,
+	...visitorsEn,
 	// language toggle
 	"locale.label": "Language",
 
@@ -180,7 +184,7 @@ const en = {
 	"billing.includes.micro": "Includes",
 	"billing.includes.starter": "Everything in Micro, plus",
 	"billing.includes.growth": "Everything in Starter, plus",
-	"billing.feature.cookieless": "Privacy-first tracking without cookies",
+	"billing.feature.cookieless": "No third-party cookies",
 	"billing.feature.profiles": "Visitor profiles",
 	"billing.feature.utm": "Campaign (UTM) tracking",
 	"billing.feature.csv": "CSV export",
@@ -372,6 +376,8 @@ type BaseKey = Exclude<MessageKey, `${string}_one`>;
 
 const id: Record<BaseKey, string> = {
 	...shellId,
+	...behaviorId,
+	...visitorsId,
 	"locale.label": "Bahasa",
 
 	"auth.signIn.title": "Selamat datang lagi",
@@ -530,7 +536,7 @@ const id: Record<BaseKey, string> = {
 	"billing.includes.micro": "Sudah termasuk",
 	"billing.includes.starter": "Semua fitur Micro, ditambah",
 	"billing.includes.growth": "Semua fitur Starter, ditambah",
-	"billing.feature.cookieless": "Pelacakan tanpa cookie, ramah privasi",
+	"billing.feature.cookieless": "Tanpa cookie pihak ketiga",
 	"billing.feature.profiles": "Profil pengunjung",
 	"billing.feature.utm": "Pelacakan kampanye (UTM)",
 	"billing.feature.csv": "Ekspor CSV",

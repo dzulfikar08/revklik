@@ -26,6 +26,18 @@ export const shellEn = {
 	"theme.light": "Light",
 	"theme.dark": "Dark",
 
+	// sites overview
+	"overview.totalVisitors": "Visitors, all sites",
+	"overview.totalRevenue": "Revenue, all sites",
+
+	"portfolio.currency": "Show amounts in",
+	"portfolio.estimated":
+		"{n} sales have no fee from the payment provider. Their net uses your fee rules below.",
+
+	"snippet.consent": "Require consent before tracking",
+	"snippet.consentHint":
+		'Adds data-consent="required". Nothing is stored or sent until you call klikapa.consent(true) after the visitor accepts.',
+
 	// ranges
 	"range.24h": "Last 24 hours",
 	"range.7d": "Last 7 days",
@@ -210,7 +222,7 @@ export const shellEn = {
 	"state.errorOffline": "RevKlik can't be reached. Check your connection, then try again.",
 	"state.errorServer": "Something went wrong on our side. Try again in a moment.",
 	"state.errorBusy": "Too many requests right now. Wait a few seconds, then try again.",
-	"state.errorGeneric": "The data didn't load. Try again.",
+	"state.errorGeneric": "The data didn't load.",
 	"state.retry": "Try again",
 } as const;
 
@@ -235,6 +247,17 @@ export const shellId: Record<Exclude<ShellKey, `${string}_one`>, string> = {
 	"theme.system": "Ikuti sistem",
 	"theme.light": "Terang",
 	"theme.dark": "Gelap",
+
+	"overview.totalVisitors": "Pengunjung, semua situs",
+	"overview.totalRevenue": "Pendapatan, semua situs",
+
+	"portfolio.currency": "Tampilkan dalam mata uang",
+	"portfolio.estimated":
+		"{n} penjualan tidak punya data biaya dari penyedia pembayaran. Angka bersihnya memakai aturan biaya di bawah.",
+
+	"snippet.consent": "Wajibkan persetujuan sebelum melacak",
+	"snippet.consentHint":
+		'Menambahkan data-consent="required". Tidak ada yang disimpan atau dikirim sampai kamu memanggil klikapa.consent(true) setelah pengunjung setuju.',
 
 	"range.24h": "24 jam terakhir",
 	"range.7d": "7 hari terakhir",
@@ -411,6 +434,6 @@ export const shellId: Record<Exclude<ShellKey, `${string}_one`>, string> = {
 	"state.errorOffline": "RevKlik tidak bisa dijangkau. Periksa koneksimu, lalu coba lagi.",
 	"state.errorServer": "Ada masalah di sisi kami. Coba lagi sebentar lagi.",
 	"state.errorBusy": "Terlalu banyak permintaan. Tunggu beberapa detik, lalu coba lagi.",
-	"state.errorGeneric": "Data gagal dimuat. Coba lagi.",
+	"state.errorGeneric": "Data gagal dimuat.",
 	"state.retry": "Coba lagi",
 };

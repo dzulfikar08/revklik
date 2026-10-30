@@ -306,10 +306,15 @@ const DeleteAccountForm = ({ onDeleted }: { onDeleted: () => void }) => {
 							className="h-9 text-xs"
 							autoComplete="current-password"
 						/>
-						<p className="text-muted-foreground text-xs">{t("settings.privacy.accountPasswordHint")}</p>
+						<p className="text-muted-foreground text-xs">
+							{t("settings.privacy.accountPasswordHint")}
+						</p>
 					</div>
 					{error ? (
-						<p className="text-(--down) bg-(--down)/10 rounded-lg px-2.5 py-1.5 text-xs" role="alert">
+						<p
+							className="text-(--down) bg-(--down)/10 rounded-lg px-2.5 py-1.5 text-xs"
+							role="alert"
+						>
 							{error}
 						</p>
 					) : null}

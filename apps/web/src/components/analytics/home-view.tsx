@@ -211,17 +211,21 @@ export const Hero = ({ dash, loading }: { dash: SiteDashboard | undefined; loadi
 	const quiet = stats !== undefined && stats.pageviews === 0 && stats.revenue === 0;
 	const cmp = (key: CompareKey): StatsChange | undefined =>
 		quiet ? undefined : dash?.compare?.[key];
-	const hasNet = stats?.netRevenue !== undefined || loading;
+	const hasNet = stats ? stats.netRevenue !== undefined : true;
 	const conversion =
 		stats && stats.visitors > 0
 			? `${fmtDecimal((stats.conversions / stats.visitors) * 100, 1)}%`
 			: undefined;
-	const prevHint = (change: StatsChange | undefined): ReactNode =>
-		noPrevious(change) ? (
+	const prevHint = (change: StatsChange | undefined): ReactNode => {
+		if (!stats) {
+			return null;
+		}
+		return noPrevious(change) ? (
 			<span className="text-muted-foreground truncate">{t("home.noPrevious")}</span>
 		) : (
 			<span className="text-muted-foreground truncate">{t("home.vsPreviousShort")}</span>
 		);
+	};
 
 	return (
 		<div className="mb-3 grid grid-cols-2 gap-2 lg:grid-cols-4">
@@ -369,7 +373,6 @@ export const ChartCard = ({
 	currency,
 	annotations,
 	onAnnotations,
-	period,
 	loading,
 	error,
 	onRetry,
@@ -385,7 +388,6 @@ export const ChartCard = ({
 	currency: string | undefined;
 	annotations: LegacyAnnotation[];
 	onAnnotations: (a: LegacyAnnotation[]) => void;
-	period: string | undefined;
 	loading: boolean;
 	error: unknown;
 	onRetry: () => void;
@@ -401,7 +403,7 @@ export const ChartCard = ({
 			<div className="mb-3 flex flex-wrap items-center justify-between gap-2">
 				<div>
 					<h2 className="text-sm font-semibold">
-						{t(revenue ? "home.chart.title" : "home.chart.titleVisitors")}
+						{t(revenue || loading ? "home.chart.title" : "home.chart.titleVisitors")}
 					</h2>
 					<div className="text-muted-foreground mt-1 flex items-center gap-4 text-[13px]">
 						{revenue ? (
@@ -418,9 +420,6 @@ export const ChartCard = ({
 				</div>
 				<span className="flex flex-wrap items-center gap-2">
 					<AnnotationsControl siteId={siteId} onAnnotations={onAnnotations} />
-					<span className="text-muted-foreground text-[13px] whitespace-nowrap tabular-nums">
-						{period}
-					</span>
 				</span>
 			</div>
 			{noTrafficYet && domain ? (

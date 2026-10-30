@@ -41,23 +41,23 @@ export const GrowthLocked = ({
 }) => {
 	const t = useT();
 	return (
-	<div className="relative min-h-52 overflow-hidden rounded-xl" role="status">
-		<LockedPreview />
-		<div className="bg-background/60 absolute inset-0 flex flex-col items-center justify-center gap-1.5 p-4 text-center">
-			<span className="bg-muted text-muted-foreground flex h-8 w-8 items-center justify-center rounded-lg">
-				<Lock className="h-4 w-4" />
-			</span>
-			<p className="text-sm font-semibold">{t("growth.lockedTitle", { feature, plan })}</p>
-			<button
-				type="button"
-				onClick={onUpgrade}
-				className="bg-primary text-primary-foreground hover:bg-primary/90 focus-visible:outline-ring mt-1 inline-flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs font-medium transition-colors focus-visible:outline-2"
-			>
-				<Sparkles className="h-3.5 w-3.5" aria-hidden />
-				{t("growth.upgrade", { plan })}
-			</button>
+		<div className="relative min-h-52 overflow-hidden rounded-xl" role="status">
+			<LockedPreview />
+			<div className="bg-background/60 absolute inset-0 flex flex-col items-center justify-center gap-1.5 p-4 text-center">
+				<span className="bg-muted text-muted-foreground flex h-8 w-8 items-center justify-center rounded-lg">
+					<Lock className="h-4 w-4" />
+				</span>
+				<p className="text-sm font-semibold">{t("growth.lockedTitle", { feature, plan })}</p>
+				<button
+					type="button"
+					onClick={onUpgrade}
+					className="bg-primary text-primary-foreground hover:bg-primary/90 focus-visible:outline-ring mt-1 inline-flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs font-medium transition-colors focus-visible:outline-2"
+				>
+					<Sparkles className="h-3.5 w-3.5" aria-hidden />
+					{t("growth.upgrade", { plan })}
+				</button>
+			</div>
 		</div>
-	</div>
 	);
 };
 

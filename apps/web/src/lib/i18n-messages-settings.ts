@@ -13,7 +13,8 @@ export const settingsEn = {
 	"team.enterValidEmail": "Enter a valid email address",
 	"team.loading": "Loading…",
 	"team.empty": "No team members yet.",
-	"team.note": "Invitees need an existing revklik account. Owners can change roles and remove members.",
+	"team.note":
+		"Invitees need an existing revklik account. Owners can change roles and remove members.",
 	"team.role.owner": "Owner",
 	"team.role.admin": "Admin",
 	"team.role.editor": "Editor",

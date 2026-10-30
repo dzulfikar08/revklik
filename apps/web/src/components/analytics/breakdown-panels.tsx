@@ -564,6 +564,7 @@ export const LocationPanel = ({
 	const [dir, setDir] = useState<"desc" | "asc">("desc");
 	const geoQ = useQuery({
 		enabled: Boolean(siteId),
+		meta: { silent: true },
 		queryFn: () => fetchGeo(siteId, rangeKey, filterStr),
 		queryKey: ["legacy", "geo", siteId, rangeKey, filterStr],
 		retry: false,
