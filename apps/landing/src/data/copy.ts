@@ -20,7 +20,7 @@ export const ID = {
 	home_label: 'RevKlik, beranda',
 	meta_title: 'RevKlik: Analytics yang Menunjukkan Channel Penghasil Uang',
 	meta_description:
-		'Analytics website yang mencocokkan pembayaran Midtrans, Xendit, DOKU, Mayar, Polar, Stripe, dan Lemon Squeezy dengan sumber traffic-nya. Atribusi pendapatan mulai Rp 64.000/bulan. Trial 7 hari tanpa kartu kredit.',
+		'Analytics website yang mencocokkan pembayaran Xendit, DOKU, Mayar, Paywuz, dan Polar dengan sumber traffic-nya. Atribusi pendapatan mulai Rp 64.000/bulan. Trial 7 hari tanpa kartu kredit.',
 	og_title: 'RevKlik: Tahu Channel Mana yang Menghasilkan Uang',
 	og_description: 'Setiap pembayaran dicocokkan dengan sumber traffic-nya. Trial 7 hari tanpa kartu kredit, atribusi pendapatan mulai Rp 64.000/bulan.',
 	og_locale: 'id_ID',
@@ -124,7 +124,7 @@ export const ID = {
 	book_desc:
 		'Dashboard sudah mencatat pendapatan kotor dan perkiraan pendapatan bersih setelah fee untuk setiap pembayaran. Berikutnya kami membangun pencatatan yang lebih lengkap untuk founder yang berjualan SaaS sendirian.',
 	book_items: [
-		'Pembayaran dari gateway, Polar, dan Stripe dalam satu buku, dengan kurs ke Rupiah.',
+		'Pembayaran dari gateway dan Polar dalam satu buku, dengan kurs ke Rupiah.',
 		'Pemantauan peredaran bruto terhadap batas PPh final UMKM.',
 		'Rekap bulanan yang bisa Anda serahkan ke konsultan pajak.',
 	],
@@ -270,7 +270,7 @@ export const EN: Copy = {
 	home_label: 'RevKlik, home',
 	meta_title: 'RevKlik: Web Analytics That Shows Which Channels Make Money',
 	meta_description:
-		'Web analytics that matches Midtrans, Xendit, DOKU, Mayar, Polar, Stripe, and Lemon Squeezy payments to the traffic source behind them. Revenue attribution from $4/month. 7-day trial, no credit card.',
+		'Web analytics that matches Xendit, DOKU, Mayar, Paywuz, and Polar payments to the traffic source behind them. Revenue attribution from $4/month. 7-day trial, no credit card.',
 	og_title: 'RevKlik: Know Which Channel Makes You Money',
 	og_description: 'Every payment matched to its traffic source. 7-day trial with no credit card, revenue attribution from $4/month.',
 	og_locale: 'en_US',
@@ -372,7 +372,7 @@ export const EN: Copy = {
 	book_desc:
 		'The dashboard already records gross revenue and an estimated net after fees for every payment. Next we are building fuller record keeping for founders who sell SaaS on their own.',
 	book_items: [
-		'Payments from gateways, Polar, and Stripe in one book, converted to Rupiah.',
+		'Payments from gateways and Polar in one book, converted to Rupiah.',
 		'Gross turnover tracked against the UMKM final income tax threshold.',
 		'A monthly summary you can hand to your tax consultant.',
 	],

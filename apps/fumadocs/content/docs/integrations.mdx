@@ -8,20 +8,19 @@ and Imports.
 
 ## Payments
 
-RevKlik books revenue from these gateways. Midtrans, Xendit, DOKU, Mayar, and
-Paywuz serve Indonesian merchants. Polar, Stripe, and Lemon Squeezy serve
-merchants who sell worldwide.
+RevKlik books revenue from these gateways. Xendit, DOKU, Mayar, and Paywuz serve
+Indonesian merchants. Polar serves merchants who sell worldwide.
 
-| Gateway       | Region    |
-| ------------- | --------- |
-| Midtrans      | Indonesia |
-| Xendit        | Indonesia |
-| DOKU          | Indonesia |
-| Mayar         | Indonesia |
-| Paywuz        | Indonesia |
-| Polar         | Global    |
-| Stripe        | Global    |
-| Lemon Squeezy | Global    |
+| Gateway | Region    |
+| ------- | --------- |
+| Xendit  | Indonesia |
+| DOKU    | Indonesia |
+| Mayar   | Indonesia |
+| Paywuz  | Indonesia |
+| Polar   | Global    |
+
+Webhook endpoints for Midtrans, Stripe, and Lemon Squeezy exist, but their cards
+are not shown in the dashboard yet, so they are not listed as supported.
 
 Gateway integrations are **webhook-driven**: copy the RevKlik webhook URL shown
 on the gateway's card and paste it into the provider's webhook settings, then

@@ -140,7 +140,7 @@ Sekali seminggu, lihat dari mana pengunjung datang. Jika Instagram mendominasi, 
 
 ### Bulanan: evaluasi konversi dan pendapatan
 
-Setiap bulan, cek conversion rate. Jika toko Anda menerima pembayaran lewat Midtrans, Xendit, DOKU, Mayar, Paywuz, Polar, Stripe, atau Lemon Squeezy, RevKlik bisa menghubungkan penjualan dengan sumber kunjungan lewat [atribusi pendapatan](/blog/atribusi-pendapatan) (tersedia mulai paket Starter). Dengan begitu Anda bisa membandingkan biaya marketing dengan pendapatan tiap channel.
+Setiap bulan, cek conversion rate. Jika toko Anda menerima pembayaran lewat Xendit, DOKU, Mayar, Paywuz, atau Polar, RevKlik bisa menghubungkan penjualan dengan sumber kunjungan lewat [atribusi pendapatan](/blog/atribusi-pendapatan) (tersedia mulai paket Starter). Dengan begitu Anda bisa membandingkan biaya marketing dengan pendapatan tiap channel.
 
 Jendela data di dashboard adalah 7, 30, atau 90 hari, jadi catat angka bulanan penting jika Anda ingin membandingkan periode yang lebih panjang.
 

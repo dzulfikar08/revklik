@@ -132,6 +132,6 @@ For example, if many visitors stop at the pricing page, look at their journeys. 
 
 ## Connecting the Funnel to Revenue
 
-A funnel shows where visitors stop. To find out which channel ends up producing sales, connect it with [revenue attribution](/en/blog/atribusi-pendapatan). If you use Midtrans, Xendit, DOKU, Mayar, Paywuz, Polar, Stripe, or Lemon Squeezy, RevKlik can tie a payment to the visit that led to it.
+A funnel shows where visitors stop. To find out which channel ends up producing sales, connect it with [revenue attribution](/en/blog/atribusi-pendapatan). If you use Xendit, DOKU, Mayar, Paywuz, or Polar, RevKlik can tie a payment to the visit that led to it.
 
 If you are just starting, [analytics for small businesses](/en/blog/analytics-untuk-umkm) explains the basic metrics to watch first. To see how it looks, open the [product demo](https://app.revklik.com/demo).

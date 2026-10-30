@@ -17,7 +17,7 @@ RevKlik is an analytics and revenue-tracking service for online business owners.
 
 - A tracking script of about 4 KB (gzip) that you install on your site.
 - A dashboard with traffic sources, visitor journeys, funnels, and revenue attribution.
-- Payment integrations with Midtrans, Xendit, DOKU, Mayar, Paywuz, Polar, Stripe, and Lemon Squeezy.
+- Payment integrations with Xendit, DOKU, Mayar, Paywuz, and Polar.
 - Heatmaps, session recordings, and AI insights on the plans that include them.
 - A public API and an MCP server.
 

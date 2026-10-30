@@ -55,7 +55,7 @@ Store these UTM parameters as soon as the visitor lands. Do not only track them 
 
 This is the step most often missed. You cannot attribute revenue from page analytics alone. You need to know **when and how much** was paid.
 
-The easiest way: connect a webhook from your payment gateway to your analytics system. RevKlik supports Midtrans, Xendit, DOKU, Mayar, Paywuz, Polar, Stripe, and Lemon Squeezy. Every time a payment succeeds, the webhook sends the amount and the product to analytics.
+The easiest way: connect a webhook from your payment gateway to your analytics system. RevKlik supports Xendit, DOKU, Mayar, Paywuz, and Polar. Every time a payment succeeds, the webhook sends the amount and the product to analytics.
 
 If your sales do not go through one of those gateways, send them yourself as custom conversions: `klikapa.track` from the browser, or events from your own server through the events API, with the transaction value.
 

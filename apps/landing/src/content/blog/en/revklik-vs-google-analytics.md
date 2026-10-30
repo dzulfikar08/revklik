@@ -21,7 +21,7 @@ This post compares the two from the angle of founders and makers: **script size,
 | Aspect | RevKlik | Google Analytics 4 |
 |---|---|---|
 | Script size | About 4 KB (gzip) | Larger. Measure it yourself in your browser's Network tab |
-| Revenue attribution | Connect a gateway: Midtrans, Xendit, DOKU, Mayar, Paywuz, Polar, Stripe, Lemon Squeezy | Purchase events are sent from your site. Deeper analysis usually goes through BigQuery export or Looker Studio |
+| Revenue attribution | Connect a gateway: Xendit, DOKU, Mayar, Paywuz, Polar | Purchase events are sent from your site. Deeper analysis usually goes through BigQuery export or Looker Studio |
 | Privacy | No third-party cookies, random first-party visitor ID, consent can be required with `data-consent="required"` | Uses first-party cookies. Google provides Consent Mode to adjust behaviour based on consent |
 | Dashboard | One dashboard focused on revenue, funnels, and traffic sources | Very comprehensive, but takes time to learn |
 | Price | Rp 16.000, Rp 64.000, or Rp 192.000 per month | Free for standard properties, with Google's quotas |
@@ -38,7 +38,7 @@ This is the biggest difference in how the two work.
 
 **GA4** can record purchase events, but you have to send them from your site or backend. For deeper revenue-per-campaign analysis, many teams export data to BigQuery and visualise it in Looker Studio. That is flexible, but it takes technical skill and setup time.
 
-**RevKlik** is built with revenue as the focus. Connect your payment gateway in the Integrations menu (Midtrans, Xendit, DOKU, Mayar, Paywuz, Polar, Stripe, or Lemon Squeezy), and payments are tied to the visit that caused them. You can see:
+**RevKlik** is built with revenue as the focus. Connect your payment gateway in the Integrations menu (Xendit, DOKU, Mayar, Paywuz, or Polar), and payments are tied to the visit that caused them. You can see:
 
 - Which UTM source and campaign generate revenue
 - The pages visited before payment
@@ -97,4 +97,4 @@ Add one line of the RevKlik script to your site. RevKlik does not import histori
 
 ### Which gateways are supported for revenue attribution?
 
-Midtrans, Xendit, DOKU, Mayar, Paywuz, Polar, Stripe, and Lemon Squeezy. Connect them from the Integrations menu.
+Xendit, DOKU, Mayar, Paywuz, and Polar. Connect them from the Integrations menu.

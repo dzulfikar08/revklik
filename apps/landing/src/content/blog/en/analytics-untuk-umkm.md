@@ -140,7 +140,7 @@ Once a week, look at where visitors come from. If Instagram dominates, put your 
 
 ### Monthly: review conversions and revenue
 
-Every month, check your conversion rate. If your shop takes payments through Midtrans, Xendit, DOKU, Mayar, Paywuz, Polar, Stripe, or Lemon Squeezy, RevKlik can tie sales to the visit source with [revenue attribution](/en/blog/atribusi-pendapatan) (available from the Starter plan). That lets you compare marketing spend with the revenue each channel produced.
+Every month, check your conversion rate. If your shop takes payments through Xendit, DOKU, Mayar, Paywuz, or Polar, RevKlik can tie sales to the visit source with [revenue attribution](/en/blog/atribusi-pendapatan) (available from the Starter plan). That lets you compare marketing spend with the revenue each channel produced.
 
 The dashboard windows are 7, 30, or 90 days, so write down important monthly numbers if you want to compare longer periods.
 

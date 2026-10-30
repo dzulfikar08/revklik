@@ -20,7 +20,7 @@ Tulisan ini menjelaskan cara memasang RevKlik menggantikan DataFast, apa yang ik
 
 RevKlik cocok jika Anda ingin:
 
-- **Atribusi pendapatan** yang menghubungkan pembayaran dari gateway (Midtrans, Xendit, DOKU, Mayar, Paywuz, Polar, Stripe, Lemon Squeezy) ke sumber traffic dan perjalanan pengunjung.
+- **Atribusi pendapatan** yang menghubungkan pembayaran dari gateway (Xendit, DOKU, Mayar, Paywuz, Polar) ke sumber traffic dan perjalanan pengunjung.
 - **Funnel multi-langkah** dan scroll depth di satu dashboard.
 - **Pembayaran langganan lokal**: Rp 16.000, Rp 64.000, atau Rp 192.000 per bulan lewat QRIS (atau kartu dalam USD).
 
@@ -65,7 +65,7 @@ RevKlik tidak punya impor dari DataFast. Goal tidak ikut pindah, jadi buat ulang
 <button data-revklik-goal="signup">Daftar</button>
 ```
 
-Untuk scroll depth, pakai atribut `data-revklik-scroll`. Untuk atribusi pendapatan, buka menu **Integrations** dan hubungkan gateway yang Anda pakai. Gateway yang didukung: Midtrans, Xendit, DOKU, Mayar, Paywuz, Polar, Stripe, dan Lemon Squeezy. Atribusi pendapatan dan funnel tersedia mulai paket Starter.
+Untuk scroll depth, pakai atribut `data-revklik-scroll`. Untuk atribusi pendapatan, buka menu **Integrations** dan hubungkan gateway yang Anda pakai. Gateway yang didukung: Xendit, DOKU, Mayar, Paywuz, dan Polar. Atribusi pendapatan dan funnel tersedia mulai paket Starter.
 
 ## Apa yang Ditawarkan RevKlik per Paket
 

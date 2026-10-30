@@ -118,8 +118,8 @@ Example wiring after a successful checkout:
 5. REVENUE ATTRIBUTION (server-side, optional)
 ------------------------------------------------------------------
 
-To connect revenue to visitor journeys, RevKlik supports Midtrans,
-Xendit, DOKU, Mayar, Paywuz, Polar, Stripe and Lemon Squeezy
+To connect revenue to visitor journeys, RevKlik supports Xendit,
+DOKU, Mayar, Paywuz and Polar
 (App Store Connect as an import). Per-gateway steps:
 https://docs.revklik.com/integrations/
 

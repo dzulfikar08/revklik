@@ -21,7 +21,7 @@ Tulisan ini membandingkan keduanya dari sudut pandang founder dan maker: **ukura
 | Aspek | RevKlik | Google Analytics 4 |
 |---|---|---|
 | Ukuran script | Sekitar 4 KB (gzip) | Lebih besar. Ukur sendiri di tab Network browser Anda |
-| Atribusi pendapatan | Hubungkan gateway: Midtrans, Xendit, DOKU, Mayar, Paywuz, Polar, Stripe, Lemon Squeezy | Event pembelian dikirim dari situs Anda. Analisis lanjutan biasanya lewat ekspor BigQuery atau Looker Studio |
+| Atribusi pendapatan | Hubungkan gateway: Xendit, DOKU, Mayar, Paywuz, Polar | Event pembelian dikirim dari situs Anda. Analisis lanjutan biasanya lewat ekspor BigQuery atau Looker Studio |
 | Privasi | Tanpa cookie pihak ketiga, ID pengunjung acak first-party, persetujuan bisa diwajibkan lewat `data-consent="required"` | Memakai cookie first-party. Google menyediakan Consent Mode untuk mengatur perilaku berdasarkan persetujuan |
 | Dashboard | Satu dashboard fokus pendapatan, funnel, dan sumber traffic | Sangat lengkap, tetapi butuh waktu belajar |
 | Harga | Rp 16.000, Rp 64.000, atau Rp 192.000 per bulan | Gratis untuk properti standar dengan batas kuota Google |
@@ -38,7 +38,7 @@ Ini perbedaan terbesar dalam cara kerja.
 
 **GA4** bisa mencatat event pembelian, tetapi Anda harus mengirimnya dari situs atau backend Anda. Untuk analisis pendapatan per kampanye yang lebih dalam, banyak tim mengekspor data ke BigQuery dan memvisualisasikannya di Looker Studio. Itu fleksibel, tetapi butuh keahlian teknis dan waktu setup.
 
-**RevKlik** dibuat dengan pendapatan sebagai fokus. Hubungkan gateway pembayaran Anda di menu Integrations (Midtrans, Xendit, DOKU, Mayar, Paywuz, Polar, Stripe, atau Lemon Squeezy), dan pembayaran dikaitkan dengan kunjungan yang menyebabkannya. Anda bisa melihat:
+**RevKlik** dibuat dengan pendapatan sebagai fokus. Hubungkan gateway pembayaran Anda di menu Integrations (Xendit, DOKU, Mayar, Paywuz, atau Polar), dan pembayaran dikaitkan dengan kunjungan yang menyebabkannya. Anda bisa melihat:
 
 - UTM source dan campaign yang menghasilkan pendapatan
 - Halaman yang dikunjungi sebelum pembayaran
@@ -97,4 +97,4 @@ Tambahkan satu baris script RevKlik ke situs Anda. RevKlik tidak mengimpor data 
 
 ### Gateway apa yang didukung untuk atribusi pendapatan?
 
-Midtrans, Xendit, DOKU, Mayar, Paywuz, Polar, Stripe, dan Lemon Squeezy. Hubungkan lewat menu Integrations.
+Xendit, DOKU, Mayar, Paywuz, dan Polar. Hubungkan lewat menu Integrations.

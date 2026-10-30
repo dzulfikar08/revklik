@@ -22,9 +22,9 @@ database, a tracking script of about 4 KB, and a dashboard in English and Bahasa
   [the privacy docs](https://docs.revklik.com/privacy/). Bot and datacenter traffic is flagged and
   filtered.
 - **Revenue analytics**: conversions carry revenue. Payment providers feed the same panels:
-  Midtrans, Xendit, DOKU, Mayar, Paywuz, Polar, Stripe, LemonSqueezy, App Store Connect, and a
-  server-side events API for anything else. (Shopee, Tokopedia and NICEPAY code exists but is
-  hidden until it is fixed.)
+  Xendit, DOKU, Mayar, Paywuz, Polar, App Store Connect, and a server-side events API for
+  anything else. (Midtrans, Stripe and LemonSqueezy webhooks, and Shopee, Tokopedia and NICEPAY
+  code, exist but are hidden in the dashboard until they are verified.)
 - **Funnels and journeys**: scroll funnels derived from page sections, per-visitor journey
   timelines, segments, annotations.
 - **Heatmaps and session replays**, **AI insights** (Cloudflare Workers AI), a run-rate revenue forecast.

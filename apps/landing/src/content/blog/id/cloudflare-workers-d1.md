@@ -48,7 +48,7 @@ Karena ID pengunjung yang menetap termasuk data pribadi menurut UU PDP (UU 27/20
 
 ### 2. Worker (ingestion dan API)
 
-Satu Worker menerima event dari tracker, memvalidasinya, dan menyimpannya ke D1. Worker yang sama melayani API dashboard dan menerima webhook dari gateway pembayaran yang didukung (Midtrans, Xendit, DOKU, Mayar, Paywuz, Polar, Stripe, dan Lemon Squeezy) untuk atribusi pendapatan.
+Satu Worker menerima event dari tracker, memvalidasinya, dan menyimpannya ke D1. Worker yang sama melayani API dashboard dan menerima webhook dari gateway pembayaran yang didukung (Xendit, DOKU, Mayar, Paywuz, dan Polar) untuk atribusi pendapatan.
 
 Konfigurasi kami memakai smart placement: Worker dijalankan di dekat primary D1 di Asia-Pasifik. Alasannya, query ke database yang dilakukan berurutan menjadi lambat kalau Worker berada jauh dari database.
 

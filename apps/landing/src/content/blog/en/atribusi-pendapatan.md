@@ -42,7 +42,7 @@ No model is right. Pick one, stay consistent, and compare channels with the same
 RevKlik puts user journeys, funnels, and revenue attribution in one dashboard. Here is what attribution needs to work:
 
 1. **Journeys connected across visits.** Pages, UTM campaigns, and referrers are connected into one path per browser, so what you analyze is the whole journey, not loose sessions. The glue is a random first-party ID in the browser's local storage, which also lets a sale be tied to the visit that caused it, even days later.
-2. **Revenue from two sources.** First, custom conversions that can carry a value: a single `klikapa.track('signup')` line from the browser, or events sent from your own server through the events API. Second, webhooks from the supported payment gateways: Midtrans, Xendit, DOKU, Mayar, Paywuz, Polar, Stripe, and Lemon Squeezy.
+2. **Revenue from two sources.** First, custom conversions that can carry a value: a single `klikapa.track('signup')` line from the browser, or events sent from your own server through the events API. Second, webhooks from the supported payment gateways: Xendit, DOKU, Mayar, Paywuz, and Polar.
 3. **Funnels to see the leaks.** Mark important parts of a page with the `data-section` attribute, and the scroll funnel shows where prospective buyers stop reading before they stop buying.
 
 On privacy: RevKlik uses no third-party cookies, does no cross-site tracking, and builds no ad profiles. But the persistent ID above counts as personal data under the PDP Law, and you, as the site owner, are the data controller. The guidance is in [analytics and the PDP Law](/en/blog/analytics-patuh-uu-pdp) and [what actually changes without third-party cookies](/en/blog/analytics-tanpa-cookie).

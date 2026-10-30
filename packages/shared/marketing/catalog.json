@@ -1,14 +1,11 @@
 {
-	"_note": "Single source of truth for what the landing, blog and docs say RevKlik supports. Keep in sync with apps/web integrations-view.tsx (SHOWN_PROVIDERS), apps/app payment webhooks and apps/app/src/worker/lib/plans.ts. Shopee, Tokopedia and NICEPAY are hidden until they work, so they are NOT listed.",
+	"_note": "Single source of truth for what the landing, blog and docs say RevKlik supports. Keep in sync with apps/web integrations-view.tsx (SHOWN_PROVIDERS), apps/app payment webhooks and apps/app/src/worker/lib/plans.ts. Shopee, Tokopedia and NICEPAY are hidden until they work, and Midtrans, Stripe and Lemon Squeezy have webhooks but no dashboard card (SHOWN_PROVIDERS), so none of them are listed. Add one back here only together with its dashboard card.",
 	"gateways": [
-		{ "id": "midtrans", "name": "Midtrans", "region": "id" },
 		{ "id": "xendit", "name": "Xendit", "region": "id" },
 		{ "id": "doku", "name": "DOKU", "region": "id" },
 		{ "id": "mayar", "name": "Mayar", "region": "id" },
 		{ "id": "paywuz", "name": "Paywuz", "region": "id" },
-		{ "id": "polar", "name": "Polar", "region": "global" },
-		{ "id": "stripe", "name": "Stripe", "region": "global" },
-		{ "id": "lemonsqueezy", "name": "Lemon Squeezy", "region": "global" }
+		{ "id": "polar", "name": "Polar", "region": "global" }
 	],
 	"billing": {
 		"idr": ["QRIS"],

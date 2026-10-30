@@ -30,7 +30,7 @@ RevKlik tidak memakai cookie pihak ketiga dan tidak melacak lintas situs, tetapi
 
 ### Bagaimana atribusi pendapatan bekerja?
 
-Hubungkan payment gateway Anda (Midtrans, Xendit, DOKU, Mayar, Paywuz, Polar, Stripe, atau Lemon Squeezy) lewat webhook. Setiap pembayaran dikaitkan dengan perjalanan pengunjung, jadi Anda melihat sumber, kampanye, dan halaman yang menghasilkan pendapatan. Atribusi pendapatan tersedia mulai paket Starter.
+Hubungkan payment gateway Anda (Xendit, DOKU, Mayar, Paywuz, atau Polar) lewat webhook. Setiap pembayaran dikaitkan dengan perjalanan pengunjung, jadi Anda melihat sumber, kampanye, dan halaman yang menghasilkan pendapatan. Atribusi pendapatan tersedia mulai paket Starter.
 
 ### Apakah ada paket gratis?
 

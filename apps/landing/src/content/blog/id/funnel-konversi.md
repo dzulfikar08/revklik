@@ -132,6 +132,6 @@ Misalnya, jika banyak pengunjung berhenti di halaman harga, lihat journey mereka
 
 ## Menghubungkan Funnel dengan Pendapatan
 
-Funnel menunjukkan di mana pengunjung berhenti. Untuk mengetahui channel mana yang akhirnya menghasilkan penjualan, hubungkan dengan [atribusi pendapatan](/blog/atribusi-pendapatan). Jika Anda memakai Midtrans, Xendit, DOKU, Mayar, Paywuz, Polar, Stripe, atau Lemon Squeezy, RevKlik bisa mengaitkan pembayaran dengan kunjungan yang menyebabkannya.
+Funnel menunjukkan di mana pengunjung berhenti. Untuk mengetahui channel mana yang akhirnya menghasilkan penjualan, hubungkan dengan [atribusi pendapatan](/blog/atribusi-pendapatan). Jika Anda memakai Xendit, DOKU, Mayar, Paywuz, atau Polar, RevKlik bisa mengaitkan pembayaran dengan kunjungan yang menyebabkannya.
 
 Jika Anda baru mulai, [analytics untuk UMKM](/blog/analytics-untuk-umkm) menjelaskan metrik dasar yang perlu dipantau lebih dulu. Bila ingin melihat tampilannya, buka [demo produk](https://app.revklik.com/demo).

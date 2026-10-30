@@ -17,7 +17,7 @@ RevKlik adalah layanan analytics dan pencatatan pendapatan untuk pemilik bisnis 
 
 - Script tracking sekitar 4 KB (gzip) yang Anda pasang di situs Anda.
 - Dashboard dengan sumber traffic, perjalanan pengunjung, funnel, dan atribusi pendapatan.
-- Integrasi pembayaran dengan Midtrans, Xendit, DOKU, Mayar, Paywuz, Polar, Stripe, dan Lemon Squeezy.
+- Integrasi pembayaran dengan Xendit, DOKU, Mayar, Paywuz, dan Polar.
 - Heatmap, rekaman sesi, dan wawasan AI pada paket yang menyertakannya.
 - API publik dan server MCP.
 

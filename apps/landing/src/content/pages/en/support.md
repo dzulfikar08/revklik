@@ -30,7 +30,7 @@ RevKlik uses no third-party cookies and does not track across sites, but a persi
 
 ### How does revenue attribution work?
 
-Connect your payment gateway (Midtrans, Xendit, DOKU, Mayar, Paywuz, Polar, Stripe, or Lemon Squeezy) through a webhook. Each payment is tied to the visitor's journey, so you see the source, campaign, and page that produced the revenue. Revenue attribution is available from the Starter plan.
+Connect your payment gateway (Xendit, DOKU, Mayar, Paywuz, or Polar) through a webhook. Each payment is tied to the visitor's journey, so you see the source, campaign, and page that produced the revenue. Revenue attribution is available from the Starter plan.
 
 ### Is there a free plan?
 

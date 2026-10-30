@@ -48,7 +48,7 @@ Because a persistent visitor ID counts as personal data under the PDP Law (UU 27
 
 ### 2. The Worker (ingestion and API)
 
-One Worker receives events from the tracker, validates them, and stores them in D1. The same Worker serves the dashboard API and receives webhooks from the supported payment gateways (Midtrans, Xendit, DOKU, Mayar, Paywuz, Polar, Stripe, and Lemon Squeezy) for revenue attribution.
+One Worker receives events from the tracker, validates them, and stores them in D1. The same Worker serves the dashboard API and receives webhooks from the supported payment gateways (Xendit, DOKU, Mayar, Paywuz, and Polar) for revenue attribution.
 
 Our configuration uses smart placement: the Worker runs near the D1 primary in Asia-Pacific. The reason is that sequential database queries get slow when the Worker is far from the database.
 

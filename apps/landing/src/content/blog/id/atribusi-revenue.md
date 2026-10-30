@@ -55,7 +55,7 @@ Simpan parameter UTM ini segera saat pengunjung mendarat. Jangan hanya melacakny
 
 Ini langkah yang paling sering terlewat. Anda tidak bisa mengatribusikan revenue hanya dari analytics halaman. Anda perlu tahu **kapan dan berapa** pembayaran terjadi.
 
-Cara termudah: hubungkan webhook dari payment gateway Anda ke sistem analytics. RevKlik mendukung Midtrans, Xendit, DOKU, Mayar, Paywuz, Polar, Stripe, dan Lemon Squeezy. Setiap kali pembayaran berhasil, webhook mengirim jumlah dan produknya ke analytics.
+Cara termudah: hubungkan webhook dari payment gateway Anda ke sistem analytics. RevKlik mendukung Xendit, DOKU, Mayar, Paywuz, dan Polar. Setiap kali pembayaran berhasil, webhook mengirim jumlah dan produknya ke analytics.
 
 Kalau penjualan Anda tidak lewat salah satu gateway itu, kirim sendiri sebagai konversi kustom: `klikapa.track` dari browser, atau event dari server Anda lewat API event, dengan nilai transaksi.
 

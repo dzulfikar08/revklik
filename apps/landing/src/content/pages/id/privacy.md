@@ -53,7 +53,7 @@ Data disimpan di infrastruktur Cloudflare (database D1, wilayah utama Asia-Pasif
 - **Cloudflare**: hosting, database, penyimpanan cadangan, pengiriman email, dan inferensi untuk wawasan AI.
 - **Pakasir** dan **Polar**: memproses pembayaran langganan RevKlik Anda (QRIS dan kartu). Mereka menerima data tagihan yang diperlukan untuk transaksi itu.
 - **Google**: hanya jika Anda masuk dengan Google atau menghubungkan Search Console.
-- **Payment gateway Anda** (Midtrans, Xendit, DOKU, Mayar, Paywuz, Polar, Stripe, Lemon Squeezy): hanya jika Anda menghubungkannya. Kami menerima notifikasi pembayaran, dan untuk Mayar dan Paywuz juga membaca daftar transaksi dengan API key Anda.
+- **Payment gateway Anda** (Xendit, DOKU, Mayar, Paywuz, Polar): hanya jika Anda menghubungkannya. Kami menerima notifikasi pembayaran, dan untuk Mayar dan Paywuz juga membaca daftar transaksi dengan API key Anda.
 
 Kami tidak memiliki perjanjian pemrosesan data (DPA) standar saat ini. Jika Anda membutuhkannya, tulis ke support@revklik.com.
 

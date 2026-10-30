@@ -44,7 +44,7 @@ Remove one line, add one line, deploy. RevKlik starts recording as soon as visit
 
 ### Step 3: Connect a payment gateway
 
-In the RevKlik dashboard, open the **Integrations** page and connect the gateway you use: Midtrans, Xendit, DOKU, Mayar, Paywuz, Polar, Stripe, or Lemon Squeezy. Follow the instructions on that page (for example, registering a webhook endpoint in the gateway's dashboard). Once connected, payments are tied to the visit that caused them and show up as revenue per traffic source. Revenue attribution and funnels are available from the Starter plan.
+In the RevKlik dashboard, open the **Integrations** page and connect the gateway you use: Xendit, DOKU, Mayar, Paywuz, or Polar. Follow the instructions on that page (for example, registering a webhook endpoint in the gateway's dashboard). Once connected, payments are tied to the visit that caused them and show up as revenue per traffic source. Revenue attribution and funnels are available from the Starter plan.
 
 ## What RevKlik Offers
 

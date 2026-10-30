@@ -44,7 +44,7 @@ Hapus satu baris, tambahkan satu baris, lalu deploy. RevKlik mulai mencatat begi
 
 ### Langkah 3: Hubungkan gateway pembayaran
 
-Di dashboard RevKlik, buka halaman **Integrations** dan hubungkan gateway yang Anda pakai: Midtrans, Xendit, DOKU, Mayar, Paywuz, Polar, Stripe, atau Lemon Squeezy. Ikuti petunjuk di halaman itu (misalnya mendaftarkan endpoint webhook di dashboard gateway). Setelah terhubung, pembayaran dikaitkan dengan kunjungan yang menyebabkannya dan muncul sebagai pendapatan per sumber traffic. Atribusi pendapatan dan funnel tersedia mulai paket Starter.
+Di dashboard RevKlik, buka halaman **Integrations** dan hubungkan gateway yang Anda pakai: Xendit, DOKU, Mayar, Paywuz, atau Polar. Ikuti petunjuk di halaman itu (misalnya mendaftarkan endpoint webhook di dashboard gateway). Setelah terhubung, pembayaran dikaitkan dengan kunjungan yang menyebabkannya dan muncul sebagai pendapatan per sumber traffic. Atribusi pendapatan dan funnel tersedia mulai paket Starter.
 
 ## Apa yang Ditawarkan RevKlik
 
