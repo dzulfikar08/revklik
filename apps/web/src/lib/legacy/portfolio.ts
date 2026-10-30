@@ -10,6 +10,8 @@ export interface PortfolioTotals {
 	sales: number;
 	refunds: number;
 	refund_amount: number;
+	/** Rows with no stored net whose net was computed by fee rule at read time. */
+	estimated_rows: number;
 }
 
 export interface PortfolioRevenue {
@@ -26,7 +28,7 @@ export interface PortfolioRevenue {
 		net: number;
 		sales: number;
 	}[];
-	by_rail: { rail: string; gross: number; net: number; sales: number }[];
+	by_rail: { rail: string; gross: number; net: number; sales: number; estimated_rows: number }[];
 	daily: { date: string; gross: number; net: number; sales: number }[];
 	recent: {
 		event_id: string;
@@ -37,6 +39,8 @@ export interface PortfolioRevenue {
 		name: string | null;
 		revenue: number;
 		net_revenue: number;
+		/** "reported" | "rule" | "refund_ratio" | "estimated" (no stored net, rule applied at read time). */
+		net_source: string;
 		currency: string;
 		converted_gross: number;
 		converted_net: number;

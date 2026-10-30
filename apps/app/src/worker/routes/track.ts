@@ -9,6 +9,7 @@ import {
 	SESSION_GAP_CAP_SECONDS,
 	sanitizeRevenue,
 } from "../lib/ingest";
+import { clientSaleFields, type ClientSaleFields } from "../lib/revenue-hygiene";
 import { accountUsageIncrement } from "../lib/account-usage";
 import { executeBatch } from "../lib/d1-batch";
 import { isSelfHosted } from "../lib/entitlement";
@@ -26,7 +27,7 @@ type Variables = { db: Kysely<KlikapaDatabase> };
 
 export const trackRoutes = new Hono<{
 	Variables: Variables;
-	Bindings: { DB: D1Database; SELF_HOSTED?: string };
+	Bindings: { DB: D1Database; SELF_HOSTED?: string; FX_USD_IDR?: string };
 }>();
 
 /** Events accepted per /track request; larger batches are rejected with 413. */
@@ -294,6 +295,23 @@ trackRoutes.post("/track", async (c) => {
 		const revenue = sanitizeRevenue(payload.rv);
 		const eventType = payload.t === "p" ? "pageview" : payload.t === "c" ? "conversion" : "custom";
 		const vid = fingerprint ? resolvedVid : payload.vid;
+		const currency =
+			revenue === null ? null : eventCurrency(payload.cur, payload.pr, site.revenue_currency);
+		// Money the browser reports gets its rail, fee-rule net and test/duplicate verdict now.
+		let sale: ClientSaleFields | null = null;
+		if (revenue !== null && revenue > 0) {
+			sale = await clientSaleFields(db, {
+				siteId,
+				visitorId: vid,
+				path: payload.p,
+				revenue,
+				currency: currency ?? "USD",
+				ts,
+				props: payload.pr,
+				guardDoubleFire: true,
+				env: c.env,
+			});
+		}
 
 		writes.push(
 			db.insertInto("events").values({
@@ -313,8 +331,17 @@ trackRoutes.post("/track", async (c) => {
 				utm_term: payload.ut ?? null,
 				utm_content: payload.uco ?? null,
 				revenue,
-				currency:
-					revenue === null ? null : eventCurrency(payload.cur, payload.pr, site.revenue_currency),
+				currency,
+				...(sale
+					? {
+							rail: sale.rail,
+							product: sale.product,
+							payment_provider: sale.payment_provider,
+							net_revenue: sale.net_revenue,
+							net_source: sale.net_source,
+							excluded_reason: sale.excluded_reason,
+						}
+					: {}),
 				props: payload.pr ? JSON.stringify(payload.pr) : null,
 				country: cfCountry,
 				region: cfRegion,
@@ -328,7 +355,7 @@ trackRoutes.post("/track", async (c) => {
 		);
 
 		const pvInc = eventType === "pageview" ? 1 : 0;
-		const rvInc = revenue ?? 0;
+		const rvInc = sale?.excluded_reason ? 0 : (revenue ?? 0);
 
 		writes.push(
 			db
@@ -694,6 +721,8 @@ trackRoutes.post("/track/payment", async (c) => {
 		.select(["id"])
 		.where("site_id", "=", siteId)
 		.where("event_type", "=", "conversion")
+		// Naming is_bot opts out of the events plugin: a test-excluded payment still owns its id.
+		.where("is_bot", "in", [0, 1])
 		.where(sql<string>`json_extract(props, '$.transaction_id')`, "=", String(transaction_id))
 		.executeTakeFirst();
 	if (existing) return c.json({ success: true, event_id: existing.id, duplicate: true });
@@ -733,6 +762,26 @@ trackRoutes.post("/track/payment", async (c) => {
 	// Server-to-server payments may be backfilled, so only future/invalid times are clamped.
 	const ts = resolveEventTimestamp(body.timestamp, Date.now(), Number.POSITIVE_INFINITY);
 	const eventId = generateId();
+	const paymentCurrency = eventCurrency(body.currency, body.props, site.revenue_currency);
+	// `provider` names the rail when props carry no source of their own.
+	const saleProps: Record<string, unknown> = {
+		...(typeof body.provider === "string" ? { source: body.provider } : {}),
+		...body.props,
+	};
+	const sale =
+		revenue > 0
+			? await clientSaleFields(db, {
+					siteId,
+					visitorId: visitorId as string,
+					path: "/payment",
+					revenue,
+					currency: paymentCurrency,
+					ts,
+					props: saleProps,
+					guardDoubleFire: false,
+					env: c.env,
+				})
+			: null;
 
 	await db
 		.insertInto("events")
@@ -753,7 +802,17 @@ trackRoutes.post("/track/payment", async (c) => {
 			utm_term: null,
 			utm_content: null,
 			revenue,
-			currency: eventCurrency(body.currency, body.props, site.revenue_currency),
+			currency: paymentCurrency,
+			...(sale
+				? {
+						rail: sale.rail,
+						product: sale.product,
+						payment_provider: sale.payment_provider,
+						net_revenue: sale.net_revenue,
+						net_source: sale.net_source,
+						excluded_reason: sale.excluded_reason,
+					}
+				: {}),
 			props: JSON.stringify({ transaction_id, ...(body.props || {}) }),
 			country: cfCountry,
 			region: cfRegion,
@@ -781,13 +840,13 @@ trackRoutes.post("/track/payment", async (c) => {
 			os: null,
 			total_sessions: 0,
 			total_pageviews: 0,
-			total_revenue: revenue,
+			total_revenue: sale?.excluded_reason ? 0 : revenue,
 			fingerprint: null,
 		})
 		.onConflict((oc) =>
 			oc.columns(["site_id", "visitor_id"]).doUpdateSet({
 				last_seen: ts,
-				total_revenue: sql`total_revenue + ${revenue}`,
+				total_revenue: sale?.excluded_reason ? undefined : sql`total_revenue + ${revenue}`,
 			}),
 		)
 		.execute();

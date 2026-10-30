@@ -7,7 +7,7 @@ import { getRevenueByPaymentMethod, getRevenueByPaymentProvider } from "./analyt
 function seed(): Database {
 	const db = new Database(":memory:");
 	db.exec(
-		`CREATE TABLE events (id TEXT PRIMARY KEY, site_id TEXT NOT NULL, session_id TEXT NOT NULL, visitor_id TEXT NOT NULL, timestamp TEXT NOT NULL, event_type TEXT NOT NULL DEFAULT 'pageview', name TEXT, path TEXT NOT NULL DEFAULT '/', hostname TEXT, referrer TEXT, utm_source TEXT, utm_medium TEXT, utm_campaign TEXT, utm_term TEXT, utm_content TEXT, country TEXT, region TEXT, city TEXT, device_type TEXT, browser TEXT, os TEXT, revenue REAL, currency TEXT, props TEXT, payment_provider TEXT, payment_method TEXT, is_bot INTEGER NOT NULL DEFAULT 0, source TEXT)`,
+		`CREATE TABLE events (id TEXT PRIMARY KEY, site_id TEXT NOT NULL, session_id TEXT NOT NULL, visitor_id TEXT NOT NULL, timestamp TEXT NOT NULL, event_type TEXT NOT NULL DEFAULT 'pageview', name TEXT, path TEXT NOT NULL DEFAULT '/', hostname TEXT, referrer TEXT, utm_source TEXT, utm_medium TEXT, utm_campaign TEXT, utm_term TEXT, utm_content TEXT, country TEXT, region TEXT, city TEXT, device_type TEXT, browser TEXT, os TEXT, revenue REAL, currency TEXT, props TEXT, payment_provider TEXT, payment_method TEXT, is_bot INTEGER NOT NULL DEFAULT 0, source TEXT, excluded_reason TEXT)`,
 	);
 	const ins = db.prepare(
 		"INSERT INTO events (id, site_id, session_id, visitor_id, timestamp, event_type, revenue, currency, payment_provider, payment_method) VALUES (?,?,?,?,?,?,?,?,?,?)",

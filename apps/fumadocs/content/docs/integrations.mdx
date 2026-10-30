@@ -81,13 +81,35 @@ the event currency), and `net = max(0, |revenue| − fee)` with the sign of
 `revenue`. A refund (`<id>:refund`) without `net_revenue` keeps the net/gross
 ratio of the original sale. Each event records how its net was obtained
 (`reported`, `rule` or `refund_ratio`). Nets are stored at ingest and never
-recomputed when you edit a rule later.
+recomputed when you edit a rule later. Replaying a sale with `net_revenue`
+(for example re-running a Polar import) upgrades a stored `rule` estimate to
+the `reported` figure.
+
+Polar orders carry Polar's own fee (`platform_fee_amount`); the webhook and the
+order import store `net_amount − platform_fee_amount` as the reported net, and
+fall back to the 4% + 0.40 USD rule when Polar sends no fee. Revenue that the
+buyer's browser already reported on the thank-you page (same site, source,
+amount and currency, within an hour) is not booked a second time: the
+confirmed order fills in that row with its order id, rail and net. The same
+visitor firing the same conversion on the same page again within a minute is
+stored but excluded as a duplicate.
+
+### Test sales
+
+A sale whose `source` or `rail` names a test (`tracking_smoketest`,
+`test_checkout`, ...), or whose `props._test` is `true`, is stored with
+`excluded_reason = "test"` and left out of every dashboard, API and MCP number,
+like bot traffic. Double-booked sales are excluded the same way with
+`excluded_reason = "duplicate"`.
 
 Built-in fees (editable per rail on the Portfolio page, or `GET`/`PUT
 /api/fee-rules` with a dashboard session): `apple` 15%, `google_play` 15%,
 `polar` 4% + 0.40 USD, `stripe` 2.9% + 0.30 USD, `doku` 0.7%, `pakasir` 0.7%,
-every other rail 0%. Events stored before this feature have no net and count
-as net = gross.
+every other rail 0%. A stored sale with no net is never reported as net = gross:
+the portfolio computes its net from your fee rule for its rail when you read
+it, and reports how many rows were estimated that way (`estimated_rows`,
+`net_source: "estimated"`). `bun scripts/backfill-revenue.ts` (in `apps/app`)
+stores those nets, rails and exclusions on old rows.
 
 ### Portfolio revenue
 
@@ -103,10 +125,13 @@ excludes bot traffic, and converts each sale at today's rates into `currency`
 days (default: the last 30 days). The `data` object holds:
 
 - `currency`, `from`, `to`
-- `totals`: `gross`, `net`, `sales` (revenue > 0), `refunds` (revenue < 0), `refund_amount`
+- `totals`: `gross`, `net`, `sales` (revenue > 0), `refunds` (revenue < 0),
+  `refund_amount`, `estimated_rows` (rows whose net came from the fee rule at read time)
 - `by_site`, `by_product`, `by_rail`, `daily`: `gross`, `net` and `sales` per group
-- `recent`: the 20 newest revenue events with `revenue`, `net_revenue`, `currency`,
-  `converted_gross`, `converted_net` and `occurred_at`
+  (`by_rail` also has `estimated_rows`; a row without a rail takes the rail its
+  payment provider implies, e.g. `app_store_sales_report` → `apple`)
+- `recent`: the 20 newest revenue events with `revenue`, `net_revenue`,
+  `net_source`, `currency`, `converted_gross`, `converted_net` and `occurred_at`
 
 The same data is available to AI agents as the `portfolio_revenue` MCP tool.
 

@@ -2,6 +2,7 @@ import { Hono } from "hono";
 import type { Kysely } from "kysely";
 import type { KlikapaDatabase } from "@revklik/shared";
 import { notifySaleEvent, pushCtx } from "../lib/push";
+import { polarReportedNet } from "../lib/polar";
 import { recordServerEvent } from "../lib/server-events";
 import { verifyStandardWebhook } from "../lib/standard-webhooks";
 import type { Env } from "../types";
@@ -29,6 +30,8 @@ interface PolarWebhookData {
 	net_amount?: number | string | null;
 	total_amount?: number | string | null;
 	refunded_amount?: number | string | null;
+	platform_fee_amount?: number | string | null;
+	platform_fee_currency?: string | null;
 	currency?: string | null;
 	customer_email?: string | null;
 	created_at?: string | null;
@@ -44,6 +47,8 @@ interface PolarWebhookAttributes {
 	amount?: number | string | null;
 	total?: number | string | null;
 	net_amount?: number | string | null;
+	platform_fee_amount?: number | string | null;
+	platform_fee_currency?: string | null;
 	currency?: string | null;
 	customer_email?: string | null;
 	product_name?: string | null;
@@ -200,6 +205,17 @@ polarWebhookRoutes.post("/", async (c) => {
 	);
 	const amount = (Number.isFinite(rawAmount) ? rawAmount : 0) / 100;
 	const currency = (data.currency || attributes.currency || "usd").toString().toUpperCase();
+	// Polar's own fee is real proceeds data; without it the fee rule estimates the net.
+	const rawFee = data.platform_fee_amount ?? attributes.platform_fee_amount;
+	const reportedNet =
+		isRefund || rawFee === null || rawFee === undefined
+			? null
+			: polarReportedNet(
+					rawAmount,
+					Number(rawFee),
+					currency,
+					data.platform_fee_currency ?? attributes.platform_fee_currency,
+				);
 	const customerEmail =
 		data.customer?.email || attributes.customer_email || data.customer_email || null;
 	const productName =
@@ -232,6 +248,7 @@ polarWebhookRoutes.post("/", async (c) => {
 				...(customerEmail ? { email: customerEmail } : {}),
 			},
 			occurredAt: data.created_at || attributes.created_at || null,
+			netRevenue: reportedNet,
 			visitorId: metadata.revklik_visitor_id || null,
 			sessionId: metadata.revklik_session_id || null,
 			utmSource: metadata.utm_source || null,

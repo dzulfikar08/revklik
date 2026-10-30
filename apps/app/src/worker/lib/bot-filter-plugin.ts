@@ -27,6 +27,9 @@ const BOT_FLAGGED_TABLES: Record<string, true> = {
 	visitor_profiles: true,
 };
 
+/** Tables whose rows carry `excluded_reason` (test or duplicate sales); NULL = counted. */
+const EXCLUDABLE_TABLES: Record<string, true> = { events: true };
+
 /** True when the operation tree filters on an `is_bot` column (nested selects excluded). */
 function filtersOnIsBot(node: unknown): boolean {
 	if (!node || typeof node !== "object") return false;
@@ -78,6 +81,13 @@ class BotFilterTransformer extends OperationNodeTransformer {
 			where = where
 				? WhereNode.cloneWithOperation(where, "And", humansOnly)
 				: WhereNode.create(humansOnly);
+			if (!EXCLUDABLE_TABLES[t.table]) continue;
+			const counted = BinaryOperationNode.create(
+				ReferenceNode.create(ColumnNode.create("excluded_reason"), TableNode.create(t.ref)),
+				OperatorNode.create("is"),
+				ValueNode.createImmediate(null),
+			);
+			where = WhereNode.cloneWithOperation(where, "And", counted);
 		}
 		return where === out.where ? out : { ...out, where };
 	}
@@ -85,9 +95,10 @@ class BotFilterTransformer extends OperationNodeTransformer {
 
 /**
  * Makes every Kysely SELECT over events, sessions or visitor_profiles read
- * humans only. New analytics queries get the filter for free, and a query that
- * filters on `is_bot` itself (for example `.where("is_bot", "in", [0, 1])`) opts
- * out. Writes and raw `sql` fragments are untouched.
+ * humans only, and every read of events skip rows marked test or duplicate
+ * (`excluded_reason`). New analytics queries get both filters for free, and a
+ * query that filters on `is_bot` itself (for example `.where("is_bot", "in", [0, 1])`)
+ * opts out of both. Writes and raw `sql` fragments are untouched.
  */
 export class BotFilterPlugin implements KyselyPlugin {
 	readonly #transformer = new BotFilterTransformer();

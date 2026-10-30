@@ -140,8 +140,9 @@ interface PortfolioBody {
 			sales: number;
 			refunds: number;
 			refund_amount: number;
+			estimated_rows: number;
 		};
-		by_rail: { rail: string; gross: number; net: number }[];
+		by_rail: { rail: string; gross: number; net: number; estimated_rows: number }[];
 		by_product: { product: string | null; gross: number }[];
 		daily: unknown[];
 		recent: { converted_net: number }[];
@@ -193,7 +194,7 @@ describe("GET portfolio revenue", () => {
 		).toBe(400);
 	});
 
-	it("excludes bot rows and treats legacy rows without net as net = gross", async () => {
+	it("excludes bot rows and computes a legacy row's missing net by rule instead of showing net = gross", async () => {
 		const { t, reader } = await setup();
 		const now = new Date().toISOString();
 		const insert = t.db.prepare(
@@ -203,6 +204,8 @@ describe("GET portfolio revenue", () => {
 		insert.run("e2", "s-pf", "x", "v", now, "conversion", "purchase", "/", 99, "USD", 1);
 		const res = await t.call("GET", "/api/v1/portfolio/revenue", { token: reader });
 		const body: PortfolioBody = await res.json();
-		expect(body.data.totals).toMatchObject({ gross: 5, net: 5, sales: 1 });
+		// No rail and no provider: the "other" rail has no fee rule, and the row is flagged as estimated.
+		expect(body.data.totals).toMatchObject({ gross: 5, net: 5, sales: 1, estimated_rows: 1 });
+		expect(body.data.by_rail).toMatchObject([{ rail: "other", estimated_rows: 1 }]);
 	});
 });

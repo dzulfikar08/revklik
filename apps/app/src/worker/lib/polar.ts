@@ -1,5 +1,6 @@
 import type { Kysely } from "kysely";
 import type { KlikapaDatabase } from "@revklik/shared";
+import { isValidReportedNet } from "./fees";
 import { recordServerEvent } from "./server-events";
 
 /** Subset of a Polar order payload read by this helper. */
@@ -9,6 +10,9 @@ export interface PolarOrder {
 	total_amount?: number | null;
 	net_amount?: number | null;
 	refunded_amount?: number | null;
+	/** What Polar kept from the order, in cents of `platform_fee_currency`. */
+	platform_fee_amount?: number | null;
+	platform_fee_currency?: string | null;
 	currency?: string;
 	created_at?: string;
 	billing_name?: string | null;
@@ -22,6 +26,23 @@ export interface PolarOrder {
 	product?: { name?: string | null } | null;
 	/** Checkout metadata Polar copies onto the order. */
 	metadata?: Record<string, string | undefined> | null;
+}
+
+/**
+ * Proceeds of a sale in major units: the order amount less Polar's platform fee.
+ * Null (the fee rule applies instead) when Polar sent no fee, billed it in another
+ * currency, or the result is not a valid net of the sale.
+ */
+export function polarReportedNet(
+	amountCents: number,
+	feeCents: number | null | undefined,
+	currency: string | undefined,
+	feeCurrency: string | null | undefined,
+): number | null {
+	if (typeof feeCents !== "number" || !Number.isFinite(feeCents) || feeCents < 0) return null;
+	if (feeCurrency && currency && feeCurrency.toLowerCase() !== currency.toLowerCase()) return null;
+	const net = (amountCents - feeCents) / 100;
+	return isValidReportedNet(amountCents / 100, net) ? net : null;
 }
 
 interface PolarAddress {
@@ -74,6 +95,12 @@ export async function processPolarOrder(
 		rail: "polar",
 		props,
 		occurredAt: order.created_at,
+		netRevenue: polarReportedNet(
+			cents,
+			order.platform_fee_amount,
+			order.currency,
+			order.platform_fee_currency,
+		),
 		visitorId: order.metadata?.revklik_visitor_id ?? null,
 		sessionId: order.metadata?.revklik_session_id ?? null,
 	});

@@ -4,6 +4,12 @@ import { sql } from "../db";
 import { generateId } from "../utils";
 import { normalizeRail, railFromSource, resolveNet, resolveProduct } from "./fees";
 import { eventCurrency, MAX_REVENUE, resolveEventTimestamp } from "./ingest";
+import {
+	CLIENT_ORDER_MATCH_MS,
+	isoWindow,
+	syntheticVisitorId,
+	testEventReason,
+} from "./revenue-hygiene";
 
 /** One revenue (or revenue-less) event reported by a trusted server. */
 export interface ServerEventInput {
@@ -41,6 +47,8 @@ export interface ServerEventResult {
 	eventId: string;
 	visitorId: string;
 	duplicate: boolean;
+	/** The sale was already counted from the buyer's browser; that row now carries the order id, rail and net. */
+	adopted?: boolean;
 }
 
 export interface ServerEventSite {
@@ -61,6 +69,53 @@ function eventTypeFor(
 const COUNTRY_RE = /^[A-Za-z]{2}$/;
 const REFUND_SUFFIX = ":refund";
 
+interface NetPatch {
+	rail: string;
+	net_revenue: number | null;
+	net_source: "reported" | "rule" | "refund_ratio" | null;
+}
+
+/**
+ * A thank-you-page conversion (no external_id) that the confirmed sale
+ * duplicates: same site, source, amount and currency, within the match window,
+ * nearest to `ts` (the same visitor wins ties when the caller names one).
+ */
+async function findClientConversion(
+	db: Kysely<KlikapaDatabase>,
+	args: {
+		siteId: string;
+		source: string;
+		rail: string;
+		revenue: number;
+		currency: string;
+		ts: string;
+		/** The buyer the order names; null = unlinked, so the nearest matching row is taken. */
+		visitorId: string | null;
+	},
+): Promise<{
+	id: string;
+	visitor_id: string;
+	props: string | null;
+	product: string | null;
+} | null> {
+	const window = isoWindow(args.ts, CLIENT_ORDER_MATCH_MS);
+	const { rows } = await sql<{
+		id: string;
+		visitor_id: string;
+		props: string | null;
+		product: string | null;
+	}>`SELECT id, visitor_id, props, product FROM events
+		WHERE site_id = ${args.siteId} AND external_id IS NULL AND event_type = 'conversion'
+		AND revenue = ${args.revenue} AND UPPER(COALESCE(NULLIF(currency, ''), 'USD')) = ${args.currency}
+		AND timestamp >= ${window.from} AND timestamp <= ${window.to}
+		AND (payment_provider = ${args.source} OR rail = ${args.rail} OR json_extract(props, '$.source') = ${args.source})
+		AND is_bot = 0 AND excluded_reason IS NULL
+		${args.visitorId === null ? sql`` : sql`AND visitor_id = ${args.visitorId}`}
+		ORDER BY ABS(julianday(timestamp) - julianday(${args.ts})) ASC
+		LIMIT 1`.execute(db);
+	return rows[0] ?? null;
+}
+
 /**
  * Store a server-reported event once. Attribution comes from the explicit
  * fields, then from the checkout's session, then from the visitor's latest
@@ -77,15 +132,29 @@ export async function recordServerEvent(
 		throw new RangeError("revenue must be a finite number within 1e9");
 	}
 
+	// Naming is_bot opts out of the plugin's filters: the idempotency key must see
+	// excluded (test) rows too, or its unique index rejects the insert forever.
 	const findExisting = () =>
 		db
 			.selectFrom("events")
 			.select(["id", "visitor_id"])
 			.where("site_id", "=", site.id)
 			.where("external_id", "=", input.externalId)
+			.where("is_bot", "in", [0, 1])
 			.executeTakeFirst();
 	const existing = await findExisting();
-	if (existing) return { eventId: existing.id, visitorId: existing.visitor_id, duplicate: true };
+	if (existing) {
+		// Replaying a sale with its real proceeds (a re-import) upgrades a fee-rule estimate.
+		if (input.netRevenue !== null && input.netRevenue !== undefined) {
+			await db
+				.updateTable("events")
+				.set({ net_revenue: input.netRevenue, net_source: "reported" })
+				.where("id", "=", existing.id)
+				.where(sql<boolean>`COALESCE(net_source, '') != 'reported'`)
+				.execute();
+		}
+		return { eventId: existing.id, visitorId: existing.visitor_id, duplicate: true };
+	}
 
 	let visitorId = input.visitorId || null;
 	let utmSource = input.utmSource ?? null;
@@ -119,12 +188,15 @@ export async function recordServerEvent(
 			.select(["visitor_id", "session_id"])
 			.where("site_id", "=", site.id)
 			.where("external_id", "=", input.externalId.slice(0, -REFUND_SUFFIX.length))
+			.where("is_bot", "in", [0, 1])
 			.executeTakeFirst();
 		if (sale) {
 			visitorId = sale.visitor_id;
 			sessionId ??= sale.session_id;
 		}
 	}
+	// Only a checkout that names its buyer (visitor or session) pins adoption to that buyer.
+	const linkedVisitorId = visitorId;
 	if (visitorId) {
 		// Latest event wins; flagged bot rows never lend attribution to a sale.
 		const last = await db
@@ -146,7 +218,7 @@ export async function recordServerEvent(
 			city = last.city;
 		}
 	} else {
-		visitorId = `${input.source}_${input.externalId.replace(/[^a-zA-Z0-9]/g, "_")}`.slice(0, 120);
+		visitorId = syntheticVisitorId(input.source, input.externalId);
 	}
 	sessionId ??= generateId();
 
@@ -171,6 +243,34 @@ export async function recordServerEvent(
 		reportedNet: input.netRevenue,
 		env,
 	});
+	const excludedReason = testEventReason({ rail, provider: input.source, props: input.props });
+
+	// A sale the buyer's browser already reported is one sale: the confirmed order
+	// fills in that row instead of booking a second one.
+	if (input.revenue > 0 && !excludedReason) {
+		const clientRow = await findClientConversion(db, {
+			siteId: site.id,
+			source: input.source,
+			rail,
+			revenue: input.revenue,
+			currency: currency.toUpperCase(),
+			ts,
+			visitorId: input.externalId.endsWith(REFUND_SUFFIX) ? null : linkedVisitorId,
+		});
+		if (clientRow) {
+			const adopted = await adoptClientConversion(db, clientRow, input, { rail, ...net });
+			if (adopted) {
+				return {
+					eventId: clientRow.id,
+					visitorId: clientRow.visitor_id,
+					duplicate: false,
+					adopted: true,
+				};
+			}
+			const winner = await findExisting();
+			if (winner) return { eventId: winner.id, visitorId: winner.visitor_id, duplicate: true };
+		}
+	}
 
 	try {
 		await db
@@ -197,6 +297,7 @@ export async function recordServerEvent(
 				product: resolveProduct(input.product, input.props),
 				net_revenue: net.net_revenue,
 				net_source: net.net_source,
+				excluded_reason: excludedReason,
 				payment_provider: input.source,
 				props: JSON.stringify({
 					external_id: input.externalId,
@@ -236,16 +337,61 @@ export async function recordServerEvent(
 			os: null,
 			total_sessions: 0,
 			total_pageviews: 0,
-			total_revenue: input.revenue,
+			total_revenue: excludedReason ? 0 : input.revenue,
 			fingerprint: null,
 		})
 		.onConflict((oc) =>
 			oc.columns(["site_id", "visitor_id"]).doUpdateSet({
 				last_seen: ts,
-				total_revenue: sql`total_revenue + ${input.revenue}`,
+				total_revenue: excludedReason ? undefined : sql`total_revenue + ${input.revenue}`,
 			}),
 		)
 		.execute();
 
 	return { eventId, visitorId, duplicate: false };
+}
+
+/** Merge the confirmed sale into the browser-reported row; false when the order id is already booked. */
+async function adoptClientConversion(
+	db: Kysely<KlikapaDatabase>,
+	row: { id: string; props: string | null; product: string | null },
+	input: ServerEventInput,
+	patch: NetPatch,
+): Promise<boolean> {
+	let previous: Record<string, unknown> = {};
+	try {
+		previous = row.props ? (JSON.parse(row.props) as Record<string, unknown>) : {};
+	} catch {
+		/* unreadable props are replaced */
+	}
+	const supplied = Object.fromEntries(
+		Object.entries(input.props ?? {}).filter(([, value]) => value !== null && value !== undefined),
+	);
+	try {
+		const updated = await db
+			.updateTable("events")
+			.set({
+				external_id: input.externalId,
+				rail: patch.rail,
+				net_revenue: patch.net_revenue,
+				net_source: patch.net_source,
+				payment_provider: input.source,
+				// The browser's product slug beats the order's display name.
+				product: row.product ?? resolveProduct(input.product, { ...supplied, ...previous }),
+				props: JSON.stringify({
+					...supplied,
+					...previous,
+					external_id: input.externalId,
+					source: input.source,
+				}),
+			})
+			.where("id", "=", row.id)
+			.where("external_id", "is", null)
+			.returning("id")
+			.executeTakeFirst();
+		return updated !== undefined;
+	} catch {
+		// The order id won the unique index in a concurrent delivery.
+		return false;
+	}
 }

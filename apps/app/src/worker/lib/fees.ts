@@ -69,6 +69,21 @@ export function railFromSource(source: string): string {
 	return normalizeRail(lower) ?? lower.slice(0, MAX_RAIL_LENGTH);
 }
 
+/**
+ * Rail of a stored row: its own rail, else the rail its legacy payment_provider
+ * implies, else "other". Never maps an explicit rail through the source prefixes
+ * (a custom "playground" rail must not become google_play).
+ */
+export function canonicalRail(
+	rail: string | null | undefined,
+	provider: string | null | undefined,
+): string {
+	const own = rail?.trim();
+	if (own) return own;
+	const legacy = provider?.trim();
+	return legacy ? railFromSource(legacy) : "other";
+}
+
 /** Product slug: explicit, else props.product, else props.app. Null when none is a string. */
 export function resolveProduct(
 	explicit: string | null | undefined,
@@ -180,6 +195,8 @@ export async function resolveNet(db: Kysely<KlikapaDatabase>, input: NetInput): 
 			.select(["revenue", "net_revenue"])
 			.where("site_id", "=", input.siteId)
 			.where("external_id", "=", input.externalId.slice(0, -REFUND_SUFFIX.length))
+			// Naming is_bot opts out of the events plugin, so a test sale's refund still finds it.
+			.where("is_bot", "in", [0, 1])
 			.executeTakeFirst();
 		const net = netByRefundRatio(input.revenue, sale);
 		if (net !== null) return { net_revenue: net, net_source: "refund_ratio" };
