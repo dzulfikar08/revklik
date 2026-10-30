@@ -53,6 +53,12 @@ export interface EventTable {
 	source: Defaulted<string | null>;
 	/** Why the row is left out of every read: "test" (smoke/test sale) or "duplicate" (same sale booked twice), "unconfirmed" (browser-reported sale no provider order confirms); NULL = counted. */
 	excluded_reason: Defaulted<"test" | "duplicate" | "unconfirmed" | null>;
+	/** Units of `currency` per 1 USD when the sale was booked; NULL on legacy rows and unconverted currencies. */
+	fx_rate: Defaulted<number | null>;
+	/** Date fx_rate is valid for. */
+	fx_date: Defaulted<string | null>;
+	/** "live" (feed rate), "fallback" (static table / env) or "unconverted" (no rate for the currency: native amount kept, left out of converted totals). */
+	fx_status: Defaulted<"live" | "fallback" | "unconverted" | null>;
 }
 
 export interface SessionTable {

@@ -6,7 +6,7 @@ import { computedSourceSql } from "./lib/source-sql";
  * Version the live schema must reach. Bump it whenever a step is appended to
  * VERSIONED_STEPS; a DB already at this version costs one SELECT per isolate.
  */
-export const SCHEMA_VERSION = 24;
+export const SCHEMA_VERSION = 25;
 
 const migrated = new WeakSet<D1Database>();
 
@@ -126,7 +126,24 @@ const VERSIONED_STEPS: MigrationStep[] = [
 		// hides them from every events read (lib/revenue-hygiene.ts, lib/revenue-backfill.ts).
 		run: (d1) => runDdl(d1, "ALTER TABLE events ADD COLUMN excluded_reason TEXT"),
 	},
+	{
+		version: 25,
+		// FX stamped when a sale is booked: units of `currency` per 1 USD, the date that rate is
+		// valid for, and whether it came from the feed, the fallback table, or no rate at all.
+		run: fxStampSchema,
+	},
 ];
+
+/** Nullable metadata-only ALTERs: legacy rows keep NULL and convert at today's rate. */
+async function fxStampSchema(d1: D1Database): Promise<void> {
+	for (const statement of [
+		"ALTER TABLE events ADD COLUMN fx_rate REAL",
+		"ALTER TABLE events ADD COLUMN fx_date TEXT",
+		"ALTER TABLE events ADD COLUMN fx_status TEXT",
+	]) {
+		await runDdl(d1, statement);
+	}
+}
 
 /** Server-side linked accounts (switcher) and the one-time intents behind Google linking. */
 async function accountLinksSchema(d1: D1Database): Promise<void> {
