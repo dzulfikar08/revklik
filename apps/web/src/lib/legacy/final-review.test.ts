@@ -2,7 +2,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { LEGACY_API_BASE, LegacyApiError, legacyLogout } from "./api";
-import { fetchPredictions, GrowthPlanLockedError } from "./growth";
+import { fetchInsights, GrowthPlanLockedError } from "./growth";
 import { deleteLegacySite, SiteDeleteTimeoutError } from "./sites";
 
 const reply = (status: number, body: unknown = null) => ({
@@ -84,7 +84,7 @@ describe("growth plan lock", () => {
 					reply(403, { success: false, error: "plan_required", required_plan: "growth" }),
 				),
 		);
-		const err = await fetchPredictions("s1").catch((e: unknown) => e);
+		const err = await fetchInsights("s1", "7d").catch((e: unknown) => e);
 		expect(err).toBeInstanceOf(GrowthPlanLockedError);
 		expect((err as GrowthPlanLockedError).requiredPlan).toBe("growth");
 	});
@@ -94,7 +94,7 @@ describe("growth plan lock", () => {
 			"fetch",
 			vi.fn().mockResolvedValue(reply(403, { success: false, error: "Not a member of this team" })),
 		);
-		const err = await fetchPredictions("s1").catch((e: unknown) => e);
+		const err = await fetchInsights("s1", "7d").catch((e: unknown) => e);
 		expect(err).not.toBeInstanceOf(GrowthPlanLockedError);
 		expect(err).toBeInstanceOf(LegacyApiError);
 		expect((err as LegacyApiError).message).toBe("Not a member of this team");

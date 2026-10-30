@@ -79,6 +79,24 @@ export const viewsEn = {
 	"share.tokens.yes": "Yes",
 	"share.tokens.no": "No",
 	"share.tokens.revokedToast": "Token revoked",
+	// run-rate forecast
+	"forecast.title": "Run-rate forecast",
+	"forecast.hint": "Next {days} days, straight line",
+	"forecast.loading": "Loading forecast",
+	"forecast.error": "Couldn't load the forecast.",
+	"forecast.retry": "Try again",
+	"forecast.basis": "At {avg} a day, the average of the last {days} days ({n} sales).",
+	"forecast.basis_one": "At {avg} a day, the average of the last {days} days ({n} sale).",
+	"forecast.caveat":
+		"Your recent pace carried forward. It ignores seasonality, campaigns and refunds still to come.",
+	"forecast.noSales":
+		"No sales recorded yet. Once you have {minSales} sales over {minDays} days, this shows where your pace is heading.",
+	"forecast.tooFewDays":
+		"Only {have} full days of data so far. The forecast needs at least {minDays}.",
+	"forecast.tooFewSales":
+		"Only {n} sales so far. The forecast needs at least {minSales} to be worth showing.",
+	"forecast.tooFewSales_one":
+		"Only {n} sale so far. The forecast needs at least {minSales} to be worth showing.",
 } as const;
 
 export const viewsId: Record<Exclude<keyof typeof viewsEn, `${string}_one`>, string> = {
@@ -154,4 +172,20 @@ export const viewsId: Record<Exclude<keyof typeof viewsEn, `${string}_one`>, str
 	"share.tokens.yes": "Ya",
 	"share.tokens.no": "Tidak",
 	"share.tokens.revokedToast": "Token dicabut",
+
+	// run-rate forecast
+	"forecast.title": "Proyeksi pendapatan",
+	"forecast.hint": "{days} hari ke depan, garis lurus",
+	"forecast.loading": "Memuat proyeksi",
+	"forecast.error": "Proyeksi gagal dimuat.",
+	"forecast.retry": "Coba lagi",
+	"forecast.basis": "Dengan {avg} per hari, rata-rata {days} hari terakhir ({n} penjualan).",
+	"forecast.caveat":
+		"Laju terbaru kamu diteruskan apa adanya. Belum memperhitungkan musim ramai, kampanye, atau refund yang akan datang.",
+	"forecast.noSales":
+		"Belum ada penjualan tercatat. Setelah ada {minSales} penjualan dalam {minDays} hari, di sini terlihat arah lajunya.",
+	"forecast.tooFewDays":
+		"Baru {have} hari penuh data. Proyeksi butuh minimal {minDays} hari.",
+	"forecast.tooFewSales":
+		"Baru {n} penjualan. Proyeksi butuh minimal {minSales} supaya layak ditampilkan.",
 };

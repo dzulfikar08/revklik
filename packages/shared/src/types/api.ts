@@ -498,19 +498,6 @@ export type InsightType =
 	| "traffic_roi"
 	| "revenue_prediction";
 
-export interface RevenuePrediction {
-	visitor_id: string;
-	conversion_probability: number;
-	predicted_revenue: number;
-	factors: string[];
-}
-
-export interface PredictionResponse {
-	predictions: RevenuePrediction[];
-	model_version: string;
-	generated_at: string;
-}
-
 export interface AiInsight {
 	id: string;
 	type: InsightType;

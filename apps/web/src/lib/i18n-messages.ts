@@ -269,7 +269,6 @@ const en = {
 		"No clicks recorded on this page. Heatmaps need {attr} on your tracking script and visitor consent via {consent}.",
 	"recordings.empty":
 		"No recordings in this range. Recording needs {attr} on your tracking script and visitor consent via {consent}.",
-	"predictions.empty": "No visitors to score yet. Predictions start once visitor profiles exist.",
 
 	// portfolio
 	"portfolio.title": "Portfolio",
@@ -619,8 +618,6 @@ const id: Record<BaseKey, string> = {
 		"Belum ada klik tercatat di halaman ini. Heatmap butuh {attr} di skrip tracking dan izin pengunjung lewat {consent}.",
 	"recordings.empty":
 		"Belum ada rekaman di rentang ini. Rekaman butuh {attr} di skrip tracking dan izin pengunjung lewat {consent}.",
-	"predictions.empty":
-		"Belum ada pengunjung untuk dinilai. Prediksi mulai muncul setelah ada profil pengunjung.",
 
 	"portfolio.title": "Portofolio",
 	"portfolio.subtitle":
