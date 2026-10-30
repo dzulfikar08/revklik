@@ -360,10 +360,21 @@ export type AiBinding = {
 // Prompt building + Workers AI call
 // ---------------------------------------------------------------------------
 
+/** Language insight text is written in. */
+export type InsightLang = "en" | "id";
+
+export const parseInsightLang = (value: unknown): InsightLang => (value === "id" ? "id" : "en");
+
+const LANGUAGE_RULE: Record<InsightLang, string> = {
+	en: "Write title, summary, detail and action in English.",
+	id: 'Write title, summary, detail and action in Bahasa Indonesia: plain, polite, addressing the reader as "kamu", no slang. Keep the JSON keys and the "type" values exactly as listed, in English.',
+};
+
 export async function callWorkersAI(
 	ai: AiBinding | undefined,
 	data: AggregatedData,
 	range: string,
+	lang: InsightLang = "en",
 ): Promise<RawInsight[]> {
 	const prompt = `You are a web analytics expert. Analyze the following aggregated website data for the "${range}" period and generate 3-5 actionable insights.
 
@@ -386,22 +397,24 @@ Return a JSON array of 3-5 insight objects. Each insight must have:
 - confidence: number 0-1 indicating confidence in this insight
 - action: specific actionable recommendation (or null if not applicable)
 
+${LANGUAGE_RULE[lang]}
+
 Return ONLY the JSON array, no other text.`;
 
-	if (!ai) return generateFallbackInsights(data);
+	if (!ai) return generateFallbackInsights(data, lang);
 
 	try {
 		const result = await ai.run("@cf/meta/llama-3.1-8b-instruct", { prompt });
 		const text = result?.response ?? "";
 
 		const jsonMatch = text.match(/\[[\s\S]*\]/);
-		if (!jsonMatch) return generateFallbackInsights(data);
+		if (!jsonMatch) return generateFallbackInsights(data, lang);
 
 		const parsed = JSON.parse(jsonMatch[0]) as RawInsight[];
 		return parsed.slice(0, 5);
 	} catch (err) {
 		console.error("Workers AI error:", err);
-		return generateFallbackInsights(data);
+		return generateFallbackInsights(data, lang);
 	}
 }
 
@@ -409,19 +422,118 @@ Return ONLY the JSON array, no other text.`;
 // Rule-based fallback when AI is unavailable
 // ---------------------------------------------------------------------------
 
-export function generateFallbackInsights(data: AggregatedData): RawInsight[] {
+type FallbackCopy = {
+	revenueTitle: (source: string) => string;
+	revenueSummary: (source: string, money: string, visitors: number) => string;
+	revenueDetail: (source: string, share: number) => string;
+	revenueAction: (source: string) => string;
+	geoTitle: (country: string) => string;
+	geoSummary: (country: string, money: string, visitors: number) => string;
+	geoDetail: (country: string, share: number) => string;
+	geoAction: string;
+	funnelTitle: (section: string) => string;
+	funnelSummary: (section: string, dropoff: number) => string;
+	funnelDetail: (section: string, dropoff: number, reach: number) => string;
+	funnelAction: (section: string) => string;
+	lowTitle: string;
+	lowSummary: (n: number) => string;
+	lowDetail: (sources: string) => string;
+	lowAction: string;
+	bounceTitle: (rate: number) => string;
+	bounceSummary: (rate: number) => string;
+	bounceDetail: (sessions: number, bounces: number, rate: number) => string;
+	bounceAction: string;
+};
+
+const FALLBACK_COPY: Record<InsightLang, FallbackCopy> = {
+	en: {
+		revenueTitle: (source) => `Top revenue source: ${source}`,
+		revenueSummary: (source, money, visitors) =>
+			`${source} brought in ${money} from ${visitors} visitors.`,
+		revenueDetail: (source, share) =>
+			`${source} is ${share}% of the revenue in this period, more than any other source.`,
+		revenueAction: (source) =>
+			`Keep showing up where ${source} comes from: it is the channel already paying you.`,
+		geoTitle: (country) => `Most revenue comes from ${country}`,
+		geoSummary: (country, money, visitors) =>
+			`${country} accounts for ${money} across ${visitors} visitors.`,
+		geoDetail: (country, share) =>
+			`${country} is ${share}% of the revenue in this period. Check whether your price, language and payment methods fit the next-biggest countries too.`,
+		geoAction:
+			"Look at the pages and payment methods your top country uses, then test them on the next country.",
+		funnelTitle: (section) => `Most visitors stop at ${section} scroll depth`,
+		funnelSummary: (section, dropoff) =>
+			`${dropoff}% of visitors who reached the previous point leave before ${section}.`,
+		funnelDetail: (section, dropoff, reach) =>
+			`The scroll funnel loses ${dropoff}% of visitors at ${section}, and only ${reach}% of all visitors get that far.`,
+		funnelAction: (section) =>
+			`Move your main call to action above the ${section} line, or tighten what sits just before it.`,
+		lowTitle: "Some sources bring little revenue",
+		lowSummary: (n) => `${n} source(s) earn well under the average per source.`,
+		lowDetail: (sources) =>
+			`${sources} earn well under the average source. They may bring visitors who are not your buyers.`,
+		lowAction:
+			"Check whether the message that brings these visitors matches the page they land on.",
+		bounceTitle: (rate) => `${rate}% of sessions are a single page`,
+		bounceSummary: (rate) => `${rate}% of sessions leave after one page.`,
+		bounceDetail: (sessions, bounces, rate) =>
+			`Out of ${sessions} sessions, ${bounces} (${rate}%) ended on the first page.`,
+		bounceAction:
+			"Read your top landing page as a stranger would: is it clear in five seconds what you sell and for how much?",
+	},
+	id: {
+		revenueTitle: (source) => `Sumber pendapatan terbesar: ${source}`,
+		revenueSummary: (source, money, visitors) =>
+			`${source} membawa ${money} dari ${visitors} pengunjung.`,
+		revenueDetail: (source, share) =>
+			`${source} menyumbang ${share}% pendapatan di periode ini, lebih besar dari sumber lain.`,
+		revenueAction: (source) =>
+			`Tetap aktif di tempat asal ${source}: itu kanal yang sudah terbukti membayar.`,
+		geoTitle: (country) => `Pendapatan terbanyak dari ${country}`,
+		geoSummary: (country, money, visitors) =>
+			`${country} menyumbang ${money} dari ${visitors} pengunjung.`,
+		geoDetail: (country, share) =>
+			`${country} menyumbang ${share}% pendapatan di periode ini. Cek apakah harga, bahasa, dan metode pembayaranmu juga cocok untuk negara berikutnya.`,
+		geoAction:
+			"Lihat halaman dan metode pembayaran yang dipakai negara teratasmu, lalu coba di negara berikutnya.",
+		funnelTitle: (section) => `Banyak pengunjung berhenti di kedalaman scroll ${section}`,
+		funnelSummary: (section, dropoff) =>
+			`${dropoff}% pengunjung yang sampai titik sebelumnya pergi sebelum ${section}.`,
+		funnelDetail: (section, dropoff, reach) =>
+			`Funnel scroll kehilangan ${dropoff}% pengunjung di ${section}, dan hanya ${reach}% dari semua pengunjung sampai sejauh itu.`,
+		funnelAction: (section) =>
+			`Pindahkan ajakan utamamu ke atas garis ${section}, atau ringkas bagian tepat sebelumnya.`,
+		lowTitle: "Beberapa sumber membawa sedikit pendapatan",
+		lowSummary: (n) => `${n} sumber menghasilkan jauh di bawah rata-rata per sumber.`,
+		lowDetail: (sources) =>
+			`${sources} menghasilkan jauh di bawah rata-rata. Bisa jadi pengunjung dari sana bukan calon pembelimu.`,
+		lowAction:
+			"Cek apakah pesan yang membawa pengunjung ini cocok dengan halaman yang mereka datangi.",
+		bounceTitle: (rate) => `${rate}% sesi hanya satu halaman`,
+		bounceSummary: (rate) => `${rate}% sesi pergi setelah satu halaman.`,
+		bounceDetail: (sessions, bounces, rate) =>
+			`Dari ${sessions} sesi, ${bounces} (${rate}%) berakhir di halaman pertama.`,
+		bounceAction:
+			"Baca halaman pendaratan utamamu seperti orang asing: apakah dalam lima detik jelas apa yang kamu jual dan berapa harganya?",
+	},
+};
+
+export function generateFallbackInsights(data: AggregatedData, lang: InsightLang = "en"): RawInsight[] {
+	const c = FALLBACK_COPY[lang];
 	const insights: RawInsight[] = [];
+	const sharePct = (part: number): number =>
+		data.totalRevenue > 0 ? Math.round((part / data.totalRevenue) * 100) : 0;
 
 	// Revenue driver insight
 	if (data.revenueBySource.length > 0) {
 		const top = data.revenueBySource[0] ?? { utm_source: "", revenue: 0, visitors: 0 };
 		insights.push({
 			type: "revenue_drivers",
-			title: `Top revenue source: ${top.utm_source}`,
-			summary: `${top.utm_source} generates the most revenue at ${formatMoney(top.revenue, data.currency)} from ${top.visitors} unique visitors.`,
-			detail: `Out of all traffic sources, ${top.utm_source} drives ${formatMoney(top.revenue, data.currency)} in revenue with ${top.visitors} visitors. This represents the highest revenue concentration and deserves increased investment.`,
+			title: c.revenueTitle(top.utm_source),
+			summary: c.revenueSummary(top.utm_source, formatMoney(top.revenue, data.currency), top.visitors),
+			detail: c.revenueDetail(top.utm_source, sharePct(top.revenue)),
 			confidence: 0.85,
-			action: `Increase budget allocation to ${top.utm_source} campaigns to scale this proven revenue channel.`,
+			action: c.revenueAction(top.utm_source),
 		});
 	}
 
@@ -430,11 +542,11 @@ export function generateFallbackInsights(data: AggregatedData): RawInsight[] {
 		const top = data.revenueByCountry[0] ?? { country: "", revenue: 0, visitors: 0 };
 		insights.push({
 			type: "geo_opportunities",
-			title: `Revenue concentrated in ${top.country}`,
-			summary: `${top.country} accounts for ${formatMoney(top.revenue, data.currency)} in revenue across ${top.visitors} visitors.`,
-			detail: `The majority of revenue (${formatMoney(top.revenue, data.currency)}) comes from ${top.country}. Other countries represent untapped opportunities for localization and targeted campaigns.`,
+			title: c.geoTitle(top.country),
+			summary: c.geoSummary(top.country, formatMoney(top.revenue, data.currency), top.visitors),
+			detail: c.geoDetail(top.country, sharePct(top.revenue)),
 			confidence: 0.75,
-			action: `Consider localizing content for top revenue countries and running geo-targeted campaigns in underperforming regions.`,
+			action: c.geoAction,
 		});
 	}
 
@@ -445,11 +557,11 @@ export function generateFallbackInsights(data: AggregatedData): RawInsight[] {
 		);
 		insights.push({
 			type: "funnel_optimization",
-			title: `Biggest dropoff at ${worstStep.section}`,
-			summary: `${worstStep.dropoff}% of visitors drop off at the ${worstStep.section} scroll depth.`,
-			detail: `The scroll funnel shows a ${worstStep.dropoff}% dropoff at ${worstStep.section}, suggesting content at this depth may need improvement. Only ${worstStep.percentage}% of visitors reach this point.`,
+			title: c.funnelTitle(worstStep.section),
+			summary: c.funnelSummary(worstStep.section, worstStep.dropoff),
+			detail: c.funnelDetail(worstStep.section, worstStep.dropoff, worstStep.percentage),
 			confidence: 0.8,
-			action: `Optimize content layout and calls-to-action around the ${worstStep.section} area to reduce dropoff.`,
+			action: c.funnelAction(worstStep.section),
 		});
 	}
 
@@ -461,12 +573,11 @@ export function generateFallbackInsights(data: AggregatedData): RawInsight[] {
 		if (lowPerforming.length > 0) {
 			insights.push({
 				type: "traffic_roi",
-				title: "Low-performing traffic sources detected",
-				summary: `${lowPerforming.length} source(s) generate below-average revenue per visitor.`,
-				detail: `Sources like ${lowPerforming.map((s) => s.utm_source).join(", ")} are underperforming relative to the average revenue distribution. These may need better targeting or landing page optimization.`,
+				title: c.lowTitle,
+				summary: c.lowSummary(lowPerforming.length),
+				detail: c.lowDetail(lowPerforming.map((s) => s.utm_source).join(", ")),
 				confidence: 0.7,
-				action:
-					"Audit low-performing source campaigns for message-to-page alignment and audience targeting.",
+				action: c.lowAction,
 			});
 		}
 	}
@@ -480,12 +591,11 @@ export function generateFallbackInsights(data: AggregatedData): RawInsight[] {
 		if (bounceRate > 40) {
 			insights.push({
 				type: "funnel_optimization",
-				title: `High bounce rate: ${bounceRate}%`,
-				summary: `${bounceRate}% of sessions are single-page bounces, indicating potential landing page issues.`,
-				detail: `Out of ${totalSessions} sessions, ${bounceSessions.count} (${bounceRate}%) are single-page visits. This suggests landing pages may not be meeting visitor expectations.`,
+				title: c.bounceTitle(bounceRate),
+				summary: c.bounceSummary(bounceRate),
+				detail: c.bounceDetail(totalSessions, bounceSessions.count, bounceRate),
 				confidence: 0.75,
-				action:
-					"Improve landing page load speed, headline clarity, and above-the-fold content to reduce bounces.",
+				action: c.bounceAction,
 			});
 		}
 	}

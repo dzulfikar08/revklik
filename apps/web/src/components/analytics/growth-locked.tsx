@@ -1,6 +1,8 @@
 import { Lock, Sparkles } from "lucide-react";
 import type { ReactNode } from "react";
 
+import { useT } from "@/lib/i18n";
+
 /**
  * Shared bits for the Growth-gated panels (heatmap, recordings, AI insights,
  * predictions). A 403 from the API maps to GrowthPlanLockedError upstream;
@@ -31,31 +33,33 @@ export const GrowthLocked = ({
 	plan = "Growth",
 }: {
 	blurb?: string;
+	/** Already-translated feature name. */
 	feature: string;
 	onUpgrade: () => void;
 	/** Plan that unlocks the feature (Funnels unlock on Starter). */
 	plan?: string;
-}) => (
+}) => {
+	const t = useT();
+	return (
 	<div className="relative min-h-52 overflow-hidden rounded-xl" role="status">
 		<LockedPreview />
 		<div className="bg-background/60 absolute inset-0 flex flex-col items-center justify-center gap-1.5 p-4 text-center">
 			<span className="bg-muted text-muted-foreground flex h-8 w-8 items-center justify-center rounded-lg">
 				<Lock className="h-4 w-4" />
 			</span>
-			<p className="text-sm font-semibold">
-				{feature} is a {plan} feature
-			</p>
+			<p className="text-sm font-semibold">{t("growth.lockedTitle", { feature, plan })}</p>
 			<button
 				type="button"
 				onClick={onUpgrade}
 				className="bg-primary text-primary-foreground hover:bg-primary/90 focus-visible:outline-ring mt-1 inline-flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs font-medium transition-colors focus-visible:outline-2"
 			>
 				<Sparkles className="h-3.5 w-3.5" aria-hidden />
-				Upgrade to {plan}
+				{t("growth.upgrade", { plan })}
 			</button>
 		</div>
 	</div>
-);
+	);
+};
 
 export const GrowthMsg = ({ children }: { children: ReactNode }) => (
 	<p className="text-muted-foreground py-6 text-center text-xs">{children}</p>

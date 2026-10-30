@@ -140,12 +140,23 @@ export const fetchRecordings = (
 export const fetchRecording = (id: string): Promise<RecordingDetail> =>
 	growthFetch(`/analytics/recordings/${id}`);
 
-export const fetchInsights = (siteId: string, range: string): Promise<InsightsResponse> =>
-	growthFetch(`/ai-insights?${new URLSearchParams({ site_id: siteId, range })}`);
+/** Insight text is generated server side in this language. */
+export type InsightLang = "en" | "id";
 
-export const refreshInsights = (siteId: string, range: string): Promise<InsightsResponse> =>
+export const fetchInsights = (
+	siteId: string,
+	range: string,
+	lang: InsightLang,
+): Promise<InsightsResponse> =>
+	growthFetch(`/ai-insights?${new URLSearchParams({ lang, range, site_id: siteId })}`);
+
+export const refreshInsights = (
+	siteId: string,
+	range: string,
+	lang: InsightLang,
+): Promise<InsightsResponse> =>
 	growthFetch("/ai-insights/refresh", {
-		body: JSON.stringify({ site_id: siteId, range }),
+		body: JSON.stringify({ lang, range, site_id: siteId }),
 		method: "POST",
 	});
 

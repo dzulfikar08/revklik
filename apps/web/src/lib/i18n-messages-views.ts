@@ -140,6 +140,19 @@ export const viewsEn = {
 		"Deletion is still running. Reload in a minute to check, or try again.",
 	"settings.privacy.err.generic": "Something went wrong. Try again.",
 
+	// AI insights
+	"insights.title": "AI insights",
+	"insights.tagline": "Patterns the dashboard won't show you",
+	"insights.summary": "{events} events · {revenue} revenue",
+	"insights.refresh": "Refresh",
+	"insights.generating": "Generating…",
+	"insights.empty": "Not enough data yet. Check back after 100+ events.",
+	"insights.growthOnly": "AI insights are a Growth feature.",
+	"insights.refreshFailed": "Refresh failed: {message}",
+	"insights.regenerated": "Insights regenerated",
+	"growth.lockedTitle": "{feature} is a {plan} feature",
+	"growth.upgrade": "Upgrade to {plan}",
+
 	// billing extras
 	"billing.lifetime": "Lifetime access",
 	"billing.overSites":
@@ -297,6 +310,19 @@ export const viewsId: Record<Exclude<keyof typeof viewsEn, `${string}_one`>, str
 	"settings.privacy.err.timeout":
 		"Penghapusan masih berjalan. Muat ulang sebentar lagi untuk mengecek, atau coba lagi.",
 	"settings.privacy.err.generic": "Terjadi kesalahan. Coba lagi.",
+
+	// AI insights
+	"insights.title": "Wawasan AI",
+	"insights.tagline": "Pola yang tidak terlihat di dashboard biasa",
+	"insights.summary": "{events} event · pendapatan {revenue}",
+	"insights.refresh": "Segarkan",
+	"insights.generating": "Memproses…",
+	"insights.empty": "Data belum cukup. Cek lagi setelah ada 100+ event.",
+	"insights.growthOnly": "Wawasan AI tersedia di paket Growth.",
+	"insights.refreshFailed": "Gagal menyegarkan: {message}",
+	"insights.regenerated": "Wawasan dibuat ulang",
+	"growth.lockedTitle": "{feature} tersedia di paket {plan}",
+	"growth.upgrade": "Upgrade ke {plan}",
 
 	// billing extras
 	"billing.lifetime": "Akses seumur hidup",

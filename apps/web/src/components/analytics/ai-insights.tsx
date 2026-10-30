@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowRight, RefreshCw, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 
-import { useT } from "@/lib/i18n";
+import { useLocale, useT } from "@/lib/i18n";
 import { fetchInsights, GrowthPlanLockedError, refreshInsights } from "@/lib/legacy/growth";
 import type { AiInsight, InsightType, InsightsResponse } from "@/lib/legacy/growth";
 
@@ -77,41 +77,41 @@ export const AiInsightsPanel = ({
 	siteId: string;
 	rangeKey: string;
 }) => {
+	const t = useT();
+	const lang = useLocale();
 	const qc = useQueryClient();
+	// The text is written server side, so a language switch needs its own fetch.
+	const queryKey = ["growth", "insights", siteId, rangeKey, lang];
 	const q = useQuery({
 		enabled: Boolean(siteId),
-		queryFn: () => fetchInsights(siteId, rangeKey),
-		queryKey: ["growth", "insights", siteId, rangeKey],
+		queryFn: () => fetchInsights(siteId, rangeKey, lang),
+		queryKey,
 		refetchInterval: 300_000,
 		retry: false,
 		staleTime: 60_000,
 	});
 
 	const refresh = useMutation({
-		mutationFn: () => refreshInsights(siteId, rangeKey),
+		mutationFn: () => refreshInsights(siteId, rangeKey, lang),
 		onError: (err) => {
 			toast.error(
 				err instanceof GrowthPlanLockedError
-					? "AI insights are a Growth feature."
-					: `Refresh failed: ${err.message}`,
+					? t("insights.growthOnly")
+					: t("insights.refreshFailed", { message: err.message }),
 			);
 		},
 		onSuccess: (data: InsightsResponse) => {
-			qc.setQueryData(["growth", "insights", siteId, rangeKey], data);
-			toast.success("Insights regenerated");
+			qc.setQueryData(queryKey, data);
+			toast.success(t("insights.regenerated"));
 		},
 	});
 
 	const data = q.error instanceof GrowthPlanLockedError ? null : q.data;
 
 	return (
-		<Panel title="AI Insights" hint="updated every 5 min">
+		<Panel title={t("insights.title")}>
 			{q.error instanceof GrowthPlanLockedError ? (
-				<GrowthLocked
-					blurb="Let AI surface what drives revenue and where funnel opportunities are hiding."
-					feature="AI insights"
-					onUpgrade={onUpgrade}
-				/>
+				<GrowthLocked feature={t("insights.title")} onUpgrade={onUpgrade} />
 			) : q.error ? (
 				<GrowthMsg>{q.error.message}</GrowthMsg>
 			) : (
@@ -120,11 +120,11 @@ export const AiInsightsPanel = ({
 						<span className="text-muted-foreground flex items-center gap-1.5 text-xs tabular-nums">
 							<Sparkles aria-hidden className="size-3.5 text-(--money)" />
 							{data?.data_summary
-								? `${fmtC(data.data_summary.total_events)} events · ${money(
-										data.data_summary.total_revenue,
-										data.data_summary.currency,
-									)} revenue`
-								: "patterns the dashboard won't show you"}
+								? t("insights.summary", {
+										events: fmtC(data.data_summary.total_events),
+										revenue: money(data.data_summary.total_revenue, data.data_summary.currency),
+									})
+								: t("insights.tagline")}
 						</span>
 						<button
 							className="bg-muted hover:bg-muted/70 text-muted-foreground hover:text-foreground focus-visible:outline-ring ml-auto flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium transition-colors outline-offset-2 focus-visible:outline-2 disabled:cursor-wait"
@@ -136,14 +136,14 @@ export const AiInsightsPanel = ({
 								aria-hidden
 								className={`size-3 ${refresh.isPending ? "animate-spin" : ""}`}
 							/>
-							{refresh.isPending ? "Generating…" : "Refresh"}
+							{refresh.isPending ? t("insights.generating") : t("insights.refresh")}
 						</button>
 					</div>
 
 					{q.isLoading || refresh.isPending ? (
 						<GrowthSkeleton rows={3} />
 					) : !data || data.insights.length === 0 ? (
-						<GrowthMsg>Not enough data yet. Check back after 100+ events.</GrowthMsg>
+						<GrowthMsg>{t("insights.empty")}</GrowthMsg>
 					) : (
 						<ul className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
 							{data.insights.map((insight) => (
