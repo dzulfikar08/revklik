@@ -5,9 +5,11 @@
  * Indonesian side never needs them.
  */
 
+import { shellEn, shellId } from "./i18n-messages-shell";
 import { viewsEn, viewsId } from "./i18n-messages-views";
 
 const en = {
+	...shellEn,
 	// language toggle
 	"locale.label": "Language",
 
@@ -369,6 +371,7 @@ export type MessageKey = keyof typeof en;
 type BaseKey = Exclude<MessageKey, `${string}_one`>;
 
 const id: Record<BaseKey, string> = {
+	...shellId,
 	"locale.label": "Bahasa",
 
 	"auth.signIn.title": "Selamat datang lagi",

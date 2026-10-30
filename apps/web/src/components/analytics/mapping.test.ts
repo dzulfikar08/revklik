@@ -6,7 +6,7 @@ import { describe, expect, it } from "vitest";
 
 import type { GeoRow, JourneyStep, VisitorJourney, VisitorProfile } from "@/lib/legacy/api";
 
-import { aggregateGeo, profileToVisitor, stepToEvent } from "./analytics-page";
+import { aggregateGeo, profileToVisitor, stepToEvent } from "./dashboard-mapping";
 
 const STEP_BASE: JourneyStep = {
 	event_type: "custom",

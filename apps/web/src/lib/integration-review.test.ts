@@ -5,7 +5,8 @@
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { funnelLockPlan, stepToEvent } from "@/components/analytics/analytics-page";
+import { funnelLockPlan } from "@/components/analytics/behavior-panels";
+import { stepToEvent } from "@/components/analytics/dashboard-mapping";
 
 import { authErrorMessage } from "./auth-errors";
 import { googleAuthUrl } from "./auth-search";
