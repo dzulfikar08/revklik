@@ -14,6 +14,7 @@ import { accountUsageIncrement } from "../lib/account-usage";
 import { executeBatch } from "../lib/d1-batch";
 import { isSelfHosted } from "../lib/entitlement";
 import { enforceSiteQuota, incrementCachedUsage } from "../lib/subscription-cache";
+import { resolveVisitorId } from "../lib/visitor-identity";
 import {
 	countryFromTimezone,
 	classifyCrawler,
@@ -254,24 +255,10 @@ trackRoutes.post("/track", async (c) => {
 	if (botUa && /WhatsApp\/\d/.test(botUa)) browser = "WhatsApp";
 	const os = first.os ?? null;
 
-	// Cookieless attribution: compute fingerprint from request headers
+	// Request fingerprint: the self-traffic blocklist key, and the identity of a
+	// client that sends no visitor id. It never overrides a client-sent id, so
+	// visitors sharing an IP, browser and screen (carrier NAT, offices) stay apart.
 	const fingerprint = await fingerprintFromRequest(c.req.raw, first.sr);
-
-	// Resolve visitor ID via fingerprint — prefer existing visitor for journey continuity
-	let resolvedVid = first.vid;
-	if (fingerprint) {
-		const existing = await db
-			.selectFrom("visitor_profiles")
-			.select(["visitor_id"])
-			.where("site_id", "=", siteId)
-			.where("fingerprint", "=", fingerprint)
-			.orderBy("first_seen", "asc")
-			.limit(1)
-			.executeTakeFirst();
-		if (existing && existing.visitor_id !== first.vid) {
-			resolvedVid = existing.visitor_id;
-		}
-	}
 
 	// Self-traffic exclusion: drop events from blocklisted fingerprints.
 	if (fingerprint && (await isExcludedFingerprint(db, siteId, fingerprint))) {
@@ -279,22 +266,19 @@ trackRoutes.post("/track", async (c) => {
 	}
 
 	const writes: Compilable[] = [];
-	const seenSids = new Set<string>();
 	// A batch never overshoots the plan: events past the remaining allowance are dropped.
 	const allowance = Math.max(0, enforcement.eventsLimit - enforcement.eventsUsed);
 	let ingested = 0;
 	for (const payload of payloads) {
 		if (payload.s !== siteId) continue;
+		const vid = resolveVisitorId(payload.vid, fingerprint);
+		if (!vid) continue;
 		if (ingested >= allowance) break;
 		ingested++;
-		const isNewSession = !seenSids.has(payload.sid);
-		seenSids.add(payload.sid);
-		const sessionInc = isNewSession ? 1 : 0;
 
 		const ts = resolveEventTimestamp(payload.ts);
 		const revenue = sanitizeRevenue(payload.rv);
 		const eventType = payload.t === "p" ? "pageview" : payload.t === "c" ? "conversion" : "custom";
-		const vid = fingerprint ? resolvedVid : payload.vid;
 		const currency =
 			revenue === null ? null : eventCurrency(payload.cur, payload.pr, site.revenue_currency);
 		// Money the browser reports gets its rail, fee-rule net and test/duplicate verdict now.
@@ -362,6 +346,50 @@ trackRoutes.post("/track", async (c) => {
 
 		const pvInc = eventType === "pageview" ? 1 : 0;
 		const rvInc = sale?.excluded_reason ? 0 : (revenue ?? 0);
+		// The profile write runs before the session upsert in this transaction, so
+		// the sessions row exists only if an earlier request (or an earlier event of
+		// this batch) created it: count a session once, on the event that opens it.
+		const newSession = sql<number>`CASE WHEN EXISTS (SELECT 1 FROM sessions WHERE id = ${payload.sid}) THEN 0 ELSE 1 END`;
+
+		writes.push(
+			db
+				.insertInto("visitor_profiles")
+				.values({
+					id: generateId(),
+					site_id: payload.s,
+					visitor_id: vid,
+					first_seen: ts,
+					last_seen: ts,
+					country: cfCountry,
+					region: cfRegion,
+					city: cfCity,
+					device_type: deviceType,
+					browser,
+					os,
+					total_sessions: newSession,
+					total_pageviews: pvInc,
+					total_revenue: rvInc,
+					fingerprint,
+					is_bot: isBot,
+				})
+				.onConflict((oc) =>
+					oc.columns(["site_id", "visitor_id"]).doUpdateSet({
+						last_seen: ts,
+						// A human session clears an earlier bot verdict; a bot one never sets it.
+						is_bot: isBot ? undefined : 0,
+						fingerprint: fingerprint ?? undefined,
+						country: cfCountry ?? undefined,
+						region: cfRegion ?? undefined,
+						city: cfCity ?? undefined,
+						device_type: deviceType ?? undefined,
+						browser: browser ?? undefined,
+						os: os ?? undefined,
+						total_pageviews: sql`total_pageviews + ${pvInc}`,
+						total_sessions: sql`total_sessions + ${newSession}`,
+						total_revenue: rvInc > 0 ? sql`total_revenue + ${rvInc}` : undefined,
+					}),
+				),
+		);
 
 		writes.push(
 			db
@@ -391,18 +419,22 @@ trackRoutes.post("/track", async (c) => {
 					active_seconds: 0,
 					as_org: cfAsOrg,
 				})
+				// A sid already owned by another site is never updated from this site's payload.
 				.onConflict((oc) =>
-					oc.column("id").doUpdateSet({
-						exit_path: payload.p,
-						// Out-of-order batches never move the end backwards, and a gap
-						// (idle tab, abandoned session) adds at most the cap.
-						active_seconds: sql`COALESCE(active_seconds, 0) + CAST(ROUND(MIN(${SESSION_GAP_CAP_SECONDS}, MAX(0, (julianday(${ts}) - julianday(COALESCE(ended_at, started_at))) * 86400))) AS INTEGER)`,
-						ended_at: sql`MAX(COALESCE(ended_at, started_at), ${ts})`,
-						page_count: sql`page_count + 1`,
-						is_bounce: 0,
-						is_bot: sql`MAX(is_bot, ${isBot})`,
-						bot_reason: sql`COALESCE(bot_reason, ${botReason})`,
-					}),
+					oc
+						.column("id")
+						.doUpdateSet({
+							exit_path: payload.p,
+							// Out-of-order batches never move the end backwards, and a gap
+							// (idle tab, abandoned session) adds at most the cap.
+							active_seconds: sql`COALESCE(active_seconds, 0) + CAST(ROUND(MIN(${SESSION_GAP_CAP_SECONDS}, MAX(0, (julianday(${ts}) - julianday(COALESCE(ended_at, started_at))) * 86400))) AS INTEGER)`,
+							ended_at: sql`MAX(COALESCE(ended_at, started_at), ${ts})`,
+							page_count: sql`page_count + 1`,
+							is_bounce: 0,
+							is_bot: sql`MAX(is_bot, ${isBot})`,
+							bot_reason: sql`COALESCE(bot_reason, ${botReason})`,
+						})
+						.where(sql<boolean>`sessions.site_id = excluded.site_id`),
 				),
 		);
 
@@ -417,46 +449,6 @@ trackRoutes.post("/track", async (c) => {
 				.where("is_bot", "=", 0)
 				.where(
 					sql<boolean>`EXISTS (SELECT 1 FROM sessions WHERE id = ${payload.sid} AND site_id = ${payload.s} AND bot_reason = 'probe_payload')`,
-				),
-		);
-
-		writes.push(
-			db
-				.insertInto("visitor_profiles")
-				.values({
-					id: generateId(),
-					site_id: payload.s,
-					visitor_id: vid,
-					first_seen: ts,
-					last_seen: ts,
-					country: cfCountry,
-					region: cfRegion,
-					city: cfCity,
-					device_type: deviceType,
-					browser,
-					os,
-					total_sessions: 1,
-					total_pageviews: pvInc,
-					total_revenue: rvInc,
-					fingerprint,
-					is_bot: isBot,
-				})
-				.onConflict((oc) =>
-					oc.columns(["site_id", "visitor_id"]).doUpdateSet({
-						last_seen: ts,
-						// A human session clears an earlier bot verdict; a bot one never sets it.
-						is_bot: isBot ? undefined : 0,
-						fingerprint: fingerprint ?? undefined,
-						country: cfCountry ?? undefined,
-						region: cfRegion ?? undefined,
-						city: cfCity ?? undefined,
-						device_type: deviceType ?? undefined,
-						browser: browser ?? undefined,
-						os: os ?? undefined,
-						total_pageviews: sql`total_pageviews + ${pvInc}`,
-						total_sessions: sessionInc > 0 ? sql`total_sessions + ${sessionInc}` : undefined,
-						total_revenue: rvInc > 0 ? sql`total_revenue + ${rvInc}` : undefined,
-					}),
 				),
 		);
 	}
@@ -476,10 +468,7 @@ trackRoutes.post("/track", async (c) => {
 	}
 	if (enforcement.ownerId && ingested > 0) incrementCachedUsage(enforcement.ownerId, ingested);
 
-	return c.json(
-		{ success: true, vid: resolvedVid !== first.vid ? resolvedVid : undefined },
-		{ status: 202 },
-	);
+	return c.json({ success: true }, { status: 202 });
 });
 
 trackRoutes.post("/identify", async (c) => {

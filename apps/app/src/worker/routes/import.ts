@@ -1,5 +1,6 @@
 import { Hono } from "hono";
 import type { Env } from "../types";
+import { odsDay, odsEventTimestamp } from "../lib/ods-import";
 import { generateId } from "../utils";
 
 export const importRoutes = new Hono<Env>();
@@ -96,16 +97,18 @@ importRoutes.post("/onedollarstats", async (c) => {
 
 	const countryByDate = new Map<string, Map<string, number>>();
 	for (const row of countryData.results) {
-		const [date, country] = row.dimensions as [string, string];
-		if (!country) continue;
+		const [rawDate, country] = row.dimensions as [string, string];
+		const date = odsDay(rawDate);
+		if (!date || !country) continue;
 		if (!countryByDate.has(date)) countryByDate.set(date, new Map());
 		countryByDate.get(date)?.set(country, row.metrics[0] ?? 0);
 	}
 
 	const sourceByDate = new Map<string, Map<string, number>>();
 	for (const row of sourceData.results) {
-		const [date, source] = row.dimensions as [string, string];
-		if (!source || source === "(not set)") continue;
+		const [rawDate, source] = row.dimensions as [string, string];
+		const date = odsDay(rawDate);
+		if (!date || !source || source === "(not set)") continue;
 		if (!sourceByDate.has(date)) sourceByDate.set(date, new Map());
 		sourceByDate.get(date)?.set(source, row.metrics[0] ?? 0);
 	}
@@ -162,7 +165,9 @@ importRoutes.post("/onedollarstats", async (c) => {
 	};
 
 	for (const row of pageData.results) {
-		const [date, page] = row.dimensions as [string, string | undefined];
+		const [rawDate, page] = row.dimensions as [string, string | undefined];
+		const date = odsDay(rawDate);
+		if (!date) continue;
 		const pagePath = page || "/";
 		const visitors = row.metrics[0];
 		if (!visitors || visitors < 1) continue;
@@ -197,7 +202,7 @@ importRoutes.post("/onedollarstats", async (c) => {
 				}
 			}
 			const visitorId = `ods_${date}_${pagePath.replace(/[^a-zA-Z0-9]/g, "_")}_${i}`;
-			const ts = `${date}T${String(12 + (i % 8)).padStart(2, "0")}:00:00Z`;
+			const ts = odsEventTimestamp(date, i);
 			await db
 				.insertInto("events")
 				.values({

@@ -16,11 +16,22 @@ import type {
 } from "@revklik/shared";
 import { sql } from "../db";
 import type { ParsedFilter } from "../lib/analytics-queries";
-import { applyFilters, applySessionFilters } from "../lib/analytics-queries";
+import { applyFilters, applySessionFilters, hasEventOnlyFilter } from "../lib/analytics-queries";
 import { D1_BATCH_CHUNK } from "../lib/d1-batch";
 import { avgSessionSecondsSql } from "../lib/session-duration";
 import { externalReferrerOnly, sourceSql } from "../lib/source-sql";
 import { type MoneyContext, revenueSql, USD_MONEY } from "../lib/fx";
+import {
+	bucketKeys,
+	bucketSql,
+	conversionsSql,
+	hasRevenuePredicate,
+	pageviewPredicate,
+	pageviewsSql,
+	revenueTotalSql,
+	visitorsSql,
+} from "../lib/metrics";
+import { planNetRevenue, resolveNetRevenue } from "../lib/net-revenue";
 
 /** Per-request presentation: revenue display currency and bucket timezone. */
 export interface QueryScope {
@@ -80,42 +91,6 @@ export async function runBatch<const P extends readonly QueryPlan<unknown>[]>(
 		offset += p.queries.length;
 		return out;
 	}) as PlanResults<P>;
-}
-
-export function bucketSql(isHourly: boolean, tzOffset: number, column = "timestamp") {
-	const ref = sql.ref(column);
-	if (tzOffset === 0) {
-		return isHourly
-			? sql<string>`strftime('%Y-%m-%dT%H:00:00', ${ref})`
-			: sql<string>`date(${ref})`;
-	}
-	const shift = `${tzOffset >= 0 ? "+" : ""}${tzOffset} minutes`;
-	return isHourly
-		? sql<string>`strftime('%Y-%m-%dT%H:00:00', ${ref}, ${shift})`
-		: sql<string>`date(${ref}, ${shift})`;
-}
-
-/**
- * Continuous bucket keys, in the scope's local time, for every day/hour the
- * range touches (first and last partial buckets included) so charts render
- * empty buckets as 0 instead of dropping them.
- */
-export function bucketKeys(
-	startIso: string,
-	endIso: string | undefined,
-	isHourly: boolean,
-	tzOffset = 0,
-): string[] {
-	const stepMs = isHourly ? 3_600_000 : 86_400_000;
-	const shiftMs = tzOffset * 60_000;
-	const startLocal = new Date(startIso).getTime() + shiftMs;
-	const endLocal = Math.min(endIso ? new Date(endIso).getTime() : Date.now(), Date.now()) + shiftMs;
-	const keys: string[] = [];
-	for (let t = Math.floor(startLocal / stepMs) * stepMs; t < endLocal; t += stepMs) {
-		const d = new Date(t);
-		keys.push(isHourly ? `${d.toISOString().slice(0, 13)}:00:00` : d.toISOString().slice(0, 10));
-	}
-	return keys;
 }
 
 export const SESSION_COLS = [
@@ -234,13 +209,10 @@ function eventStatsQuery(
 	let q = db
 		.selectFrom("events")
 		.select([
-			sql<number>`COUNT(CASE WHEN event_type = 'pageview' THEN 1 END)`.as("pageviews"),
-			// Server-reported sales (external_id) belong to a buyer, not a site visit.
-			sql<number>`COUNT(DISTINCT CASE WHEN external_id IS NULL THEN visitor_id END)`.as("visitors"),
-			sql<number>`COALESCE(SUM(CASE WHEN revenue != 0 THEN ${revenueSql(scope.money)} END), 0)`.as(
-				"revenue",
-			),
-			sql<number>`COUNT(CASE WHEN event_type = 'conversion' THEN 1 END)`.as("conversions"),
+			pageviewsSql().as("pageviews"),
+			visitorsSql().as("visitors"),
+			revenueTotalSql(scope.money).as("revenue"),
+			conversionsSql().as("conversions"),
 		])
 		.where("site_id", "=", siteId)
 		.where("timestamp", ">=", startIso);
@@ -291,6 +263,24 @@ function toStats(ev: EventAgg | undefined, se: SessionAgg | undefined): StatsRes
 
 const isCurrentRow = (r: { is_current?: unknown }) => Number(r.is_current) === 1;
 
+/** Overview totals for one window; every surface that reports them reads this plan. */
+export function planOverview(
+	db: Kysely<KlikapaDatabase>,
+	siteId: string,
+	startIso: string,
+	filters?: ParsedFilter[],
+	endIso?: string,
+	scope: QueryScope = DEFAULT_SCOPE,
+): QueryPlan<StatsResponse> {
+	return {
+		queries: [
+			eventStatsQuery(db, siteId, startIso, filters, endIso, scope),
+			sessionStatsQuery(db, siteId, startIso, filters, endIso),
+		],
+		read: ([ev, se]) => toStats((ev as EventAgg[])[0], (se as SessionAgg[])[0]),
+	};
+}
+
 export function getOverviewStats(
 	db: Kysely<KlikapaDatabase>,
 	siteId: string,
@@ -299,13 +289,7 @@ export function getOverviewStats(
 	endIso?: string,
 	scope: QueryScope = DEFAULT_SCOPE,
 ): Promise<StatsResponse> {
-	return executePlan(db, {
-		queries: [
-			eventStatsQuery(db, siteId, startIso, filters, endIso, scope),
-			sessionStatsQuery(db, siteId, startIso, filters, endIso),
-		],
-		read: ([ev, se]) => toStats((ev as EventAgg[])[0], (se as SessionAgg[])[0]),
-	});
+	return executePlan(db, planOverview(db, siteId, startIso, filters, endIso, scope));
 }
 
 /** A window and the equally long one right before it (`prevStartIso` .. `startIso`). */
@@ -329,7 +313,7 @@ export function planOverviewComparison(
 	scope: QueryScope,
 ): QueryPlan<{ current: StatsResponse; previous: StatsResponse }> {
 	const events = eventStatsQuery(db, siteId, w.prevStartIso, filters, w.endIso, scope, w.startIso);
-	if (filters?.some((f) => f.dimension === "path")) {
+	if (hasEventOnlyFilter(filters)) {
 		return {
 			queries: [
 				events,
@@ -396,14 +380,31 @@ function timeseriesBase(
 		.selectFrom("events")
 		.select([
 			bucketSql(isHourly, scope.tzOffset).as("date"),
-			({ fn }) => fn.count<number>("id").as("pageviews"),
-			({ fn }) => fn.count<number>("visitor_id").distinct().as("visitors"),
+			pageviewsSql().as("pageviews"),
+			visitorsSql().as("visitors"),
 		])
 		.where("site_id", "=", siteId)
-		.where("event_type", "=", "pageview")
+		.where(pageviewPredicate())
 		.where("timestamp", ">=", startIso);
 	if (endIso) q = q.where("timestamp", "<", endIso);
 	return applyFilters(q, filters);
+}
+
+export function planTimeseries(
+	db: Kysely<KlikapaDatabase>,
+	siteId: string,
+	startIso: string,
+	isHourly: boolean,
+	filters?: ParsedFilter[],
+	endIso?: string,
+	scope: QueryScope = DEFAULT_SCOPE,
+): QueryPlan<TimeSeriesPoint[]> {
+	return queryPlan(
+		timeseriesBase(db, siteId, startIso, isHourly, filters, endIso, scope)
+			.groupBy(bucketSql(isHourly, scope.tzOffset))
+			.orderBy("date", "asc"),
+		(rows) => fillTimeseries(rows, bucketKeys(startIso, endIso, isHourly, scope.tzOffset)),
+	);
 }
 
 export function getTimeseries(
@@ -415,15 +416,7 @@ export function getTimeseries(
 	endIso?: string,
 	scope: QueryScope = DEFAULT_SCOPE,
 ): Promise<TimeSeriesPoint[]> {
-	return executePlan(
-		db,
-		queryPlan(
-			timeseriesBase(db, siteId, startIso, isHourly, filters, endIso, scope)
-				.groupBy(bucketSql(isHourly, scope.tzOffset))
-				.orderBy("date", "asc"),
-			(rows) => fillTimeseries(rows, bucketKeys(startIso, endIso, isHourly, scope.tzOffset)),
-		),
-	);
+	return executePlan(db, planTimeseries(db, siteId, startIso, isHourly, filters, endIso, scope));
 }
 
 /**
@@ -616,32 +609,36 @@ export function getDeviceBreakdown(
 	return executePlan(db, planDeviceBreakdown(db, siteId, startIso, filters, endIso));
 }
 
-export async function getGeoData(
+export interface GeoRow {
+	country: string | null;
+	region: string | null;
+	city: string | null;
+	visitors: number;
+}
+
+export function planGeo(
 	db: Kysely<KlikapaDatabase>,
 	siteId: string,
 	startIso: string,
 	limit: number,
 	filters?: ParsedFilter[],
 	endIso?: string,
-) {
+): QueryPlan<GeoRow[]> {
 	let q = db
 		.selectFrom("events")
-		.select([
-			"country",
-			"region",
-			"city",
-			({ fn }) => fn.count<number>("visitor_id").distinct().as("visitors"),
-		])
+		.select(["country", "region", "city", visitorsSql().as("visitors")])
 		.where("site_id", "=", siteId)
-		.where("external_id", "is", null)
+		.where(pageviewPredicate())
 		.where("timestamp", ">=", startIso);
 	if (endIso) q = q.where("timestamp", "<", endIso);
 
-	return applyFilters(q, filters)
-		.groupBy(["country", "region", "city"])
-		.orderBy("visitors", "desc")
-		.limit(limit)
-		.execute();
+	return queryPlan(
+		applyFilters(q, filters)
+			.groupBy(["country", "region", "city"])
+			.orderBy("visitors", "desc")
+			.limit(limit),
+		(rows): GeoRow[] => rows.map((r) => ({ ...r, visitors: Number(r.visitors) })),
+	);
 }
 
 export interface ExitPage {
@@ -682,11 +679,7 @@ export function getExitPages(
 	return executePlan(db, planExitPages(db, siteId, startIso, filters, endIso));
 }
 
-/**
- * Literal `revenue != 0`, not a bound parameter: only a literal lets the
- * planner use the partial revenue index.
- */
-const hasRevenue = sql<boolean>`revenue != 0`;
+const hasRevenue = hasRevenuePredicate();
 
 export function planRevenueBySource(
 	db: Kysely<KlikapaDatabase>,
@@ -701,7 +694,7 @@ export function planRevenueBySource(
 		.select([
 			sourceSql.as("source"),
 			sql<number>`SUM(${revenueSql(scope.money)})`.as("revenue"),
-			sql<number>`COUNT(CASE WHEN revenue > 0 THEN 1 END)`.as("conversions"),
+			conversionsSql().as("conversions"),
 		])
 		.where("site_id", "=", siteId)
 		.where(hasRevenue)
@@ -743,7 +736,7 @@ export function planRevenueByCountry(
 		.select([
 			sql<string>`COALESCE(country, 'unknown')`.as("country"),
 			sql<number>`SUM(${revenueSql(scope.money)})`.as("revenue"),
-			sql<number>`COUNT(CASE WHEN revenue > 0 THEN 1 END)`.as("conversions"),
+			conversionsSql().as("conversions"),
 		])
 		.where("site_id", "=", siteId)
 		.where(hasRevenue)
@@ -786,7 +779,7 @@ export function planRevenueTimeseries(
 		.select([
 			bucketSql(isHourly, scope.tzOffset).as("date"),
 			sql<number>`SUM(${revenueSql(scope.money)})`.as("revenue"),
-			sql<number>`COUNT(CASE WHEN revenue > 0 THEN 1 END)`.as("conversions"),
+			conversionsSql().as("conversions"),
 		])
 		.where("site_id", "=", siteId)
 		.where(hasRevenue)
@@ -838,12 +831,8 @@ export function planEntryPagesRevenue(
 		.select([
 			"sessions.entry_path as path",
 			sql<number>`COUNT(DISTINCT sessions.id)`.as("sessions"),
-			sql<number>`COUNT(DISTINCT CASE WHEN events.event_type = 'conversion' OR events.event_type = 'payment' THEN events.id END)`.as(
-				"conversions",
-			),
-			sql<number>`COALESCE(SUM(CASE WHEN events.revenue != 0 THEN ${revenueSql(scope.money, "events.revenue", "events.currency")} END), 0)`.as(
-				"revenue",
-			),
+			conversionsSql("events").as("conversions"),
+			revenueTotalSql(scope.money, "events").as("revenue"),
 		])
 		.where("sessions.site_id", "=", siteId)
 		.where("sessions.started_at", ">=", startIso)
@@ -996,32 +985,46 @@ export function planChannelBreakdown(
 		ELSE 'Referral'
 	END`;
 
+	// Pageviews and visitors count pageviews only; revenue rides on any event.
 	let q = db
 		.selectFrom("events")
 		.select([
 			channelExpr.as("channel"),
-			({ fn }) => fn.count<number>("visitor_id").distinct().as("visitors"),
-			({ fn }) => fn.count<number>("id").as("pageviews"),
-			sql<number>`COALESCE(SUM(CASE WHEN revenue != 0 THEN ${revenueSql(scope.money)} END), 0)`.as(
-				"revenue",
-			),
+			visitorsSql().as("visitors"),
+			pageviewsSql().as("pageviews"),
+			revenueTotalSql(scope.money).as("revenue"),
 		])
 		.where("site_id", "=", siteId)
 		.where("timestamp", ">=", startIso);
 	if (endIso) q = q.where("timestamp", "<", endIso);
 
-	return queryPlan(applyFilters(q, filters).groupBy(channelExpr), (rows) => {
-		const totalVisitors = rows.reduce((s, r) => s + Number(r.visitors), 0) || 1;
-		return rows
-			.map((r) => ({
-				channel: String(r.channel),
-				visitors: Number(r.visitors),
-				pageviews: Number(r.pageviews),
-				revenue: Number(r.revenue ?? 0),
-				percentage: Math.round((Number(r.visitors) / totalVisitors) * 100),
-			}))
-			.sort((a, b) => b.visitors - a.visitors);
-	});
+	// Shares are of the site's distinct visitors (the headline figure), not of
+	// the per-channel sum: someone who arrives through two channels is in both.
+	let total = db
+		.selectFrom("events")
+		.select(visitorsSql().as("visitors"))
+		.where("site_id", "=", siteId)
+		.where("timestamp", ">=", startIso);
+	if (endIso) total = total.where("timestamp", "<", endIso);
+
+	return {
+		queries: [applyFilters(q, filters).groupBy(channelExpr), applyFilters(total, filters)],
+		read: ([rows, totalRows]) => {
+			const totalVisitors = Number((totalRows as { visitors: unknown }[])[0]?.visitors ?? 0) || 1;
+			return (
+				rows as { channel: unknown; visitors: unknown; pageviews: unknown; revenue: unknown }[]
+			)
+				.filter((r) => Number(r.visitors) > 0 || Number(r.revenue) !== 0)
+				.map((r) => ({
+					channel: String(r.channel),
+					visitors: Number(r.visitors),
+					pageviews: Number(r.pageviews),
+					revenue: Number(r.revenue ?? 0),
+					percentage: Math.round((Number(r.visitors) / totalVisitors) * 100),
+				}))
+				.sort((a, b) => b.visitors - a.visitors);
+		},
+	};
 }
 
 export function getChannelBreakdown(
@@ -1118,6 +1121,7 @@ export async function loadDashboardData(
 		revenueByMethod,
 		revenueByProvider,
 		channels,
+		netRows,
 	] = await runBatch(d1, [
 		planOverviewComparison(db, siteId, w, filters, scope),
 		planTimeseriesComparison(db, siteId, w, isHourly, filters, scope),
@@ -1134,11 +1138,14 @@ export async function loadDashboardData(
 		planRevenueByPaymentMethod(db, siteId, w.startIso, filters, w.endIso, scope),
 		planRevenueByPaymentProvider(db, siteId, w.startIso, filters, w.endIso, scope),
 		planChannelBreakdown(db, siteId, w.startIso, filters, w.endIso, scope),
+		planNetRevenue(db, siteId, w, filters, scope),
 	]);
 
+	const net = await resolveNetRevenue(db, siteId, netRows, scope);
+
 	return {
-		stats: overview.current,
-		prevStats: overview.previous,
+		stats: { ...overview.current, netRevenue: net.current, netEstimated: net.estimated },
+		prevStats: { ...overview.previous, netRevenue: net.previous },
 		timeseries: series.current,
 		prevTimeseries: series.previous,
 		topPages,

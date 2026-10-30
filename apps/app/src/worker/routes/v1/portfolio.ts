@@ -7,14 +7,19 @@ import { PortfolioQueryError, queryPortfolioRevenue } from "../../lib/portfolio"
 
 export const v1PortfolioRoutes = new Hono<PublicApiEnv>();
 
-// GET /revenue?from=YYYY-MM-DD&to=YYYY-MM-DD&currency=IDR
+// GET /revenue?from=YYYY-MM-DD&to=YYYY-MM-DD&currency=IDR&tz=420
 v1PortfolioRoutes.get("/revenue", requireScope(SCOPES.ANALYTICS_READ), async (c) => {
 	try {
 		const ctx = publicApiCtx(c);
 		const data = await queryPortfolioRevenue(
 			ctx.db,
 			ctx.userId,
-			{ from: c.req.query("from"), to: c.req.query("to"), currency: c.req.query("currency") },
+			{
+				from: c.req.query("from"),
+				to: c.req.query("to"),
+				currency: c.req.query("currency"),
+				tz: ctx.tzOffset,
+			},
 			{ env: ctx.env, onlySiteId: ctx.tokenSiteId },
 		).catch((e: unknown) => {
 			if (e instanceof PortfolioQueryError) throw new PublicApiError(400, e.message);

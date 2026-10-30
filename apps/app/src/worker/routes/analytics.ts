@@ -25,15 +25,25 @@ import { planRequiredBody } from "../lib/plan-gate";
 import { isSelfHosted } from "../lib/entitlement";
 import { requirePlanForSite } from "../lib/plans";
 import {
+	executePlan,
 	loadDashboardData,
 	loadJourneyData,
+	planGeo,
 	queryPlan,
 	runBatch,
 	type SessionEvent,
 	type SessionSummary,
 } from "../queries/analytics";
-import { revenueSql } from "../lib/fx";
 import { canonicalSource } from "../lib/source-sql";
+import {
+	conversionsSql,
+	isHourlyRange,
+	pageviewsSql,
+	pctChange,
+	previousWindowStart,
+	revenueTotalSql,
+	visitorsSql,
+} from "../lib/metrics";
 import { resolveQueryScope } from "../lib/site-scope";
 import { getDateRange } from "../utils";
 
@@ -51,12 +61,6 @@ function rangeFor(c: Context<AnalyticsEnv>, range: string): { start: Date; end: 
 	const floor = c.get("retentionFloor");
 	if (floor && r.start.getTime() < Date.parse(floor)) r.start = new Date(floor);
 	return r;
-}
-
-/** The comparison window may not reach behind the retention window either. */
-function clampToFloor(c: Context<AnalyticsEnv>, iso: string): string {
-	const floor = c.get("retentionFloor");
-	return floor && iso < floor ? floor : iso;
 }
 
 type AnalyticsHandler = (c: Context<AnalyticsEnv>) => Promise<Response>;
@@ -136,12 +140,10 @@ analyticsRoutes.get(
 		const { start, end } = rangeFor(c, range);
 		const startIso = start.toISOString();
 		const endIso = end.toISOString();
-		const spanHours = (end.getTime() - start.getTime()) / (1000 * 60 * 60);
-		const isHourly = spanHours <= 48;
-		const prevStartIso = clampToFloor(
-			c,
-			new Date(start.getTime() - (end.getTime() - start.getTime())).toISOString(),
-		);
+		const isHourly = isHourlyRange(start, end);
+		// The previous window is never clamped to the plan floor: the plan limits
+		// how far back charts reach, not whether a delta has a baseline.
+		const prevStartIso = previousWindowStart(start, end);
 
 		const {
 			stats,
@@ -173,10 +175,6 @@ analyticsRoutes.get(
 		});
 
 		// Period-over-period comparison (current range vs the equal window before it)
-		const pctChange = (current: number, previous: number): number | null => {
-			if (previous === 0) return current === 0 ? 0 : null;
-			return Math.round(((current - previous) / previous) * 100);
-		};
 		const metric = (cur: number, prev: number) => ({
 			current: cur,
 			previous: prev,
@@ -190,6 +188,7 @@ analyticsRoutes.get(
 			avgDuration: metric(stats.avgDuration, prevStats.avgDuration),
 			revenue: metric(stats.revenue, prevStats.revenue),
 			conversions: metric(stats.conversions, prevStats.conversions),
+			netRevenue: metric(stats.netRevenue ?? 0, prevStats.netRevenue ?? 0),
 		};
 
 		// The users list ignores the range, so a profile whose sessions fall outside
@@ -323,7 +322,7 @@ analyticsRoutes.get(
 			queryPlan(
 				db
 					.selectFrom("events")
-					.select(({ fn }) => [fn.count<number>("visitor_id").distinct().as("count")])
+					.select(visitorsSql().as("count"))
 					.where("site_id", "=", siteId)
 					.where("timestamp", ">=", startIso),
 				(rows) => rows[0],
@@ -590,26 +589,11 @@ analyticsRoutes.get(
 		if (!siteId) return c.json({ error: "site_id required", success: false }, 400);
 		const site = await validateSite(db, userId, siteId);
 		if (!site) return c.json({ error: "Site not found", success: false }, 404);
-		const { start } = rangeFor(c, range);
-		const startIso = start.toISOString();
-		const rows = await applyFilters(
-			db
-				.selectFrom("events")
-				.select([
-					"country",
-					"region",
-					"city",
-					({ fn }) => fn.count<number>("visitor_id").distinct().as("visitors"),
-				])
-				.where("site_id", "=", siteId)
-				.where("external_id", "is", null)
-				.where("timestamp", ">=", startIso),
-			filters,
-		)
-			.groupBy(["country", "region", "city"])
-			.orderBy("visitors", "desc")
-			.limit(50)
-			.execute();
+		const { start, end } = rangeFor(c, range);
+		const rows = await executePlan(
+			db,
+			planGeo(db, siteId, start.toISOString(), 50, filters, end.toISOString()),
+		);
 
 		return c.json({ data: rows, success: true });
 	}),
@@ -641,10 +625,10 @@ analyticsRoutes.get(
 					canonicalSource(sql.ref("utm_source")).as("utm_source"),
 					"utm_medium",
 					"utm_campaign",
-					({ fn }) => fn.count<number>("visitor_id").distinct().as("visitors"),
-					sql<string>`sum(case when event_type = 'pageview' then 1 else 0 end)`.as("pageviews"),
-					sql<string>`sum(case when event_type = 'conversion' then 1 else 0 end)`.as("conversions"),
-					sql<string>`coalesce(sum(${revenueSql(scope.money)}), 0)`.as("revenue"),
+					visitorsSql().as("visitors"),
+					pageviewsSql().as("pageviews"),
+					conversionsSql().as("conversions"),
+					revenueTotalSql(scope.money).as("revenue"),
 				])
 				.where("site_id", "=", siteId)
 				.where("timestamp", ">=", startIso)

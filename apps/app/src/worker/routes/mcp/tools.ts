@@ -50,6 +50,12 @@ const siteIdProperty = {
 		"Site id (get ids from list_sites). Optional for rv_ site tokens — defaults to the bound site.",
 } as const;
 
+const tzProperty = {
+	type: "integer",
+	default: 0,
+	description: "Minutes east of UTC the days are cut at (WIB = 420). Default 0 (UTC).",
+} as const;
+
 const limitProperty = (def: number) => ({
 	type: "integer",
 	default: def,
@@ -80,7 +86,7 @@ export const TOOL_DEFS: ToolDef[] = [
 	{
 		name: "analytics_overview",
 		description:
-			"Core metrics for a site and range: pageviews, visitors, sessions, bounce rate, revenue, conversions. REST: GET /api/v1/analytics/overview",
+			"Core metrics for a site and range: pageviews, visitors (distinct pageview visitors), sessions, bounce rate, conversions, gross revenue and net revenue after fees (netRevenue; netEstimated when a fee rule filled in missing nets). REST: GET /api/v1/analytics/overview",
 		scope: "analytics:read",
 		inputSchema: siteArgs(),
 	},
@@ -89,7 +95,7 @@ export const TOOL_DEFS: ToolDef[] = [
 		description:
 			"Pageviews and visitors per day (hourly for ranges up to 48h). REST: GET /api/v1/analytics/timeseries",
 		scope: "analytics:read",
-		inputSchema: siteArgs(),
+		inputSchema: siteArgs({ tz: tzProperty }),
 	},
 	{
 		name: "top_pages",
@@ -123,7 +129,7 @@ export const TOOL_DEFS: ToolDef[] = [
 		description:
 			"Revenue by traffic source, by country, and over time (revenue events only). REST: GET /api/v1/analytics/revenue",
 		scope: "analytics:read",
-		inputSchema: siteArgs(),
+		inputSchema: siteArgs({ tz: tzProperty }),
 	},
 	{
 		name: "portfolio_revenue",
@@ -142,6 +148,7 @@ export const TOOL_DEFS: ToolDef[] = [
 					type: "string",
 					description: "ISO 4217 code to convert into (default: your most common site currency)",
 				},
+				tz: tzProperty,
 			},
 		},
 	},

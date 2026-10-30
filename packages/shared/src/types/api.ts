@@ -54,6 +54,10 @@ export interface StatsResponse {
 	avgDuration: number;
 	revenue: number;
 	conversions: number;
+	/** Revenue after payment fees, same currency and window as `revenue`. */
+	netRevenue?: number;
+	/** True when part of `netRevenue` was computed from the owner's fee rule, not reported by the payment. */
+	netEstimated?: boolean;
 }
 
 export interface StatsChange {
@@ -287,7 +291,8 @@ export interface SiteDashboard {
 			| "bounceRate"
 			| "avgDuration"
 			| "revenue"
-			| "conversions",
+			| "conversions"
+			| "netRevenue",
 			StatsChange
 		>
 	>;

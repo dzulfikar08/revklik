@@ -3,7 +3,7 @@ import { convertAmount, usdRates } from "../lib/fx";
 import { resolveEventTimestamp, sanitizeRevenue } from "../lib/ingest";
 import { signStandardWebhook } from "../lib/standard-webhooks";
 import { createMigratedTestApp, type MigratedTestApp } from "../lib/test-harness";
-import { bucketKeys } from "./analytics";
+import { bucketKeys } from "../lib/metrics";
 
 const BROWSER_UA = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/126.0 Safari/537.36";
 const originalFetch = globalThis.fetch;
