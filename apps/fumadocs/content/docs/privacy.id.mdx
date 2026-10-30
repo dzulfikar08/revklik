@@ -1,0 +1,122 @@
+---
+title: Privasi dan persetujuan
+description: "Apa yang disimpan RevKlik, berapa lama, bagaimana penghapusan bekerja, dan apa yang perlu Anda sampaikan ke pengunjung. Tanpa cookie pihak ketiga, tanpa pelacakan lintas situs, tanpa profil iklan."
+---
+
+RevKlik adalah analitik yang menjaga privasi: tanpa cookie pihak ketiga, tanpa
+pelacakan lintas situs, tanpa profil iklan. Halaman ini menjelaskan apa adanya
+apa yang disimpan tracker, supaya Anda bisa menuliskannya dengan benar di
+pemberitahuan privasi Anda sendiri.
+
+## ID pengunjung
+
+RevKlik memberi setiap browser sebuah ID acak yang disimpan di penyimpanan lokal
+browser pada domain Anda sendiri (first-party, bukan cookie). ID ini membantu
+menghitung pengunjung yang kembali dan mengaitkan penjualan dengan kunjungan
+yang menyebabkannya, bahkan beberapa hari kemudian. ID bersifat acak dan tidak
+pernah dibagikan antar situs.
+
+Jika pengunjung menghapus penyimpanan browser, server kami tetap bisa
+mengenalinya lewat hash berkunci (HMAC-SHA256 dengan salt rahasia yang berbeda
+untuk setiap situs) dari alamat IP, browser, bahasa, dan ukuran layar. Alamat IP
+mentah tidak disimpan, dan hash tidak bisa dicocokkan antar situs.
+
+ID yang menetap dapat menandai pengunjung yang kembali, sehingga termasuk data
+pribadi menurut UU PDP (UU 27/2022) dan GDPR. RevKlik menjaga data itu
+seminimal mungkin; bukan menghilangkannya.
+
+## Apa yang disimpan dan berapa lama [#what-is-stored-and-for-how-long]
+
+Kami menyimpan pageview, event kustom, sesi, dan profil pengunjung untuk situs
+Anda, ditambah negara, wilayah, dan kota dari Cloudflare, perangkat, browser,
+dan OS. Nama, email, dan nomor telepon hanya disimpan jika Anda mengirimnya
+lewat `klikapa.identify()`.
+
+Event mentah dihapus otomatis setelah masa retensi sesuai paket Anda: dua kali
+jendela laporan paket, minimal 30 hari:
+
+| Paket   | Jendela dasbor | Event mentah disimpan |
+| ------- | -------------- | --------------------- |
+| Micro   | 7 hari         | 30 hari               |
+| Starter | 30 hari        | 60 hari               |
+| Growth  | 90 hari        | 180 hari              |
+
+Catatan pembayaran dan pendapatan tetap disimpan sebagai catatan pembukuan
+sampai Anda menghapus situs atau akun.
+
+## Penghapusan dan cadangan [#deletion-and-backups]
+
+Anda bisa menghapus data satu pengunjung, satu situs, atau seluruh akun dari
+Pengaturan. Data aktif langsung dihapus. Catatan pembayaran milik pengunjung
+yang dihapus tetap disimpan tetapi dianonimkan.
+
+Cadangan database dienkripsi (AES-256-GCM) dan 30 cadangan harian terakhir
+disimpan, sehingga data yang dihapus hilang dari cadangan dalam 30 hari.
+
+## Lokasi data
+
+Data disimpan di infrastruktur Cloudflare (database D1, wilayah utama
+Asia-Pasifik), sehingga diproses di luar Indonesia. Cantumkan hal ini dalam
+pemberitahuan privasi Anda.
+
+## Persetujuan: panduan untuk pemilik situs [#consent]
+
+<Callout type="warn" title="Bukan nasihat hukum">
+	Ini panduan untuk pemilik situs, bukan nasihat hukum. Tanyakan kepada ahli hukum yang memahami
+	aturan di tempat pengunjung Anda berada.
+</Callout>
+
+Anda adalah pengendali data untuk data pengunjung Anda; RevKlik adalah prosesor
+Anda. Menurut UU PDP (UU 27/2022), Anda memerlukan dasar pemrosesan yang sah
+(persetujuan adalah yang paling aman) dan pemberitahuan privasi yang menyebut
+alat yang Anda pakai. Rekomendasi kami:
+
+- Sebutkan RevKlik, ID pengunjung first-party, dan masa retensi di atas dalam
+  kebijakan privasi Anda.
+- Jika pengunjung Anda mencakup penduduk Indonesia, UE, atau Inggris, minta
+  persetujuan sebelum tracker berjalan. Tambahkan `data-consent="required"` pada
+  tag script dan panggil `klikapa.consent(true)` saat pengunjung setuju
+  (sebelum itu tidak ada yang disimpan dan tidak ada yang dikirim). Jika
+  menolak, panggil `klikapa.consent(false)`.
+- Selalu minta persetujuan sebelum memanggil `identify()` (nama, email,
+  telepon) dan sebelum mengaktifkan heatmap atau rekaman sesi; keduanya
+  nonaktif sampai Anda mengatur `window.klikapa_consent`.
+- Tracker menghormati Global Privacy Control (`Sec-GPC`) dan Do Not Track
+  secara bawaan.
+
+Berikut pengaturan persetujuan lengkapnya. Muat tracker dalam mode persetujuan:
+
+```html
+<script
+	defer
+	data-site-id="YOUR_SITE_ID"
+	data-consent="required"
+	src="https://app.revklik.com/klikapa.js"
+></script>
+```
+
+Lalu panggil dari banner persetujuan Anda:
+
+```js
+// pengunjung menyetujui
+klikapa.consent(true);
+
+// pengunjung menolak, atau mencabut persetujuan kemudian
+klikapa.consent(false);
+```
+
+`klikapa.consent(true)` mengingat pilihan itu di browser, jadi pemuatan halaman
+berikutnya berlanjut tanpa memanggilnya lagi. `klikapa.consent(false)` menghapus
+ID pengunjung dan menghentikan pengiriman. Untuk mengizinkan heatmap dan rekaman
+sesi setelah pengunjung menyetujuinya:
+
+```js
+window.klikapa_consent = { heatmap: true, recording: true };
+```
+
+Langkah pemasangan untuk tiap kerangka kerja ada di [memulai](/id/getting-started).
+
+## Terkait
+
+- [FAQ](/id/faq): apa yang dikumpulkan script pelacakan dan cara mengambil data Anda.
+- [Situs](/id/dashboard/sites): kecualikan perangkat Anda sendiri dan hapus kunjungan lama.

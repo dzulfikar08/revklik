@@ -1,0 +1,118 @@
+---
+title: Privacy and consent
+description: "What RevKlik stores, how long it keeps it, how deletion works, and what to tell your visitors. No third-party cookies, no cross-site tracking, no ad profiles."
+---
+
+RevKlik is privacy-first analytics: no third-party cookies, no cross-site
+tracking, no ad profiles. This page says plainly what the tracker stores, so you
+can describe it correctly in your own privacy notice.
+
+## The visitor ID
+
+RevKlik gives each browser a random ID, kept in the browser's local storage on
+your own domain (first-party, not a cookie). It lets you count returning
+visitors and tie a sale to the visit that caused it, even days later. The ID is
+random and is never shared between sites.
+
+If the visitor clears browser storage, our server can still recognise them with
+a keyed hash (HMAC-SHA256 with a secret salt that is different for every site)
+of IP address, browser, language and screen size. The raw IP address is not
+stored, and the hash cannot be matched across sites.
+
+A persistent ID can single out a returning visitor, so it counts as personal
+data under Indonesia's PDP Law (UU 27/2022) and GDPR. RevKlik keeps that data
+minimal; it does not make it disappear.
+
+## What is stored and for how long
+
+We store pageviews, custom events, sessions and visitor profiles for your site,
+plus country, region and city from Cloudflare, device, browser and OS. Names,
+emails and phone numbers are stored only if you send them through
+`klikapa.identify()`.
+
+Raw events are deleted automatically after a retention period that depends on
+your plan. It is twice the reporting window of the plan, with a 30-day minimum:
+
+| Plan    | Dashboard window | Raw events kept |
+| ------- | ---------------- | --------------- |
+| Micro   | 7 days           | 30 days         |
+| Starter | 30 days          | 60 days         |
+| Growth  | 90 days          | 180 days        |
+
+Payment and revenue records stay as bookkeeping records until you delete the
+site or the account.
+
+## Deletion and backups
+
+You can delete a single visitor's data, a whole site, or your account from
+Settings. Live data is removed immediately. Payment records tied to a deleted
+visitor are kept but anonymised.
+
+Database backups are encrypted (AES-256-GCM) and the last 30 daily backups are
+kept, so deleted data disappears from backups within 30 days.
+
+## Where data lives
+
+Data is stored on Cloudflare infrastructure (D1 database, Asia-Pacific primary
+region), so it is processed outside Indonesia. Say so in your privacy notice.
+
+## Consent: guidance for site owners [#consent]
+
+<Callout type="warn" title="Not legal advice">
+	This is guidance for site owners, not legal advice. Ask a lawyer who knows the rules where your
+	visitors live.
+</Callout>
+
+You are the data controller for your visitors' data; RevKlik is your processor.
+Under Indonesia's PDP Law (UU 27/2022) you need a lawful basis (consent is the
+safest) and a privacy notice that names the tools you use. What we recommend:
+
+- Mention RevKlik, the first-party visitor ID and the retention periods above in
+  your privacy policy.
+- If your audience includes Indonesian, EU or UK residents, ask for consent
+  before the tracker runs. Add `data-consent="required"` to the script tag and
+  call `klikapa.consent(true)` when the visitor accepts. Until then nothing is
+  stored and nothing is sent. If the visitor declines, call
+  `klikapa.consent(false)`.
+- Always get consent before calling `identify()` (name, email, phone) and before
+  turning on heatmaps or session recordings. Both are off until you set
+  `window.klikapa_consent`.
+- The tracker honours Global Privacy Control (`Sec-GPC`) and Do Not Track by
+  default.
+
+Here is the consent setup in full. Load the tracker in consent mode:
+
+```html
+<script
+	defer
+	data-site-id="YOUR_SITE_ID"
+	data-consent="required"
+	src="https://app.revklik.com/klikapa.js"
+></script>
+```
+
+Then call it from your consent banner:
+
+```js
+// the visitor accepts
+klikapa.consent(true);
+
+// the visitor declines, or withdraws consent later
+klikapa.consent(false);
+```
+
+`klikapa.consent(true)` remembers the choice in the browser, so later page loads
+resume without calling it again. `klikapa.consent(false)` clears the visitor ID
+and stops sending. To allow heatmaps and session recordings once the visitor has
+agreed to them:
+
+```js
+window.klikapa_consent = { heatmap: true, recording: true };
+```
+
+Install steps for each framework are in [getting started](/getting-started).
+
+## Related
+
+- [FAQ](/faq): what the tracking script collects and how to get your data out.
+- [Sites](/dashboard/sites): exclude your own devices and purge past visits.

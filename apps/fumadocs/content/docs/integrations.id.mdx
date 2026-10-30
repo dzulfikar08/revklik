@@ -1,0 +1,261 @@
+---
+title: Integrasi
+description: Hubungkan RevKlik ke gateway pembayaran, App Store Connect, dan Google Search Console, plus berbagi, laporan email, dan akses tim.
+---
+
+Tampilan **Integrasi** (tab di bilah atas) punya empat tab: Pembayaran,
+Aplikasi, Pencarian, dan Impor.
+
+## Pembayaran [#payments]
+
+RevKlik mencatat pendapatan dari gateway berikut. Midtrans, Xendit, DOKU, Mayar,
+dan Paywuz melayani merchant Indonesia. Polar, Stripe, dan Lemon Squeezy
+melayani merchant yang berjualan ke seluruh dunia.
+
+| Gateway       | Wilayah   |
+| ------------- | --------- |
+| Midtrans      | Indonesia |
+| Xendit        | Indonesia |
+| DOKU          | Indonesia |
+| Mayar         | Indonesia |
+| Paywuz        | Indonesia |
+| Polar         | Global    |
+| Stripe        | Global    |
+| Lemon Squeezy | Global    |
+
+Integrasi gateway bekerja lewat **webhook**: salin URL webhook RevKlik yang
+tampil di kartu gateway, tempel di pengaturan webhook penyedia, lalu simpan
+kunci tanda tangannya. Pendapatan masuk ke panel pendapatan Anda secara
+otomatis. Polar punya panelnya sendiri, dijelaskan [di bawah](#polar). Jika
+sebuah gateway belum punya kartu di dasbor Anda, laporkan penjualannya lewat
+[API event server](#server-events-api).
+
+### API event server [#server-events-api]
+
+Untuk pembelian yang tidak terjangkau webhook (notifikasi App Store, backend
+Anda sendiri), laporkan dari server Anda:
+
+```bash
+curl -X POST https://<your-revklik-host>/api/v1/events/server \
+  -H "Authorization: Bearer rv_..." \
+  -H "Content-Type: application/json" \
+  -d '{
+    "site_id": "<site id>",
+    "name": "purchase",
+    "revenue": 9.99,
+    "currency": "USD",
+    "external_id": "<transaction id>",
+    "source": "app_store",
+    "props": { "product": "pro", "country": "ID", "environment": "Production" },
+    "occurred_at": "2026-10-24T09:30:00Z"
+  }'
+```
+
+Gunakan token situs (`rv_`) dengan cakupan `events:write`. `revenue` dalam
+satuan utama; kirim angka **negatif** untuk refund, dengan kunci tersendiri
+seperti `<transaction id>:refund`. Pemanggilan ini idempoten pada
+`external_id`: pengulangan mengembalikan `"duplicate": true` dan tidak mencatat
+apa pun. Sertakan `visitor_id` (nilai `_kp_vid` dari browser) atau `session_id`
+(`_kp_sid`) untuk mengaitkan penjualan dengan sumber dan kampanye pengunjung
+itu. `revenue` bernilai `0` disimpan sebagai event biasa, bukan konversi.
+
+### Rail, produk, dan pendapatan bersih [#rail-product-and-net-revenue]
+
+Tiga field opsional mengisi [tampilan portofolio](#portfolio-revenue) lintas
+produk:
+
+| Field | Arti |
+| --- | --- |
+| `rail` | Jalur pembayaran, huruf kecil: `apple`, `google_play`, `polar`, `doku`, `pakasir`, `stripe`, `lemonsqueezy`, `midtrans`, `xendit`, `mayar`, `paywuz`, `manual`. Bawaannya diturunkan dari `source` (`app_store*` → `apple`, `google*` → `google_play`, `polar*` → `polar`, ...), jika tidak ada maka `source` itu sendiri. |
+| `product` | Slug produk, maksimal 80 karakter. Bawaannya `props.product`, lalu `props.app`. |
+| `net_revenue` | Yang Anda terima, dalam mata uang dan tanda yang sama dengan `revenue`, ukurannya tidak pernah lebih besar. Kirim hanya bila sumber mengetahui nilai bersih sebenarnya (misalnya proceeds developer dari Apple). |
+
+Tanpa `net_revenue`, RevKlik menghitung nilai bersih saat event disimpan: biaya
+adalah `|revenue| × persen + biaya tetap` (biaya tetap dikonversi ke mata uang
+event), dan `net = max(0, |revenue| − biaya)` dengan tanda yang sama seperti
+`revenue`. Refund (`<id>:refund`) tanpa `net_revenue` mempertahankan rasio
+bersih/kotor penjualan aslinya. Setiap event mencatat cara nilai bersihnya
+diperoleh (`reported`, `rule`, atau `refund_ratio`). Nilai bersih disimpan saat
+ingest dan tidak dihitung ulang ketika Anda mengubah aturan kemudian.
+Memutar ulang penjualan dengan `net_revenue` (misalnya menjalankan ulang impor
+Polar) menaikkan estimasi `rule` yang tersimpan menjadi angka `reported`.
+
+Order Polar membawa biaya Polar sendiri (`platform_fee_amount`); webhook dan
+impor order menyimpan `net_amount − platform_fee_amount` sebagai nilai bersih
+yang dilaporkan, dan kembali ke aturan 4% + 0,40 USD ketika Polar tidak
+mengirim biaya. Penjualan yang sudah dilaporkan browser pembeli di halaman
+terima kasih tidak dicatat dua kali: order yang terkonfirmasi (webhook atau
+impor) mengambil alih baris browser terdekat dari situs, rail, dan mata uang
+yang sama dalam 10 menit, berapa pun jumlah yang dikirim browser (browser
+melaporkan harga daftar, order melaporkan yang dibayar), lalu mengisi id order,
+jumlah, rail, dan nilai bersih pada baris itu. Jika order menyebut pembelinya
+(`revklik_visitor_id`), hanya baris browser milik pembeli itu yang memenuhi
+syarat. Baris browser yang tiba setelah ordernya disimpan sebagai `duplicate`.
+Pengunjung yang sama memicu konversi yang sama di halaman yang sama lagi dalam
+semenit tetap disimpan tetapi dikecualikan sebagai duplikat. Untuk rail dengan
+order terkonfirmasi, `scripts/import-polar-orders.ts` juga menandai baris
+browser pada periode yang tercakup yang tidak diklaim order mana pun sebagai
+`unconfirmed`.
+
+Biaya bawaan (bisa diubah per rail di halaman Portfolio, atau lewat
+`GET`/`PUT /api/fee-rules` dengan sesi dasbor): `apple` 15%, `google_play` 15%,
+`polar` 4% + 0,40 USD, `stripe` 2,9% + 0,30 USD, `doku` 0,7%, `pakasir` 0,7%,
+rail lainnya 0%. Penjualan tersimpan tanpa nilai bersih tidak pernah dilaporkan
+sebagai net = gross: portofolio menghitung nilai bersihnya dari aturan biaya
+rail itu saat Anda membacanya, dan melaporkan berapa baris yang diestimasi
+dengan cara itu (`estimated_rows`, `net_source: "estimated"`).
+`bun scripts/backfill-revenue.ts` (di `apps/app`) menyimpan nilai bersih, rail,
+dan pengecualian itu pada baris lama.
+
+### Penjualan uji [#test-sales]
+
+Penjualan yang `source` atau `rail`-nya menyebut pengujian (`tracking_smoketest`,
+`test_checkout`, ...), atau yang `props._test`-nya `true`, disimpan dengan
+`excluded_reason = "test"` dan dikeluarkan dari setiap angka di dasbor, API,
+dan MCP, seperti trafik bot. Penjualan yang tercatat ganda dikecualikan dengan
+cara yang sama lewat `excluded_reason = "duplicate"`, dan penjualan laporan
+browser yang tidak dikonfirmasi order penyedia lewat `"unconfirmed"`.
+
+### Pendapatan portofolio [#portfolio-revenue]
+
+```bash
+curl "https://<your-revklik-host>/api/v1/portfolio/revenue?from=2026-10-01&to=2026-10-31&currency=IDR" \
+  -H "Authorization: Bearer rvt_..."
+```
+
+Butuh token akun (`rvt_`) dengan `analytics:read`; token situs hanya melihat
+situsnya sendiri. Cakupannya semua situs yang Anda miliki atau yang kursi
+timnya sudah Anda terima, tanpa trafik bot, dan setiap penjualan dikonversi
+dengan kurs hari ini ke `currency` (bawaan: mata uang situs Anda yang paling
+umum). `from` dan `to` adalah hari UTC inklusif (bawaan: 30 hari terakhir).
+Objek `data` berisi:
+
+- `currency`, `from`, `to`
+- `totals`: `gross`, `net`, `sales` (revenue > 0), `refunds` (revenue < 0),
+  `refund_amount`, `estimated_rows` (baris yang nilai bersihnya berasal dari
+  aturan biaya saat dibaca)
+- `by_site`, `by_product`, `by_rail`, `daily`: `gross`, `net`, dan `sales` per
+  kelompok (`by_rail` juga punya `estimated_rows`; baris tanpa rail memakai
+  rail yang disiratkan penyedia pembayarannya, misalnya
+  `app_store_sales_report` → `apple`)
+- `recent`: 20 event pendapatan terbaru dengan `revenue`, `net_revenue`,
+  `net_source`, `currency`, `converted_gross`, `converted_net`, dan
+  `occurred_at`
+
+Data yang sama tersedia untuk agen AI sebagai tool MCP `portfolio_revenue`.
+
+### Polar [#polar]
+
+Setiap situs punya endpoint Polar sendiri. Di dasbor buka **Integrasi →
+Pembayaran → Polar** dan ikuti panelnya:
+
+1. Di Polar buka **Settings → Webhooks → Add Endpoint**, tempel URL yang
+   ditampilkan panel
+   (`https://app.revklik.com/api/webhooks/polar?site_id=<your site id>`) dan
+   biarkan **Format** di **Raw**.
+2. Centang `order.paid` dan `order.refunded`. Perpanjangan langganan juga
+   berupa order, jadi event langganan tidak diperlukan.
+3. Salin secret endpoint ke **Webhook secret** lalu simpan. Secret ini hanya
+   bisa ditulis: RevKlik melaporkan bahwa secret tersimpan, tidak pernah
+   nilainya.
+
+Pengiriman diverifikasi dengan Standard Webhooks (baik bentuk `whsec_` base64
+maupun bentuk secret UTF-8 lama Polar), per situs: secret situs lain, secret
+tagihan RevKlik sendiri, dan permintaan tanpa tanda tangan ditolak. Panel
+mencantumkan pengiriman terakhir dan menandai ketidakcocokan tanda tangan.
+
+Letakkan `revklik_visitor_id` dan `revklik_session_id` di metadata checkout
+untuk mengaitkan penjualan dengan pengunjung. RevKlik mencatat setiap order
+sekali, memakai jumlah bersih order (setelah diskon, sebelum pajak) dan biaya
+Polar sendiri. Refund dicatat pada hari terjadinya (waktu event
+`order.refunded`), bukan tanggal order. Polar melaporkan total refund kumulatif,
+jadi refund pertama menjadi satu baris negatif `<order id>:refund` dan setiap
+refund berikutnya menambah satu baris sebesar kenaikan totalnya
+(`<order id>~<cents already refunded>:refund`).
+
+Secara opsional simpan Organization Access Token (**Settings → Access Tokens**,
+cakupan `orders:read` dan `refunds:read`). Token ini mengaktifkan **Sync orders
+now** (30 hari terakhir, 12 bulan, atau seluruh waktu, hingga 50 order baru per
+proses) dan pengecekan per jam atas 14 hari terakhir yang menangkap webhook
+yang terlewat, refund, dan biaya asli Polar. Dengan `refunds:read`, setiap
+refund diberi tanggal dari catatan refund Polar sendiri; tanpanya, waktu
+terakhir order diubah dipakai sebagai gantinya.
+
+## Penyaringan bot [#bot-filtering]
+
+Trafik yang bukan manusia tetap disimpan tetapi ditandai, dan dikeluarkan dari
+setiap angka di dasbor, API, dan MCP. Trafik ditandai ketika browser melaporkan
+otomatisasi (`navigator.webdriver`), ketika Cloudflare Bot Management menilai
+permintaan sebagai bot, ketika berasal dari kota yang hanya berisi datacenter,
+atau ketika sebuah sesi berperilaku di luar kemampuan manusia: beberapa
+kedalaman scroll pada milidetik yang sama beberapa detik setelah dimuat tanpa
+klik, lonjakan pageview, atau lebih dari 100 klik. Pekerjaan per jam menilai
+ulang sesi terbaru, jadi perubahan aturan juga mengklasifikasi ulang data lama.
+
+Durasi sesi menghitung setiap jeda antara dua event hingga 30 menit, sehingga
+tab yang dibiarkan terbuka semalaman tidak lagi menggelembungkan rata-rata.
+Sumber trafik digabung berdasarkan nama: `bing`, `bing.com`, dan `www.bing.com`
+adalah satu sumber, dan hanya pageview dari luar domain Anda sendiri yang
+dihitung sebagai sumber.
+
+## Aplikasi [#apps]
+
+**App Store Connect** menyinkronkan unduhan App Store, proceeds, dan perubahan
+harga ke tampilan yang sama dengan pendapatan web Anda, sehingga aplikasi
+mobile dan situsnya berbagi satu dasbor. Buat kunci API App Store Connect
+(Users and Access → Integrations), lalu masukkan Issuer ID, Key ID, kunci
+privat `.p8`, Apple ID aplikasi, dan nomor vendor Anda. Apple menampilkan
+kunci privat hanya sekali, jadi simpan filenya. Penjualan yang sama juga bisa
+masuk lewat [API event server](#server-events-api) bila Anda lebih suka
+melaporkannya dari backend sendiri.
+
+## Pencarian [#search]
+
+**Google Search Console** mengimpor performa pencarian: beri otorisasi lewat
+Google, lalu **Sync now** untuk menarik klik, impresi, CTR, dan posisi per
+kueri. Panel menampilkan total 30 hari dan tabel per kueri.
+
+## Impor [#imports]
+
+Bawa riwayat masuk tanpa menunggu data menumpuk:
+
+- **Polar**: hubungkan situs dari **Integrasi → Pembayaran → Polar**
+  (lihat [Polar](#polar)). Dengan access token tersimpan, **Sync orders now**
+  membawa masuk order yang sudah ada, biaya, dan refund-nya.
+- **OneDollarStats**: impor pengunjung, halaman, negara, dan sumber dengan
+  kunci API dan domain situs sebagaimana terdaftar di sana.
+
+## Berbagi dan akses [#share-and-access]
+
+Halaman **Bagikan & akses** menghimpun semua yang bersifat publik:
+
+- **Dashboard publik**: tautan baca-saja ke analitik Anda; bisa dinonaktifkan
+  kapan saja.
+- **Widget live**: gelembung atau badge pengunjung langsung yang bisa
+  disematkan:
+
+  ```html
+  <script
+  	async
+  	src="https://app.revklik.com/klikapa-live.js"
+  	data-widget-token="YOUR_TOKEN"
+  ></script>
+  ```
+
+- **Token API**: token tingkat akun atau situs dengan cakupan terperinci
+  (`sites:read`, `analytics:read`, `analytics:export`, `tokens:read`,
+  `tokens:write`). Batasnya bergantung pada paket Anda; lihat
+  [tagihan](/id/billing). Token yang sama juga berlaku lewat [MCP](/id/mcp),
+  sehingga agen coding bisa membaca analitik Anda langsung.
+
+## Laporan email [#email-reports]
+
+Di **Pengaturan → Laporan email**, jadwalkan ringkasan berkala ke email akun
+Anda: **harian, mingguan, atau bulanan**. Laporan bisa dinyalakan dan
+dimatikan, dan menampilkan kapan terakhir dikirim.
+
+## Tim [#team]
+
+Di **Pengaturan → Tim**, undang rekan lewat email sebagai **Admin**,
+**Editor**, atau **Viewer**. Orang yang diundang harus sudah punya akun
+RevKlik; pemilik bisa mengubah peran dan menghapus anggota kapan saja.

@@ -1,0 +1,132 @@
+---
+title: Laporan harian dengan Hermes Agent
+description: "Minta Hermes Agent menjalankan CLI RevKlik tiap pagi dan mengirim ringkasan analitik singkat, lengkap dengan prompt siap tempel untuk laporan, anomali, dan penilaian lead."
+---
+
+[Hermes Agent](https://github.com/NousResearch/hermes-agent) adalah agen AI sumber terbuka dari Nous Research yang dapat menjalankan perintah shell dan mengirim pesan. Beri akses ke [CLI RevKlik](/id/cli) dan ia bisa mengubah angka Anda menjadi ringkasan harian tanpa Anda membuka dashboard.
+
+```
+penjadwal → Hermes Agent → CLI revklik (trafik, pendapatan, pencarian) → ringkasan → chat Anda
+```
+
+## Sebelum mulai
+
+- [CLI RevKlik](/id/cli) sudah terpasang dan login. Cek dengan `revklik sites list`.
+- Hermes Agent terpasang dan bisa menjalankan perintah shell. Ikuti dokumentasi Hermes untuk pemasangan dan cara mengirim pesan ke Telegram atau kanal lain.
+- Opsional: Google Search Console terhubung ke situs Anda di RevKlik, untuk kueri pencarian (lihat [integrasi](/id/integrations)).
+
+<Callout type="tip" title="Pakai token baca-saja">
+Buat token akun khusus dengan cakupan `sites:read` dan `analytics:read` saja untuk agen, lalu berikan ke Hermes sebagai `REVKLIK_TOKEN`. Jika lingkungan agen bocor, token itu tidak bisa mengubah apa pun. Cabut dari **Share → API tokens**.
+</Callout>
+
+## Prompt harian
+
+Tempel ke Hermes, atau simpan sebagai file prompt. Ganti `situssaya.com` dengan domain Anda.
+
+```text
+Jalankan laporan analitik harian untuk situssaya.com. Lakukan berurutan:
+
+1. revklik analytics overview --site situssaya.com --range 24h
+2. revklik analytics journeys --site situssaya.com --sort steps --limit 10 --range 24h --json
+3. revklik analytics pages --site situssaya.com --range 24h
+4. revklik analytics referrers --site situssaya.com --range 24h
+5. revklik analytics revenue --site situssaya.com --range 24h
+
+Lalu tulis laporan singkat:
+- Pengunjung, pageview, bounce rate, pendapatan, dan konversi, dibandingkan rata-rata 7 hari (jalankan overview dengan --range 7d lalu bagi).
+- 3 halaman teratas dan 3 sumber trafik teratas.
+- Pengunjung paling aktif dari keluaran journeys.
+- Dua pengamatan dan satu tindakan yang sebaiknya saya lakukan hari ini.
+
+Maksimal 15 baris. Kirim ke Telegram saya.
+```
+
+Angka pendapatan memakai mata uang situs Anda; CLI mencetaknya dengan awalan `$`, jadi sebutkan mata uang sebenarnya di prompt jika bukan USD.
+
+## Prompt lainnya
+
+### Rangkuman mingguan dengan data pencarian
+
+```text
+Jalankan laporan mingguan untuk situssaya.com:
+
+1. revklik analytics overview --site situssaya.com --range 7d
+2. revklik analytics geo --site situssaya.com --range 7d
+3. revklik analytics journeys --site situssaya.com --sort revenue --limit 5 --range 7d --json
+4. revklik gsc sync --site situssaya.com, lalu revklik gsc queries --site situssaya.com --limit 20
+
+Soroti kueri pencarian dengan klik terbanyak, negara yang paling banyak
+konversi, dan pengunjung yang sangat aktif tetapi belum membeli.
+Format sebagai rangkuman mingguan.
+```
+
+Data Search Console terlambat sekitar dua hari, jadi rangkuman tidak mencakup pencarian dua hari terakhir.
+
+### Pemeriksaan anomali
+
+```text
+Periksa anomali di situssaya.com hari ini:
+
+1. revklik analytics overview --site situssaya.com --range 24h
+2. revklik analytics overview --site situssaya.com --range 7d
+3. revklik analytics journeys --site situssaya.com --sort steps --limit 20 --range 24h --json
+
+Bandingkan hari ini dengan rata-rata harian 7 hari. Kabari saya hanya jika:
+- pengunjung turun lebih dari 30%
+- bounce rate di atas 60%
+- satu pengunjung punya jumlah langkah yang tidak wajar (kemungkinan bot)
+- pendapatan nol pada hari yang biasanya ada pendapatan
+
+Selain itu balas "Semua metrik normal."
+```
+
+### Penilaian lead
+
+```text
+Cari lead paling hangat minggu ini:
+
+1. revklik analytics journeys --site situssaya.com --sort steps --limit 50 --range 7d --json
+
+Pilih pengunjung dengan 5 langkah atau lebih yang membuka halaman harga atau
+dokumentasi dan datang dari pencarian atau referral. Beri skor 0 sampai 100,
+daftarkan 5 teratas beserta sumber, negara, dan halaman yang dikunjungi, lalu
+sarankan satu tindak lanjut untuk masing-masing.
+```
+
+Perjalanan menampilkan pengunjung yang teridentifikasi dengan namanya; yang belum teridentifikasi muncul dengan ID pengunjung singkat.
+
+## Jadwalkan
+
+Simpan prompt sebagai file, lalu jalankan Hermes terjadwal dengan cron atau timer systemd. Flag persis untuk menjalankan Hermes tanpa interaksi dan mengirim hasilnya ke chat ada di dokumentasi Hermes; jadwalnya sendiri seperti ini:
+
+```bash
+# crontab: setiap hari pukul 08.00
+0 8 * * * REVKLIK_TOKEN=rvt_TOKEN_ANDA /path/ke/run-hermes-with-prompt.sh
+```
+
+```ini
+# ~/.config/systemd/user/hermes-analytics.timer
+[Unit]
+Description=Laporan analitik harian pukul 08.00
+
+[Timer]
+OnCalendar=*-*-* 08:00:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target
+```
+
+Arahkan `hermes-analytics.service` yang sepasang ke skrip yang sama, lalu aktifkan timer:
+
+```bash
+systemctl --user enable --now hermes-analytics.timer
+```
+
+Simpan prompt di file tersendiri agar Anda bisa menyesuaikan laporan tanpa menyentuh jadwal.
+
+## Terkait
+
+- [CLI](/id/cli): semua perintah yang dipakai prompt
+- [REST API](/id/api): data yang sama lewat HTTP
+- [Server MCP](/id/mcp): hubungkan agen langsung ke RevKlik tanpa lewat CLI

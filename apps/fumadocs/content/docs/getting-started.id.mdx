@@ -1,0 +1,267 @@
+---
+title: Memulai
+description: "Buat akun RevKlik, tambahkan situs Anda, dan tempel satu tag script: statistik mulai masuk sejak kunjungan pertama."
+---
+
+## 1. Buat akun
+
+Daftar di [app.revklik.com/register](https://app.revklik.com/register) dengan
+email dan kata sandi, atau lanjutkan dengan Google. Setiap akun baru langsung
+mendapat **uji coba Growth 7 hari tanpa kartu**. Dashboard tersedia dalam
+Bahasa Indonesia dan bahasa Inggris (ganti lewat tombol ID/EN).
+
+## 2. Tambahkan situs Anda
+
+Di halaman **Situs**, klik **Tambah situs** (di dasbor sebuah situs, buka
+pemilih situs di bilah atas lalu pilih **Manage sites**). Isi:
+
+- **Nama situs**: nama apa saja yang membantu Anda mengenali situs, misalnya `Blog saya`.
+- **Domain situs**: misalnya `example.com`. Anda boleh menempelkan URL lengkap:
+  skema, path, dan garis miring di akhir akan dibuang, dan domain diubah ke
+  huruf kecil. Setiap domain hanya bisa ditambahkan sekali.
+
+Klik **Tambah situs** dan snippet pelacakan langsung terbuka.
+
+## 3. Pasang snippet pelacakan [#install-the-tracking-snippet]
+
+Snippet-nya satu tag script. Ganti `YOUR_SITE_ID` dengan ID situs Anda:
+
+```html
+<script defer data-site-id="YOUR_SITE_ID" src="https://app.revklik.com/klikapa.js"></script>
+```
+
+Jendela **Snippet pelacakan** menampilkan tag ini dengan ID situs yang sudah
+terisi, jadi salin dari sana dengan **Salin snippet**. Untuk membukanya lagi,
+klik **Snippet** pada baris situs di **Manage sites**, atau **Pasang snippet**
+pada kartu situs yang bertanda _Belum terpasang_.
+
+Pasang tag ini satu kali di setiap halaman yang ingin Anda ukur. Tracker
+mengikuti aplikasi satu halaman (SPA) dengan sendirinya: perpindahan rute
+dihitung sebagai pageview.
+
+<Tabs label="Kerangka kerja">
+<Tab value="HTML biasa">
+
+Tempel di dalam `<head>` layout atau template Anda:
+
+```html title="index.html"
+<head>
+	<!-- ... -->
+	<script defer data-site-id="YOUR_SITE_ID" src="https://app.revklik.com/klikapa.js"></script>
+</head>
+```
+
+</Tab>
+<Tab value="Next.js">
+
+Di App Router, muat dari root layout dengan `next/script`:
+
+```tsx title="app/layout.tsx"
+import Script from "next/script";
+
+export default function RootLayout({ children }: { children: React.ReactNode }) {
+	return (
+		<html lang="id">
+			<body>
+				{children}
+				<Script
+					src="https://app.revklik.com/klikapa.js"
+					data-site-id="YOUR_SITE_ID"
+					strategy="afterInteractive"
+				/>
+			</body>
+		</html>
+	);
+}
+```
+
+</Tab>
+<Tab value="Astro">
+
+Tambahkan ke `<head>` layout dasar Anda. `is:inline` mencegah Astro
+membundel tag ini, sehingga dirender persis seperti yang ditulis:
+
+```astro title="src/layouts/Layout.astro"
+<head>
+	<!-- ... -->
+	<script is:inline defer data-site-id="YOUR_SITE_ID" src="https://app.revklik.com/klikapa.js"></script>
+</head>
+```
+
+</Tab>
+<Tab value="WordPress">
+
+Tanpa mengubah file tema, tambahkan kode ini lewat plugin code snippets atau
+`functions.php` child theme Anda:
+
+```php title="functions.php"
+add_action('wp_head', function () {
+	echo '<script defer data-site-id="YOUR_SITE_ID" src="https://app.revklik.com/klikapa.js"></script>';
+});
+```
+
+</Tab>
+<Tab value="Shopify">
+
+Di admin, buka **Online Store → Themes**, klik tiga titik pada tema Anda, pilih
+**Edit code**, buka `layout/theme.liquid`, lalu tempel tag tepat sebelum
+`</head>`:
+
+```liquid title="layout/theme.liquid"
+<script defer data-site-id="YOUR_SITE_ID" src="https://app.revklik.com/klikapa.js"></script>
+</head>
+```
+
+</Tab>
+<Tab value="Webflow">
+
+Buka **Site settings → Custom code**, tempel tag di **Head code**, simpan,
+lalu publikasikan situs. Webflow hanya menjalankan custom code pada paket Site
+yang mendukungnya.
+
+```html
+<script defer data-site-id="YOUR_SITE_ID" src="https://app.revklik.com/klikapa.js"></script>
+```
+
+</Tab>
+<Tab value="Google Tag Manager">
+
+Buat tag **Custom HTML** yang aktif di **All Pages**. Tag Manager menjalankan
+script tag itu sendiri, jadi tracker ditambahkan lewat loader kecil yang
+mengatur atributnya sebelum tracker berjalan:
+
+```html
+<script>
+	(function () {
+		var s = document.createElement("script");
+		s.defer = true;
+		s.src = "https://app.revklik.com/klikapa.js";
+		s.setAttribute("data-site-id", "YOUR_SITE_ID");
+		document.head.appendChild(s);
+	})();
+</script>
+```
+
+</Tab>
+</Tabs>
+
+<Callout type="tip" title="Pastikan berfungsi">
+	Biarkan jendela tetap terbuka dan kunjungi situs Anda di tab lain. Jendela menampilkan
+	*Menunggu pageview pertama…* lalu berubah menjadi *Pageview pertama sudah masuk. Tracking
+	berjalan.* begitu event pertama masuk.
+</Callout>
+
+### Content Security Policy
+
+Jika situs Anda mengirim header `Content-Security-Policy`, izinkan RevKlik
+memuat script dan menerima event:
+
+```
+script-src https://app.revklik.com;
+connect-src https://app.revklik.com;
+```
+
+Tambahkan origin ini ke direktif yang sudah Anda pakai, jangan menggantinya.
+Pada instalasi self-hosted, gunakan origin yang menyajikan `klikapa.js`.
+
+### Tidak ada data? Periksa ini [#no-data-check]
+
+- **Ad blocker atau ekstensi privasi.** Sebagian memblokir script analitik.
+  Buka situs di jendela pribadi dengan ekstensi dimatikan.
+- **Content Security Policy.** Konsol browser menampilkan script atau request
+  yang diblokir bila CSP penyebabnya. Izinkan `app.revklik.com` seperti di atas.
+- **Site ID salah.** Tracker tidak melakukan apa-apa tanpa `data-site-id`, dan
+  data masuk ke situs pemilik ID tersebut. Bandingkan ID di sumber halaman
+  Anda dengan ID di jendela snippet.
+- **Domain tidak cocok.** Snippet yang disalin dari situs lain mengirim
+  datanya ke situs itu. Setiap domain di **Manage sites** punya snippet sendiri.
+- **Pengembangan lokal.** Tracker mengabaikan `localhost` dan alamat lokal
+  lainnya. Tambahkan `data-track-localhost="true"` pada tag untuk menguji di sana.
+- **Gerbang persetujuan.** Bila `data-consent="required"` dipasang, tidak ada
+  yang disimpan atau dikirim sampai halaman Anda memanggil
+  `klikapa.consent(true)`. Lihat [persetujuan](#consent) di bawah.
+- **Global Privacy Control atau Do Not Track.** Tracker menghormati keduanya:
+  pengunjung yang browsernya mengirim salah satu sinyal itu tidak dicatat.
+  Browser Anda sendiri mungkin mengaktifkannya.
+
+Masih buntu? [FAQ](/id/faq) menjelaskan apa yang dikumpulkan script dan
+bagaimana retensi data bekerja.
+
+## 4. Lacak lebih dari pageview
+
+Pageview, klik, dan kedalaman scroll dikumpulkan otomatis. Untuk yang lain:
+
+- **Goal pada elemen.** Tambahkan `data-revklik-goal="signup"` pada tombol atau
+  tautan. Atribut `data-revklik-goal-*` tambahan menjadi properti goal, dan
+  `data-revklik-goal-value="19"` melampirkan pendapatan.
+- **Event kustom dari kode.** `klikapa.track("pricing_viewed", { plan: "growth" })`
+  mencatat sebuah event, dan `klikapa.conversion("purchase", 19, { plan: "growth" })`
+  mencatat konversi beserta pendapatannya.
+- **Funnel.** Tandai bagian halaman dengan `data-section`; lihat
+  [funnel](/id/dashboard/funnels).
+- **Pengunjung yang dikenal.** `klikapa.identify({ ... })` menautkan data
+  kontak ke seorang pengunjung. Panggil hanya dengan persetujuan pengunjung.
+
+## 5. Persetujuan [#consent]
+
+Secara bawaan tracker langsung berjalan begitu dimuat. Jika pengunjung Anda
+mencakup penduduk Indonesia, UE, atau Inggris, minta persetujuan lebih dulu
+dan mulai melacak hanya setelah pengunjung setuju:
+
+```html
+<script
+	defer
+	data-site-id="YOUR_SITE_ID"
+	data-consent="required"
+	src="https://app.revklik.com/klikapa.js"
+></script>
+```
+
+```js
+// saat pengunjung menyetujui banner Anda
+klikapa.consent(true);
+
+// saat pengunjung menolak atau mencabut persetujuan
+klikapa.consent(false);
+```
+
+Sebelum `klikapa.consent(true)` dipanggil, tidak ada yang disimpan di browser
+dan tidak ada yang dikirim. Persetujuan diingat, jadi pemuatan halaman
+berikutnya berlanjut tanpa memanggilnya lagi. `klikapa.consent(false)` menghapus
+ID pengunjung dan menghentikan pengiriman. Panduan lengkapnya ada di
+[privasi dan persetujuan](/id/privacy).
+
+## 6. Kecualikan perangkat Anda sendiri
+
+Di dalam **Manage sites**, buka sebuah situs untuk melihat pengecualiannya:
+
+- **Exclude this device**: menghentikan pelacakan pada browser yang Anda pakai
+  untuk pengembangan (perangkat dikenali lewat hash berkunci dari IP, browser,
+  dan bahasa). Lakukan sekali di setiap perangkat kerja Anda.
+- **Purge my past visits**: menghapus event, sesi, dan profil pengunjung yang
+  sudah tercatat untuk perangkat ini.
+
+## 7. Langkah berikutnya
+
+<Cards>
+	<Card
+		title="Ikhtisar dasbor"
+		href="/id/dashboard/overview"
+		description="Statistik, tren, dan rincian trafik pertama Anda."
+	/>
+	<Card
+		title="Funnel"
+		href="/id/dashboard/funnels"
+		description="Tandai bagian halaman dan lihat funnel scroll muncul."
+	/>
+	<Card
+		title="Privasi dan persetujuan"
+		href="/id/privacy"
+		description="Apa yang disimpan, berapa lama, dan apa yang perlu Anda sampaikan ke pengunjung."
+	/>
+	<Card
+		title="Tagihan"
+		href="/id/billing"
+		description="Paket, harga, uji coba Growth 7 hari, dan apa yang terjadi setelahnya."
+	/>
+</Cards>

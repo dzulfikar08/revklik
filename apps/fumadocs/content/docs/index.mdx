@@ -3,11 +3,10 @@ title: RevKlik docs
 description: "Privacy-first web and revenue analytics: install the tracker, read your dashboard, follow the money."
 ---
 
-import { Card, Cards } from "fumadocs-ui/components/card";
-
-RevKlik is privacy-first web and revenue analytics. Point the tracking snippet at
-your site and the dashboard answers the two questions that matter: **who is
-visiting**, and **how do visits turn into revenue**.
+RevKlik is privacy-first web and revenue analytics: no third-party cookies, no
+cross-site tracking, no ad profiles. Point the tracking snippet at your site and
+the dashboard answers the two questions that matter: **who is visiting**, and
+**how do visits turn into revenue**.
 
 ## Start here
 
@@ -33,14 +32,19 @@ visiting**, and **how do visits turn into revenue**.
 		href="/dashboard/funnels"
 	/>
 	<Card
-		title="Predictions and AI insights"
-		description="Revenue forecasts and AI-generated reads on your traffic."
-		href="/dashboard/predictions"
+		title="Run-rate forecast and AI insights"
+		description="A straight-line 30-day revenue forecast on every plan, and Growth-plan insights on your traffic."
+		href="/dashboard/insights"
 	/>
 	<Card
 		title="Integrations"
-		description="Payment providers, marketplaces, and search console feeds."
+		description="Payment gateways, App Store Connect, and Search Console feeds."
 		href="/integrations"
+	/>
+	<Card
+		title="Privacy and consent"
+		description="What is stored, how long, and what to tell your visitors."
+		href="/privacy"
 	/>
 	<Card
 		title="MCP server"
@@ -48,8 +52,13 @@ visiting**, and **how do visits turn into revenue**.
 		href="/mcp"
 	/>
 	<Card
+		title="REST API and CLI"
+		description="Read the same numbers from your own code or your terminal."
+		href="/api"
+	/>
+	<Card
 		title="Billing"
-		description="IDR pricing with QRIS and GoPay, plans, and limits."
+		description="Micro, Starter, and Growth, paid with QRIS in IDR or by card in USD."
 		href="/billing"
 	/>
 	<Card
@@ -64,16 +73,19 @@ visiting**, and **how do visits turn into revenue**.
 - **Web analytics**: visitors, pageviews, bounce rate, and visit duration with
   automatic comparison against the previous period, broken down by page, source,
   geography, and platform.
-- **Revenue attribution**: conversions carry revenue from payment providers
-  (Midtrans, Xendit, Stripe, LemonSqueezy), marketplaces (Shopee, Tokopedia),
-  and Polar orders into the same revenue panels.
+- **Revenue attribution**: conversions carry revenue from payment gateways
+  (Midtrans, Xendit, DOKU, Mayar, Paywuz, Polar, Stripe, Lemon Squeezy) and
+  App Store Connect imports into the same revenue panels. Attribution and
+  funnels start on the Starter plan.
 - **Visitor journeys**: step-by-step timelines with tags and notes your team
   can attach.
 - **Scroll funnels**: funnels derived automatically from the sections of your
   pages, so you can see where visitors stop scrolling without building a funnel
   by hand.
-- **Growth extras**: heatmaps, session recordings, revenue predictions, and AI
-  insights on the Growth plan.
+- **Run-rate forecast**: your recent daily revenue pace extended over the next
+  30 days, in your site's currency.
+- **Growth extras**: heatmaps, session recordings, and AI insights on the Growth
+  plan.
 
 New here? [Install the tracking snippet](/getting-started) first. Everything
 else in these docs assumes it is live on your site.

@@ -1,0 +1,243 @@
+---
+title: REST API
+description: "Baca data analitik RevKlik dari kode Anda sendiri: token API bercakupan, endpoint JSON untuk situs, trafik, pendapatan, ekspor, dan batas laju per paket."
+---
+
+REST API menyajikan data yang sama dengan dashboard, server MCP, dan CLI. Semuanya berjalan di satu lapisan kueri yang sama, jadi angkanya identik di mana pun.
+
+```
+https://app.revklik.com/api/v1
+```
+
+## Autentikasi
+
+Kirim token API sebagai Bearer token di setiap permintaan:
+
+```bash
+curl https://app.revklik.com/api/v1/whoami \
+  -H "Authorization: Bearer rvt_TOKEN_ANDA"
+```
+
+Buat token di **Share → API tokens** (lihat [berbagi dan akses](/id/integrations#share-and-access)). Token lengkap hanya tampil sekali; RevKlik hanya menyimpan hash SHA-256, jadi simpan di tempat yang aman.
+
+| Awalan | Jenis | Akses                                                                  |
+| ------ | ----- | ---------------------------------------------------------------------- |
+| `rvt_` | Akun  | Semua situs yang Anda miliki atau diundang, sesuai cakupan yang diberikan |
+| `rv_`  | Situs | Satu situs. Hanya cakupan `analytics:read` dan `analytics:export`      |
+
+<Callout type="warn" title="Hanya token rvt_ dan rv_">
+Token sesi dashboard ditolak API publik dengan `401`. Buat token API sebagai gantinya.
+</Callout>
+
+## Cakupan (scope) [#scopes]
+
+| Cakupan            | Mengizinkan                                                               |
+| ------------------ | ------------------------------------------------------------------------- |
+| `sites:read`       | Melihat daftar situs dan satu situs                                       |
+| `analytics:read`   | Semua endpoint analitik kecuali ekspor                                    |
+| `analytics:export` | `GET /analytics/export`                                                   |
+| `events:write`     | `POST /events/server` (lihat [API event server](/id/integrations#server-events-api)) |
+| `tokens:read`      | Melihat daftar token API                                                  |
+| `tokens:write`     | Membuat dan mencabut token API                                            |
+
+Token akun secara bawaan mendapat `sites:read`, `analytics:read`, `analytics:export`, `tokens:read`, dan `tokens:write`. Token situs mendapat `analytics:read` dan `analytics:export`. Token situs yang dipakai untuk situs lain mendapat `403`.
+
+## Batas laju
+
+Batas dihitung per menit dan bergantung pada paket Anda:
+
+| Paket   | Permintaan per menit | Token API  |
+| ------- | -------------------- | ---------- |
+| Micro   | 30                   | 2          |
+| Starter | 120                  | 5          |
+| Growth  | 300                  | Tanpa batas |
+
+Setiap respons membawa `X-RateLimit-Limit`, `X-RateLimit-Remaining`, dan `X-RateLimit-Reset` (stempel waktu Unix dalam detik). Saat batas terlampaui, API menjawab `429` dengan header `Retry-After` dalam detik.
+
+Data yang lebih lama dari retensi event mentah paket Anda (30, 60, atau 180 hari untuk Micro, Starter, dan Growth) tidak lagi tersedia untuk kueri.
+
+## Format respons
+
+Respons sukses membungkus isinya dalam `data`:
+
+```json
+{ "data": {}, "success": true }
+```
+
+Galat memakai amplop yang sama:
+
+```json
+{ "error": "Insufficient scope: analytics:export required", "success": false }
+```
+
+| Status | Arti                                                                          |
+| ------ | ----------------------------------------------------------------------------- |
+| `400`  | Parameter tidak valid atau hilang                                             |
+| `401`  | Token hilang, salah format, tidak dikenal, kedaluwarsa, atau awalannya tidak cocok |
+| `403`  | Cakupan kurang, token terikat ke situs lain, atau batas jumlah token tercapai |
+| `404`  | Situs atau token tidak ditemukan                                              |
+| `429`  | Batas laju terlampaui                                                         |
+
+Pesan galat dikirim dalam bahasa Inggris.
+
+## Akun
+
+### `GET /whoami`
+
+Menjelaskan token yang sedang dipakai. Tidak butuh cakupan.
+
+```json
+{
+	"data": {
+		"user": { "id": "abc123", "name": "Dewi", "email": "dewi@example.com" },
+		"plan": "starter",
+		"token": {
+			"type": "account",
+			"scopes": ["sites:read", "analytics:read"],
+			"site_id": null,
+			"name": "Laporan",
+			"created_at": "2026-05-15T00:00:00Z"
+		}
+	},
+	"success": true
+}
+```
+
+### `GET /sites` dan `GET /sites/:siteId`
+
+Butuh `sites:read`. Token akun menampilkan semua situs yang Anda miliki atau diundang; token situs hanya menampilkan situsnya sendiri.
+
+```json
+{
+	"data": [
+		{
+			"id": "9f1c...",
+			"name": "Situs Saya",
+			"domain": "situssaya.com",
+			"created_at": "2026-01-15T00:00:00Z"
+		}
+	],
+	"success": true
+}
+```
+
+## Analitik
+
+Semua endpoint analitik butuh `analytics:read` dan parameter kueri berikut:
+
+| Parameter | Keterangan                                                                                               |
+| --------- | -------------------------------------------------------------------------------------------------------- |
+| `site_id` | ID situs. Wajib.                                                                                         |
+| `range`   | `24h`, `7d`, `30d`, atau `90d`; bawaan `7d`. Bisa juga pasangan tanggal ISO `awal,akhir`. Nilai lain kembali ke `7d`. |
+| `limit`   | Hanya endpoint daftar. Maksimal 100.                                                                     |
+
+Pendapatan dalam satuan utama mata uang pendapatan situs; respons menyertakan `currency`.
+
+| Endpoint                       | Mengembalikan                                                                 | `limit` bawaan |
+| ------------------------------ | ----------------------------------------------------------------------------- | -------------- |
+| `GET /analytics/overview`      | Pageview, pengunjung, sesi, bounce rate, durasi rata-rata, pendapatan, konversi | n/a         |
+| `GET /analytics/timeseries`    | Pageview dan pengunjung per hari (per jam untuk rentang pendek)               | n/a            |
+| `GET /analytics/pages`         | Halaman teratas                                                               | 10             |
+| `GET /analytics/referrers`     | Sumber trafik dengan porsi pengunjung                                         | 10             |
+| `GET /analytics/geo`           | Negara, wilayah, dan kota                                                     | 50             |
+| `GET /analytics/devices`       | Rincian perangkat, OS, dan browser                                            | n/a            |
+| `GET /analytics/revenue`       | Pendapatan per sumber, per negara, dan dari waktu ke waktu                    | n/a            |
+| `GET /analytics/campaigns`     | Performa kampanye UTM                                                         | n/a            |
+| `GET /analytics/journeys`      | Perjalanan pengunjung terbaru; filter `path` opsional                         | 50             |
+
+```bash
+curl "https://app.revklik.com/api/v1/analytics/overview?site_id=SITE_ID&range=7d" \
+  -H "Authorization: Bearer rvt_TOKEN_ANDA"
+```
+
+```json
+{
+	"data": {
+		"pageviews": 12483,
+		"visitors": 3241,
+		"sessions": 4812,
+		"bounceRate": 34,
+		"avgDuration": 252,
+		"revenue": 2490000,
+		"currency": "IDR",
+		"conversions": 87
+	},
+	"success": true
+}
+```
+
+`bounceRate` berupa persentase bulat dan `avgDuration` dalam detik.
+
+`/analytics/pages` mengembalikan `path`, `pageviews`, dan `visitors` per baris. `/analytics/devices` mengembalikan larik `devices`, `os`, dan `browsers` berisi `{ device, visitors, percentage }`.
+
+### Ekspor
+
+`GET /analytics/export` butuh `analytics:export`.
+
+| Parameter    | Keterangan                                                     |
+| ------------ | -------------------------------------------------------------- |
+| `site_id`    | Wajib.                                                         |
+| `range`      | Nilai sama seperti di atas; bawaan `30d`.                      |
+| `format`     | `csv` (bawaan) atau `json`.                                    |
+| `type`       | `events` (bawaan), `visitors`, atau `sessions`.                |
+| `event_type` | Filter opsional untuk `events`, misalnya `pageview` atau `conversion`. |
+| `limit`      | Jumlah baris, 1 sampai 10000; bawaan 10000.                    |
+
+```bash
+curl "https://app.revklik.com/api/v1/analytics/export?site_id=SITE_ID&range=30d&format=csv&type=events" \
+  -H "Authorization: Bearer rvt_TOKEN_ANDA" -o events.csv
+```
+
+## Pendapatan portofolio
+
+`GET /portfolio/revenue?from=YYYY-MM-DD&to=YYYY-MM-DD&currency=IDR` (cakupan `analytics:read`) menjumlahkan pendapatan semua situs yang dapat Anda akses, dikonversi ke satu mata uang. Datanya sama dengan tool MCP `portfolio_revenue`.
+
+## Event server
+
+`POST /events/server` (cakupan `events:write`) memungkinkan backend Anda melaporkan pembelian, perpanjangan, dan refund. Isi permintaan dan aturan idempotensinya ada di [API event server](/id/integrations#server-events-api).
+
+## Kelola token
+
+Endpoint ini butuh token akun dengan cakupan yang sesuai.
+
+| Endpoint             | Cakupan        | Fungsi                                  |
+| -------------------- | -------------- | --------------------------------------- |
+| `GET /tokens`        | `tokens:read`  | Daftar token Anda (hanya awalan)        |
+| `POST /tokens`       | `tokens:write` | Membuat token                           |
+| `DELETE /tokens/:id` | `tokens:write` | Mencabut token; langsung berhenti berfungsi |
+
+```bash
+curl -X POST https://app.revklik.com/api/v1/tokens \
+  -H "Authorization: Bearer rvt_TOKEN_ANDA" \
+  -H "Content-Type: application/json" \
+  -d '{"name": "Laporan", "type": "account", "scopes": ["sites:read", "analytics:read"]}'
+```
+
+`type` bernilai `account` atau `site`. Token situs juga butuh `site_id` dan hanya menerima cakupan analitik. Respons memuat `token` lengkap sekali saja, beserta `id`, `prefix`, `scopes`, dan `created_at`.
+
+## Contoh
+
+```ts
+const res = await fetch(
+	"https://app.revklik.com/api/v1/analytics/overview?site_id=SITE_ID&range=7d",
+	{ headers: { Authorization: `Bearer ${process.env.REVKLIK_TOKEN}` } },
+);
+const { data } = await res.json();
+console.log(data.visitors, data.revenue);
+```
+
+```python
+import os, requests
+
+res = requests.get(
+    "https://app.revklik.com/api/v1/analytics/overview",
+    params={"site_id": "SITE_ID", "range": "7d"},
+    headers={"Authorization": f"Bearer {os.environ['REVKLIK_TOKEN']}"},
+)
+print(res.json()["data"])
+```
+
+## Terkait
+
+- [Server MCP](/id/mcp): data yang sama untuk Codex, Cursor, dan Claude
+- [CLI](/id/cli): endpoint yang sama dari terminal Anda

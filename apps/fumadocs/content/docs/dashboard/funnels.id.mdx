@@ -1,0 +1,48 @@
+---
+title: Funnel
+description: Funnel scroll RevKlik menunjukkan di mana pengunjung berhenti terlibat, dibentuk otomatis dari penanda data-section di halaman Anda.
+---
+
+Panel **Funnel scroll** di dasbor menunjukkan seberapa jauh pengunjung membaca
+halaman Anda, tahap demi tahap, dengan tingkat konversi dan drop-off di setiap
+langkah.
+
+## Tanpa pembuat funnel
+
+Funnel RevKlik **dibentuk otomatis** dari event bagian scroll. Tandai bagian
+halaman Anda satu kali:
+
+```html
+<section data-section="hero">…</section>
+<section data-section="features">…</section>
+<section data-section="pricing">…</section>
+<section data-section="signup">…</section>
+```
+
+Script pelacakan melaporkan setiap bagian yang dibaca pengunjung, dan funnel
+mengurutkan bagian-bagian itu sesuai urutan halaman. Tidak ada editor funnel
+manual yang harus dirawat: setiap halaman yang punya bagian mendapat funnel
+tanpa usaha tambahan. Funnel tersedia mulai paket Starter.
+
+<Callout type="info" title="Persyaratan">
+	Funnel membutuhkan event **pageview + scroll_section**. Sebelum ada yang tercatat, panel
+	menampilkan keadaan kosong yang menyatakan hal itu.
+</Callout>
+
+## Membaca funnel
+
+- Setiap tahap menampilkan nama bagian dan pengunjung yang mencapainya.
+- Sambungan antar tahap menampilkan persentase drop-off.
+- Header panel menampilkan **tingkat konversi** keseluruhan: porsi pengunjung
+  yang mencapai bagian terakhir.
+- Mengarahkan kursor ke sebuah tahap menampilkan pengunjung, porsi, dan
+  drop-off-nya dalam tooltip.
+- Filter dan rentang waktu berlaku: gabungkan dengan
+  [segmen](/id/dashboard/overview#filters-and-segments) untuk membandingkan
+  funnel, misalnya hanya untuk trafik berbayar.
+
+## Funnel multi-halaman
+
+Jika situs Anda melaporkan bagian di beberapa path, tab per path muncul sehingga
+Anda bisa berpindah antara funnel setiap halaman (misalnya `/` versus
+`/pricing`).

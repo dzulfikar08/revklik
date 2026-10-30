@@ -3,9 +3,10 @@ title: Introduction
 description: "RevKlik is privacy-first web and revenue analytics: see who visits, what they do, and what they buy, in one dashboard."
 ---
 
-RevKlik is **privacy-first web and revenue analytics**. Point the tracking
-snippet at your site and the dashboard answers the two questions that matter:
-who is visiting, and how do visits turn into revenue.
+RevKlik is **privacy-first web and revenue analytics**: no third-party cookies,
+no cross-site tracking, no ad profiles. Point the tracking snippet at your site
+and the dashboard answers the two questions that matter: who is visiting, and
+how do visits turn into revenue.
 
 ## What you get
 
@@ -13,24 +14,31 @@ who is visiting, and how do visits turn into revenue.
   automatic comparison against the previous period, broken down by page,
   source, geography, and platform.
 - **Revenue analytics**: conversions carry a revenue amount, and payment
-  providers (Midtrans, Xendit, Stripe, LemonSqueezy), marketplaces
-  (Shopee, Tokopedia), and Polar orders feed the same revenue panels.
+  gateways (Midtrans, Xendit, DOKU, Mayar, Paywuz, Polar, Stripe, Lemon
+  Squeezy) plus App Store Connect imports feed the same revenue panels.
 - **Visitor journeys**: every visitor gets a readable identity, a step-by-step
   journey timeline, and tags/notes your team can attach.
 - **Scroll funnels**: funnels are derived automatically from the sections of
   your pages, so you can see where visitors stop scrolling without building a
   funnel by hand.
-- **Growth extras**: heatmaps, session recordings, revenue predictions, and AI
-  insights on the Growth plan.
+- **Run-rate forecast**: your recent daily revenue pace extended over the next
+  30 days, in your site's currency.
+- **Growth extras**: heatmaps, session recordings, and AI insights on the
+  Growth plan.
 - **Realtime**: a live visitor count and event feed stream straight into the
   dashboard while your site gets traffic.
 
 ## Privacy by design
 
-Visitors are shown under deterministic pseudonyms (a name like _cobalt
-quokka_ and an avatar) instead of raw identifiers, form parameters are masked,
-and you can exclude your own devices from tracking and purge your past visits
-with one action.
+RevKlik sets no third-party cookies and does no cross-site tracking. Each
+browser gets a random first-party visitor ID in local storage, with a per-site
+salt for the server-side fallback, and the dashboard shows visitors under
+deterministic pseudonyms (a name like _cobalt quokka_ and an avatar) instead of
+raw identifiers. Form parameters are masked, raw events are deleted after 30, 60
+or 180 days depending on your plan, and you can exclude your own devices and
+purge your past visits. A persistent ID can still single out a returning
+visitor, so treat it as personal data: the [privacy page](/privacy) explains
+what is stored and how to ask for consent.
 
 ## Where to next
 
@@ -48,7 +56,11 @@ with one action.
 	<Card
 		title="Integrations"
 		href="/integrations"
-		description="Webhooks, payments, marketplaces, search data, and sharing."
+		description="Payment gateways, search data, and sharing."
 	/>
-	<Card title="Billing" href="/billing" description="Plans, IDR pricing, and QRIS/card checkout." />
+	<Card
+		title="Billing"
+		href="/billing"
+		description="Plans, pricing, and QRIS or card checkout."
+	/>
 </Cards>

@@ -18,7 +18,7 @@ html > body[data-scroll-locked] {
 }
 
 /* ----------------------------------------------------------------------------
-   RevKlik brand — deep blue-charcoal surfaces with an orange accent, applied
+   RevKlik brand: deep blue-charcoal surfaces with an orange accent, applied
    to :root and .dark alike so the docs are theme-independent (mirrors
    apps/web/src/index.css). Fumadocs variable names are preserved so every
    fd-* component keeps working; only the values change.
@@ -57,9 +57,62 @@ html > body[data-scroll-locked] {
 	--color-fd-success: oklch(0.75 0.14 155);
 }
 
-/* neutral.css tints the sidebar only under .dark — re-tint it with the brand values. */
+/* neutral.css tints the sidebar only under .dark; re-tint it with the brand values. */
 .dark #nd-sidebar {
 	--color-fd-muted: oklch(0.262 0.018 260);
 	--color-fd-secondary: oklch(0.262 0.018 260);
 	--color-fd-muted-foreground: oklch(0.685 0.015 255);
+}
+
+/* Tab groups (src/components/tabs.astro). Radio inputs drive the panels, so no
+   script is needed; tabs.astro emits the per-tab :checked rules. */
+.rk-tabs {
+	position: relative;
+	margin: 1rem 0;
+	border: 1px solid var(--color-fd-border);
+	border-radius: 0.75rem;
+	background: var(--color-fd-card);
+	overflow: hidden;
+}
+
+.rk-tab-input {
+	position: absolute;
+	width: 1px;
+	height: 1px;
+	opacity: 0;
+}
+
+.rk-tab-list {
+	display: flex;
+	gap: 0.25rem;
+	padding: 0 0.5rem;
+	overflow-x: auto;
+	border-bottom: 1px solid var(--color-fd-border);
+}
+
+.rk-tab-list > label {
+	display: inline-flex;
+	flex: none;
+	align-items: center;
+	min-height: 2.75rem;
+	padding: 0 0.75rem;
+	border-bottom: 2px solid transparent;
+	color: var(--color-fd-muted-foreground);
+	font-size: 0.875rem;
+	font-weight: 500;
+	white-space: nowrap;
+	cursor: pointer;
+}
+
+.rk-tab-list > label:hover {
+	color: var(--color-fd-foreground);
+}
+
+.rk-tab-panel {
+	display: none;
+	padding: 0 1rem 0.25rem;
+}
+
+.rk-tab-panel > :first-child {
+	margin-top: 1rem;
 }

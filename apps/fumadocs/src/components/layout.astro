@@ -1,64 +1,109 @@
 ---
 import { ClientRouter } from "astro:transitions";
+import { DEFAULT_LOCALE, localePrefix, withTrailingSlash, type Locale } from "@/lib/i18n";
+
+interface Alternate {
+  hreflang: string;
+  href: string;
+}
 
 interface Props {
-  /** Page title without the site suffix; omit for the docs home. */
+  /** Page title without the site suffix; omit for pages that only carry the site name. */
   title?: string;
   description?: string;
-  /** Site-root-relative path used for canonical + og:url, e.g. `/dashboard/overview`. */
+  /** Served path of this page with its trailing slash, e.g. `/dashboard/overview/` or `/id/`. */
   pathname?: string;
-  /** Site-root-relative OG image path. */
+  /** Site-root-relative OG image path; the default only suits the docs home. */
   image?: string;
+  /** Language of the page body, set on `<html lang>`. */
+  lang?: Locale;
+  /** Path the canonical and og:url should point at when it differs from `pathname`. */
+  canonicalPath?: string;
+  /** Pages that exist in more than one language: one entry per language, plus x-default. */
+  alternates?: Alternate[];
+  noindex?: boolean;
 }
 
 const SITE = Astro.site ?? new URL("https://docs.revklik.com");
 
+const COPY: Record<Locale, { siteName: string; description: string; ogLocale: string }> = {
+  en: {
+    siteName: "RevKlik docs",
+    description:
+      "Documentation for RevKlik: privacy-first web and revenue analytics. No third-party cookies, no cross-site tracking.",
+    ogLocale: "en_US",
+  },
+  id: {
+    siteName: "Dokumentasi RevKlik",
+    description:
+      "Dokumentasi RevKlik: analitik web dan pendapatan yang menjaga privasi. Tanpa cookie pihak ketiga, tanpa pelacakan lintas situs.",
+    ogLocale: "id_ID",
+  },
+};
+
 const {
   title,
-  description = "Documentation for RevKlik: privacy-first web and revenue analytics by revklik.",
-  pathname = "/",
-  image = "/og/docs/introduction/image.png",
+  lang = DEFAULT_LOCALE,
+  pathname = `${localePrefix(lang)}/`,
+  canonicalPath,
+  alternates = [],
+  noindex = false,
 } = Astro.props;
+const copy = COPY[lang];
+const { description = copy.description, image = `${localePrefix(lang)}/og/docs/image.png` } =
+  Astro.props;
 
-const canonical = new URL(pathname, SITE).href;
+const canonical = new URL(withTrailingSlash(canonicalPath ?? pathname), SITE).href;
 const ogImage = new URL(image, SITE).href;
-const pageTitle = title ? `${title} · RevKlik` : "RevKlik docs";
-const ogTitle = title ?? "RevKlik docs";
-const siteDescription =
-  "Documentation for RevKlik: privacy-first web and revenue analytics by revklik.";
+const hasOwnTitle = Boolean(title) && title !== copy.siteName;
+const pageTitle = hasOwnTitle ? `${title} · RevKlik` : copy.siteName;
+const ogTitle = hasOwnTitle ? title! : copy.siteName;
+const alternateOgLocales = Object.entries(COPY)
+  .filter(([locale]) => locale !== lang)
+  .map(([, value]) => value.ogLocale);
 
 const websiteJsonLd = JSON.stringify({
   "@context": "https://schema.org",
   "@type": "WebSite",
-  name: "RevKlik docs",
-  url: SITE.href,
-  description: siteDescription,
+  name: copy.siteName,
+  url: new URL(`${localePrefix(lang)}/`, SITE).href,
+  inLanguage: lang,
+  description: copy.description,
   publisher: {
     "@type": "Organization",
-    name: "revklik",
-    url: "https://app.revklik.com",
+    name: "RevKlik",
+    url: "https://revklik.com",
   },
 });
 ---
 
-<html lang="en">
+<html lang={lang}>
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>{pageTitle}</title>
     <meta name="description" content={description} />
-    <link rel="canonical" href={canonical} />
+    {noindex && <meta name="robots" content="noindex, follow" />}
+    {!noindex && <link rel="canonical" href={canonical} />}
+    {alternates.map((alternate) => (
+      <link rel="alternate" hreflang={alternate.hreflang} href={alternate.href} />
+    ))}
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="icon" href="/favicon.ico" sizes="48x48" />
     <link rel="sitemap" href="/sitemap-index.xml" />
     <meta name="generator" content={Astro.generator} />
     <meta name="theme-color" content="#0b0e14" />
 
-    <meta property="og:site_name" content="RevKlik docs" />
+    <meta property="og:site_name" content={copy.siteName} />
     <meta property="og:type" content="website" />
+    <meta property="og:locale" content={copy.ogLocale} />
+    {alternates.length > 0 &&
+      alternateOgLocales.map((ogLocale) => (
+        <meta property="og:locale:alternate" content={ogLocale} />
+      ))}
     <meta property="og:title" content={ogTitle} />
     <meta property="og:description" content={description} />
-    <meta property="og:url" content={canonical} />
+    {!noindex && <meta property="og:url" content={canonical} />}
     <meta property="og:image" content={ogImage} />
     <meta property="og:image:width" content="1200" />
     <meta property="og:image:height" content="630" />
@@ -79,5 +124,8 @@ const websiteJsonLd = JSON.stringify({
     transition:name="page-layout"
   >
     <slot />
+    <script>
+      import "@/scripts/enhance";
+    </script>
   </body>
 </html>

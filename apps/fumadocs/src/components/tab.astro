@@ -1,0 +1,12 @@
+---
+interface Props {
+  /** Tab title. */
+  value: string;
+}
+
+const { value } = Astro.props;
+---
+
+<section class="rk-tab-panel" data-tab-value={value}>
+  <slot />
+</section>

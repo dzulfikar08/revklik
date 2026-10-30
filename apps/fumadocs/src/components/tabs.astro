@@ -1,0 +1,53 @@
+---
+/**
+ * Tab group for MDX, built from radio inputs and CSS so it needs no client
+ * script. The docs body sits inside a React island, and changing that DOM after
+ * server rendering breaks hydration; checking a radio only flips a property.
+ *
+ * Arrow keys move between tabs natively because the inputs form a radio group.
+ */
+interface Props {
+  /** Accessible name of the tab group, e.g. "Framework". */
+  label?: string;
+}
+
+const { label } = Astro.props;
+const html = await Astro.slots.render("default");
+const values = [...html.matchAll(/data-tab-value="([^"]*)"/g)].map((match) => match[1]);
+
+let hash = 5381;
+for (const char of html) hash = (hash * 33) ^ (char.codePointAt(0) ?? 0);
+const id = `rk-tabs-${(hash >>> 0).toString(36)}`;
+
+const rules = values
+  .map((_, index) => {
+    const input = `#${id}-${index}`;
+    const nth = index + 1;
+
+    return [
+      `${input}:checked ~ .rk-tab-panels > .rk-tab-panel:nth-child(${nth}){display:block}`,
+      `${input}:checked ~ .rk-tab-list > label:nth-child(${nth}){color:var(--color-fd-primary);border-bottom-color:var(--color-fd-primary)}`,
+      `${input}:focus-visible ~ .rk-tab-list > label:nth-child(${nth}){outline:2px solid var(--color-fd-ring);outline-offset:-2px}`,
+    ].join("");
+  })
+  .join("");
+---
+
+<div class="rk-tabs" role="radiogroup" aria-label={label}>
+  {
+    values.map((_, index) => (
+      <input
+        class="rk-tab-input"
+        type="radio"
+        name={id}
+        id={`${id}-${index}`}
+        checked={index === 0}
+      />
+    ))
+  }
+  <div class="rk-tab-list">
+    {values.map((value, index) => <label for={`${id}-${index}`} set:html={value} />)}
+  </div>
+  <div class="rk-tab-panels"><Fragment set:html={html} /></div>
+  <style is:inline set:html={rules}></style>
+</div>

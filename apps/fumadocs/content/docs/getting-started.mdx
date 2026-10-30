@@ -1,6 +1,6 @@
 ---
 title: Getting started
-description: "Create a RevKlik account, add your site, and install the tracking snippet: stats start flowing on the first visit."
+description: "Create a RevKlik account, add your site, and paste one script tag: stats start flowing on the first visit."
 ---
 
 ## 1. Create an account
@@ -23,36 +23,223 @@ site picker in the top bar and choose **Manage sites**). Fill in:
 
 Click **Add site** and the tracking snippet opens straight away.
 
-## 3. Install the tracking snippet
+## 3. Install the tracking snippet [#install-the-tracking-snippet]
 
-The modal titled _Tracking snippet · your-domain_ shows a snippet generated
-for that site:
+The snippet is one script tag. Replace `YOUR_SITE_ID` with the id of your site:
 
-> Paste this into your site's HTML. Data starts with the first visit.
+```html
+<script defer data-site-id="YOUR_SITE_ID" src="https://app.revklik.com/klikapa.js"></script>
+```
 
-Copy it with **Copy snippet** and paste it into the `<head>` of every page you
-want to measure: in your templates, layout, or via your tag manager. The
-script is lightweight (~4 KB gzipped). The snippet is unique per site, so
-always copy it from the modal rather than from another site. To open it
-again later, click **Snippet** on the site's row in **Manage sites**, or
-**Install snippet** on a site card marked _Not installed_.
+The modal titled _Tracking snippet · your-domain_ shows this tag with your
+site id already filled in, so copy it from there with **Copy snippet**. To open
+the modal again later, click **Snippet** on the site's row in **Manage sites**,
+or **Install snippet** on a site card marked _Not installed_.
+
+Put the tag once on every page you want to measure. The tracker follows
+single-page apps on its own: route changes count as pageviews.
+
+<Tabs label="Framework">
+<Tab value="Plain HTML">
+
+Paste it inside the `<head>` of your layout or template:
+
+```html title="index.html"
+<head>
+	<!-- ... -->
+	<script defer data-site-id="YOUR_SITE_ID" src="https://app.revklik.com/klikapa.js"></script>
+</head>
+```
+
+</Tab>
+<Tab value="Next.js">
+
+In the App Router, load it from the root layout with `next/script`:
+
+```tsx title="app/layout.tsx"
+import Script from "next/script";
+
+export default function RootLayout({ children }: { children: React.ReactNode }) {
+	return (
+		<html lang="en">
+			<body>
+				{children}
+				<Script
+					src="https://app.revklik.com/klikapa.js"
+					data-site-id="YOUR_SITE_ID"
+					strategy="afterInteractive"
+				/>
+			</body>
+		</html>
+	);
+}
+```
+
+</Tab>
+<Tab value="Astro">
+
+Add it to the `<head>` of your base layout. `is:inline` stops Astro from
+bundling the tag, so it is rendered exactly as written:
+
+```astro title="src/layouts/Layout.astro"
+<head>
+	<!-- ... -->
+	<script is:inline defer data-site-id="YOUR_SITE_ID" src="https://app.revklik.com/klikapa.js"></script>
+</head>
+```
+
+</Tab>
+<Tab value="WordPress">
+
+Without editing theme files, add this to a code-snippets plugin or to your
+child theme's `functions.php`:
+
+```php title="functions.php"
+add_action('wp_head', function () {
+	echo '<script defer data-site-id="YOUR_SITE_ID" src="https://app.revklik.com/klikapa.js"></script>';
+});
+```
+
+</Tab>
+<Tab value="Shopify">
+
+In the admin, open **Online Store → Themes**, click the three dots on your
+theme, choose **Edit code**, open `layout/theme.liquid`, and paste the tag just
+before `</head>`:
+
+```liquid title="layout/theme.liquid"
+<script defer data-site-id="YOUR_SITE_ID" src="https://app.revklik.com/klikapa.js"></script>
+</head>
+```
+
+</Tab>
+<Tab value="Webflow">
+
+Open **Site settings → Custom code**, paste the tag into **Head code**, save,
+and publish the site. Webflow only runs custom code on a Site plan that
+includes it.
+
+```html
+<script defer data-site-id="YOUR_SITE_ID" src="https://app.revklik.com/klikapa.js"></script>
+```
+
+</Tab>
+<Tab value="Google Tag Manager">
+
+Create a **Custom HTML** tag that fires on **All Pages**. Tag Manager runs the
+tag's script itself, so the tracker is added with a small loader that sets the
+attributes before it starts:
+
+```html
+<script>
+	(function () {
+		var s = document.createElement("script");
+		s.defer = true;
+		s.src = "https://app.revklik.com/klikapa.js";
+		s.setAttribute("data-site-id", "YOUR_SITE_ID");
+		document.head.appendChild(s);
+	})();
+</script>
+```
+
+</Tab>
+</Tabs>
 
 <Callout type="tip" title="Verify it works">
 	Keep the modal open and visit your site in another tab. The modal shows *Waiting for the first
 	pageview…* and switches to *First pageview received* once the first event arrives.
 </Callout>
 
-## 4. Exclude your own devices
+### Content Security Policy
+
+If your site sends a `Content-Security-Policy` header, allow RevKlik to load the
+script and receive events:
+
+```
+script-src https://app.revklik.com;
+connect-src https://app.revklik.com;
+```
+
+Add the origin to the directives you already have instead of replacing them.
+On a self-hosted install, use the origin that serves `klikapa.js`.
+
+### No data? Check [#no-data-check]
+
+- **Ad blocker or privacy extension.** Some block analytics scripts. Open the
+  site in a private window with extensions off.
+- **Content Security Policy.** The browser console shows a blocked script or
+  blocked request when a CSP rule is the cause. Allow `app.revklik.com` as above.
+- **Wrong site id.** The tracker does nothing without `data-site-id`, and data
+  lands in whichever site the id belongs to. Compare the id in your page source
+  with the one in the snippet modal.
+- **Domain mismatch.** A snippet copied from another site sends its data to
+  that site. Each domain in **Manage sites** has its own snippet.
+- **Local development.** The tracker ignores `localhost` and other local
+  addresses. Add `data-track-localhost="true"` to the tag to test there.
+- **Consent gate.** With `data-consent="required"` set, nothing is stored or
+  sent until your page calls `klikapa.consent(true)`. See
+  [consent](#consent) below.
+- **Global Privacy Control or Do Not Track.** The tracker honours both: a
+  visitor whose browser sends either signal is not recorded. Your own browser
+  may have one switched on.
+
+Still stuck? The [FAQ](/faq) covers what the script collects and how data
+retention works.
+
+## 4. Track more than pageviews
+
+Pageviews, clicks, and scroll depth are collected automatically. For the rest:
+
+- **Goals on elements.** Add `data-revklik-goal="signup"` to a button or link.
+  Extra `data-revklik-goal-*` attributes become properties of the goal, and
+  `data-revklik-goal-value="19"` attaches revenue.
+- **Custom events from code.** `klikapa.track("pricing_viewed", { plan: "growth" })`
+  records an event, and `klikapa.conversion("purchase", 19, { plan: "growth" })`
+  records a conversion with revenue.
+- **Funnels.** Mark page sections with `data-section`; see
+  [funnels](/dashboard/funnels).
+- **Known visitors.** `klikapa.identify({ ... })` attaches contact details to
+  a visitor. Only call it with the visitor's consent.
+
+## 5. Consent [#consent]
+
+By default the tracker starts as soon as it loads. If your audience includes
+residents of Indonesia, the EU, or the UK, ask first and start tracking only
+after the visitor agrees:
+
+```html
+<script
+	defer
+	data-site-id="YOUR_SITE_ID"
+	data-consent="required"
+	src="https://app.revklik.com/klikapa.js"
+></script>
+```
+
+```js
+// when the visitor accepts your banner
+klikapa.consent(true);
+
+// when the visitor declines or withdraws
+klikapa.consent(false);
+```
+
+Until `klikapa.consent(true)` runs, nothing is stored in the browser and nothing
+is sent. The grant is remembered, so later page loads resume without calling it
+again. `klikapa.consent(false)` clears the visitor ID and stops sending. Read the
+full guidance on [privacy and consent](/privacy).
+
+## 6. Exclude your own devices
 
 Inside **Manage sites**, expand a site to find its exclusions:
 
 - **Exclude this device**: stops tracking on the browser you develop from
-  (the fingerprint combines IP, user-agent, and language). Run this once on
+  (it is matched by a keyed hash of IP, browser, and language). Run this once on
   every device you work from.
 - **Purge my past visits**: deletes events, sessions, and visitor profiles
   already recorded for this device.
 
-## 5. What to explore next
+## 7. What to explore next
 
 <Cards>
 	<Card
@@ -64,6 +251,11 @@ Inside **Manage sites**, expand a site to find its exclusions:
 		title="Funnels"
 		href="/dashboard/funnels"
 		description="Tag page sections and watch the scroll funnel appear."
+	/>
+	<Card
+		title="Privacy and consent"
+		href="/privacy"
+		description="What is stored, for how long, and what to tell your visitors."
 	/>
 	<Card
 		title="Billing"

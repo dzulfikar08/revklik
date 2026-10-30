@@ -1,0 +1,131 @@
+---
+title: Daily report with Hermes Agent
+description: "Have Hermes Agent run the RevKlik CLI each morning and send you a short analytics summary, with ready-to-paste prompts for reports, anomalies and lead scoring."
+---
+
+[Hermes Agent](https://github.com/NousResearch/hermes-agent) is an open-source AI agent from Nous Research that can run shell commands and message you. Give it the [RevKlik CLI](/cli) and it can turn your numbers into a daily summary without you opening the dashboard.
+
+```
+scheduler → Hermes Agent → revklik CLI (traffic, revenue, search) → summary → your chat
+```
+
+## Before you start
+
+- The [RevKlik CLI](/cli) installed and logged in. Check with `revklik sites list`.
+- Hermes Agent installed and able to run shell commands. Follow the Hermes documentation for setup and for how to send messages to Telegram or another channel.
+- Optional: Google Search Console connected to your site in RevKlik, for search queries (see [integrations](/integrations)).
+
+<Callout type="tip" title="Use a read-only token">
+Create a dedicated account token with only `sites:read` and `analytics:read` for the agent, and give it to Hermes as `REVKLIK_TOKEN`. If the agent's environment leaks, the token cannot change anything. Revoke it from **Share → API tokens**.
+</Callout>
+
+## Daily prompt
+
+Paste this into Hermes, or save it as a prompt file. Replace `mysite.com` with your domain.
+
+```text
+Run my daily analytics report for mysite.com. Do these in order:
+
+1. revklik analytics overview --site mysite.com --range 24h
+2. revklik analytics journeys --site mysite.com --sort steps --limit 10 --range 24h --json
+3. revklik analytics pages --site mysite.com --range 24h
+4. revklik analytics referrers --site mysite.com --range 24h
+5. revklik analytics revenue --site mysite.com --range 24h
+
+Then write a short report:
+- Visitors, pageviews, bounce rate, revenue and conversions, compared with the 7-day average (run overview with --range 7d and divide).
+- Top 3 pages and top 3 traffic sources.
+- The most engaged visitors from the journeys output.
+- Two observations and one action I should take today.
+
+Keep it under 15 lines. Send it to my Telegram.
+```
+
+Revenue figures are in your site's currency; the CLI prints them with a `$` prefix, so tell Hermes the real currency in the prompt if it is not USD.
+
+## More prompts
+
+### Weekly digest with search data
+
+```text
+Run my weekly report for mysite.com:
+
+1. revklik analytics overview --site mysite.com --range 7d
+2. revklik analytics geo --site mysite.com --range 7d
+3. revklik analytics journeys --site mysite.com --sort revenue --limit 5 --range 7d --json
+4. revklik gsc sync --site mysite.com, then revklik gsc queries --site mysite.com --limit 20
+
+Highlight the search queries with the most clicks, the countries that
+convert best, and visitors who were highly engaged but did not buy.
+Format as a weekly digest.
+```
+
+Search Console data arrives about two days late, so the digest never covers the last two days of searches.
+
+### Anomaly check
+
+```text
+Check mysite.com for anomalies today:
+
+1. revklik analytics overview --site mysite.com --range 24h
+2. revklik analytics overview --site mysite.com --range 7d
+3. revklik analytics journeys --site mysite.com --sort steps --limit 20 --range 24h --json
+
+Compare today with the 7-day daily average. Message me only if:
+- visitors dropped more than 30%
+- bounce rate is above 60%
+- one visitor has an abnormal number of steps (possible bot)
+- revenue is zero on a day when it usually is not
+
+Otherwise reply "All metrics normal."
+```
+
+### Lead scoring
+
+```text
+Find my warmest leads this week:
+
+1. revklik analytics journeys --site mysite.com --sort steps --limit 50 --range 7d --json
+
+Pick visitors with 5 or more steps who viewed pricing or docs pages and
+arrived from search or a referral. Score each 0 to 100, list the top 5 with
+source, country and pages visited, and suggest one follow-up for each.
+```
+
+Journeys list identified visitors by name; visitors without a known name appear by a short visitor ID.
+
+## Schedule it
+
+Save the prompt as a file, then run Hermes on a schedule with cron or a systemd timer. The exact flags for a non-interactive Hermes run and for sending the result to a chat are in the Hermes documentation; the schedule itself looks like this:
+
+```bash
+# crontab: every day at 08:00
+0 8 * * * REVKLIK_TOKEN=rvt_YOUR_TOKEN /path/to/run-hermes-with-prompt.sh
+```
+
+```ini
+# ~/.config/systemd/user/hermes-analytics.timer
+[Unit]
+Description=Daily analytics report at 08:00
+
+[Timer]
+OnCalendar=*-*-* 08:00:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target
+```
+
+Point a matching `hermes-analytics.service` at the same script, then enable the timer:
+
+```bash
+systemctl --user enable --now hermes-analytics.timer
+```
+
+Keep the prompt in its own file so you can tweak the report without touching the schedule.
+
+## Related
+
+- [CLI](/cli): every command the prompts use
+- [REST API](/api): the same data over HTTP
+- [MCP server](/mcp): connect an agent to RevKlik directly instead of through the CLI

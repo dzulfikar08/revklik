@@ -1,0 +1,132 @@
+---
+title: FAQ
+description: "Pertanyaan yang sering diajukan tentang RevKlik: privasi dan persetujuan, event, funnel, paket, pembayaran, dan impor data."
+---
+
+## Apakah RevKlik ramah privasi?
+
+RevKlik dibuat untuk mengumpulkan sesedikit mungkin: tanpa cookie pihak ketiga,
+tanpa pelacakan lintas situs, tanpa profil iklan. Setiap browser mendapat ID
+pengunjung acak first-party, dasbor menampilkan pengunjung dengan nama samaran
+(nama dan avatar, bukan pengenal mentah), parameter event kustom yang bernilai
+sensitif disamarkan, dan Anda bisa mengecualikan perangkat sendiri serta
+menghapus kunjungan lama dari
+[Situs](/id/dashboard/sites#exclusions-and-purging). ID yang menetap tetap
+bisa menandai pengunjung yang kembali, sehingga dihitung sebagai data pribadi.
+[Halaman privasi](/id/privacy) memuat apa yang disimpan dan berapa lama.
+
+## Apakah RevKlik memakai cookie?
+
+Tracker tidak memasang cookie pihak ketiga. Tracker menyimpan ID pengunjung
+acak di penyimpanan lokal browser pada domain Anda sendiri, ditambah ID sesi di
+session storage. Keduanya first-party dan tidak pernah dibagikan antar situs.
+
+## Apakah saya perlu banner persetujuan?
+
+Tergantung di mana pengunjung Anda berada. Jika pengunjung Anda mencakup
+penduduk Indonesia, UE, atau Inggris, kami menyarankan meminta persetujuan
+sebelum tracker berjalan: tambahkan `data-consent="required"` pada tag script
+dan panggil `klikapa.consent(true)` saat pengunjung setuju. Sebelum itu tidak
+ada yang disimpan dan tidak ada yang dikirim. Ini panduan, bukan nasihat hukum;
+lihat [privasi dan persetujuan](/id/privacy#consent) untuk snippet lengkapnya.
+
+## Mengapa dasbor saya tidak menampilkan data?
+
+Penyebab yang paling umum: ad blocker, Content Security Policy yang memblokir
+`app.revklik.com`, site ID yang salah, gerbang persetujuan yang tidak pernah
+dibuka, atau pengujian di `localhost`. [Memulai](/id/getting-started#no-data-check)
+punya daftar periksanya.
+
+## Event apa saja yang dikumpulkan script pelacakan?
+
+Pageview, klik, kedalaman scroll, bagian halaman yang dibaca pengunjung, event
+kustom yang Anda picu, dan konversi (yang bisa membawa pendapatan). Event
+heartbeat internal dicatat untuk kesehatan sesi tetapi disembunyikan dari UI.
+
+## Bagaimana funnel bekerja, dan apakah saya harus membuatnya?
+
+Tidak perlu. Funnel dibentuk otomatis dari penanda `data-section` di halaman
+Anda. Tambahkan atributnya, dan funnel scroll muncul. Lihat
+[funnel](/id/dashboard/funnels). Funnel dan atribusi pendapatan tersedia mulai
+paket Starter.
+
+## Dari mana data pendapatan berasal?
+
+Empat sumber: konversi yang membawa nilai pendapatan, webhook gateway pembayaran
+([Midtrans, Xendit, DOKU, Mayar, Paywuz, Polar, Stripe, Lemon Squeezy](/id/integrations#payments)),
+[API event server](/id/integrations#server-events-api) untuk pembelian App Store
+dan backend, serta impor [App Store Connect](/id/integrations#apps). Anda juga
+bisa [menghubungkan Polar](/id/integrations#polar) untuk mencatat order, biaya,
+dan refund-nya.
+
+## Apakah RevKlik memproyeksikan pendapatan saya?
+
+Ya, dengan cara sederhana. [Proyeksi pendapatan](/id/dashboard/insights)
+merata-ratakan hari-hari penuh terkini lalu memperpanjang laju itu 30 hari ke
+depan, dalam mata uang situs Anda. Ini hitungan atas penjualan nyata Anda,
+bukan model, dan membutuhkan minimal 7 hari penuh data serta 3 penjualan.
+
+## Bisakah saya membagikan dasbor saya?
+
+Bisa: **tautan dasbor publik** baca-saja, **widget live** yang bisa disematkan,
+dan **token API** bercakupan. Lihat [berbagi dan akses](/id/integrations#share-and-access).
+
+## Bisakah saya menanyakan RevKlik dari agen coding AI?
+
+Bisa. RevKlik punya [server MCP](/id/mcp) di `https://app.revklik.com/api/mcp`
+dengan 14 tool baca-saja yang mencerminkan REST API. Hubungkan Codex, Cursor,
+atau Claude dengan token API dari tab Share.
+
+## Bisakah saya mengambil data saya?
+
+Tombol ekspor di dasbor mengunduh event mentah untuk rentang dan filter saat
+ini sebagai CSV. Token API dengan cakupan `analytics:export` memungkinkan ekspor
+terprogram. Anda juga bisa menghapus seorang pengunjung, satu situs, atau akun
+Anda; lihat [privasi](/id/privacy#deletion-and-backups).
+
+## Apa bedanya Micro, Starter, dan Growth?
+
+Batas dan fitur. Ketiganya berbayar: Micro (1 situs, 10 rb event/bulan, Rp
+16.000 atau $1), Starter (3 situs, 100 rb event/bulan, Rp 64.000 atau $4), dan
+Growth (10 situs, 500 rb event/bulan, Rp 192.000 atau $12), masing-masing per
+bulan. **Growth** juga membuka heatmap, rekaman sesi, dan insight AI. Rinciannya
+ada di [tagihan](/id/billing).
+
+## Apakah ada paket gratis atau uji coba?
+
+Tidak ada paket gratis. Akun baru mendapat **uji coba Growth 7 hari** tanpa
+kartu. Saat uji coba atau langganan berakhir, RevKlik tetap mencatat kunjungan
+selama 14 hari sementara dasbor terkunci. Begitu Anda memilih paket, Anda
+melihat data dalam jendela retensi paket itu (Micro 7 hari, Starter 30, Growth
+90), jadi jeda yang lebih panjang pada paket yang lebih pendek berarti hari-hari
+lama tidak ditampilkan. Lihat
+[setelah uji coba atau langganan berakhir](/id/billing#after-a-trial-or-subscription-ends).
+
+## Bagaimana cara membayar di Indonesia?
+
+Dengan **QRIS** (RevKlik membuka halaman pembayaran QRIS dan memverifikasi
+pembayaran Anda). Harga QRIS dalam IDR (Rp 16.000 Micro / Rp 64.000 Starter /
+Rp 192.000 Growth per bulan), bulanan, bisa dibatalkan kapan saja. Checkout
+kartu dalam USD ($1 / $4 / $12 per bulan) adalah pilihan untuk yang lain.
+
+## Bisakah saya mengimpor dari alat analitik lain?
+
+Bisa. Data historis bisa diimpor dari **OneDollarStats** (pengunjung, halaman,
+negara, sumber), dan order **Polar** bisa disinkronkan setelah situs
+[terhubung](/id/integrations#polar). Lihat [impor](/id/integrations#imports).
+
+## Bagaimana RevKlik tahu pencarian Google mana yang berkinerja terbaik?
+
+Hubungkan **Google Search Console** di Integrasi → Pencarian lalu sinkronkan
+untuk menarik klik, impresi, CTR, dan posisi per kueri.
+
+## Bisakah tim saya memakai akun yang sama?
+
+Undang rekan dari **Pengaturan → Tim** lewat email sebagai Admin, Editor, atau
+Viewer. Orang yang diundang harus sudah punya akun RevKlik.
+
+## Bagaimana cara membatalkan?
+
+Halaman tagihan → **Batalkan langganan** → konfirmasi. Paket tetap aktif sampai
+akhir periode dan hanya tidak diperpanjang. Lihat
+[mengelola langganan](/id/billing#managing-your-subscription).

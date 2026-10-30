@@ -1,0 +1,19 @@
+{
+	"title": "Dokumentasi RevKlik",
+	"pages": [
+		"index",
+		"introduction",
+		"getting-started",
+		"dashboard",
+		"integrations",
+		"mcp",
+		"mobile-alerts",
+		"billing",
+		"privacy",
+		"faq",
+		"---API & CLI---",
+		"api",
+		"cli",
+		"hermes-daily-analytics"
+	]
+}
