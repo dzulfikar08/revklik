@@ -3,90 +3,97 @@ import SiteFooter from '../components/SiteFooter.astro';
 import SiteHeader from '../components/SiteHeader.astro';
 import '../styles/global.css';
 import type { Copy, Locale } from '../data/copy';
+import { type Alternates, defaultOgImage, pageUrl } from '../data/seo';
 
 interface Props {
 	c: Copy;
 	locale: Locale;
+	title: string;
+	description: string;
+	/** Canonical path of this page, e.g. `/blog/atribusi-pendapatan`. */
+	path: string;
+	/** Translation of this page per locale. hreflang is emitted only when both exist. */
+	alternates?: Alternates;
+	ogTitle?: string;
+	ogDescription?: string;
+	ogImage?: string;
+	ogType?: 'website' | 'article';
+	article?: { published: string; modified?: string };
+	jsonLd?: object[];
+	noindex?: boolean;
+	/** The one-page home: header anchors point at on-page sections. */
+	home?: boolean;
+	/** Header nav item to mark as the current section. */
+	current?: 'blog' | 'docs';
 }
-const { c, locale } = Astro.props;
+const {
+	c,
+	locale,
+	title,
+	description,
+	path,
+	alternates,
+	ogTitle = title,
+	ogDescription = description,
+	ogImage = defaultOgImage(locale),
+	ogType = 'website',
+	article,
+	jsonLd = [],
+	noindex = false,
+	home = false,
+	current,
+} = Astro.props;
 
 const SITE_ID = 'd9701d64-9e78-4b73-9726-e4f41593b843';
 const TRACKER = 'https://app.revklik.com/klikapa.js';
-const ORIGIN = 'https://revklik.com';
-const urls = { id: `${ORIGIN}/`, en: `${ORIGIN}/en/` };
-const canonical = urls[locale];
+const canonical = pageUrl(path);
 const otherLocale = locale === 'en' ? 'id' : 'en';
 const ogLocaleAlternate = otherLocale === 'en' ? 'en_US' : 'id_ID';
-
-const prices = ['16000', '64000', '192000'];
-const tiers = ['Micro', 'Starter', 'Growth'];
-const jsonLdApp = {
-	'@context': 'https://schema.org',
-	'@type': 'SoftwareApplication',
-	name: 'RevKlik',
-	url: canonical,
-	inLanguage: locale,
-	applicationCategory: 'BusinessApplication',
-	operatingSystem: 'Web',
-	description: c.ld_description,
-	offers: tiers.map((name, i) => ({ '@type': 'Offer', name, price: prices[i], priceCurrency: 'IDR', description: c.ld_offers[i] })),
-	featureList: c.ld_features,
-};
-const jsonLdOrg = {
-	'@context': 'https://schema.org',
-	'@type': 'Organization',
-	name: 'RevKlik',
-	url: ORIGIN,
-	logo: `${ORIGIN}/revklik.webp`,
-	description: c.ld_org_description,
-	parentOrganization: { '@type': 'Organization', name: 'Joyo Digitama', url: 'https://voltrus.id' },
-};
-const jsonLdFaq = {
-	'@context': 'https://schema.org',
-	'@type': 'FAQPage',
-	inLanguage: locale,
-	mainEntity: c.faq.map((f) => ({ '@type': 'Question', name: f.q, acceptedAnswer: { '@type': 'Answer', text: f.a } })),
-};
+const hreflangs = alternates?.id && alternates?.en
+	? [
+			{ lang: 'id', href: pageUrl(alternates.id) },
+			{ lang: 'en', href: pageUrl(alternates.en) },
+			{ lang: 'x-default', href: pageUrl(alternates.id) },
+		]
+	: [];
+const robots = noindex ? 'noindex, follow' : 'index, follow, max-snippet:-1, max-image-preview:large';
 ---
 <!DOCTYPE html>
 <html lang={c.lang}>
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>{c.meta_title}</title>
-<meta name="description" content={c.meta_description}>
-<meta name="keywords" content={c.meta_keywords}>
-<meta name="robots" content="index, follow, max-snippet:-1, max-image-preview:large">
+<title>{title}</title>
+<meta name="description" content={description}>
+<meta name="robots" content={robots}>
 <meta name="author" content="RevKlik">
-<link rel="canonical" href={canonical}>
-<link rel="alternate" hreflang="id" href={urls.id}>
-<link rel="alternate" hreflang="en" href={urls.en}>
-<link rel="alternate" hreflang="x-default" href={urls.id}>
+{!noindex && <link rel="canonical" href={canonical}>}
+{hreflangs.map((h) => <link rel="alternate" hreflang={h.lang} href={h.href}>)}
 <link rel="icon" type="image/svg+xml" href="/favicon.svg">
 <link rel="icon" type="image/webp" sizes="32x32" href="/favicon.webp">
 <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.webp">
 
-<meta property="og:type" content="website">
+<meta property="og:type" content={ogType}>
 <meta property="og:url" content={canonical}>
-<meta property="og:title" content={c.og_title}>
-<meta property="og:description" content={c.og_description}>
-<meta property="og:image" content="https://revklik.com/og-image.webp">
+<meta property="og:title" content={ogTitle}>
+<meta property="og:description" content={ogDescription}>
+<meta property="og:image" content={ogImage}>
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
 <meta property="og:site_name" content="RevKlik">
 <meta property="og:locale" content={c.og_locale}>
-<meta property="og:locale:alternate" content={ogLocaleAlternate}>
+{hreflangs.length > 0 && <meta property="og:locale:alternate" content={ogLocaleAlternate}>}
+{article && <meta property="article:published_time" content={article.published}>}
+{article?.modified && <meta property="article:modified_time" content={article.modified}>}
 
 <meta name="twitter:card" content="summary_large_image">
-<meta name="twitter:title" content={c.og_title}>
-<meta name="twitter:description" content={c.og_description}>
-<meta name="twitter:image" content="https://revklik.com/og-image.webp">
+<meta name="twitter:title" content={ogTitle}>
+<meta name="twitter:description" content={ogDescription}>
+<meta name="twitter:image" content={ogImage}>
 
-<script type="application/ld+json" set:html={JSON.stringify(jsonLdApp)} />
-<script type="application/ld+json" set:html={JSON.stringify(jsonLdOrg)} />
-<script type="application/ld+json" set:html={JSON.stringify(jsonLdFaq)} />
+{jsonLd.map((block) => <script type="application/ld+json" set:html={JSON.stringify(block)} />)}
 
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="preload" href="/fonts/inter-latin-wght.woff2" as="font" type="font/woff2" crossorigin>
 <meta name="color-scheme" content="dark">
 <meta name="theme-color" content="#0b0e14">
 
@@ -97,7 +104,7 @@ const jsonLdFaq = {
 </head>
 <body>
 <a class="skip-link" href="#konten">{c.skip}</a>
-<SiteHeader c={c} locale={locale} />
+<SiteHeader c={c} locale={locale} home={home} current={current} alternates={alternates} />
 <main id="konten">
 	<slot />
 </main>

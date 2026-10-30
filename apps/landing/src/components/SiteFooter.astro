@@ -1,22 +1,24 @@
 ---
 import type { Copy } from '../data/copy';
+import { docsUrl } from '../data/site';
+import { localePath } from '../data/seo';
 import BrandMark from './BrandMark.astro';
 interface Props {
 	c: Copy;
 }
 const { c } = Astro.props;
-const prefix = c.lang === 'en' ? '/en' : '';
+const to = (path: string) => localePath(c.lang === 'en' ? 'en' : 'id', path);
 ---
 <footer class="site-footer">
   <div class="wrap">
     <div class="footer-main">
       <p class="footer-brand"><BrandMark width={26} /><span>Rev<b>Klik</b></span><span class="footer-copy">{c.footer_copy}</span></p>
       <ul class="footer-links">
-        <li><a href={`${prefix}/privacy.html`}>{c.f_privacy}</a></li>
-        <li><a href={`${prefix}/terms.html`}>{c.f_terms}</a></li>
-        <li><a href={`${prefix}/support.html`}>{c.f_support}</a></li>
-        <li><a href="https://docs.revklik.com">{c.f_docs}</a></li>
-        <li><a href={`${prefix}/blog.html`}>{c.nav_blog}</a></li>
+        <li><a href={to('/privacy')}>{c.f_privacy}</a></li>
+        <li><a href={to('/terms')}>{c.f_terms}</a></li>
+        <li><a href={to('/support')}>{c.f_support}</a></li>
+        <li><a href={docsUrl(c.lang === 'en' ? 'en' : 'id')}>{c.f_docs}</a></li>
+        <li><a href={to('/blog')}>{c.nav_blog}</a></li>
       </ul>
     </div>
     <div class="footer-network">

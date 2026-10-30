@@ -1,0 +1,22 @@
+{
+	"_note": "Single source of truth for what the landing, blog and docs say RevKlik supports. Keep in sync with apps/web integrations-view.tsx (SHOWN_PROVIDERS), apps/app payment webhooks and apps/app/src/worker/lib/plans.ts. Shopee, Tokopedia and NICEPAY are hidden until they work, so they are NOT listed.",
+	"gateways": [
+		{ "id": "midtrans", "name": "Midtrans", "region": "id" },
+		{ "id": "xendit", "name": "Xendit", "region": "id" },
+		{ "id": "doku", "name": "DOKU", "region": "id" },
+		{ "id": "mayar", "name": "Mayar", "region": "id" },
+		{ "id": "paywuz", "name": "Paywuz", "region": "id" },
+		{ "id": "polar", "name": "Polar", "region": "global" },
+		{ "id": "stripe", "name": "Stripe", "region": "global" },
+		{ "id": "lemonsqueezy", "name": "Lemon Squeezy", "region": "global" }
+	],
+	"billing": {
+		"idr": ["QRIS"],
+		"usd": ["Card"]
+	},
+	"plans": [
+		{ "id": "micro", "name": "Micro", "idr": 16000, "usd": 1, "events": 10000, "sites": 1, "retentionDays": 7 },
+		{ "id": "starter", "name": "Starter", "idr": 64000, "usd": 4, "events": 100000, "sites": 3, "retentionDays": 30 },
+		{ "id": "growth", "name": "Growth", "idr": 192000, "usd": 12, "events": 500000, "sites": 10, "retentionDays": 90 }
+	]
+}

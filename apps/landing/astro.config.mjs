@@ -1,15 +1,21 @@
+import { unified } from '@astrojs/markdown-remark';
 import { defineConfig } from 'astro/config';
+import { rehypeInlineCta } from './src/plugins/rehype-inline-cta.ts';
 
-// Parity-safe settings (same doctrine as voltrus-landing):
-// - build.format: 'directory' -> src pages emit dir/index.html; public/ flat .html
-//   (blog posts, docs) copied verbatim and served by Cloudflare Pages pretty URLs.
-// - inlineStylesheets: 'never' + is:inline scripts -> Astro never extracts/bundles,
-//   so the page ships the same hand-written JS/CSS as the old static site.
+// Cloudflare Pages serves `x.html` at `/x` and `dir/index.html` at `/dir/`.
+// `format: 'preserve'` makes every page except the two locale homes extensionless
+// with no trailing slash, which is the URL shape canonical/hreflang/sitemap use
+// (see src/data/seo.ts). `inlineStylesheets: 'never'` + is:inline scripts keep
+// the shipped JS/CSS as plain files.
 export default defineConfig({
   site: 'https://revklik.com',
+  trailingSlash: 'ignore',
   build: {
-    format: 'directory',
+    format: 'preserve',
     inlineStylesheets: 'never',
   },
   compressHTML: false,
+  markdown: {
+    processor: unified({ rehypePlugins: [rehypeInlineCta] }),
+  },
 });

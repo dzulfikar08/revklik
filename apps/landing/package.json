@@ -9,12 +9,17 @@
 		"build": "astro build",
 		"preview": "astro preview",
 		"check": "astro check",
+		"check:links": "node scripts/check-links.mjs",
 		"deploy": "astro build && wrangler pages deploy dist --project-name klikapa-landing --branch main"
 	},
 	"dependencies": {
-		"astro": "^7.2.7"
+		"@astrojs/markdown-remark": "^7.2.4",
+		"astro": "^7.2.7",
+		"react": "^19.2.8",
+		"takumi-js": "^2.12.0"
 	},
 	"devDependencies": {
+		"@types/react": "^19.2.18",
 		"wrangler": "^4.122.0"
 	}
 }
