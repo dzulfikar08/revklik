@@ -1,6 +1,8 @@
+import type { Context } from "hono";
 import type { Kysely } from "kysely";
 import type { KlikapaDatabase } from "@revklik/shared";
 import { sql } from "../db";
+import { normalizeTeamRole, roleCan, type SiteAction, type SiteRole } from "./site-roles";
 
 /** The subscription facts every plan or entitlement check reads about one account. */
 export interface AccountPlan {
@@ -18,6 +20,8 @@ export interface SiteAccess {
 	revenueCurrency: string | null;
 	revenueCurrencySource: string | null;
 	isOwner: boolean;
+	/** The caller's role on this site: owner, a teammate's role, or null for a stranger. */
+	role: SiteRole | null;
 	/** Owner, or an ACCEPTED team member; a foreign site never lends access or plan. */
 	canAccess: boolean;
 	owner: AccountPlan;
@@ -40,6 +44,7 @@ interface AccessRow {
 	revenue_currency: string | null;
 	revenue_currency_source: string | null;
 	member_id: string | null;
+	member_role: string | null;
 	owner_role: string | null;
 	owner_plan: string | null;
 	owner_status: string | null;
@@ -84,7 +89,7 @@ async function queryAccess(
 			s.id AS site_id, s.user_id AS owner_id, s.domain AS domain,
 			s.revenue_currency AS revenue_currency,
 			s.revenue_currency_source AS revenue_currency_source,
-			tm.id AS member_id,
+			tm.id AS member_id, tm.role AS member_role,
 			ou.role AS owner_role, os.plan AS owner_plan, os.status AS owner_status,
 			os.current_period_end AS owner_period_end
 		FROM (SELECT ${userId} AS id) me
@@ -114,6 +119,7 @@ async function queryAccess(
 			revenueCurrency: row.revenue_currency,
 			revenueCurrencySource: row.revenue_currency_source,
 			isOwner,
+			role: isOwner ? "owner" : row.member_id === null ? null : normalizeTeamRole(row.member_role),
 			canAccess: isOwner || row.member_id !== null,
 			owner: {
 				role: row.owner_role,
@@ -167,4 +173,48 @@ export function requestAccess(
 ): Promise<AccessSnapshot> | undefined {
 	const request = requests.get(db);
 	return request && loadAccess(db, request.userId, siteId);
+}
+
+export interface AccessCheck {
+	site?: SiteAccess;
+	/** Set when the caller may not do `action`: 404 for a stranger, 403 for a member without the role. */
+	denied?: { status: 403 | 404; error: string };
+}
+
+/** Resolve the caller's access to one site; one memoized D1 read per request. */
+export async function checkSiteAccess(
+	db: Kysely<KlikapaDatabase>,
+	userId: string,
+	siteId: string | null | undefined,
+	action: SiteAction = "read",
+): Promise<AccessCheck> {
+	const { site } = await loadAccess(db, userId, siteId);
+	// Same answer for a missing site and one the caller has no part in: ids are not probeable.
+	if (!site?.canAccess) return { denied: { status: 404, error: "Site not found" } };
+	if (!roleCan(site.role, action)) {
+		return { denied: { status: 403, error: "Your role on this site cannot do that" } };
+	}
+	return { site };
+}
+
+/** Any Hono env whose variables carry the request's db and authenticated user. */
+type AccessEnv = { Variables: { db: Kysely<KlikapaDatabase>; userId: string } };
+
+/**
+ * The one access gate for site-scoped routes: returns the site, or the 404/403 response
+ * to hand straight back.
+ *
+ * ```ts
+ * const access = await requireSiteAccess(c, siteId, "write");
+ * if (access instanceof Response) return access;
+ * ```
+ */
+export async function requireSiteAccess<E extends AccessEnv>(
+	c: Context<E>,
+	siteId: string | null | undefined,
+	action: SiteAction = "read",
+): Promise<SiteAccess | Response> {
+	const { site, denied } = await checkSiteAccess(c.get("db"), c.get("userId"), siteId, action);
+	if (denied) return c.json({ error: denied.error, success: false }, denied.status);
+	return site as SiteAccess;
 }

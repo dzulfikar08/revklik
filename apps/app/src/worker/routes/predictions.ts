@@ -2,6 +2,7 @@ import { type Context, Hono } from "hono";
 import type { Kysely } from "kysely";
 import type { KlikapaDatabase, PredictionResponse, RevenuePrediction } from "@revklik/shared";
 import { sql } from "../db";
+import { requireSiteAccess } from "../lib/site-access";
 import { generateId } from "../utils";
 
 type Variables = { db: Kysely<KlikapaDatabase>; userId: string };
@@ -14,27 +15,6 @@ type Env = {
 };
 
 export const predictionsRoutes = new Hono<Env>();
-
-function validateSite(db: Kysely<KlikapaDatabase>, userId: string, siteId: string) {
-	return db
-		.selectFrom("sites")
-		.select(["id"])
-		.where("id", "=", siteId)
-		.where((eb) =>
-			eb.or([
-				eb("user_id", "=", userId),
-				eb.exists(
-					eb
-						.selectFrom("team_members")
-						.select("id")
-						.where("site_id", "=", siteId)
-						.where("user_id", "=", userId)
-						.where("accepted_at", "is not", null),
-				),
-			]),
-		)
-		.executeTakeFirst();
-}
 
 interface VisitorAgg {
 	visitor_id: string;
@@ -238,13 +218,12 @@ async function generatePredictions(
 // GET /predictions
 predictionsRoutes.get("/", async (c) => {
 	const db = c.get("db");
-	const userId = c.get("userId");
 	const siteId = c.req.query("site_id");
 
 	if (!siteId) return c.json({ error: "site_id required", success: false }, 400);
 
-	const site = await validateSite(db, userId, siteId);
-	if (!site) return c.json({ error: "Site not found", success: false }, 404);
+	const access = await requireSiteAccess(c, siteId, "read");
+	if (access instanceof Response) return access;
 
 	const now = new Date().toISOString();
 
@@ -285,13 +264,12 @@ predictionsRoutes.get("/", async (c) => {
 // POST /predictions/refresh
 predictionsRoutes.post("/refresh", async (c) => {
 	const db = c.get("db");
-	const userId = c.get("userId");
 	const siteId = c.req.query("site_id");
 
 	if (!siteId) return c.json({ error: "site_id required", success: false }, 400);
 
-	const site = await validateSite(db, userId, siteId);
-	if (!site) return c.json({ error: "Site not found", success: false }, 404);
+	const access = await requireSiteAccess(c, siteId, "write");
+	if (access instanceof Response) return access;
 
 	// Delete cached predictions for this site
 	await db

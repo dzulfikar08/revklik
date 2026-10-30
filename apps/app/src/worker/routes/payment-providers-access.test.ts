@@ -53,12 +53,12 @@ describe("generic payment provider routes", () => {
 		const del = await t.call("DELETE", `/api/payment-providers/stripe?site_id=${SITE}`, {
 			token: viewer,
 		});
-		expect(del.status).toBe(404);
+		expect(del.status).toBe(403);
 		const add = await t.call("POST", "/api/payment-providers", {
 			token: viewer,
 			body: { site_id: SITE, provider: "xendit", config: { webhook_secret: "x" } },
 		});
-		expect(add.status).toBe(404);
+		expect(add.status).toBe(403);
 		expect(providers(t)).toEqual([{ provider: "polar" }, { provider: "stripe" }]);
 		// Reading stays open to viewers, without the Polar row.
 		const list = await t.call("GET", `/api/payment-providers?site_id=${SITE}`, { token: viewer });

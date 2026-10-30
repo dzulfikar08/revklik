@@ -19,6 +19,7 @@ import { executeBatch } from "../lib/d1-batch";
 import { planRequiredBody } from "../lib/plan-gate";
 import { resolveQueryScope } from "../lib/site-scope";
 import { isSelfHosted } from "../lib/entitlement";
+import { requireSiteAccess } from "../lib/site-access";
 import { requirePlanForSite } from "../lib/plans";
 import { generateId, getDateRange } from "../utils";
 
@@ -29,15 +30,6 @@ type Env = {
 };
 
 export const aiInsightsRoutes = new Hono<Env>();
-
-function validateSite(db: Kysely<KlikapaDatabase>, userId: string, siteId: string) {
-	return db
-		.selectFrom("sites")
-		.select(["id"])
-		.where("id", "=", siteId)
-		.where("user_id", "=", userId)
-		.executeTakeFirst();
-}
 
 /** Cache TTL in hours based on range */
 function getCacheTtlHours(range: string): number {
@@ -65,8 +57,8 @@ aiInsightsRoutes.get("/", async (c) => {
 		return c.json({ error: "Invalid range. Use 24h, 7d, 30d, or 90d", success: false }, 400);
 	}
 
-	const site = await validateSite(db, userId, siteId);
-	if (!site) return c.json({ error: "Site not found", success: false }, 404);
+	const access = await requireSiteAccess(c, siteId, "read");
+	if (access instanceof Response) return access;
 
 	const planCheck = await requirePlanForSite(db, userId, siteId, 2, isSelfHosted(c.env));
 	if (!planCheck.allowed) return c.json(planRequiredBody("growth", planCheck.plan), 403);
@@ -166,8 +158,8 @@ aiInsightsRoutes.post("/refresh", async (c) => {
 		return c.json({ error: "Invalid range. Use 24h, 7d, 30d, or 90d", success: false }, 400);
 	}
 
-	const site = await validateSite(db, userId, siteId);
-	if (!site) return c.json({ error: "Site not found", success: false }, 404);
+	const access = await requireSiteAccess(c, siteId, "write");
+	if (access instanceof Response) return access;
 
 	const planCheck = await requirePlanForSite(db, userId, siteId, 2, isSelfHosted(c.env));
 	if (!planCheck.allowed) return c.json(planRequiredBody("growth", planCheck.plan), 403);

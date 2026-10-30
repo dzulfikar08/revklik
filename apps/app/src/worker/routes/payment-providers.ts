@@ -1,22 +1,16 @@
 import { Hono } from "hono";
 import type { Kysely } from "kysely";
 import type { KlikapaDatabase } from "@revklik/shared";
-import { WRITE_ROLES, accessibleSite } from "../lib/site-roles";
+import { requireSiteAccess } from "../lib/site-access";
 import { generateId } from "../utils";
 
 type Variables = { db: Kysely<KlikapaDatabase>; userId: string };
 export const paymentProviderRoutes = new Hono<{ Variables: Variables }>();
 
-const VALID_PROVIDERS = [
-	"midtrans",
-	"xendit",
-	"doku",
-	"nicepay",
-	"paywuz",
-	"mayar",
-	"stripe",
-	"lemonsqueezy",
-];
+const VALID_PROVIDERS = ["midtrans", "xendit", "doku", "paywuz", "mayar", "stripe", "lemonsqueezy"];
+
+/** Providers whose webhooks carry no signature: the shared secret is the only proof of origin. */
+const SECRET_REQUIRED_PROVIDERS = ["paywuz", "mayar"];
 
 function maskConfig(config: Record<string, string>): Record<string, string> {
 	const masked: Record<string, string> = {};
@@ -29,11 +23,10 @@ function maskConfig(config: Record<string, string>): Record<string, string> {
 
 paymentProviderRoutes.get("/", async (c) => {
 	const db = c.get("db");
-	const userId = c.get("userId");
 	const siteId = c.req.query("site_id");
 	if (!siteId) return c.json({ error: "site_id required" }, 400);
-	const site = await accessibleSite(db, userId, siteId);
-	if (!site) return c.json({ error: "Site not found" }, 404);
+	const access = await requireSiteAccess(c, siteId, "read");
+	if (access instanceof Response) return access;
 	const rows = await db
 		.selectFrom("payment_providers")
 		.selectAll()
@@ -54,14 +47,15 @@ paymentProviderRoutes.get("/", async (c) => {
 
 paymentProviderRoutes.post("/", async (c) => {
 	const db = c.get("db");
-	const userId = c.get("userId");
 	const { site_id, provider, config } = await c.req.json();
 	if (!site_id || !provider || !config)
 		return c.json({ error: "site_id, provider, config required" }, 400);
 	if (!VALID_PROVIDERS.includes(provider))
 		return c.json({ error: `Invalid provider: ${provider}` }, 400);
-	const site = await accessibleSite(db, userId, site_id, WRITE_ROLES);
-	if (!site) return c.json({ error: "Site not found" }, 404);
+	if (SECRET_REQUIRED_PROVIDERS.includes(provider) && !String(config.webhook_secret ?? "").trim())
+		return c.json({ error: `${provider} requires a webhook_secret` }, 400);
+	const access = await requireSiteAccess(c, site_id, "write");
+	if (access instanceof Response) return access;
 	const existing = await db
 		.selectFrom("payment_providers")
 		.select(["id"])
@@ -86,15 +80,14 @@ paymentProviderRoutes.post("/", async (c) => {
 
 paymentProviderRoutes.delete("/:provider", async (c) => {
 	const db = c.get("db");
-	const userId = c.get("userId");
 	const provider = c.req.param("provider");
 	const site_id = c.req.query("site_id");
 	if (!site_id) return c.json({ error: "site_id required" }, 400);
 	// Polar is managed (and removed) through /api/polar, not this generic list.
 	if (!VALID_PROVIDERS.includes(provider))
 		return c.json({ error: `Invalid provider: ${provider}` }, 400);
-	const site = await accessibleSite(db, userId, site_id, WRITE_ROLES);
-	if (!site) return c.json({ error: "Site not found" }, 404);
+	const access = await requireSiteAccess(c, site_id, "write");
+	if (access instanceof Response) return access;
 	const rows = await db
 		.selectFrom("payment_providers")
 		.select("id")

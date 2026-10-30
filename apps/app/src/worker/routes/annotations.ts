@@ -1,37 +1,19 @@
 import { Hono } from "hono";
 import type { Kysely } from "kysely";
 import type { KlikapaDatabase } from "@revklik/shared";
+import { requireSiteAccess } from "../lib/site-access";
 import { generateId } from "../utils";
 
 type Variables = { db: Kysely<KlikapaDatabase>; userId: string };
 
 export const annotationRoutes = new Hono<{ Variables: Variables }>();
 
-function validateSite(db: Kysely<KlikapaDatabase>, userId: string, siteId: string) {
-	return db
-		.selectFrom("sites")
-		.select(["id"])
-		.where("id", "=", siteId)
-		.where((eb) =>
-			eb.or([
-				eb("user_id", "=", userId),
-				eb.exists(
-					eb
-						.selectFrom("team_members")
-						.select("id")
-						.where("site_id", "=", siteId)
-						.where("user_id", "=", userId)
-						.where("accepted_at", "is not", null),
-				),
-			]),
-		)
-		.executeTakeFirst();
-}
-
 annotationRoutes.get("/", async (c) => {
 	const db = c.get("db");
 	const siteId = c.req.query("site_id");
 	if (!siteId) return c.json({ error: "site_id required", success: false }, 400);
+	const access = await requireSiteAccess(c, siteId, "read");
+	if (access instanceof Response) return access;
 
 	const annotations = await db
 		.selectFrom("annotations")
@@ -50,8 +32,8 @@ annotationRoutes.post("/", async (c) => {
 	if (!site_id || !date || !text)
 		return c.json({ error: "site_id, date, and text required", success: false }, 400);
 
-	const site = await validateSite(db, userId, site_id);
-	if (!site) return c.json({ error: "Site not found", success: false }, 404);
+	const access = await requireSiteAccess(c, site_id, "write");
+	if (access instanceof Response) return access;
 
 	const id = generateId();
 	await db
@@ -76,7 +58,6 @@ annotationRoutes.post("/", async (c) => {
 
 annotationRoutes.delete("/:annotationId", async (c) => {
 	const db = c.get("db");
-	const userId = c.get("userId");
 	const annotationId = c.req.param("annotationId");
 
 	const annotation = await db
@@ -86,8 +67,8 @@ annotationRoutes.delete("/:annotationId", async (c) => {
 		.executeTakeFirst();
 	if (!annotation) return c.json({ error: "Annotation not found", success: false }, 404);
 
-	const site = await validateSite(db, userId, annotation.site_id);
-	if (!site) return c.json({ error: "Not found", success: false }, 404);
+	const access = await requireSiteAccess(c, annotation.site_id, "write");
+	if (access instanceof Response) return access;
 
 	await db.deleteFrom("annotations").where("id", "=", annotationId).execute();
 	return c.json({ success: true });

@@ -34,6 +34,7 @@ import {
 } from "../queries/analytics";
 import { revenueSql } from "../lib/fx";
 import { canonicalSource } from "../lib/source-sql";
+import { requireSiteAccess } from "../lib/site-access";
 import { resolveQueryScope } from "../lib/site-scope";
 import { getDateRange } from "../utils";
 
@@ -551,19 +552,19 @@ analyticsRoutes.get("/visitors/:visitorId", async (c) => {
 
 analyticsRoutes.patch("/visitors/:visitorId", async (c) => {
 	const db = c.get("db");
-	const userId = c.get("userId");
 	const profileId = c.req.param("visitorId");
 	const body = await c.req.json();
 
+	// The dashboard addresses a profile by its row id.
 	const profile = await db
 		.selectFrom("visitor_profiles")
 		.select(["id", "site_id"])
-		.where("visitor_id", "=", profileId)
+		.where("id", "=", profileId)
 		.executeTakeFirst();
 	if (!profile) return c.json({ error: "Not found", success: false }, 404);
 
-	const site = await validateSite(db, userId, profile.site_id);
-	if (!site) return c.json({ error: "Not found", success: false }, 404);
+	const access = await requireSiteAccess(c, profile.site_id, "write");
+	if (access instanceof Response) return access;
 	const updates: Record<string, unknown> = {};
 	if (body.name !== undefined) updates.name = body.name;
 	if (body.email !== undefined) updates.email = body.email;
@@ -572,7 +573,12 @@ analyticsRoutes.patch("/visitors/:visitorId", async (c) => {
 	if (body.notes !== undefined) updates.notes = body.notes;
 
 	if (Object.keys(updates).length > 0) {
-		await db.updateTable("visitor_profiles").set(updates).where("id", "=", profileId).execute();
+		await db
+			.updateTable("visitor_profiles")
+			.set(updates)
+			.where("id", "=", profile.id)
+			.where("site_id", "=", profile.site_id)
+			.execute();
 	}
 
 	return c.json({ success: true });
