@@ -212,9 +212,12 @@ export const Hero = ({ dash, loading }: { dash: SiteDashboard | undefined; loadi
 	const cmp = (key: CompareKey): StatsChange | undefined =>
 		quiet ? undefined : dash?.compare?.[key];
 	const hasNet = stats ? stats.netRevenue !== undefined : true;
+	// Sales are paid orders; goal events with no revenue are not sales.
+	const sales = stats ? (stats.sales ?? stats.conversions) : undefined;
+	const salesKey: CompareKey = stats?.sales === undefined ? "conversions" : "sales";
 	const conversion =
-		stats && stats.visitors > 0
-			? `${fmtDecimal((stats.conversions / stats.visitors) * 100, 1)}%`
+		sales !== undefined && stats && stats.visitors > 0
+			? `${fmtDecimal((sales / stats.visitors) * 100, 1)}%`
 			: undefined;
 	const prevHint = (change: StatsChange | undefined): ReactNode => {
 		if (!stats) {
@@ -257,9 +260,9 @@ export const Hero = ({ dash, loading }: { dash: SiteDashboard | undefined; loadi
 			<HeroCard
 				label={t("home.sales")}
 				loading={loading}
-				value={stats ? fmt(stats.conversions) : undefined}
-				change={cmp("conversions")}
-				sub={prevHint(cmp("conversions"))}
+				value={sales === undefined ? undefined : fmt(sales)}
+				change={cmp(salesKey)}
+				sub={prevHint(cmp(salesKey))}
 			/>
 			<HeroCard
 				label={t("home.conversion")}
@@ -269,7 +272,7 @@ export const Hero = ({ dash, loading }: { dash: SiteDashboard | undefined; loadi
 					stats && stats.visitors > 0 ? (
 						<span className="text-muted-foreground truncate">
 							{t("home.conversionNote", {
-								sales: fmt(stats.conversions),
+								sales: fmt(sales ?? 0),
 								visitors: fmt(stats.visitors),
 							})}
 						</span>

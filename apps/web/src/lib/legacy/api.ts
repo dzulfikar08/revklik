@@ -84,7 +84,10 @@ export interface LegacyStats {
 	bounceRate: number;
 	avgDuration: number;
 	revenue: number;
+	/** Sales plus zero-revenue goal events. */
 	conversions: number;
+	/** Events with revenue > 0; absent on older workers (fall back to conversions). */
+	sales?: number;
 	/** Revenue after payment fees, same currency and window as `revenue`. */
 	netRevenue?: number;
 	/** True when some of `netRevenue` comes from fee rules, not a stored net. */
@@ -105,7 +108,8 @@ export type CompareKey =
 	| "avgDuration"
 	| "revenue"
 	| "netRevenue"
-	| "conversions";
+	| "conversions"
+	| "sales";
 
 export interface TimeSeriesPoint {
 	date: string;

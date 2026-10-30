@@ -29,6 +29,7 @@ import {
 	pageviewPredicate,
 	pageviewsSql,
 	revenueTotalSql,
+	salesSql,
 	visitorsSql,
 } from "../lib/metrics";
 import { planNetRevenue, resolveNetRevenue } from "../lib/net-revenue";
@@ -183,6 +184,7 @@ interface EventAgg {
 	visitors: unknown;
 	revenue: unknown;
 	conversions: unknown;
+	sales: unknown;
 	is_current?: unknown;
 }
 
@@ -213,6 +215,7 @@ function eventStatsQuery(
 			visitorsSql().as("visitors"),
 			revenueTotalSql(scope.money).as("revenue"),
 			conversionsSql().as("conversions"),
+			salesSql().as("sales"),
 		])
 		.where("site_id", "=", siteId)
 		.where("timestamp", ">=", startIso);
@@ -258,6 +261,7 @@ function toStats(ev: EventAgg | undefined, se: SessionAgg | undefined): StatsRes
 		avgDuration: Math.round(Number(se?.avg_duration ?? 0)),
 		revenue: Number(ev?.revenue ?? 0),
 		conversions: Number(ev?.conversions ?? 0),
+		sales: Number(ev?.sales ?? 0),
 	};
 }
 

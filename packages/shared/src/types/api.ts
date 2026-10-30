@@ -53,7 +53,10 @@ export interface StatsResponse {
 	bounceRate: number;
 	avgDuration: number;
 	revenue: number;
+	/** Sales plus zero-revenue goal events. */
 	conversions: number;
+	/** Events with revenue > 0 (refunds excluded): what the dashboard calls sales. */
+	sales?: number;
 	/** Revenue after payment fees, same currency and window as `revenue`. */
 	netRevenue?: number;
 	/** True when part of `netRevenue` was computed from the owner's fee rule, not reported by the payment. */
@@ -292,6 +295,7 @@ export interface SiteDashboard {
 			| "avgDuration"
 			| "revenue"
 			| "conversions"
+			| "sales"
 			| "netRevenue",
 			StatsChange
 		>

@@ -189,6 +189,7 @@ analyticsRoutes.get(
 			avgDuration: metric(stats.avgDuration, prevStats.avgDuration),
 			revenue: metric(stats.revenue, prevStats.revenue),
 			conversions: metric(stats.conversions, prevStats.conversions),
+			sales: metric(stats.sales ?? 0, prevStats.sales ?? 0),
 			netRevenue: metric(stats.netRevenue ?? 0, prevStats.netRevenue ?? 0),
 		};
 
