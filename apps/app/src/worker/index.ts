@@ -8,6 +8,7 @@ import { isSelfHosted } from "./lib/entitlement";
 import { refreshFxRates } from "./lib/fx";
 import { checkIngestHealth } from "./lib/ingest-watchdog";
 import { pruneOutbox, runPushCron } from "./lib/push";
+import { syncAllPolar } from "./lib/polar-sync";
 import { purgeExpiredRows } from "./lib/purge";
 import { carryOverPakasirOrders } from "./migrations";
 import type { Bindings } from "./types";
@@ -45,12 +46,20 @@ export default {
 			return;
 		}
 		if (controller.cron === "15 * * * *") {
-			// Hourly: sessions that grew into bot-shaped bursts since the last pass,
-			// then the ingest canary (mails SUPER_ADMIN_EMAIL when pageviews stop).
+			// Hourly: sessions that grew into bot-shaped bursts since the last pass, the ingest
+			// canary (mails SUPER_ADMIN_EMAIL when pageviews stop), then the last two weeks of
+			// Polar orders for sites with a saved token (a missed webhook, a refund, Polar's real
+			// fee). Polar runs last on a capped budget so it cannot starve the others of D1's
+			// per-invocation query limit, and each job fails on its own.
 			if (env.DB) {
-				await reclassifyRecentBots(env.DB);
+				await reclassifyRecentBots(env.DB).catch((err) =>
+					console.error("Bot reclassification failed:", err),
+				);
 				await checkIngestHealth(env).catch((err) =>
 					console.error("Ingest health check failed:", err),
+				);
+				await syncAllPolar(createDb(env.DB), env).catch((err) =>
+					console.error("Polar sync failed:", err),
 				);
 			}
 			return;

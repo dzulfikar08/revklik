@@ -228,7 +228,7 @@ describe("Polar webhook booking", () => {
 		const { t, writer } = await setup();
 		t.db
 			.prepare(
-				"INSERT INTO integrations (id, site_id, user_id, type, name, config, enabled) VALUES ('ip','s-se','u-se','polar','Polar',?,1)",
+				"INSERT INTO payment_providers (id, site_id, provider, config, enabled) VALUES ('ip','s-se','polar',?,1)",
 			)
 			.run(JSON.stringify({ webhook_secret: SECRET }));
 		return { t, writer };

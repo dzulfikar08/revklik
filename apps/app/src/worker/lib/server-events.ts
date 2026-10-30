@@ -77,8 +77,9 @@ interface NetPatch {
 
 /**
  * A thank-you-page conversion (no external_id) that the confirmed sale
- * duplicates: same site, source, amount and currency, within the match window,
- * nearest to `ts` (the same visitor wins ties when the caller names one).
+ * duplicates: same site, source and currency within the match window, nearest
+ * to `ts`, whatever amount the browser reported (it sends the list price). When
+ * the order names its buyer only that buyer's row qualifies.
  */
 async function findClientConversion(
 	db: Kysely<KlikapaDatabase>,
@@ -86,7 +87,6 @@ async function findClientConversion(
 		siteId: string;
 		source: string;
 		rail: string;
-		revenue: number;
 		currency: string;
 		ts: string;
 		/** The buyer the order names; null = unlinked, so the nearest matching row is taken. */
@@ -97,6 +97,7 @@ async function findClientConversion(
 	visitor_id: string;
 	props: string | null;
 	product: string | null;
+	revenue: number;
 } | null> {
 	const window = isoWindow(args.ts, CLIENT_ORDER_MATCH_MS);
 	const { rows } = await sql<{
@@ -104,9 +105,10 @@ async function findClientConversion(
 		visitor_id: string;
 		props: string | null;
 		product: string | null;
-	}>`SELECT id, visitor_id, props, product FROM events
+		revenue: number;
+	}>`SELECT id, visitor_id, props, product, revenue FROM events
 		WHERE site_id = ${args.siteId} AND external_id IS NULL AND event_type = 'conversion'
-		AND revenue = ${args.revenue} AND UPPER(COALESCE(NULLIF(currency, ''), 'USD')) = ${args.currency}
+		AND revenue > 0 AND UPPER(COALESCE(NULLIF(currency, ''), 'USD')) = ${args.currency}
 		AND timestamp >= ${window.from} AND timestamp <= ${window.to}
 		AND (payment_provider = ${args.source} OR rail = ${args.rail} OR json_extract(props, '$.source') = ${args.source})
 		AND is_bot = 0 AND excluded_reason IS NULL
@@ -252,7 +254,6 @@ export async function recordServerEvent(
 			siteId: site.id,
 			source: input.source,
 			rail,
-			revenue: input.revenue,
 			currency: currency.toUpperCase(),
 			ts,
 			visitorId: input.externalId.endsWith(REFUND_SUFFIX) ? null : linkedVisitorId,
@@ -351,10 +352,20 @@ export async function recordServerEvent(
 	return { eventId, visitorId, duplicate: false };
 }
 
-/** Merge the confirmed sale into the browser-reported row; false when the order id is already booked. */
+/**
+ * Merge the confirmed sale into the browser-reported row (the order's amount
+ * replaces the list price, and the visitor's lifetime revenue follows); false
+ * when the order id is already booked.
+ */
 async function adoptClientConversion(
 	db: Kysely<KlikapaDatabase>,
-	row: { id: string; props: string | null; product: string | null },
+	row: {
+		id: string;
+		visitor_id: string;
+		props: string | null;
+		product: string | null;
+		revenue: number;
+	},
 	input: ServerEventInput,
 	patch: NetPatch,
 ): Promise<boolean> {
@@ -372,6 +383,7 @@ async function adoptClientConversion(
 			.updateTable("events")
 			.set({
 				external_id: input.externalId,
+				revenue: input.revenue,
 				rail: patch.rail,
 				net_revenue: patch.net_revenue,
 				net_source: patch.net_source,
@@ -389,7 +401,16 @@ async function adoptClientConversion(
 			.where("external_id", "is", null)
 			.returning("id")
 			.executeTakeFirst();
-		return updated !== undefined;
+		if (updated === undefined) return false;
+		if (input.revenue !== row.revenue) {
+			await db
+				.updateTable("visitor_profiles")
+				.set({ total_revenue: sql`MAX(0, total_revenue + ${input.revenue - row.revenue})` })
+				.where("site_id", "=", input.siteId)
+				.where("visitor_id", "=", row.visitor_id)
+				.execute();
+		}
+		return true;
 	} catch {
 		// The order id won the unique index in a concurrent delivery.
 		return false;

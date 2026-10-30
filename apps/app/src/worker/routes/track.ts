@@ -342,7 +342,13 @@ trackRoutes.post("/track", async (c) => {
 							excluded_reason: sale.excluded_reason,
 						}
 					: {}),
-				props: payload.pr ? JSON.stringify(payload.pr) : null,
+				props:
+					payload.pr || sale?.duplicate_of
+						? JSON.stringify({
+								...payload.pr,
+								...(sale?.duplicate_of ? { duplicate_of: sale.duplicate_of } : {}),
+							})
+						: null,
 				country: cfCountry,
 				region: cfRegion,
 				city: cfCity,

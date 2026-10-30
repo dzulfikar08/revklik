@@ -58,7 +58,8 @@ import type {
 } from "@/lib/legacy/integrations";
 
 import { ImportsView } from "./imports-view";
-import { Panel, PanelTabs } from "./ui";
+import { PolarConnectPanel } from "./polar-connect-panel";
+import { Panel, PanelTabs, StatusPill } from "./ui";
 
 /* ------------------------------ provider meta ------------------------------ */
 
@@ -461,18 +462,6 @@ const orderMoney = (amount: number, currency: string): string =>
 		style: "currency",
 		currency: currency || "IDR",
 	});
-
-const StatusPill = ({ on, label }: { on: boolean; label: string }) => (
-	<span
-		className={`font-mono text-[9px] font-semibold tracking-wider uppercase ring-1 rounded-full px-2 py-1 ${
-			on
-				? "bg-(--up)/10 text-(--up) ring-(--up)/20"
-				: "bg-muted text-muted-foreground ring-foreground/10"
-		}`}
-	>
-		{label}
-	</span>
-);
 
 const ErrText = ({ children }: { children: ReactNode }) => (
 	<p className="bg-(--down)/10 text-(--down) rounded-lg px-3 py-2 text-xs">{children}</p>
@@ -1436,6 +1425,9 @@ export const IntegrationsView = ({ siteId }: { siteId: string }) => {
 
 			{tab === "payments" ? (
 				<div className="grid items-start gap-2.5 md:grid-cols-2">
+					<div className="md:col-span-2">
+						<PolarConnectPanel siteId={siteId} />
+					</div>
 					{PAYMENT_PROVIDERS.filter((meta) => SHOWN_PROVIDERS.has(meta.type)).map((meta) => (
 						<PaymentProviderCard
 							key={meta.type}

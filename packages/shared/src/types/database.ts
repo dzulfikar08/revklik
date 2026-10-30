@@ -51,8 +51,8 @@ export interface EventTable {
 	net_source: Defaulted<"reported" | "rule" | "refund_ratio" | null>;
 	/** Canonical traffic source (lib/source-sql.ts classifySource), stamped at insert; NULL on rows not yet backfilled. */
 	source: Defaulted<string | null>;
-	/** Why the row is left out of every read: "test" (smoke/test sale) or "duplicate" (same sale booked twice); NULL = counted. */
-	excluded_reason: Defaulted<"test" | "duplicate" | null>;
+	/** Why the row is left out of every read: "test" (smoke/test sale) or "duplicate" (same sale booked twice), "unconfirmed" (browser-reported sale no provider order confirms); NULL = counted. */
+	excluded_reason: Defaulted<"test" | "duplicate" | "unconfirmed" | null>;
 }
 
 export interface SessionTable {

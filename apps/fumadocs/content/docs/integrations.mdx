@@ -87,20 +87,18 @@ the `reported` figure.
 
 Polar orders carry Polar's own fee (`platform_fee_amount`); the webhook and the
 order import store `net_amount − platform_fee_amount` as the reported net, and
-fall back to the 4% + 0.40 USD rule when Polar sends no fee. Revenue that the
-buyer's browser already reported on the thank-you page (same site, source,
-amount and currency, within an hour) is not booked a second time: the
-confirmed order fills in that row with its order id, rail and net. The same
-visitor firing the same conversion on the same page again within a minute is
-stored but excluded as a duplicate.
-
-### Test sales
-
-A sale whose `source` or `rail` names a test (`tracking_smoketest`,
-`test_checkout`, ...), or whose `props._test` is `true`, is stored with
-`excluded_reason = "test"` and left out of every dashboard, API and MCP number,
-like bot traffic. Double-booked sales are excluded the same way with
-`excluded_reason = "duplicate"`.
+fall back to the 4% + 0.40 USD rule when Polar sends no fee. A sale the buyer's browser
+already reported on the thank-you page is not booked a second time: the
+confirmed order (webhook or import) adopts the nearest browser row of the same
+site, rail and currency within 10 minutes, whatever amount the browser sent
+(it reports the list price, the order what was paid), and fills in that row's
+order id, amount, rail and net. If the order names its buyer
+(`revklik_visitor_id`) only that buyer's row qualifies. A browser row that
+arrives after its order is stored as `duplicate`. The same visitor firing the
+same conversion on the same page again within a minute is stored but excluded as
+a duplicate. For a rail with confirmed orders, `scripts/import-polar-orders.ts`
+also marks browser rows in the covered period that no order claims as
+`unconfirmed`.
 
 Built-in fees (editable per rail on the Portfolio page, or `GET`/`PUT
 /api/fee-rules` with a dashboard session): `apple` 15%, `google_play` 15%,
@@ -110,6 +108,15 @@ the portfolio computes its net from your fee rule for its rail when you read
 it, and reports how many rows were estimated that way (`estimated_rows`,
 `net_source: "estimated"`). `bun scripts/backfill-revenue.ts` (in `apps/app`)
 stores those nets, rails and exclusions on old rows.
+
+### Test sales
+
+A sale whose `source` or `rail` names a test (`tracking_smoketest`,
+`test_checkout`, ...), or whose `props._test` is `true`, is stored with
+`excluded_reason = "test"` and left out of every dashboard, API and MCP number,
+like bot traffic. Double-booked sales are excluded the same way with
+`excluded_reason = "duplicate"`, and browser-reported sales no provider order
+confirms with `"unconfirmed"`.
 
 ### Portfolio revenue
 
@@ -135,9 +142,38 @@ days (default: the last 30 days). The `data` object holds:
 
 The same data is available to AI agents as the `portfolio_revenue` MCP tool.
 
-For Polar, put `revklik_visitor_id` and `revklik_session_id` in the checkout
-metadata. RevKlik books `order.paid` and `order.refunded` once per order, using
-the order's net amount (after discounts, before tax).
+### Polar
+
+Each site has its own Polar endpoint. In the dashboard open **Integrations →
+Payments → Polar** and follow the panel:
+
+1. In Polar open **Settings → Webhooks → Add Endpoint**, paste the URL the
+   panel shows (`https://app.revklik.com/api/webhooks/polar?site_id=<your site id>`)
+   and leave **Format** on **Raw**.
+2. Tick `order.paid` and `order.refunded`. Subscription renewals are orders
+   too, so no subscription events are needed.
+3. Copy the endpoint's secret into **Webhook secret** and save. The secret is
+   write-only: RevKlik reports that it is saved, never its value.
+
+Deliveries are verified with Standard Webhooks (both the `whsec_` base64 form
+and Polar's older UTF-8 secret form), per site: another site's secret, RevKlik's
+own billing secret and unsigned requests are rejected. The panel lists the
+last deliveries and flags a signature mismatch.
+
+Put `revklik_visitor_id` and `revklik_session_id` in the checkout metadata to
+attribute the sale to the visitor. RevKlik books each order once, using the
+order's net amount (after discounts, before tax) and Polar's own fee. A refund
+is booked on the day it happened (the `order.refunded` event time), not on the
+order's date. Polar reports a cumulative refunded total, so the first refund is
+one negative `<order id>:refund` row and each later refund adds a row for the
+amount the total rose by (`<order id>~<cents already refunded>:refund`).
+
+Optionally save an Organization Access Token (**Settings → Access Tokens**,
+scopes `orders:read` and `refunds:read`). It enables **Sync orders now** (last 30
+days, 12 months or all time, up to 50 new orders per run) and an hourly check of
+the last 14 days that catches missed webhooks, refunds and Polar's real fee.
+With `refunds:read` each refund is dated by Polar's own refund record; without
+it the order's last-modified time stands in.
 
 ## Bot filtering
 
@@ -171,10 +207,9 @@ The panel shows 30-day totals and a per-query table.
 
 Bring history in without waiting for it to accumulate:
 
-- **Polar**: live orders stream in via a webhook URL; a one-time import can
-  backfill existing orders, customers, and countries with a Polar
-  organization ID and access token (`orders:read`,
-  `subscriptions:read`, `organizations:read` scopes).
+- **Polar**: connect the site from **Integrations → Payments → Polar**
+  (see [Polar](#polar)). With an access token saved, **Sync orders now**
+  brings in existing orders, their fees and refunds.
 - **OneDollarStats**: import visitors, pages, countries, and sources with an
   API key and the site domain as registered there.
 

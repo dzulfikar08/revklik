@@ -40,7 +40,7 @@
 	// "send_email": [{ "name": "EMAIL" }],
 	"triggers": {
 		// 03:00 backup (+ opt-in retention purge), 18:00 App Store Connect sync,
-		// :15 hourly bot reclassification of recent sessions, every 5 minutes the
+		// :15 hourly Polar order sync and bot reclassification of recent sessions, every 5 minutes the
 		// sale-alert retry + push receipt pass.
 		"crons": ["0 3 * * *", "0 18 * * *", "15 * * * *", "*/5 * * * *"],
 	},

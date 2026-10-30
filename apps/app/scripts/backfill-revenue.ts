@@ -13,6 +13,7 @@
  * (schema v24): deploy first, then --apply.
  */
 import { writeFileSync } from "node:fs";
+import { d1Execute, d1Select, type D1Target } from "./d1";
 import { usdRates, type FxRates } from "../src/worker/lib/fx";
 import type { FeeRule } from "../src/worker/lib/fees";
 import {
@@ -23,7 +24,6 @@ import {
 	type BackfillEvent,
 } from "../src/worker/lib/revenue-backfill";
 
-const DATABASE = "klikapa-db";
 const PAGE = 1000;
 
 const args = new Map(
@@ -32,7 +32,8 @@ const args = new Map(
 		return [key as string, value ?? "true"] as const;
 	}),
 );
-const target = args.has("local") ? "--local" : "--remote";
+const target: D1Target = args.has("local") ? "--local" : "--remote";
+const select = <T>(sql: string): T[] => d1Select<T>(target, sql);
 const siteId = args.get("site");
 const year = args.get("year") ?? String(new Date().getUTCFullYear());
 const currency = (args.get("currency") ?? "IDR").toUpperCase();
@@ -41,22 +42,6 @@ const outFile = args.get("out") ?? `revenue-backfill-${new Date().toISOString().
 
 if (siteId && !/^[A-Za-z0-9_-]+$/.test(siteId)) throw new Error("--site must be a site id");
 if (!/^\d{4}$/.test(year)) throw new Error("--year must be YYYY");
-
-function wrangler(...extra: string[]): string {
-	const proc = Bun.spawnSync(["npx", "wrangler", "d1", "execute", DATABASE, target, ...extra], {
-		stdin: "inherit",
-		stderr: "pipe",
-	});
-	if (proc.exitCode !== 0) {
-		throw new Error(`wrangler failed: ${proc.stderr.toString() || proc.stdout.toString()}`);
-	}
-	return proc.stdout.toString();
-}
-
-function select<T>(sql: string): T[] {
-	const parsed = JSON.parse(wrangler("--json", "--command", sql)) as Array<{ results: T[] }>;
-	return parsed[0]?.results ?? [];
-}
 
 const columns = select<{ name: string }>("PRAGMA table_info(events)").map((c) => c.name);
 const hasExcluded = columns.includes("excluded_reason");
@@ -115,7 +100,7 @@ for (const mode of ["legacy", "backfilled"] as const) {
 	);
 }
 console.log(
-	`\n${events.length} revenue rows read; patches for ${plan.patches.length} rows (rail ${plan.counts.rail}, product ${plan.counts.product}, net ${plan.counts.net}, test ${plan.counts.test}, duplicate ${plan.counts.duplicate}); ${statements.length} statements -> ${outFile}`,
+	`\n${events.length} revenue rows read; patches for ${plan.patches.length} rows (rail ${plan.counts.rail}, product ${plan.counts.product}, net ${plan.counts.net}, test ${plan.counts.test}, duplicate ${plan.counts.duplicate}, unconfirmed ${plan.counts.unconfirmed}); ${statements.length} statements -> ${outFile}`,
 );
 
 if (!apply) {
@@ -127,6 +112,6 @@ if (!apply) {
 } else if (statements.length === 0) {
 	console.log("Nothing to apply.");
 } else {
-	wrangler("--file", outFile);
+	d1Execute(target, "--file", outFile);
 	console.log("Applied.");
 }

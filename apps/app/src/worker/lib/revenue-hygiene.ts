@@ -4,7 +4,7 @@ import { sql } from "../db";
 import { normalizeRail, railFromSource, resolveNet, resolveProduct, type NetFields } from "./fees";
 
 /** Why a stored event is left out of every read; NULL on the column means counted. */
-export type ExcludedReason = "test" | "duplicate";
+export type ExcludedReason = "test" | "duplicate" | "unconfirmed";
 
 /** Sources, rails and providers that mark synthetic sales (tracking_smoketest, test_checkout, ...). */
 const TEST_SOURCE_RE = /(^|[_.-])(smoke)?test(s|ing)?($|[_.-])|smoketest/i;
@@ -12,8 +12,12 @@ const TEST_SOURCE_RE = /(^|[_.-])(smoke)?test(s|ing)?($|[_.-])|smoketest/i;
 /** A conversion reported by the same visitor with the same amount on the same page within this window is a double fire. */
 export const CLIENT_DOUBLE_FIRE_MS = 60_000;
 
-/** A browser-reported conversion and the order that confirms it land this close together. */
-export const CLIENT_ORDER_MATCH_MS = 60 * 60_000;
+/**
+ * A browser-reported conversion and the order that confirms it land this close
+ * together (observed: 10-20 s). The match is by time, not amount: the browser
+ * reports the list price, the order what was actually paid.
+ */
+export const CLIENT_ORDER_MATCH_MS = 10 * 60_000;
 
 function isTestLabel(value: unknown): boolean {
 	return typeof value === "string" && TEST_SOURCE_RE.test(value);
@@ -83,9 +87,11 @@ export async function findClientDoubleFire(
 
 /**
  * Id of a confirmed order (has an external id) that already books this
- * browser-reported sale: same site, rail, amount and currency within the match
- * window, and the same buyer, or an order that names no buyer. An order is
- * claimed by one browser row only: once a duplicate sits next to it, it is taken.
+ * browser-reported sale: same site, rail and currency within the match window
+ * (any amount), and the same buyer, or an order that names no buyer. An order is
+ * claimed by one browser row only: a browser row stored as its duplicate carries
+ * `props.duplicate_of = <order external id>`, and such an order is taken.
+ * Returns the order's external id.
  */
 export async function findConfirmedOrder(
 	db: Kysely<KlikapaDatabase>,
@@ -93,7 +99,6 @@ export async function findConfirmedOrder(
 		siteId: string;
 		visitorId: string;
 		rail: string;
-		revenue: number;
 		currency: string;
 		ts: string;
 	},
@@ -106,15 +111,14 @@ export async function findConfirmedOrder(
 		external_id: string;
 	}>`SELECT o.id, o.visitor_id, o.payment_provider, o.external_id FROM events o
 		WHERE o.site_id = ${input.siteId} AND o.external_id IS NOT NULL AND o.external_id NOT LIKE '%:refund'
-		AND o.event_type = 'conversion' AND o.revenue = ${input.revenue} AND o.rail = ${input.rail}
+		AND o.event_type = 'conversion' AND o.revenue > 0 AND o.rail = ${input.rail}
 		AND UPPER(COALESCE(NULLIF(o.currency, ''), 'USD')) = ${input.currency}
 		AND o.timestamp >= ${window.from} AND o.timestamp <= ${window.to}
 		AND o.is_bot = 0 AND o.excluded_reason IS NULL
 		AND NOT EXISTS (
 			SELECT 1 FROM events d WHERE d.site_id = o.site_id AND d.external_id IS NULL
-			AND d.excluded_reason = 'duplicate' AND d.revenue = o.revenue
-			AND UPPER(COALESCE(NULLIF(d.currency, ''), 'USD')) = ${input.currency}
-			AND ABS(julianday(d.timestamp) - julianday(o.timestamp)) <= ${CLIENT_ORDER_MATCH_MS / 86_400_000}
+			AND d.excluded_reason = 'duplicate' AND d.rail = o.rail
+			AND json_extract(d.props, '$.duplicate_of') = o.external_id
 		)
 		ORDER BY ABS(julianday(o.timestamp) - julianday(${input.ts})) ASC
 		LIMIT 10`.execute(db);
@@ -123,7 +127,7 @@ export async function findConfirmedOrder(
 			o.visitor_id === input.visitorId ||
 			o.visitor_id === syntheticVisitorId(o.payment_provider ?? "", o.external_id),
 	);
-	return match?.id ?? null;
+	return match?.external_id ?? null;
 }
 
 export interface ClientSaleFields extends NetFields {
@@ -131,6 +135,8 @@ export interface ClientSaleFields extends NetFields {
 	product: string | null;
 	payment_provider: string | null;
 	excluded_reason: ExcludedReason | null;
+	/** External id of the confirmed order this browser row repeats; stored in its props. */
+	duplicate_of: string | null;
 }
 
 /**
@@ -161,12 +167,14 @@ export async function clientSaleFields(
 	const provider = source || null;
 
 	let excluded: ExcludedReason | null = testEventReason({ rail, provider, props: input.props });
+	let duplicateOf: string | null = null;
 	if (!excluded && input.guardDoubleFire) {
 		const twin = await findClientDoubleFire(db, input);
 		if (twin) excluded = "duplicate";
 		// The order may have landed first; it is the sale, the browser row only repeats it.
-		if (!excluded && rail && (await findConfirmedOrder(db, { ...input, rail }))) {
-			excluded = "duplicate";
+		if (!excluded && rail) {
+			duplicateOf = await findConfirmedOrder(db, { ...input, rail });
+			if (duplicateOf) excluded = "duplicate";
 		}
 	}
 	if (!rail) {
@@ -175,6 +183,7 @@ export async function clientSaleFields(
 			product,
 			payment_provider: provider,
 			excluded_reason: excluded,
+			duplicate_of: duplicateOf,
 			net_revenue: null,
 			net_source: null,
 		};
@@ -186,5 +195,12 @@ export async function clientSaleFields(
 		currency: input.currency,
 		env: input.env,
 	});
-	return { rail, product, payment_provider: provider, excluded_reason: excluded, ...net };
+	return {
+		rail,
+		product,
+		payment_provider: provider,
+		excluded_reason: excluded,
+		duplicate_of: duplicateOf,
+		...net,
+	};
 }

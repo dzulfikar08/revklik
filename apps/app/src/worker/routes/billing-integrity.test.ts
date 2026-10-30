@@ -223,7 +223,7 @@ describe("LemonSqueezy webhook (DEV-29)", () => {
 		await t.seedUser({ id: "u-ls", plan: "growth", withSite: "s-ls" });
 		t.db
 			.prepare(
-				"INSERT INTO integrations (id, site_id, user_id, type, name, config, enabled, created_at) VALUES ('i-ls','s-ls','u-ls','lemonsqueezy','LS',?,1,datetime('now'))",
+				"INSERT INTO payment_providers (id, site_id, provider, config, enabled) VALUES ('i-ls','s-ls','lemonsqueezy',?,1)",
 			)
 			.run(JSON.stringify({ webhook_secret: secret }));
 		const payload = JSON.stringify({

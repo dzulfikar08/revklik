@@ -45,7 +45,7 @@ describe("customer-site Polar webhook (DEV-29)", () => {
 		await t.seedUser({ id: "u-pw2", withSite: "s-pw2" });
 		t.db
 			.prepare(
-				"INSERT INTO integrations (id, site_id, user_id, type, name, config, enabled) VALUES ('ip','s-pw2','u-pw2','polar','Polar',?,1)",
+				"INSERT INTO payment_providers (id, site_id, provider, config, enabled) VALUES ('ip','s-pw2','polar',?,1)",
 			)
 			.run(JSON.stringify({ webhook_secret: "site-secret" }));
 
@@ -78,7 +78,7 @@ describe("Stripe webhook (DEV-29)", () => {
 		await t.seedUser({ id: "u-st", withSite: "s-st" });
 		t.db
 			.prepare(
-				"INSERT INTO integrations (id, site_id, user_id, type, name, config, enabled) VALUES ('is','s-st','u-st','stripe','Stripe','{}',1)",
+				"INSERT INTO payment_providers (id, site_id, provider, config, enabled) VALUES ('is','s-st','stripe','{}',1)",
 			)
 			.run();
 		const res = await t.call("POST", "/api/webhooks/stripe", {

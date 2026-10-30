@@ -129,6 +129,31 @@ export const Panel = ({
 	</section>
 );
 
+const PILL_TONES = {
+	down: "bg-(--down)/10 text-(--down) ring-(--down)/20",
+	muted: "bg-muted text-muted-foreground ring-foreground/10",
+	up: "bg-(--up)/10 text-(--up) ring-(--up)/20",
+} as const;
+
+/** Small status label; `on` picks green or grey unless `tone` names one. */
+export const StatusPill = ({
+	on,
+	label,
+	tone,
+}: {
+	on: boolean;
+	label: string;
+	tone?: keyof typeof PILL_TONES;
+}) => (
+	<span
+		className={`font-mono text-[9px] font-semibold tracking-wider uppercase ring-1 rounded-full px-2 py-1 ${
+			PILL_TONES[tone ?? (on ? "up" : "muted")]
+		}`}
+	>
+		{label}
+	</span>
+);
+
 /**
  * Loading placeholder shaped like the bar rows it stands in for, so a panel
  * keeps its height when data lands instead of jumping from one text line.

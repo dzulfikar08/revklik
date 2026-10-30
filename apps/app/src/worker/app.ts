@@ -24,6 +24,7 @@ import { shopeeRoutes } from "./routes/marketplace-shopee";
 import { tokopediaRoutes } from "./routes/marketplace-tokopedia";
 import { feeRuleRoutes } from "./routes/fee-rules";
 import { paymentProviderRoutes } from "./routes/payment-providers";
+import { polarConnectRoutes } from "./routes/polar-connect";
 import { portfolioRoutes } from "./routes/portfolio";
 import { predictionsRoutes } from "./routes/predictions";
 import { pushRoutes } from "./routes/push";
@@ -228,6 +229,11 @@ export function createApp(): Hono<Env> {
 	app.use("/payment-providers/*", authMiddleware);
 	app.use("/payment-providers/*", requirePlanTier("starter", ["POST", "PATCH", "PUT"]));
 	app.route("/payment-providers", paymentProviderRoutes);
+
+	// Polar webhook secret, access token and order sync for a site. Removing stays possible after a downgrade.
+	app.use("/polar/*", authMiddleware);
+	app.use("/polar/*", requirePlanTier("starter", ["POST", "PUT", "PATCH"]));
+	app.route("/polar", polarConnectRoutes);
 
 	// Serve tracking script based on site plan tier
 	app.get("/klikapa.js", async (c) => {

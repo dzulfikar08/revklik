@@ -310,7 +310,92 @@ describe("duplicate sales", () => {
 		expect(counted(t).filter((r) => r.excluded_reason === null)).toHaveLength(2);
 	});
 
-	it("does not merge sales of different amounts or beyond the match window", async () => {
+	it("adopts by time when the browser reported the list price and the order what was paid", async () => {
+		const { t, writeToken } = await setup();
+		await trackConversion(t, {
+			sid: "a",
+			vid: "buyer",
+			rv: 29.99,
+			ts: Date.now() - 300_000,
+			pr: { source: "polar", product: "modbus-poll" },
+		});
+		await postServerEvent(t, writeToken, {
+			revenue: 19.99,
+			net_revenue: 18.5,
+			external_id: "order-1",
+			source: "polar",
+			rail: "polar",
+			occurred_at: ago(290_000),
+		});
+		expect(counted(t)).toMatchObject([
+			{ external_id: "order-1", net_revenue: 18.5, net_source: "reported", excluded_reason: null },
+		]);
+		expect(t.db.query("SELECT revenue FROM events WHERE external_id = 'order-1'").get()).toEqual({
+			revenue: 19.99,
+		});
+		expect(
+			t.db.query("SELECT total_revenue FROM visitor_profiles WHERE visitor_id = 'buyer'").get(),
+		).toEqual({ total_revenue: 19.99 });
+	});
+
+	it("a browser row with the list price after its cheaper order is still the same sale", async () => {
+		const { t, writeToken } = await setup();
+		await postServerEvent(t, writeToken, {
+			revenue: 19.99,
+			external_id: "order-1",
+			source: "polar",
+			rail: "polar",
+			occurred_at: ago(120_000),
+		});
+		await trackConversion(t, {
+			sid: "a",
+			vid: "buyer",
+			rv: 29.99,
+			ts: Date.now() - 100_000,
+			pr: { source: "polar" },
+		});
+		expect(counted(t).map((r) => [r.external_id, r.excluded_reason])).toEqual([
+			["order-1", null],
+			[null, "duplicate"],
+		]);
+	});
+
+	it("each browser row takes its own order when two unlinked orders are minutes apart", async () => {
+		const { t, writeToken } = await setup();
+		for (const [id, ageMs] of [
+			["order-1", 360_000],
+			["order-2", 180_000],
+		] as const) {
+			await postServerEvent(t, writeToken, {
+				revenue: 19.99,
+				external_id: id,
+				source: "polar",
+				rail: "polar",
+				occurred_at: ago(ageMs),
+			});
+		}
+		const sale = { rv: 19.99, pr: { source: "polar" } };
+		// Both browser rows sit nearest to order-1; the second must take order-2.
+		await trackConversion(t, { ...sale, sid: "a", vid: "b1", ts: Date.now() - 330_000 }, 0);
+		await trackConversion(t, { ...sale, sid: "b", vid: "b2", ts: Date.now() - 300_000 }, 1);
+
+		const browser = t.db
+			.query(
+				"SELECT excluded_reason, json_extract(props, '$.duplicate_of') AS of FROM events WHERE external_id IS NULL ORDER BY timestamp",
+			)
+			.all();
+		expect(browser).toEqual([
+			{ excluded_reason: "duplicate", of: "order-1" },
+			{ excluded_reason: "duplicate", of: "order-2" },
+		]);
+		expect(counted(t).filter((r) => r.excluded_reason === null)).toHaveLength(2);
+
+		// A third browser row finds both orders taken: a new sale.
+		await trackConversion(t, { ...sale, sid: "c", vid: "b3", ts: Date.now() - 240_000 }, 2);
+		expect(counted(t).filter((r) => r.excluded_reason === null)).toHaveLength(3);
+	});
+
+	it("does not merge sales beyond the match window", async () => {
 		const { t, writeToken } = await setup();
 		await trackConversion(t, {
 			sid: "a",
@@ -373,6 +458,36 @@ describe("Polar proceeds", () => {
 		created_at: ago(60_000),
 		billing_reason: "purchase",
 		...extra,
+	});
+
+	it("books a refunded order as a sale and a negative refund at the sale's net ratio", async () => {
+		const { t } = await setup();
+		const refunded = order({
+			id: "ord-ref",
+			status: "refunded",
+			net_amount: 908,
+			total_amount: 999,
+			refunded_amount: 908,
+			platform_fee_amount: 95,
+			platform_fee_currency: "usd",
+		});
+		expect(await processPolarOrder(createDb(t.d1), refunded, SITE)).toBe("refunded");
+		const rows = t.db
+			.query(
+				"SELECT external_id, revenue, net_revenue, net_source FROM events WHERE revenue != 0 ORDER BY revenue DESC",
+			)
+			.all() as Array<{
+			external_id: string;
+			revenue: number;
+			net_revenue: number;
+			net_source: string;
+		}>;
+		expect(rows.map((r) => [r.external_id, r.revenue, r.net_source])).toEqual([
+			["ord-ref", 9.08, "reported"],
+			["ord-ref:refund", -9.08, "refund_ratio"],
+		]);
+		expect(rows[0]?.net_revenue).toBeCloseTo(8.13, 6);
+		expect(rows[1]?.net_revenue).toBeCloseTo(-8.13, 6);
 	});
 
 	it("derives net from Polar's platform fee and rejects unusable fees", () => {
@@ -676,10 +791,62 @@ describe("revenue backfill", () => {
 			[browser("b2", "stranger"), order("o-linked", "buyer")],
 			ctx,
 		);
+		// The stranger's row is not the buyer's sale, and nothing vouches for the rail's orders.
 		expect(linked.patches.find((p) => p.id === "b2")?.excluded_reason).toBeUndefined();
 
 		const claimed = planRevenueBackfill([browser("b3", "buyer"), order("o-linked2", "buyer")], ctx);
 		expect(claimed.patches.find((p) => p.id === "b3")?.excluded_reason).toBe("duplicate");
+	});
+
+	it("matches browser rows to orders by time despite a different amount and excludes the unconfirmed", () => {
+		const base = Date.parse("2026-08-10T10:00:00Z");
+		const at = (ms: number) => new Date(base + ms).toISOString();
+		const browser = (id: string, visitor: string, ms: number, revenue = 29.99) =>
+			row({
+				id,
+				visitor_id: visitor,
+				payment_provider: "polar",
+				path: "/thanks/",
+				revenue,
+				timestamp: at(ms),
+				props: JSON.stringify({ source: "polar" }),
+			});
+		const order = (id: string, ms: number, revenue: number) =>
+			row({
+				id,
+				visitor_id: `polar_${id}`,
+				payment_provider: "polar",
+				rail: "polar",
+				external_id: id,
+				revenue,
+				timestamp: at(ms),
+				props: JSON.stringify({ source: "polar" }),
+			});
+		const events = [
+			order("o1", 0, 19.99),
+			browser("matched", "v1", 15_000),
+			browser("phantom-in", "v2", 3_600_000),
+			order("o2", 7_200_000, 14.99),
+			browser("matched2", "v3", 7_200_000 + 20_000, 14.99),
+			browser("phantom-after", "v4", 10_800_000),
+		];
+		const verdict = (plan: ReturnType<typeof planRevenueBackfill>) =>
+			Object.fromEntries(plan.patches.map((p) => [p.id, p.excluded_reason]));
+
+		// Nobody vouches for the rail's orders: unclaimed browser rows stay counted.
+		const byDefault = planRevenueBackfill(events, ctx);
+		expect(verdict(byDefault)).toMatchObject({ matched: "duplicate", matched2: "duplicate" });
+		expect(verdict(byDefault)["phantom-in"]).toBeUndefined();
+		expect(byDefault.counts.unconfirmed).toBe(0);
+		// A matched row remembers its order so a later live browser row cannot claim it again.
+		expect(byDefault.patches.find((p) => p.id === "matched")?.duplicate_of).toBe("o1");
+
+		// An import of every order up to an instant vouches for the period up to it.
+		const through = new Map([[`${SITE}\u0000polar`, base + 4 * 3_600_000]]);
+		const complete = planRevenueBackfill(events, { ...ctx, confirmedThrough: through });
+		expect(verdict(complete)["phantom-after"]).toBe("unconfirmed");
+		expect(complete.counts).toMatchObject({ duplicate: 2, unconfirmed: 2 });
+		expect(verdict(complete).o1).toBeUndefined();
 	});
 
 	it("reports per-rail totals before and after", () => {

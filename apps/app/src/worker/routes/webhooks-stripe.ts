@@ -5,6 +5,7 @@ import type { KlikapaDatabase } from "@revklik/shared";
 import { sql } from "../db";
 import { mapStripePaymentMethod, verifyStripeSignature } from "../lib/webhook-utils";
 import { notifySaleEvent, pushCtx } from "../lib/push";
+import { logRejectedDelivery } from "../lib/webhook-log";
 import type { Bindings } from "../types";
 import { generateId } from "../utils";
 
@@ -32,12 +33,13 @@ interface StripeCheckoutSession {
 	mode?: string | null;
 }
 
+// Provider config lives in payment_providers, the table the settings UI writes.
 function findIntegration(db: Kysely<KlikapaDatabase>, siteId: string) {
 	return db
-		.selectFrom("integrations")
-		.select(["id", "site_id", "type", "config"])
+		.selectFrom("payment_providers")
+		.select(["id", "config"])
 		.where("site_id", "=", siteId)
-		.where("type", "=", "stripe")
+		.where("provider", "=", "stripe")
 		.where("enabled", "=", 1)
 		.executeTakeFirst();
 }
@@ -93,12 +95,18 @@ stripeWebhookRoutes.post("/", async (c) => {
 	const webhookSecret = config.webhook_secret || "";
 
 	if (!webhookSecret) {
-		await logWebhookEvent(db, siteId, integration.id, "stripe_no_secret", rawBody, "failed");
+		await logRejectedDelivery(db, siteId, integration.id, "stripe_no_secret", "no_secret");
 		return c.json({ error: "Webhook secret not configured for this integration" }, 401);
 	}
 	const valid = await verifyStripeSignature(rawBody, signatureHeader, webhookSecret);
 	if (!valid) {
-		await logWebhookEvent(db, siteId, integration.id, "stripe_invalid_sig", rawBody, "failed");
+		await logRejectedDelivery(
+			db,
+			siteId,
+			integration.id,
+			"stripe_invalid_sig",
+			"invalid_signature",
+		);
 		return c.json({ error: "Invalid signature" }, 401);
 	}
 

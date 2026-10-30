@@ -87,9 +87,41 @@ export interface IntegrationTestResult {
 	detail?: string;
 }
 
-export interface PolarImportResult {
+export interface PolarDelivery {
+	id: string;
+	event_type: string;
+	status: "pending" | "processed" | "failed";
+	created_at: string;
+}
+
+/** What the Connect Polar panel shows. Secrets are never part of it, only whether they are saved. */
+export interface PolarStatus {
+	site_id: string;
+	webhook_url: string;
+	connected: boolean;
+	webhook_secret_configured: boolean;
+	access_token_configured: boolean;
+	organization_id: string;
+	last_sync_at: string | null;
+	last_sync_summary: string;
+	last_sync_error: string;
+	events: PolarDelivery[];
+}
+
+export interface PolarSyncResult {
+	scanned: number;
 	imported: number;
-	skipped: number;
+	updated: number;
+	unchanged: number;
+	ignored: number;
+	more: boolean;
+}
+
+export interface PolarConfigInput {
+	webhook_secret?: string;
+	/** An empty string removes the saved token. */
+	access_token?: string;
+	organization_id?: string;
 }
 
 export interface OdsImportResult {
@@ -186,21 +218,28 @@ export const fetchMarketplaceOrders = (
 ): Promise<LegacyMarketplaceOrder[]> =>
 	legacyFetch(`/marketplace/${marketplace}/orders?site_id=${encodeURIComponent(siteId)}`);
 
-/* ---------------------------------- imports -------------------------------- */
+/* ----------------------------------- polar ---------------------------------- */
 
-export const importPolarOrders = (
-	siteId: string,
-	polarToken: string,
-	polarOrgId?: string,
-): Promise<PolarImportResult> =>
-	legacyFetch("/import/polar-orders", {
-		body: JSON.stringify({
-			site_id: siteId,
-			polar_token: polarToken,
-			polar_org_id: polarOrgId,
-		}),
+export const fetchPolarStatus = (siteId: string): Promise<PolarStatus> =>
+	legacyFetch(`/polar/status?site_id=${encodeURIComponent(siteId)}`);
+
+export const savePolarConfig = (siteId: string, config: PolarConfigInput): Promise<PolarStatus> =>
+	legacyFetch("/polar/config", {
+		body: JSON.stringify({ site_id: siteId, ...config }),
+		method: "PUT",
+	});
+
+/** `days` of history to read, or "all" for the whole order history. */
+export const syncPolarOrders = (siteId: string, days: number | "all"): Promise<PolarSyncResult> =>
+	legacyFetch("/polar/sync", {
+		body: JSON.stringify({ site_id: siteId, days }),
 		method: "POST",
 	});
+
+export const disconnectPolar = (siteId: string): Promise<void> =>
+	legacyFetch(`/polar?site_id=${encodeURIComponent(siteId)}`, { method: "DELETE" });
+
+/* ---------------------------------- imports -------------------------------- */
 
 export const importOneDollarStats = (
 	siteId: string,

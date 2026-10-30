@@ -48,12 +48,20 @@ export interface EventPatch {
 	payment_provider?: string;
 	net?: { net_revenue: number; net_source: NetSource };
 	excluded_reason?: ExcludedReason;
+	/** External id of the order a 'duplicate' browser row repeats; stored in its props. */
+	duplicate_of?: string;
 }
 
 export interface BackfillContext {
 	rates: FxRates;
 	/** Saved fee rules keyed `${owner_id}\u0000${rail}`; defaults apply otherwise. */
 	rules: ReadonlyMap<string, FeeRule>;
+	/**
+	 * Per `${site_id}\u0000${rail}`: instant (ms) up to which the confirmed orders are complete.
+	 * Browser rows are judged `unconfirmed` only for the pairs listed here (an import of every
+	 * order up to that instant); every other rail keeps its unclaimed browser rows.
+	 */
+	confirmedThrough?: ReadonlyMap<string, number>;
 }
 
 export interface BackfillPlan {
@@ -64,6 +72,7 @@ export interface BackfillPlan {
 		net: number;
 		test: number;
 		duplicate: number;
+		unconfirmed: number;
 	};
 }
 
@@ -94,8 +103,12 @@ function railFor(e: BackfillEvent, props: Record<string, unknown>): string | nul
 	return rail === "other" ? null : rail;
 }
 
-/** Ids of browser-reported rows (no external_id) that repeat or pre-announce another row. */
-function findDuplicates(events: BackfillEvent[], props: Map<string, Record<string, unknown>>) {
+/** Browser-reported rows (no external_id) that repeat another row or a confirmed order, or that no order confirms. */
+function findDuplicates(
+	events: BackfillEvent[],
+	props: Map<string, Record<string, unknown>>,
+	ctx: BackfillContext,
+) {
 	const duplicates = new Set<string>();
 	const clientRows = events.filter(
 		(e) =>
@@ -122,7 +135,8 @@ function findDuplicates(events: BackfillEvent[], props: Map<string, Record<strin
 		lastKept.set(key, timeOf(e));
 	}
 
-	// A confirmed order (has an external id) and a browser row for the same sale: keep the order.
+	// A confirmed order (has an external id) and a browser row for the same sale: keep the
+	// order. Matched by time, whatever amount the browser reported (it sends list price).
 	// A test or already-excluded order never claims a real browser sale.
 	const orders = events.filter(
 		(e) =>
@@ -136,35 +150,78 @@ function findDuplicates(events: BackfillEvent[], props: Map<string, Record<strin
 				props: props.get(e.id) ?? {},
 			}) === null,
 	);
-	const claimed = new Set<string>();
+	const pairs: Array<{ order: BackfillEvent; client: BackfillEvent; gap: number }> = [];
 	for (const order of orders) {
 		const orderProps = props.get(order.id) ?? {};
 		const orderRail = railFor(order, orderProps);
 		if (!orderRail) continue;
-		let best: BackfillEvent | null = null;
-		let bestGap = Number.POSITIVE_INFINITY;
+		const orderProvider =
+			order.payment_provider ?? (typeof orderProps.source === "string" ? orderProps.source : "");
+		// An order that names its buyer only claims that buyer's browser row.
+		const orderSynthetic =
+			order.visitor_id === syntheticVisitorId(orderProvider, order.external_id ?? "");
 		for (const client of clientRows) {
-			if (duplicates.has(client.id) || claimed.has(client.id)) continue;
-			if (client.site_id !== order.site_id || client.revenue !== order.revenue) continue;
-			// An order that names its buyer only claims that buyer's browser row.
-			const orderProvider =
-				order.payment_provider ?? (typeof orderProps.source === "string" ? orderProps.source : "");
-			const orderSynthetic =
-				order.visitor_id === syntheticVisitorId(orderProvider, order.external_id ?? "");
+			if (duplicates.has(client.id) || client.site_id !== order.site_id) continue;
 			if (!orderSynthetic && order.visitor_id !== client.visitor_id) continue;
 			if (currencyOf(client) !== currencyOf(order)) continue;
 			if (railFor(client, props.get(client.id) ?? {}) !== orderRail) continue;
 			const gap = Math.abs(timeOf(client) - timeOf(order));
-			if (gap > CLIENT_ORDER_MATCH_MS || gap >= bestGap) continue;
-			best = client;
-			bestGap = gap;
-		}
-		if (best) {
-			claimed.add(best.id);
-			duplicates.add(best.id);
+			if (gap <= CLIENT_ORDER_MATCH_MS) pairs.push({ order, client, gap });
 		}
 	}
-	return duplicates;
+	// Closest pairs first, each order and each browser row used once.
+	const claimedOrders = new Set<string>();
+	const matched = new Set<string>();
+	const duplicateOf = new Map<string, string>();
+	for (const { order, client } of pairs.sort((a, b) => a.gap - b.gap)) {
+		if (claimedOrders.has(order.id) || matched.has(client.id)) continue;
+		claimedOrders.add(order.id);
+		matched.add(client.id);
+		duplicates.add(client.id);
+		duplicateOf.set(client.id, order.external_id ?? "");
+	}
+
+	// Only for a site and rail whose orders the caller vouches for as complete up to an instant
+	// (`confirmedThrough`): a browser row in the period from the first order to that instant that
+	// no order claims is a sale nobody confirmed. Other rails may simply have gaps in their orders.
+	const unconfirmed = new Set<string>();
+	const covered = new Map<string, { from: number; to: number }>();
+	for (const order of orders) {
+		const rail = railFor(order, props.get(order.id) ?? {});
+		if (!rail) continue;
+		const key = `${order.site_id}\u0000${rail}`;
+		const at = timeOf(order);
+		const range = covered.get(key);
+		if (range) {
+			range.from = Math.min(range.from, at);
+			range.to = Math.max(range.to, at);
+		} else covered.set(key, { from: at, to: at });
+	}
+	for (const [key, range] of covered) {
+		const through = ctx.confirmedThrough?.get(key);
+		if (through === undefined) covered.delete(key);
+		else range.to = Math.max(range.to, through);
+	}
+	for (const client of clientRows) {
+		if (duplicates.has(client.id)) continue;
+		const rail = railFor(client, props.get(client.id) ?? {});
+		const range = rail ? covered.get(`${client.site_id}\u0000${rail}`) : undefined;
+		if (!range) continue;
+		const at = timeOf(client);
+		if (at >= range.from - CLIENT_ORDER_MATCH_MS && at <= range.to + CLIENT_ORDER_MATCH_MS) {
+			unconfirmed.add(client.id);
+		}
+	}
+	return { duplicates, unconfirmed, duplicateOf };
+}
+
+function browserRowVerdict(
+	id: string,
+	duplicates: ReadonlySet<string>,
+	unconfirmed: ReadonlySet<string>,
+): ExcludedReason | null {
+	if (duplicates.has(id)) return "duplicate";
+	return unconfirmed.has(id) ? "unconfirmed" : null;
 }
 
 /**
@@ -175,9 +232,9 @@ function findDuplicates(events: BackfillEvent[], props: Map<string, Record<strin
  */
 export function planRevenueBackfill(events: BackfillEvent[], ctx: BackfillContext): BackfillPlan {
 	const props = new Map(events.map((e) => [e.id, parseProps(e.props)]));
-	const duplicates = findDuplicates(events, props);
+	const { duplicates, unconfirmed, duplicateOf } = findDuplicates(events, props, ctx);
 	const patches = new Map<string, EventPatch>();
-	const counts = { rail: 0, product: 0, net: 0, test: 0, duplicate: 0 };
+	const counts = { rail: 0, product: 0, net: 0, test: 0, duplicate: 0, unconfirmed: 0 };
 	const patchOf = (e: BackfillEvent): EventPatch => {
 		let patch = patches.get(e.id);
 		if (!patch) {
@@ -194,9 +251,12 @@ export function planRevenueBackfill(events: BackfillEvent[], ctx: BackfillContex
 		if (!excluded) {
 			const reason: ExcludedReason | null =
 				testEventReason({ rail: e.rail, provider: e.payment_provider, props: p }) ??
-				(duplicates.has(e.id) ? "duplicate" : null);
+				browserRowVerdict(e.id, duplicates, unconfirmed);
 			if (reason) {
-				patchOf(e).excluded_reason = reason;
+				const patch = patchOf(e);
+				patch.excluded_reason = reason;
+				const order = duplicateOf.get(e.id);
+				if (reason === "duplicate" && order) patch.duplicate_of = order;
 				counts[reason]++;
 				excluded = true;
 			}
@@ -279,6 +339,11 @@ export function patchSql(patch: EventPatch): string[] {
 		);
 	}
 	if (patch.excluded_reason) {
+		if (patch.duplicate_of) {
+			out.push(
+				`UPDATE events SET props = json_set(COALESCE(props, '{}'), '$.duplicate_of', ${quote(patch.duplicate_of)}) WHERE id = ${id} AND json_extract(props, '$.duplicate_of') IS NULL`,
+			);
+		}
 		if (patch.revenue > 0) {
 			out.push(
 				`UPDATE visitor_profiles SET total_revenue = MAX(0, COALESCE(total_revenue, 0) - ${patch.revenue}) WHERE site_id = ${quote(patch.site_id)} AND visitor_id = ${quote(patch.visitor_id)} AND EXISTS (SELECT 1 FROM events WHERE id = ${id} AND excluded_reason IS NULL)`,

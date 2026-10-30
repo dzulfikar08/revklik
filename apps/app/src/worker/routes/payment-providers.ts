@@ -1,6 +1,7 @@
 import { Hono } from "hono";
 import type { Kysely } from "kysely";
 import type { KlikapaDatabase } from "@revklik/shared";
+import { WRITE_ROLES, accessibleSite } from "../lib/site-roles";
 import { generateId } from "../utils";
 
 type Variables = { db: Kysely<KlikapaDatabase>; userId: string };
@@ -26,38 +27,19 @@ function maskConfig(config: Record<string, string>): Record<string, string> {
 	return masked;
 }
 
-function validateSite(db: Kysely<KlikapaDatabase>, userId: string, siteId: string) {
-	return db
-		.selectFrom("sites")
-		.select(["id"])
-		.where("id", "=", siteId)
-		.where((eb) =>
-			eb.or([
-				eb("user_id", "=", userId),
-				eb.exists(
-					eb
-						.selectFrom("team_members")
-						.select(["id"])
-						.where("site_id", "=", siteId)
-						.where("user_id", "=", userId)
-						.where("accepted_at", "is not", null),
-				),
-			]),
-		)
-		.executeTakeFirst();
-}
-
 paymentProviderRoutes.get("/", async (c) => {
 	const db = c.get("db");
 	const userId = c.get("userId");
 	const siteId = c.req.query("site_id");
 	if (!siteId) return c.json({ error: "site_id required" }, 400);
-	const site = await validateSite(db, userId, siteId);
+	const site = await accessibleSite(db, userId, siteId);
 	if (!site) return c.json({ error: "Site not found" }, 404);
 	const rows = await db
 		.selectFrom("payment_providers")
 		.selectAll()
 		.where("site_id", "=", siteId)
+		// Polar's secret and token are managed (and never listed) through /api/polar.
+		.where("provider", "!=", "polar")
 		.orderBy("created_at", "desc")
 		.execute();
 	return c.json({
@@ -78,7 +60,7 @@ paymentProviderRoutes.post("/", async (c) => {
 		return c.json({ error: "site_id, provider, config required" }, 400);
 	if (!VALID_PROVIDERS.includes(provider))
 		return c.json({ error: `Invalid provider: ${provider}` }, 400);
-	const site = await validateSite(db, userId, site_id);
+	const site = await accessibleSite(db, userId, site_id, WRITE_ROLES);
 	if (!site) return c.json({ error: "Site not found" }, 404);
 	const existing = await db
 		.selectFrom("payment_providers")
@@ -108,12 +90,20 @@ paymentProviderRoutes.delete("/:provider", async (c) => {
 	const provider = c.req.param("provider");
 	const site_id = c.req.query("site_id");
 	if (!site_id) return c.json({ error: "site_id required" }, 400);
-	const site = await validateSite(db, userId, site_id);
+	// Polar is managed (and removed) through /api/polar, not this generic list.
+	if (!VALID_PROVIDERS.includes(provider))
+		return c.json({ error: `Invalid provider: ${provider}` }, 400);
+	const site = await accessibleSite(db, userId, site_id, WRITE_ROLES);
 	if (!site) return c.json({ error: "Site not found" }, 404);
-	await db
-		.deleteFrom("payment_providers")
+	const rows = await db
+		.selectFrom("payment_providers")
+		.select("id")
 		.where("site_id", "=", site_id)
 		.where("provider", "=", provider)
 		.execute();
+	for (const row of rows) {
+		await db.deleteFrom("webhook_events").where("integration_id", "=", row.id).execute();
+		await db.deleteFrom("payment_providers").where("id", "=", row.id).execute();
+	}
 	return c.json({ success: true });
 });
