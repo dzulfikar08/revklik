@@ -91,6 +91,7 @@ describe("Stripe signatures (review #1)", () => {
 			data: {
 				object: {
 					id: "cs_1",
+					payment_status: "paid",
 					amount_total: 2500,
 					currency: "usd",
 					metadata: { revklik_site_id: "s-stripe" },

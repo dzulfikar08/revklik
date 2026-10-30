@@ -39,3 +39,30 @@ export async function logRejectedDelivery(
 		})
 		.execute();
 }
+
+/** Audit row for a delivery: `processed` once booked or deliberately ignored, `failed` when it was not. */
+export async function logWebhookEvent(
+	db: Kysely<KlikapaDatabase>,
+	siteId: string,
+	integrationId: string,
+	eventType: string,
+	payload: string,
+	status: "processed" | "failed",
+): Promise<void> {
+	const now = new Date().toISOString();
+	await db
+		.insertInto("webhook_events")
+		.values({
+			id: generateId(),
+			site_id: siteId,
+			integration_id: integrationId,
+			direction: "inbound",
+			event_type: eventType,
+			payload,
+			status,
+			attempts: 1,
+			created_at: now,
+			processed_at: status === "processed" ? now : null,
+		})
+		.execute();
+}

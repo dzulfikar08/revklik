@@ -1,17 +1,3 @@
-export interface WebhookResult {
-	siteId: string;
-	amount: number;
-	currency: string;
-	paymentMethod: string;
-	provider: string;
-	orderId: string;
-	sessionId?: string;
-	utmSource?: string;
-	utmCampaign?: string;
-	subscriptionId?: string;
-	eventType: "payment" | "subscription" | "refund";
-}
-
 export async function verifyMidtransSignature(
 	orderId: string,
 	statusCode: string,
