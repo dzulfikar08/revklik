@@ -1,0 +1,119 @@
+---
+title: Server MCP
+description: "Tanyakan RevKlik dari Codex, Cursor, atau Claude: satu endpoint MCP, 14 tool baca-saja, token API yang sama dengan REST API."
+---
+
+RevKlik menyediakan **server Model Context Protocol (MCP)**, sehingga agen
+coding seperti Codex, Cursor, atau Claude bisa membaca analitik Anda langsung.
+Datanya sama dengan REST API (keduanya berjalan di satu lapisan kueri
+bersama), sehingga pertanyaan seperti "referrer mana yang membawa pengunjung
+berbayar minggu lalu?" menjadi sebuah prompt, bukan sesi dasbor.
+
+## Endpoint
+
+```
+https://app.revklik.com/api/mcp
+```
+
+- **Transport**: Streamable HTTP, stateless. Setiap POST adalah permintaan
+  JSON-RPC 2.0 lengkap yang membawa header `Authorization` sendiri; tidak ada
+  sesi, jadi probe stream dari server ke klien dijawab `405`.
+- **Versi protokol**: `2025-06-18` (terbaru), `2025-03-26`, dan `2024-11-05`.
+  Server membalas dengan versi klien Anda bila didukung.
+- **Batas laju**: satu bucket per token, dibagi dengan REST API.
+
+## Autentikasi
+
+Gunakan token API yang sama dengan REST API. Buat di **Share → API tokens**
+(lihat [berbagi dan akses](/id/integrations#share-and-access)):
+
+| Token | Diawali | Cocok untuk                                                             |
+| ----- | ------- | ----------------------------------------------------------------------- |
+| Akun  | `rvt_`  | Pekerjaan multi-situs; `list_sites` mewajibkan token akun               |
+| Situs | `rv_`   | Satu situs; argumen `site_id` opsional dan bawaannya situs itu          |
+
+Cakupan menentukan apa yang boleh dipanggil token: `analytics:read` mencakup
+tool analitik, `analytics:export` mencakup `export_events`, dan `sites:read`
+mencakup `list_sites`. Cakupan `events:write` untuk
+[API event server](/id/integrations#server-events-api), bukan untuk tool MCP.
+
+## Hubungkan klien
+
+Codex CLI:
+
+```sh
+codex mcp add revklik --transport http https://app.revklik.com/api/mcp \
+  -s user -H "Authorization: Bearer rvt_YOUR_TOKEN"
+```
+
+Claude Code:
+
+```sh
+claude mcp add --transport http revklik https://app.revklik.com/api/mcp \
+  --header "Authorization: Bearer rvt_YOUR_TOKEN"
+```
+
+Cursor (`.cursor/mcp.json`):
+
+```json
+{
+	"mcpServers": {
+		"revklik": {
+			"url": "https://app.revklik.com/api/mcp",
+			"headers": { "Authorization": "Bearer rvt_YOUR_TOKEN" }
+		}
+	}
+}
+```
+
+Klien MCP lain bekerja dengan cara yang sama: arahkan ke URL di atas dan kirim
+token sebagai header `Authorization` Bearer.
+
+## Tool
+
+Empat belas tool baca-saja, mencerminkan REST API satu lawan satu (`gsc_queries`
+didukung endpoint GSC `/api/gsc/queries`, yang lebih tua dari v1):
+
+| Tool                   | Mengembalikan                                                      | Cakupan            |
+| ---------------------- | ------------------------------------------------------------------ | ------------------ |
+| `whoami`               | Identitas token: pengguna, paket, jenis token, cakupan, situs terikat |                  |
+| `list_sites`           | Situs yang bisa diakses token (milik sendiri + tim)                | `sites:read`       |
+| `analytics_overview`   | Pageview, pengunjung, sesi, bounce rate, pendapatan, konversi      | `analytics:read`   |
+| `analytics_timeseries` | Pageview dan pengunjung per hari (per jam untuk rentang hingga 48 jam) | `analytics:read` |
+| `top_pages`            | Halaman teratas berdasarkan pageview                               | `analytics:read`   |
+| `top_referrers`        | Sumber trafik dengan porsi pengunjung, termasuk `direct`           | `analytics:read`   |
+| `geo_breakdown`        | Pengunjung menurut negara, wilayah, dan kota                       | `analytics:read`   |
+| `device_breakdown`     | Pengunjung menurut jenis perangkat, OS, dan browser                | `analytics:read`   |
+| `revenue_breakdown`    | Pendapatan menurut sumber, negara, dan dari waktu ke waktu         | `analytics:read`   |
+| `portfolio_revenue`    | Pendapatan kotor vs bersih di semua situs Anda, per produk dan rail | `analytics:read`  |
+| `campaigns`            | Kampanye UTM dengan konversi, pendapatan, dan tingkat konversi     | `analytics:read`   |
+| `visitor_journeys`     | Sesi terbaru dengan perjalanan langkah demi langkah dan profil yang dikenal | `analytics:read` |
+| `gsc_queries`          | Kueri Google Search Console: klik, impresi, CTR, posisi            | `analytics:read`   |
+| `export_events`        | Baris mentah (event, pengunjung, atau sesi) sebagai JSON atau CSV  | `analytics:export` |
+
+Argumen bersama:
+
+- `range`: `24h`, `7d` (bawaan), `30d`, atau `90d`. Rentang kustom
+  `"YYYY-MM-DD,YYYY-MM-DD"` berfungsi di REST API tetapi bukan bagian skema
+  tool MCP, sehingga klien MCP tidak bisa mengirimnya.
+- `site_id`: opsional dengan token situs (`rv_`), wajib dengan token akun
+  (`rvt_`). Ambil id dari `list_sites`.
+- `limit` bila tersedia: hingga 100 baris. `export_events` menerima `type`
+  (`events`/`visitors`/`sessions`), `event_type`
+  (`pageview`/`custom`/`conversion`/`payment`/`subscription`), `format`
+  (`json`/`csv`), dan hingga 1.000 baris.
+
+## Prompt untuk dicoba
+
+- "Bandingkan referrer teratas bulan ini dengan bulan lalu."
+- "Kampanye UTM mana yang menghasilkan pendapatan terbanyak dalam 90 hari terakhir?"
+- "Ekspor event konversi minggu lalu sebagai CSV."
+
+## Galat
+
+- `401`: token hilang atau tidak valid.
+- `400`: header `MCP-Protocol-Version` tidak didukung.
+- `-32602`: argumen tool tidak valid.
+- `-32601`: metode tidak dikenal.
+- Kegagalan tool lain (misalnya cakupan yang kurang) kembali sebagai hasil
+  dengan `isError: true` plus `error` dan `hint` yang menjelaskan cara memperbaikinya.

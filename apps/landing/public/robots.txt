@@ -1,7 +1,4 @@
 User-agent: *
 Allow: /
-Sitemap: https://revklik.com/sitemap.xml
 
-# Tracking endpoints
-Disallow: /api/track
-Disallow: /api/webhooks
+Sitemap: https://revklik.com/sitemap.xml

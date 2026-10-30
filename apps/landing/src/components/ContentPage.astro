@@ -1,0 +1,41 @@
+---
+import { getEntry, render } from 'astro:content';
+import '../styles/content.css';
+import type { Copy, Locale } from '../data/copy';
+import { localePath } from '../data/seo';
+import RootLayout from '../layouts/RootLayout.astro';
+import { formatDate } from '../lib/blog';
+
+interface Props {
+	c: Copy;
+	locale: Locale;
+	/** Page slug: `privacy`, `terms`, `support`. */
+	slug: string;
+}
+const { c, locale, slug } = Astro.props;
+const entry = await getEntry('pages', `${locale}/${slug}`);
+if (!entry) throw new Error(`Missing page content: ${locale}/${slug}`);
+const { Content } = await render(entry);
+const d = entry.data;
+---
+<RootLayout
+	c={c}
+	locale={locale}
+	path={localePath(locale, `/${slug}`)}
+	alternates={{ id: localePath('id', `/${slug}`), en: localePath('en', `/${slug}`) }}
+	title={`${d.title} | RevKlik`}
+	description={d.description}
+>
+  <header class="doc-head">
+    <div class="wrap-narrow">
+      <h1>{d.title}</h1>
+      <p class="lede">{d.description}</p>
+      {d.updated && <p class="doc-updated">{c.legal_updated}: <time datetime={d.updated}>{formatDate(d.updated, locale)}</time></p>}
+    </div>
+  </header>
+  <div class="doc-body">
+    <div class="wrap-narrow prose">
+      <Content />
+    </div>
+  </div>
+</RootLayout>

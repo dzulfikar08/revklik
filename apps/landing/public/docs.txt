@@ -1,4 +1,4 @@
-RevKlik Analytics — Complete Setup Guide (for humans and AI agents)
+RevKlik Analytics: Complete Setup Guide (for humans and AI agents)
 =================================================================
 
 RevKlik is a privacy-first, revenue-focused web analytics platform.
@@ -18,11 +18,16 @@ Add this script tag to every HTML page, before the closing </head>:
 <script defer data-site-id="YOUR_SITE_ID" src="https://app.revklik.com/klikapa.js"></script>
 
 Replace YOUR_SITE_ID with the Site ID from your dashboard (format: UUID).
-Do NOT self-host or change the URL. The script is <1KB, deferred, non-blocking.
+Do NOT self-host or change the URL. The script is about 4 KB gzipped, deferred, non-blocking.
 
 Optional: enable heatmap & session replay by adding data-heatmap="true":
 
 <script defer data-site-id="YOUR_SITE_ID" data-heatmap="true" src="https://app.revklik.com/klikapa.js"></script>
+
+Heatmaps and session recordings stay off until the site owner sets window.klikapa_consent
+(get the visitor's consent first). To hold all tracking until consent, add
+data-consent="required" to the script tag and call klikapa.consent(true) once the visitor
+accepts (klikapa.consent(false) if they decline). Guidance: https://docs.revklik.com/privacy/
 
 ------------------------------------------------------------------
 2. AUTOMATIC TRACKING (zero config)
@@ -31,7 +36,7 @@ Optional: enable heatmap & session replay by adding data-heatmap="true":
 Once installed, RevKlik tracks with no further code:
 
 - Pageviews on every page load
-- Single-Page App (SPA) route changes — history.pushState /
+- Single-Page App (SPA) route changes: history.pushState /
   history.replaceState / popstate are patched automatically
 - Scroll depth milestones: 25%, 50%, 75%, 90%
 - Clicks on <a>, <button>, and any element with a data-track attribute
@@ -44,7 +49,7 @@ Once installed, RevKlik tracks with no further code:
 3. DECLARATIVE TRACKING (HTML attributes, no JavaScript)
 ------------------------------------------------------------------
 
-3a. Named section views — add data-section to major sections:
+3a. Named section views: add data-section to major sections:
 
 <section data-section="hero">...</section>
 <section data-section="features">...</section>
@@ -53,13 +58,13 @@ Once installed, RevKlik tracks with no further code:
 Fires event "scroll_section" with the section name when the section
 enters the viewport.
 
-3b. Element visibility — add data-revklik-scroll (threshold 0-1):
+3b. Element visibility: add data-revklik-scroll (threshold 0-1):
 
 <img data-revklik-scroll="0.5" ...>
 
 Fires event "scroll_depth" when the element becomes 50% visible.
 
-3c. Conversion goals — add data-revklik-goal to any clickable element:
+3c. Conversion goals: add data-revklik-goal to any clickable element:
 
 <a href="/register" data-revklik-goal="register_click">Sign up</a>
 <button data-revklik-goal="checkout_click" data-revklik-goal-plan="pro">Buy</button>
@@ -90,7 +95,7 @@ klikapa.conversion(name, revenue, props)
     klikapa.conversion('purchase', 49.00, { product: 'Pro' });
 
 klikapa.pageview()
-    Manually send a pageview (rarely needed — SPA navigation is
+    Manually send a pageview (rarely needed, since SPA navigation is
     tracked automatically).
 
 klikapa.identify(data)
@@ -113,17 +118,14 @@ Example wiring after a successful checkout:
 5. REVENUE ATTRIBUTION (server-side, optional)
 ------------------------------------------------------------------
 
-To connect revenue to visitor journeys (Polar supported today, more
-payment providers coming):
+To connect revenue to visitor journeys, RevKlik supports Xendit,
+DOKU, Mayar, Paywuz and Polar
+(App Store Connect as an import). Per-gateway steps:
+https://docs.revklik.com/integrations/
 
-1. In the RevKlik dashboard, open the site -> Import page -> Polar.
-2. Copy the webhook URL shown there (it ends in /api/billing/webhook).
-3. In Polar: polar.sh/settings -> Webhooks -> Add Endpoint -> paste
-   the URL.
-4. Select events: order.created, subscription.created, order.paid.
-
-New orders then sync automatically. Past orders can be imported
-one-time on the same page with a Polar Organization Access Token.
+Alternatively, report sales from your own backend with the server
+events API (POST /api/v1/events/server, scope events:write):
+https://docs.revklik.com/api/
 
 ------------------------------------------------------------------
 6. LIVE WIDGET (optional)
@@ -132,7 +134,7 @@ one-time on the same page with a Polar Organization Access Token.
 Show live RevKlik numbers directly on the tracked website:
 visitors online now, visitors today (resets at midnight in the
 site's timezone, set in the dashboard), and the all-time total.
-Aggregate counts only — no cookies, no personal data.
+Aggregate counts only, no visitor-level data.
 
 1. In the dashboard: Settings -> Live Widget -> Enable Widget.
    This mints a widget token (format: UUID).
@@ -177,7 +179,7 @@ Developer hook: window.klikapaLiveUpdate = (stats) => { ... }
 receives the latest stats object after every refresh.
 
 Agents: skip this section unless the user explicitly asks for the
-live widget AND provides a widget token — enabling it requires
+live widget AND provides a widget token, because enabling it requires
 dashboard access (Settings -> Live Widget).
 
 ------------------------------------------------------------------

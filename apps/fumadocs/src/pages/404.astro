@@ -1,0 +1,66 @@
+---
+import "@/styles/global.css";
+import { BrandLockup } from "@/components/brand-lockup";
+import Layout from "@/components/layout.astro";
+
+const COPY = {
+  en: {
+    heading: "This page does not exist",
+    body: "The link may be old, or the page may have moved. Search the docs from the home page, or jump straight to a page people look for most.",
+    home: "Open the docs home",
+    links: [
+      { href: "/getting-started/", label: "Install the tracker" },
+      { href: "/integrations/", label: "Connect a payment gateway" },
+      { href: "/faq/", label: "Read the FAQ" },
+    ],
+  },
+  id: {
+    heading: "Halaman ini tidak ada",
+    body: "Tautannya mungkin sudah lama, atau halamannya sudah dipindahkan. Cari di dokumentasi dari beranda, atau langsung buka halaman yang paling sering dicari.",
+    home: "Buka beranda dokumentasi",
+    links: [
+      { href: "/id/getting-started/", label: "Pasang tracker" },
+      { href: "/id/integrations/", label: "Hubungkan gateway pembayaran" },
+      { href: "/id/faq/", label: "Baca FAQ" },
+    ],
+  },
+} as const;
+
+const sections = [
+  { lang: "en", homeHref: "/", copy: COPY.en },
+  { lang: "id", homeHref: "/id/", copy: COPY.id },
+] as const;
+---
+
+<Layout title="Page not found" pathname="/404/" noindex>
+  <main class="mx-auto flex w-full max-w-3xl flex-1 flex-col justify-center gap-12 px-6 py-16">
+    <a href="/" aria-label="RevKlik docs" class="inline-flex w-fit text-fd-foreground">
+      <BrandLockup className="h-7 w-auto" />
+    </a>
+    {
+      sections.map(({ lang, homeHref, copy }) => (
+        <section lang={lang} class="flex flex-col gap-4">
+          <p class="text-sm font-medium text-fd-muted-foreground">404</p>
+          <h1 class="text-3xl font-semibold text-fd-foreground">{copy.heading}</h1>
+          <p class="max-w-prose text-fd-muted-foreground">{copy.body}</p>
+          <div class="flex flex-wrap items-center gap-x-6 gap-y-2">
+            <a
+              href={homeHref}
+              class="inline-flex min-h-11 items-center rounded-lg bg-fd-primary px-4 font-medium text-fd-primary-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-fd-ring"
+            >
+              {copy.home}
+            </a>
+            {copy.links.map((link) => (
+              <a
+                href={link.href}
+                class="inline-flex min-h-11 items-center text-fd-primary underline underline-offset-4 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-fd-ring"
+              >
+                {link.label}
+              </a>
+            ))}
+          </div>
+        </section>
+      ))
+    }
+  </main>
+</Layout>

@@ -1,0 +1,33 @@
+---
+import '../styles/content.css';
+import { EN, ID } from '../data/copy';
+import { DOCS_URL } from '../data/site';
+import RootLayout from '../layouts/RootLayout.astro';
+
+// Cloudflare Pages serves this file with a real 404 for every unknown URL, so it
+// cannot know which language the visitor wanted. Both languages are shown.
+const blocks = [
+	{ c: ID, lang: 'id', home: '/', blog: '/blog', docs: `${DOCS_URL}/id/` },
+	{ c: EN, lang: 'en', home: '/en/', blog: '/en/blog', docs: `${DOCS_URL}/` },
+];
+---
+<RootLayout
+	c={ID}
+	locale="id"
+	path="/404"
+	noindex
+	title={`${ID.notfound_title} | RevKlik`}
+	description={ID.notfound_desc}
+>
+  {blocks.map(({ c, lang, home, blog, docs }) => (
+    <section class="notfound wrap-narrow" lang={lang}>
+      <h1>{c.notfound_title}</h1>
+      <p class="lede">{c.notfound_desc}</p>
+      <div class="notfound-actions">
+        <a class="btn btn-primary" href={home}>{c.notfound_home}</a>
+        <a class="btn btn-ghost" href={blog}>{c.notfound_blog}</a>
+        <a class="btn btn-ghost" href={docs}>{c.notfound_docs}</a>
+      </div>
+    </section>
+  ))}
+</RootLayout>

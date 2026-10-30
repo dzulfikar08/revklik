@@ -6,6 +6,8 @@ interface Props {
 }
 const { c } = Astro.props;
 const plans = getPlans(c);
+const currency = (label: string) => (label.startsWith('Rp') ? 'Rp' : '$');
+const amount = (label: string) => label.replace(/^(Rp ?|\$)/, '');
 ---
 <section class="pricing" id="pricing" data-section="pricing">
   <div class="wrap">
@@ -13,6 +15,11 @@ const plans = getPlans(c);
       <h2>{c.price_title}</h2>
       <p>{c.price_desc}</p>
     </div>
+    <ol class="trial-line" aria-label={c.price_title}>
+      {c.price_timeline.map((t) => (
+        <li><strong>{t.when}</strong><span>{t.what}</span></li>
+      ))}
+    </ol>
     <div class="plans">
       {plans.map((plan) => (
         <article class={`plan${plan.highlight ? ' plan-highlight' : ''}`}>
@@ -21,11 +28,14 @@ const plans = getPlans(c);
             <p>{plan.desc}</p>
             {plan.highlight && <p class="plan-note">{c.price_highlight}</p>}
           </div>
-          <p class="plan-price"><span class="cur">Rp</span><span class="amt">{plan.label.replace('Rp ', '')}</span><span class="per">{c.price_per}</span></p>
+          <div>
+            <p class="plan-price"><span class="cur">{currency(plan.label)}</span><span class="amt">{amount(plan.label)}</span><span class="per">{c.price_per}</span></p>
+            <p class="plan-alt">{plan.altLabel}</p>
+          </div>
           <ul class="plan-feats">
             {plan.features.map((f) => <li>{f}</li>)}
           </ul>
-          <a href={appLink(registerUrl(plan), c.lang)} class={`btn plan-cta ${plan.highlight ? 'btn-primary' : 'btn-ghost'}`} data-cta data-revklik-goal="register_click" data-revklik-goal-plan={plan.name}>{c.plan_cta}</a>
+          <a href={appLink(registerUrl(plan), c.lang)} class={`btn plan-cta ${plan.highlight ? 'btn-primary' : 'btn-ghost'}`} data-cta data-revklik-goal="register_click" data-revklik-goal-plan={plan.name}>{c.plan_cta.replace('{plan}', plan.name)}</a>
         </article>
       ))}
     </div>

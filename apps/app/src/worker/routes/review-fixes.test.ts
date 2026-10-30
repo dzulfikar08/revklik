@@ -235,7 +235,7 @@ describe("account protection (review #5, #6, #7, A)", () => {
 			).data.user.email_verified;
 		expect(await me()).toBe(false);
 
-		const link = mails.find((m) => m.subject.includes("confirm"))?.text ?? "";
+		const link = mails.find((m) => /confirm/i.test(m.subject))?.text ?? "";
 		expect(link).toContain("https://app.test/verify-email?token=");
 		const token = /token=([0-9a-f]+)/.exec(link)?.[1] ?? "";
 		expect((await t.call("POST", "/api/auth/verify-email", { body: { token } })).status).toBe(200);

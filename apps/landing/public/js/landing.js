@@ -148,4 +148,46 @@
     var status = body.querySelector('[data-frame-status]');
     if (frame && status) frame.addEventListener('load', function () { status.hidden = true; });
   });
+
+  // Mobile sticky CTA: shown once the hero is behind the reader, tucked away
+  // while a section with its own sign-up button is on screen.
+  var sticky = document.querySelector('[data-sticky-cta]');
+  if (sticky && 'IntersectionObserver' in window) {
+    var seen = new Set();
+    var heroPassed = false;
+    var paint = function () { sticky.classList.toggle('is-off', !heroPassed || seen.size > 0); };
+    var watch = new IntersectionObserver(function (entries) {
+      entries.forEach(function (entry) {
+        var name = entry.target.dataset.section;
+        if (entry.isIntersecting) seen.add(name); else seen.delete(name);
+        if (name === 'hero' && !entry.isIntersecting && entry.boundingClientRect.top < 0) heroPassed = true;
+        if (name === 'hero' && entry.isIntersecting) heroPassed = false;
+      });
+      paint();
+    });
+    document.querySelectorAll('[data-section="hero"], [data-section="pricing"], [data-section="cta"]').forEach(function (el) { watch.observe(el); });
+    sticky.hidden = false;
+    sticky.classList.add('is-off');
+  }
+
+  // Blog category filter: chips toggle which cards show. Without JS every card stays visible.
+  var filters = document.querySelector('[data-blog-filters]');
+  if (filters) {
+    var cards = document.querySelectorAll('[data-blog-grid] .post-card, .post-featured');
+    var empty = document.querySelector('[data-blog-empty]');
+    filters.addEventListener('click', function (e) {
+      var chip = e.target.closest('[data-filter]');
+      if (!chip) return;
+      var want = chip.dataset.filter;
+      filters.querySelectorAll('[data-filter]').forEach(function (b) { b.setAttribute('aria-pressed', String(b === chip)); });
+      var shown = 0;
+      cards.forEach(function (card) {
+        var match = want === 'all' || card.dataset.cat === want;
+        card.hidden = !match;
+        if (match) shown++;
+      });
+      if (empty) empty.hidden = shown > 0;
+      track('blog_filter', { category: want });
+    });
+  }
 })();

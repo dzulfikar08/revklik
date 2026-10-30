@@ -1,29 +1,36 @@
 ---
 import type { Copy, Locale } from '../data/copy';
-import { appLink, LOGIN_URL, REGISTER_URL } from '../data/site';
+import { appLink, docsUrl, LOGIN_URL, REGISTER_URL } from '../data/site';
+import { type Alternates, localePath } from '../data/seo';
 import BrandMark from './BrandMark.astro';
 
 interface Props {
 	c: Copy;
 	locale: Locale;
+	home?: boolean;
+	current?: 'blog' | 'docs';
+	alternates?: Alternates;
 }
-const { c, locale } = Astro.props;
-const home = locale === 'en' ? '/en/' : '/';
-const blog = locale === 'en' ? '/en/blog.html' : '/blog.html';
+const { c, locale, home = false, current, alternates } = Astro.props;
+const homePath = localePath(locale, '/');
+// Section anchors only exist on the home page; elsewhere they go back to it.
+const anchor = (id: string) => (home ? `#${id}` : `${homePath}#${id}`);
+const blog = localePath(locale, '/blog');
 const options = [
-	{ value: 'id', label: 'ID', name: c.locale_id_name, href: '/' },
-	{ value: 'en', label: 'EN', name: c.locale_en_name, href: '/en/' },
+	{ value: 'id', label: 'ID', name: c.locale_id_name, href: alternates?.id ?? '/' },
+	{ value: 'en', label: 'EN', name: c.locale_en_name, href: alternates?.en ?? '/en/' },
 ] as const;
 ---
 <header class="site-nav">
   <nav class="wrap nav-bar" aria-label={c.nav_label}>
-    <a href={home} class="brand" aria-label={c.home_label}><BrandMark width={34} /><span>Rev<b>Klik</b></span></a>
+    <a href={homePath} class="brand" aria-label={c.home_label}><BrandMark width={34} /><span>Rev<b>Klik</b></span></a>
     <div id="site-menu" class="nav-menu">
-      <a class="nav-link" href="#features">{c.nav_features}</a>
-      <a class="nav-link" href="#cara-pasang">{c.nav_how}</a>
-      <a class="nav-link" href="#pricing">{c.nav_pricing}</a>
-      <a class="nav-link" href="#faq">{c.nav_faq}</a>
-      <a class="nav-link" href={blog}>{c.nav_blog}</a>
+      <a class="nav-link" href={anchor('features')}>{c.nav_features}</a>
+      <a class="nav-link" href={anchor('cara-pasang')}>{c.nav_how}</a>
+      <a class="nav-link" href={anchor('pricing')}>{c.nav_pricing}</a>
+      <a class="nav-link" href={anchor('faq')}>{c.nav_faq}</a>
+      <a class="nav-link" href={blog} aria-current={current === 'blog' ? 'page' : undefined}>{c.nav_blog}</a>
+      <a class="nav-link" href={docsUrl(locale)}>{c.f_docs}</a>
       <div class="lang-switch" role="group" aria-label={c.locale_label}>
         {options.map((o) => (
           <a

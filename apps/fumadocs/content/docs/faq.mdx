@@ -1,15 +1,39 @@
 ---
 title: FAQ
-description: "Frequently asked questions about RevKlik: privacy, events, funnels, plans, payments, and importing data."
+description: "Frequently asked questions about RevKlik: privacy and consent, events, funnels, plans, payments, and importing data."
 ---
 
 ## Is RevKlik privacy-friendly?
 
-Yes. RevKlik is built to be privacy-friendly. Visitors appear under
-deterministic pseudonyms (names and avatars, not raw identifiers), custom
-event parameters with sensitive values are masked, and you can exclude your
-own devices and purge your past visits from
-[Sites](/dashboard/sites#exclusions-and-purging).
+RevKlik is built to collect as little as possible: no third-party cookies, no
+cross-site tracking, no ad profiles. Each browser gets a random first-party
+visitor ID, the dashboard shows visitors under pseudonyms (names and avatars,
+not raw identifiers), custom event parameters with sensitive values are masked,
+and you can exclude your own devices and purge your past visits from
+[Sites](/dashboard/sites#exclusions-and-purging). A persistent ID can still
+single out a returning visitor, so it counts as personal data. The
+[privacy page](/privacy) lists what is stored and for how long.
+
+## Does RevKlik use cookies?
+
+The tracker does not set third-party cookies. It keeps a random visitor ID in
+the browser's local storage on your own domain, plus a session ID in session
+storage. Both are first-party and never shared between sites.
+
+## Do I need a consent banner?
+
+It depends on where your visitors live. If your audience includes Indonesian,
+EU or UK residents, we recommend asking for consent before the tracker runs:
+add `data-consent="required"` to the script tag and call
+`klikapa.consent(true)` when the visitor accepts. Until then nothing is stored
+and nothing is sent. This is guidance, not legal advice; see
+[privacy and consent](/privacy#consent) for the exact snippet.
+
+## Why does my dashboard show no data?
+
+The usual causes are an ad blocker, a Content Security Policy that blocks
+`app.revklik.com`, a wrong site id, a consent gate that never opens, or testing
+on `localhost`. [Getting started](/getting-started#no-data-check) has a checklist.
 
 ## What events does the tracking script collect?
 
@@ -21,15 +45,23 @@ heartbeat events are tracked for session health but hidden from the UI.
 
 No. Funnels are derived automatically from the `data-section` markers on your
 pages. Add the attributes, and the scroll funnel appears. See
-[funnels](/dashboard/funnels).
+[funnels](/dashboard/funnels). Funnels and revenue attribution start on the
+Starter plan.
 
 ## Where does revenue data come from?
 
-Four places: conversions with a revenue amount, payment-provider webhooks
-([Midtrans, Xendit, Stripe, Lemon Squeezy](/integrations#payments)), the
-[server events API](/integrations#server-events-api) for App Store and backend
-purchases, and marketplace orders ([Shopee, Tokopedia](/integrations#marketplace)). You can
+Four places: conversions with a revenue amount, payment-gateway webhooks
+([Xendit, DOKU, Mayar, Paywuz, Polar](/integrations#payments)),
+the [server events API](/integrations#server-events-api) for App Store and
+backend purchases, and [App Store Connect](/integrations#apps) imports. You can
 also [connect Polar](/integrations#polar) to book its orders, fees and refunds.
+
+## Does RevKlik forecast my revenue?
+
+Yes, in a simple way. The [run-rate forecast](/dashboard/insights) averages your
+recent full days of revenue and extends that pace over the next 30 days, in
+your site's currency. It is arithmetic on your real sales, not a model, and it
+needs at least 7 full days of data and 3 sales.
 
 ## Can I share my dashboard?
 
@@ -39,22 +71,23 @@ and scoped **API tokens**. See [share and access](/integrations#share-and-access
 ## Can I query RevKlik from an AI coding agent?
 
 Yes. RevKlik has an [MCP server](/mcp) at
-`https://app.revklik.com/api/mcp` with 12 read-only tools mirroring the REST
+`https://app.revklik.com/api/mcp` with 14 read-only tools mirroring the REST
 API. Connect Codex, Cursor, or Claude with an API token from the Share tab.
 
 ## Can I get my data out?
 
 The dashboard's export button downloads raw events for the current range and
 filters as CSV. API tokens with the `analytics:export` scope allow
-programmatic exports.
+programmatic exports. You can also delete a visitor, a site, or your account;
+see [privacy](/privacy#deletion-and-backups).
 
 ## What's the difference between Micro, Starter, and Growth?
 
 Limits and features. All three are paid: Micro (1 site, 10K events/month,
 Rp 16.000 or $1), Starter (3 sites, 100K events/month, Rp 64.000 or $4), and
 Growth (10 sites, 500K events/month, Rp 192.000 or $12), each per month.
-**Growth** additionally unlocks heatmaps, session recordings, and
-AI insights. Details in [billing](/billing).
+**Growth** additionally unlocks heatmaps, session recordings, and AI insights.
+Details in [billing](/billing).
 
 ## Is there a free plan or a trial?
 
@@ -68,10 +101,10 @@ shown. See
 
 ## How do I pay in Indonesia?
 
-With **QRIS** (RevKlik opens a QRIS payment page and verifies your payment)
-or with a card through hosted checkout. QRIS prices are in IDR (Rp 16.000
-Micro / Rp 64.000 Starter / Rp 192.000 Growth per month), monthly, cancel
-anytime.
+With **QRIS** (RevKlik opens a QRIS payment page and verifies your payment).
+QRIS prices are in IDR (Rp 16.000 Micro / Rp 64.000 Starter / Rp 192.000 Growth
+per month), monthly, cancel anytime. Card checkout in USD ($1 / $4 / $12 per
+month) is the option for everyone else.
 
 ## Can I import from another analytics tool?
 
@@ -87,7 +120,7 @@ clicks, impressions, CTR, and position per query.
 ## Can my team use the same account?
 
 Invite teammates from **Settings → Team** by email as Admin, Editor, or
-Viewer. Invitees need an existing revklik account.
+Viewer. Invitees need an existing RevKlik account.
 
 ## How do I cancel?
 

@@ -1,0 +1,25 @@
+---
+import type { Copy } from '../data/copy';
+import { SUPPORT_EMAIL } from '../data/site';
+interface Props {
+	c: Copy;
+}
+const { c } = Astro.props;
+const mail = `mailto:${SUPPORT_EMAIL}?subject=${encodeURIComponent(c.book_mail_subject)}`;
+---
+<section class="book" id="pembukuan" data-section="bookkeeping">
+  <div class="wrap book-grid">
+    <div class="section-head">
+      <p class="book-kicker">{c.book_kicker}</p>
+      <h2>{c.book_title}</h2>
+      <p>{c.book_desc}</p>
+    </div>
+    <div class="book-body">
+      <ul class="book-items">
+        {c.book_items.map((item) => <li>{item}</li>)}
+      </ul>
+      <p class="book-note">{c.book_note}</p>
+      <a class="link-plain" href={mail} data-cta data-revklik-goal="bookkeeping_interest">{c.book_cta}</a>
+    </div>
+  </div>
+</section>

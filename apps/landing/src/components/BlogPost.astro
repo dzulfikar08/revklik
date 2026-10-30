@@ -1,0 +1,104 @@
+---
+import { render } from 'astro:content';
+import '../styles/content.css';
+import type { Copy, Locale } from '../data/copy';
+import { organizationJsonLd } from '../data/jsonld';
+import { type Alternates, ORIGIN, pageUrl } from '../data/seo';
+import RootLayout from '../layouts/RootLayout.astro';
+import { CATEGORY_LABEL, formatDate, getPosts, hasTranslation, postPath, slugOf, type Post } from '../lib/blog';
+import PostCta from './PostCta.astro';
+interface Props {
+	c: Copy;
+	locale: Locale;
+	post: Post;
+}
+const { c, locale, post } = Astro.props;
+const slug = slugOf(post);
+const { Content } = await render(post);
+const d = post.data;
+const path = postPath(locale, slug);
+const other: Locale = locale === 'en' ? 'id' : 'en';
+const alternates: Alternates | undefined = (await hasTranslation(other, slug))
+	? { id: postPath('id', slug), en: postPath('en', slug) }
+	: undefined;
+const all = await getPosts(locale);
+const related = (d.related.length ? d.related.map((s) => all.find((p) => slugOf(p) === s)) : all.filter((p) => p !== post && p.data.category === d.category))
+	.filter((p): p is Post => Boolean(p))
+	.slice(0, 3);
+const blogIndex = locale === 'en' ? '/en/blog' : '/blog';
+const minutes = c.post_read_min.replace('{n}', String(d.readMinutes));
+const jsonLd = [
+	{
+		'@context': 'https://schema.org',
+		'@type': 'BlogPosting',
+		headline: d.title,
+		inLanguage: locale,
+		datePublished: d.published,
+		dateModified: d.updated ?? d.published,
+		author: { '@type': 'Organization', name: 'RevKlik', url: ORIGIN },
+		publisher: { '@type': 'Organization', name: 'RevKlik', url: ORIGIN, logo: { '@type': 'ImageObject', url: `${ORIGIN}/revklik.webp` } },
+		description: d.description,
+		image: `${ORIGIN}/og/blog/${locale}/${slug}.png`,
+		mainEntityOfPage: pageUrl(path),
+	},
+	{
+		'@context': 'https://schema.org',
+		'@type': 'BreadcrumbList',
+		itemListElement: [
+			{ '@type': 'ListItem', position: 1, name: 'RevKlik', item: pageUrl(locale === 'en' ? '/en/' : '/') },
+			{ '@type': 'ListItem', position: 2, name: c.nav_blog, item: pageUrl(blogIndex) },
+			{ '@type': 'ListItem', position: 3, name: d.title },
+		],
+	},
+	organizationJsonLd(c),
+];
+---
+<RootLayout
+	c={c}
+	locale={locale}
+	current="blog"
+	path={path}
+	alternates={alternates}
+	title={`${d.title} | RevKlik`}
+	description={d.description}
+	ogTitle={d.title}
+	ogDescription={d.ogDescription ?? d.description}
+	ogType="article"
+	ogImage={`${ORIGIN}/og/blog/${locale}/${slug}.png`}
+	article={{ published: d.published, modified: d.updated }}
+	jsonLd={jsonLd}
+>
+  <article class="post">
+    <header class="post-head">
+      <div class="wrap-narrow">
+        <nav class="crumbs" aria-label="Breadcrumb"><a href={blogIndex}>{c.nav_blog}</a><span aria-hidden="true">/</span><span>{CATEGORY_LABEL[locale][d.category]}</span></nav>
+        <h1>{d.title}</h1>
+        <p class="post-meta">
+          <time datetime={d.published}>{formatDate(d.published, locale)}</time>
+          <span>{minutes}</span>
+          <span>{c.post_by}</span>
+          {d.updated && <span>{c.post_updated.replace('{date}', formatDate(d.updated, locale))}</span>}
+        </p>
+      </div>
+    </header>
+    <div class="wrap-narrow prose">
+      <Content />
+    </div>
+    <div class="wrap-narrow">
+      <PostCta c={c} slug={slug} />
+    </div>
+  </article>
+  {related.length > 0 && (
+    <section class="related">
+      <div class="wrap-narrow">
+        <h2>{c.post_more}</h2>
+        <ul class="related-list">
+          {related.map((p) => (
+            <li><a href={postPath(locale, slugOf(p))}>{p.data.title}</a></li>
+          ))}
+        </ul>
+        <a class="link-plain" href={blogIndex}>{c.post_back}</a>
+      </div>
+    </section>
+  )}
+</RootLayout>

@@ -1,0 +1,163 @@
+---
+title: CLI
+description: "Kueri analitik RevKlik dari terminal dengan perintah revklik: situs, ringkasan, halaman, referrer, pendapatan, perjalanan pengunjung, Search Console, dan token API."
+---
+
+Perintah `revklik` membungkus [REST API](/id/api), sehingga Anda bisa membaca analitik tanpa membuka dashboard atau menjalankannya lewat skrip di CI.
+
+## Instalasi
+
+CLI membutuhkan Node.js 22 atau lebih baru.
+
+```bash
+npm install -g @revklik/cli
+revklik --version
+```
+
+## Masuk
+
+Buat token akun (`rvt_`) di **Share → API tokens** (lihat [berbagi dan akses](/id/integrations#share-and-access)) dengan minimal cakupan `sites:read` dan `analytics:read`, lalu:
+
+```bash
+revklik login --token rvt_TOKEN_ANDA
+```
+
+CLI memeriksa token lewat `whoami` dan menyimpannya di `~/.config/revklik/config.json`. Tanpa `--token`, `revklik login` meminta Anda menempelkan token. Token situs (`rv_`) juga diterima, tetapi `revklik gsc` membutuhkan token akun.
+
+```bash
+revklik whoami
+```
+
+menampilkan pengguna, paket, jenis token, cakupan, dan untuk token situs, situs yang terikat.
+
+## Perintah
+
+| Perintah                       | Fungsi                                                            |
+| ------------------------------ | ----------------------------------------------------------------- |
+| `revklik login`                | Menyimpan token API                                               |
+| `revklik whoami`               | Menampilkan token aktif, paket, dan cakupan                       |
+| `revklik sites list`           | Daftar situs Anda                                                 |
+| `revklik analytics overview`   | Pageview, pengunjung, sesi, bounce rate, pendapatan, konversi     |
+| `revklik analytics timeseries` | Pageview dan pengunjung per hari                                  |
+| `revklik analytics pages`      | Halaman teratas                                                   |
+| `revklik analytics referrers`  | Sumber trafik                                                     |
+| `revklik analytics geo`        | Negara, wilayah, dan kota                                         |
+| `revklik analytics devices`    | Rincian perangkat, OS, dan browser                                |
+| `revklik analytics revenue`    | Pendapatan per sumber dan per negara                              |
+| `revklik analytics events`     | Log event mentah                                                  |
+| `revklik analytics journeys`   | Ringkasan perjalanan pengunjung                                   |
+| `revklik gsc queries`          | Kueri Google Search Console yang tersimpan                        |
+| `revklik gsc sync`             | Menarik 7 hari terakhir dari Search Console                       |
+| `revklik tokens list`          | Daftar token API                                                  |
+| `revklik tokens create`        | Membuat token                                                     |
+| `revklik tokens revoke <id>`   | Mencabut token                                                    |
+
+Setiap perintah `analytics` dan `gsc` butuh `-s, --site <situs>`. Isi dengan ID situs, awalan ID yang unik, atau domain persis:
+
+```bash
+revklik sites list
+revklik analytics overview --site situssaya.com --range 7d
+```
+
+`-r, --range` menerima `24h`, `7d`, `30d`, atau `90d` dan bawaannya `7d`.
+
+<Callout type="info" title="Mata uang di terminal">
+Tabel mencetak pendapatan dengan awalan `$` apa pun mata uang situs Anda. Angkanya dalam mata uang situs itu sendiri; gunakan [API](/id/api) untuk mendapat kolom `currency`.
+</Callout>
+
+### Event
+
+```bash
+revklik analytics events --site situssaya.com --type conversion --range 30d --limit 100
+```
+
+| Flag              | Keterangan                                   | Bawaan  |
+| ----------------- | -------------------------------------------- | ------- |
+| `-t, --type`      | `pageview`, `conversion`, `custom`, atau `all` | `all` |
+| `-l, --limit`     | Jumlah event maksimal (sampai 10000)         | `50`    |
+
+### Perjalanan pengunjung
+
+```bash
+revklik analytics journeys --site situssaya.com --sort revenue --limit 10 --range 30d
+```
+
+| Flag          | Keterangan                                          | Bawaan  |
+| ------------- | --------------------------------------------------- | ------- |
+| `--sort`      | `steps`, `revenue`, `source`, `device`, atau `date` | `steps` |
+| `-l, --limit` | Jumlah perjalanan maksimal (sampai 100)             | `20`    |
+
+Pengunjung yang teridentifikasi ditandai `*`.
+
+### Search Console
+
+Hubungkan Search Console di dashboard terlebih dahulu (lihat [integrasi](/id/integrations)).
+
+```bash
+revklik gsc sync --site situssaya.com
+revklik gsc queries --site situssaya.com --limit 20
+```
+
+`gsc queries` menggabungkan jendela 30 hari yang tersimpan. Data Search Console datang dengan jeda sekitar dua hari.
+
+### Token
+
+```bash
+revklik tokens create --name "CI" --type account --scopes sites:read,analytics:read
+revklik tokens create --name "Blog" --type site --site SITE_ID
+revklik tokens revoke TOKEN_ID
+```
+
+`--site` wajib untuk token situs. Tanpa `--scopes`, token mendapat cakupan bawaan sesuai jenisnya (lihat [cakupan REST API](/id/api#scopes)). Token lengkap dicetak sekali saja.
+
+## Keluaran JSON
+
+`--json` mencetak JSON mentah untuk `analytics events` dan `analytics journeys`:
+
+```bash
+revklik analytics events --site situssaya.com --json --limit 100
+revklik analytics journeys --site situssaya.com --json --limit 5
+```
+
+Flag yang sama pada `gsc queries` juga mencetak JSON. Perintah lain hanya mencetak tabel; untuk JSON dari perintah tersebut, panggil [REST API](/id/api) dengan `curl` lalu salurkan ke `jq`:
+
+```bash
+curl -s "https://app.revklik.com/api/v1/analytics/overview?site_id=SITE_ID&range=7d" \
+  -H "Authorization: Bearer $REVKLIK_TOKEN" | jq .data.bounceRate
+```
+
+`--verbose` mencetak basis API dan beberapa karakter pertama token sebelum perintah berjalan.
+
+## Konfigurasi
+
+| Variabel          | Keterangan                                       | Bawaan                        |
+| ----------------- | ------------------------------------------------ | ----------------------------- |
+| `REVKLIK_TOKEN`   | Token API; menimpa token yang tersimpan          | tidak ada                     |
+| `REVKLIK_API_BASE`| URL dasar API, untuk instalasi self-hosted       | `https://app.revklik.com/api` |
+
+Pengaturan tersimpan ada di `~/.config/revklik/config.json`:
+
+```json
+{
+	"token": "rvt_...",
+	"apiBase": "https://app.revklik.com/api"
+}
+```
+
+Jalankan `revklik login` lagi untuk mengganti token.
+
+## Contoh CI
+
+```yaml
+# GitHub Actions
+env:
+  REVKLIK_TOKEN: ${{ secrets.REVKLIK_API_TOKEN }}
+steps:
+  - run: npx @revklik/cli analytics overview --site situssaya.com --range 24h
+```
+
+## Terkait
+
+- [REST API](/id/api): setiap endpoint yang dipanggil CLI
+- [Server MCP](/id/mcp): data yang sama untuk agen pengodean
+- [Laporan harian dengan Hermes Agent](/id/hermes-daily-analytics)

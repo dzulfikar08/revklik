@@ -1,0 +1,90 @@
+---
+title: Tagihan
+description: "Paket dan harga RevKlik: Micro, Starter, dan Growth, dibayar bulanan dalam IDR lewat QRIS atau dalam USD dengan kartu, dengan uji coba Growth 7 hari dan tanpa paket gratis."
+---
+
+RevKlik punya tiga paket berbayar: **Micro**, **Starter**, dan **Growth**.
+Tidak ada paket gratis. Setiap akun baru mendapat **uji coba Growth 7 hari
+tanpa kartu**, sehingga Anda bisa mencoba semua fitur sebelum memilih paket.
+
+<Callout type="info" title="Self-hosting">
+	Paket berlaku untuk layanan hosted di app.revklik.com. Instalasi self-hosted (`SELF_HOSTED=1`)
+	tidak punya paket, batas, uji coba, atau checkout: semua fitur terbuka.
+</Callout>
+
+## Paket
+
+| Paket   | Batas                       | Token API + widget | QRIS (IDR)      | Kartu (USD) |
+| ------- | --------------------------- | ------------------ | --------------- | ----------- |
+| Micro   | 1 situs · 10 rb event/bln   | 2                  | Rp 16.000 / bln | $1 / bln    |
+| Starter | 3 situs · 100 rb event/bln  | 5                  | Rp 64.000 / bln | $4 / bln    |
+| Growth  | 10 situs · 500 rb event/bln | tanpa batas        | Rp 192.000 / bln | $12 / bln  |
+
+Pengunjung dari Indonesia melihat harga IDR lebih dulu dan bisa membayar dengan
+QRIS; yang lain melihat harga USD dan membayar dengan kartu. Bilah penggunaan
+di halaman tagihan menunjukkan event bulan ini dan jumlah situs Anda
+dibandingkan batas paket.
+
+<Callout type="tip" title="Yang dibuka Growth">
+	Heatmap, rekaman sesi, dan insight AI adalah fitur Growth; paket lain melihat pratinjau buram
+	dengan pintasan untuk upgrade ke Growth. Masa uji coba mencakup semuanya.
+</Callout>
+
+Yang termasuk di setiap paket:
+
+| Paket   | Jendela dasbor | Event mentah disimpan | Atribusi pendapatan dan funnel | Heatmap, rekaman, insight AI |
+| ------- | -------------- | --------------------- | ------------------------------ | ---------------------------- |
+| Micro   | 7 hari         | 30 hari               | Tidak                          | Tidak                        |
+| Starter | 30 hari        | 60 hari               | Ya                             | Tidak                        |
+| Growth  | 90 hari        | 180 hari              | Ya                             | Ya                           |
+
+Proyeksi pendapatan tersedia di semua paket. Event mentah dihapus otomatis
+setelah masa retensi; lihat [privasi](/id/privacy#what-is-stored-and-for-how-long).
+
+## Uji coba
+
+- Uji coba dimulai saat Anda membuat akun dan berlaku 7 hari di Growth.
+- Halaman tagihan menampilkan sisa hari. Anda bisa membeli paket apa pun selama
+  uji coba, termasuk Growth.
+- Jika uji coba berakhir tanpa paket, dasbor terkunci dan menampilkan pilihan
+  paket.
+
+## Setelah uji coba atau langganan berakhir [#after-a-trial-or-subscription-ends]
+
+Pelacakan tidak langsung berhenti. Selama **14 hari** setelah uji coba atau
+langganan Anda berakhir, RevKlik tetap mencatat kunjungan dari situs Anda,
+tetapi dasbor tetap terkunci di balik pemilih paket. Halaman tagihan tetap
+bisa dibuka. Saat Anda memilih paket, dasbor menampilkan data dalam jendela
+retensi paket itu: 7 hari terakhir di Micro, 30 hari di Starter, dan 90 hari
+di Growth. Data yang lebih lama tidak ditampilkan, walau tercatat selama masa
+tenggang. Setelah 14 hari, pelacakan berhenti sampai Anda memilih paket.
+
+## Membayar
+
+Setiap kartu paket menawarkan:
+
+- **Bayar dengan QRIS** (hanya Indonesia): membuka halaman pembayaran QRIS di
+  tab baru. Selesaikan pembayaran di sana, lalu tekan **Sudah bayar, cek
+  sekarang** di RevKlik. Pengingat tetap ada di halaman tagihan, bahkan setelah
+  dimuat ulang, sampai pembayaran terkonfirmasi, dan memungkinkan Anda membuka
+  lagi halaman pembayaran.
+- **Bayar dengan kartu**: checkout hosted dalam USD, diproses oleh Polar.
+  Setelah membayar Anda kembali ke RevKlik dan paket aktif begitu pembayaran
+  terkonfirmasi.
+
+Semua paket **bulanan dan bisa dibatalkan kapan saja**.
+
+## Mengelola langganan [#managing-your-subscription]
+
+Halaman tagihan menampilkan tanggal perpanjangan selama paket aktif, atau
+tanggal akhir akses setelah pembatalan. **Batalkan langganan** meminta
+konfirmasi dan membiarkan paket tetap aktif sampai akhir periode: tidak ada
+yang dihapus saat itu, Anda hanya berhenti memperpanjang.
+
+## Jika Anda menerima pembayaran sendiri
+
+Membayar RevKlik dan melacak penjualan Anda sendiri adalah dua hal terpisah.
+Pembayaran pelanggan Anda mengalir **ke dalam** RevKlik, bukan keluar: hubungkan
+gateway pembayaran di [Integrasi → Pembayaran](/id/integrations#payments)
+(Xendit, DOKU, Mayar, Paywuz, atau Polar) dan
+transaksinya masuk ke panel pendapatan Anda secara otomatis.

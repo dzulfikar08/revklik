@@ -1,0 +1,163 @@
+---
+title: CLI
+description: "Query RevKlik analytics from your terminal with the revklik command: sites, overview, pages, referrers, revenue, journeys, Search Console and API tokens."
+---
+
+The `revklik` command wraps the [REST API](/api), so you can read analytics without opening the dashboard or script it in CI.
+
+## Install
+
+The CLI needs Node.js 22 or newer.
+
+```bash
+npm install -g @revklik/cli
+revklik --version
+```
+
+## Log in
+
+Create an account token (`rvt_`) under **Share → API tokens** (see [share and access](/integrations#share-and-access)) with at least the `sites:read` and `analytics:read` scopes, then:
+
+```bash
+revklik login --token rvt_YOUR_TOKEN
+```
+
+The CLI checks the token against `whoami` and saves it to `~/.config/revklik/config.json`. Without `--token`, `revklik login` asks you to paste one. Site tokens (`rv_`) are accepted too, but `revklik gsc` needs an account token.
+
+```bash
+revklik whoami
+```
+
+prints your user, plan, token type, scopes and, for a site token, the bound site.
+
+## Commands
+
+| Command                        | Does                                                              |
+| ------------------------------ | ----------------------------------------------------------------- |
+| `revklik login`                | Save an API token                                                 |
+| `revklik whoami`               | Show the active token, plan and scopes                            |
+| `revklik sites list`           | List your sites                                                   |
+| `revklik analytics overview`   | Pageviews, visitors, sessions, bounce rate, revenue, conversions  |
+| `revklik analytics timeseries` | Pageviews and visitors per day                                    |
+| `revklik analytics pages`      | Top pages                                                         |
+| `revklik analytics referrers`  | Traffic sources                                                   |
+| `revklik analytics geo`        | Country, region and city                                          |
+| `revklik analytics devices`    | Device, OS and browser breakdowns                                 |
+| `revklik analytics revenue`    | Revenue by source and by country                                  |
+| `revklik analytics events`     | Raw event log                                                     |
+| `revklik analytics journeys`   | Visitor journey summaries                                         |
+| `revklik gsc queries`          | Stored Google Search Console queries                              |
+| `revklik gsc sync`             | Pull the last 7 days from Search Console                          |
+| `revklik tokens list`          | List API tokens                                                   |
+| `revklik tokens create`        | Create a token                                                    |
+| `revklik tokens revoke <id>`   | Revoke a token                                                    |
+
+Every `analytics` and `gsc` command needs `-s, --site <site>`. Pass a site ID, a unique ID prefix, or the exact domain:
+
+```bash
+revklik sites list
+revklik analytics overview --site mysite.com --range 7d
+```
+
+`-r, --range` accepts `24h`, `7d`, `30d` or `90d` and defaults to `7d`.
+
+<Callout type="info" title="Currency in the terminal">
+Tables print revenue with a `$` prefix whatever your site's currency is. The numbers are in the site's own currency; use the [API](/api) to get the `currency` field.
+</Callout>
+
+### Events
+
+```bash
+revklik analytics events --site mysite.com --type conversion --range 30d --limit 100
+```
+
+| Flag              | Description                                  | Default |
+| ----------------- | -------------------------------------------- | ------- |
+| `-t, --type`      | `pageview`, `conversion`, `custom` or `all`  | `all`   |
+| `-l, --limit`     | Maximum events (up to 10000)                 | `50`    |
+
+### Journeys
+
+```bash
+revklik analytics journeys --site mysite.com --sort revenue --limit 10 --range 30d
+```
+
+| Flag          | Description                                        | Default |
+| ------------- | -------------------------------------------------- | ------- |
+| `--sort`      | `steps`, `revenue`, `source`, `device` or `date`   | `steps` |
+| `-l, --limit` | Maximum journeys (up to 100)                       | `20`    |
+
+Identified visitors are marked with `*`.
+
+### Search Console
+
+Connect Search Console in the dashboard first (see [integrations](/integrations)).
+
+```bash
+revklik gsc sync --site mysite.com
+revklik gsc queries --site mysite.com --limit 20
+```
+
+`gsc queries` aggregates the stored 30-day window. Search Console data arrives with a delay of about two days.
+
+### Tokens
+
+```bash
+revklik tokens create --name "CI" --type account --scopes sites:read,analytics:read
+revklik tokens create --name "Blog" --type site --site SITE_ID
+revklik tokens revoke TOKEN_ID
+```
+
+`--site` is required for site tokens. Without `--scopes` the token gets the type's default scopes (see [REST API scopes](/api#scopes)). The full token is printed once.
+
+## JSON output
+
+`--json` prints raw JSON for `analytics events` and `analytics journeys`:
+
+```bash
+revklik analytics events --site mysite.com --json --limit 100
+revklik analytics journeys --site mysite.com --json --limit 5
+```
+
+The same flag on `gsc queries` also prints JSON. Other commands print tables only; for JSON from them, call the [REST API](/api) with `curl` and pipe to `jq`:
+
+```bash
+curl -s "https://app.revklik.com/api/v1/analytics/overview?site_id=SITE_ID&range=7d" \
+  -H "Authorization: Bearer $REVKLIK_TOKEN" | jq .data.bounceRate
+```
+
+`--verbose` prints the API base and the first characters of the token before the command runs.
+
+## Configuration
+
+| Variable          | Description                                   | Default                       |
+| ----------------- | --------------------------------------------- | ----------------------------- |
+| `REVKLIK_TOKEN`   | API token; overrides the saved one            | none                          |
+| `REVKLIK_API_BASE`| API base URL, for self-hosted installs        | `https://app.revklik.com/api` |
+
+Saved settings live in `~/.config/revklik/config.json`:
+
+```json
+{
+	"token": "rvt_...",
+	"apiBase": "https://app.revklik.com/api"
+}
+```
+
+Run `revklik login` again to replace the token.
+
+## CI example
+
+```yaml
+# GitHub Actions
+env:
+  REVKLIK_TOKEN: ${{ secrets.REVKLIK_API_TOKEN }}
+steps:
+  - run: npx @revklik/cli analytics overview --site mysite.com --range 24h
+```
+
+## Related
+
+- [REST API](/api): every endpoint the CLI calls
+- [MCP server](/mcp): the same data for coding agents
+- [Daily report with Hermes Agent](/hermes-daily-analytics)

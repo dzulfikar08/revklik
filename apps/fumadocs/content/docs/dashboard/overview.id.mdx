@@ -1,0 +1,90 @@
+---
+title: Ikhtisar dasbor
+description: "Dasbor RevKlik: kartu statistik, grafik trafik, panel rincian, filter, segmen, dan pengunjung langsung sekilas."
+---
+
+Dasbor terbuka di **ikhtisar** untuk situs yang dipilih di bilah atas. Semua
+yang ada di halaman ini mengikuti rentang waktu aktif dan filter apa pun yang
+Anda terapkan.
+
+## Kartu statistik
+
+Lima kartu merangkum rentang waktu:
+
+| Statistik       | Yang ditampilkan                                  |
+| --------------- | ------------------------------------------------- |
+| Pengunjung      | Pengunjung unik dalam rentang.                    |
+| Pageview        | Halaman yang dilihat.                             |
+| Bounce rate     | Porsi kunjungan dengan satu interaksi saja.       |
+| Durasi kunjungan | Rata-rata waktu di situs.                        |
+| Pendapatan      | Uang yang diatribusikan ke konversi.              |
+
+Setiap kartu membawa pil delta (misalnya `+12.3%`) yang membandingkannya dengan
+jendela sebelumnya yang setara. Untuk bounce rate, penurunan dianggap baik;
+untuk yang lain, kenaikan dianggap baik.
+
+## Rentang waktu
+
+Pilih **24h · 7d · 30d · 90d** dengan pil di bilah atas. Bawaannya 30 hari.
+Setiap statistik, grafik, panel, funnel, dan ekspor mengikuti rentang yang
+dipilih.
+
+## Grafik trafik
+
+Grafik utama memplot pengunjung dari waktu ke waktu: per jam untuk 24h, per
+hari untuk rentang lain. Periode sebelumnya digambar sebagai garis putus-putus
+pembanding, dan tooltip menampilkan kedua nilai berdampingan.
+
+<Callout type="info" title="Anotasi">
+	Gunakan tombol bendera di grafik untuk menambahkan catatan bertanggal (misalnya “Rilis v2”).
+	Anotasi tampil sebagai bendera emas di grafik sehingga Anda bisa menjelaskan perubahan trafik
+	nanti.
+</Callout>
+
+## Panel rincian
+
+Setiap panel adalah daftar bar berperingkat dengan tab dan tombol urutan:
+
+- **Halaman**: halaman teratas berdasarkan tayangan, halaman masuk, atau halaman keluar.
+- **Sumber**: referrer atau kanal pemasaran.
+- **Lokasi**: negara, wilayah, kota, atau globe berputar dari pengunjung Anda.
+- **Platform**: browser, sistem operasi, dan perangkat.
+- **Pendapatan**: pendapatan menurut sumber, negara, metode pembayaran, atau kampanye.
+
+## Panel beranda [#home-panels]
+
+Di bawah rincian, tampilan beranda juga memuat:
+
+- **Live**: jumlah online saat ini dan umpan pageview terbaru dengan negara,
+  path, dan sumber, mengalir secara realtime.
+- **Heatmap**: tempat pengunjung mengeklik dan sejauh mana mereka menggulir,
+  per halaman _(paket Growth)_.
+- **Rekaman**: putar ulang sesi nyata dengan klik, scroll, dan perubahan DOM
+  _(paket Growth)_.
+- **Proyeksi pendapatan** _(semua paket)_ dan **Insight AI** _(paket Growth)_:
+  lihat [Proyeksi pendapatan dan insight AI](/id/dashboard/insights).
+
+## Filter dan segmen [#filters-and-segments]
+
+Gunakan **Filters** untuk mengiris semuanya: pilih dimensi (Page, Country,
+Region, City, Device, Browser, OS, Referrer, UTM source, UTM medium, UTM
+campaign), operator (is, is not, contains, excludes, starts with, exists,
+missing), dan nilai. Filter yang diterapkan tampil sebagai chip yang bisa
+dihapus.
+
+Simpan tampilan yang difilter dengan **Save** untuk membuat **segmen**, chip
+bernama yang bisa Anda terapkan lagi kapan saja. Menerapkan segmen
+menggantikan seluruh set filter saat ini.
+
+## Explore: pengguna dan perjalanan
+
+Panel **Explore** mencantumkan **Users** terbaru (avatar, jumlah event, negara,
+perangkat, sumber, total belanja, dan waktu terakhir terlihat) serta
+**Journeys**: hingga enam chip langkah per sesi dengan sumber, jumlah event,
+dan apakah sesi berkonversi atau keluar. Klik sebuah baris untuk membuka profil
+pengunjung lengkap di tampilan [pengunjung](/id/dashboard/visitors).
+
+## Ekspor
+
+Tombol unduh di bilah atas mengekspor event mentah situs untuk rentang dan
+filter saat ini sebagai file CSV.

@@ -1,24 +1,30 @@
 import { Button } from "@revklik/ui/components/button";
-import { Input } from "@revklik/ui/components/input";
-import { Label } from "@revklik/ui/components/label";
 import { Link } from "@tanstack/react-router";
 import { LoaderCircle } from "lucide-react";
 import { useEffect, useState } from "react";
 
-import { RememberedAccounts } from "@/components/remembered-accounts";
+import { AuthField } from "@/components/auth-field";
 import { GoogleIcon } from "@/components/google-icon";
-import { AuthShell, authButtonClass, authInputClass, authLinkClass } from "@/components/auth-shell";
-import { useT } from "@/lib/i18n";
+import { RememberedAccounts } from "@/components/remembered-accounts";
+import {
+	AuthShell,
+	authButtonClass,
+	authLinkClass,
+	authPrimaryClass,
+} from "@/components/auth-shell";
+import { SignupConsent, TrialValuePanel } from "@/components/auth-signup-extras";
+import { authErrorMessage } from "@/lib/auth-errors";
+import { firstInvalidField, validateAuthFields } from "@/lib/auth-page";
+import { afterAuthPath, googleAuthUrl } from "@/lib/auth-search";
+import type { AuthSearch } from "@/lib/auth-search";
+import { useLocale, useT } from "@/lib/i18n";
+import { isSelfHosted } from "@/lib/instance-config";
 import {
 	LEGACY_API_BASE,
 	legacyLogin,
 	legacyRegister,
 	requestPasswordReset,
 } from "@/lib/legacy/api";
-import { authErrorMessage } from "@/lib/auth-errors";
-import { afterAuthPath, googleAuthUrl } from "@/lib/auth-search";
-import type { AuthSearch } from "@/lib/auth-search";
-import { isSelfHosted } from "@/lib/instance-config";
 import { planLabel } from "@/lib/legacy/billing";
 import {
 	clearSignupIntent,
@@ -37,12 +43,22 @@ const ForgotPasswordForm = ({ onBack }: { onBack: () => void }) => {
 	const [email, setEmail] = useState("");
 	const [sentTo, setSentTo] = useState<string | null>(null);
 	const [error, setError] = useState<string | null>(null);
+	const [submitted, setSubmitted] = useState(false);
 	const [pending, setPending] = useState(false);
+
+	// Only the email is checked here; the dummy password keeps that rule out of play.
+	const emailProblem = validateAuthFields({ email, name: "", password: "x" }, false).email;
+	const emailError = submitted ? emailProblem : undefined;
 
 	const submit = async (e: React.FormEvent) => {
 		e.preventDefault();
 		if (pending) return;
 		setError(null);
+		if (emailProblem) {
+			setSubmitted(true);
+			document.getElementById("forgot-email")?.focus();
+			return;
+		}
 		setPending(true);
 		try {
 			await requestPasswordReset(email.trim());
@@ -55,33 +71,30 @@ const ForgotPasswordForm = ({ onBack }: { onBack: () => void }) => {
 	};
 
 	return (
-		<AuthShell title={t("forgot.title")} description={t("forgot.desc")}>
+		<AuthShell title={t("forgot.title")} description={t("forgot.desc")} page="reset">
 			{sentTo ? (
 				<p className="bg-muted/60 rounded-lg p-3 text-sm" role="status">
 					{t("forgot.sent", { email: sentTo })}
 				</p>
 			) : (
-				<form onSubmit={submit} className="grid gap-3">
-					<div className="grid gap-1.5">
-						<Label htmlFor="forgot-email">{t("auth.email")}</Label>
-						<Input
-							id="forgot-email"
-							className={authInputClass}
-							type="email"
-							autoComplete="email"
-							placeholder="you@example.com"
-							value={email}
-							onChange={(e) => setEmail(e.target.value)}
-							required
-							autoFocus
-						/>
-					</div>
+				<form onSubmit={submit} noValidate className="grid gap-3">
+					<AuthField
+						id="forgot-email"
+						label={t("auth.email")}
+						type="email"
+						autoComplete="email"
+						placeholder={t("auth.emailPlaceholder")}
+						value={email}
+						onChange={setEmail}
+						error={emailError}
+						autoFocus
+					/>
 					{error && (
 						<p className="text-destructive text-sm" role="alert">
 							{error}
 						</p>
 					)}
-					<Button type="submit" className={authButtonClass} disabled={pending}>
+					<Button type="submit" className={authPrimaryClass} disabled={pending}>
 						{pending && <LoaderCircle className="mr-1 h-4 w-4 animate-spin" aria-hidden />}
 						{t("forgot.submit")}
 					</Button>
@@ -98,18 +111,40 @@ const ForgotPasswordForm = ({ onBack }: { onBack: () => void }) => {
 	);
 };
 
+const OrDivider = ({ label }: { label: string }) => (
+	<div className="flex items-center gap-3" role="separator" aria-label={label}>
+		<span className="bg-border h-px flex-1" aria-hidden />
+		<span className="text-muted-foreground text-xs" aria-hidden>
+			{label}
+		</span>
+		<span className="bg-border h-px flex-1" aria-hidden />
+	</div>
+);
+
+const GoogleButton = ({ label, onClick }: { label: string; onClick: () => void }) => (
+	<Button type="button" variant="outline" className={`${authButtonClass} gap-2`} onClick={onClick}>
+		<GoogleIcon />
+		{label}
+	</Button>
+);
+
 /**
  * Email/password + Google auth. /login renders sign-in, /register sign-up;
  * both carry ?plan and ?ref so a visitor from the pricing page or an
  * affiliate link keeps that context whichever form they end up using.
+ * Sign-up leads with Google (one click for a solo founder), then the email
+ * form; sign-in leads with the form. Both validate in place, in the page's
+ * language, and focus the first field that needs fixing.
  */
 export const AuthForm = ({ mode, search }: { mode: AuthMode; search: AuthSearch }) => {
 	const t = useT();
+	const locale = useLocale();
 	const [forgot, setForgot] = useState(false);
 	const [name, setName] = useState("");
 	const [email, setEmail] = useState("");
 	const [password, setPassword] = useState("");
 	const [error, setError] = useState<string | null>(null);
+	const [submitted, setSubmitted] = useState(false);
 	const [pending, setPending] = useState(false);
 	const { plan, ref, rk_sid: rkSid, rk_vid: rkVid } = search;
 
@@ -124,15 +159,26 @@ export const AuthForm = ({ mode, search }: { mode: AuthMode; search: AuthSearch 
 	}
 
 	const signUp = mode === "sign-up";
+	const hosted = !isSelfHosted();
+	// Errors appear after the first submit, then follow the input as it is fixed.
+	const fieldErrors = submitted ? validateAuthFields({ email, name, password }, signUp) : {};
 
 	const submit = async (e: React.FormEvent) => {
 		e.preventDefault();
 		if (pending) return;
 		setError(null);
+		const firstInvalid = firstInvalidField(validateAuthFields({ email, name, password }, signUp));
+		if (firstInvalid) {
+			setSubmitted(true);
+			document.getElementById(firstInvalid)?.focus();
+			return;
+		}
 		setPending(true);
 		try {
 			if (signUp) {
 				await legacyRegister(name.trim(), email.trim(), password, {
+					acceptedTerms: hosted,
+					lang: locale,
 					plan,
 					ref: signupRef(ref),
 					visitorId: signupVisitorId(rkVid),
@@ -180,45 +226,54 @@ export const AuthForm = ({ mode, search }: { mode: AuthMode; search: AuthSearch 
 		<AuthShell
 			title={signUp ? t("auth.signUp.title") : t("auth.signIn.title")}
 			description={description}
+			page={signUp ? "signUp" : "signIn"}
+			aside={signUp && hosted ? <TrialValuePanel /> : undefined}
 		>
 			{signUp ? null : (
 				<RememberedAccounts onContinue={() => window.location.assign(afterAuthPath(search))} />
 			)}
-			<form onSubmit={submit} className="grid gap-3">
+			{signUp ? (
+				<>
+					<GoogleButton label={t("auth.google")} onClick={continueWithGoogle} />
+					<OrDivider label={t("auth.orEmail")} />
+				</>
+			) : null}
+			<form onSubmit={submit} noValidate className="grid gap-3">
 				{signUp && (
-					<div className="grid gap-1.5">
-						<Label htmlFor="name">{t("auth.name")}</Label>
-						<Input
-							id="name"
-							className={authInputClass}
-							autoComplete="name"
-							placeholder={t("auth.namePlaceholder")}
-							value={name}
-							onChange={(e) => setName(e.target.value)}
-							required
-						/>
-					</div>
-				)}
-				<div className="grid gap-1.5">
-					<Label htmlFor="email">{t("auth.email")}</Label>
-					<Input
-						id="email"
-						className={authInputClass}
-						type="email"
-						autoComplete="email"
-						placeholder="you@example.com"
-						value={email}
-						onChange={(e) => setEmail(e.target.value)}
-						required
+					<AuthField
+						id="name"
+						label={t("auth.name")}
+						autoComplete="name"
+						placeholder={t("auth.namePlaceholder")}
+						value={name}
+						onChange={setName}
+						error={fieldErrors.name}
 					/>
-				</div>
-				<div className="grid gap-1.5">
-					<div className="flex items-center justify-between gap-2">
-						<Label htmlFor="password">{t("auth.password")}</Label>
-						{signUp ? null : (
+				)}
+				<AuthField
+					id="email"
+					label={t("auth.email")}
+					type="email"
+					autoComplete="email"
+					placeholder={t("auth.emailPlaceholder")}
+					value={email}
+					onChange={setEmail}
+					error={fieldErrors.email}
+				/>
+				<AuthField
+					id="password"
+					label={t("auth.password")}
+					type="password"
+					autoComplete={signUp ? "new-password" : "current-password"}
+					value={password}
+					onChange={setPassword}
+					error={fieldErrors.password}
+					hint={signUp ? t("auth.passwordHint") : undefined}
+					labelAside={
+						signUp ? null : (
 							<button
 								type="button"
-								className="text-muted-foreground hover:text-foreground focus-visible:outline-ring pointer-coarse:min-h-10 rounded-sm text-xs outline-offset-2 transition-colors duration-150 focus-visible:outline-2"
+								className="text-muted-foreground hover:text-foreground focus-visible:outline-ring pointer-coarse:min-h-11 rounded-sm text-xs outline-offset-2 transition-colors duration-150 focus-visible:outline-2"
 								onClick={() => {
 									setError(null);
 									setForgot(true);
@@ -226,48 +281,27 @@ export const AuthForm = ({ mode, search }: { mode: AuthMode; search: AuthSearch 
 							>
 								{t("auth.forgot")}
 							</button>
-						)}
-					</div>
-					<Input
-						id="password"
-						className={authInputClass}
-						type="password"
-						autoComplete={signUp ? "new-password" : "current-password"}
-						placeholder="••••••••"
-						value={password}
-						onChange={(e) => setPassword(e.target.value)}
-						required
-						minLength={8}
-					/>
-				</div>
+						)
+					}
+				/>
 				{error && (
 					<p className="text-destructive text-sm" role="alert">
 						{error}
 					</p>
 				)}
-				<Button type="submit" className={`mt-1 ${authButtonClass}`} disabled={pending}>
+				<Button type="submit" className={`mt-1 ${authPrimaryClass}`} disabled={pending}>
 					{pending && <LoaderCircle className="mr-1 h-4 w-4 animate-spin" aria-hidden />}
 					{signUp ? t("auth.signUpBtn") : t("auth.signInBtn")}
 				</Button>
+				{signUp && hosted ? <SignupConsent /> : null}
 			</form>
 
-			<div className="flex items-center gap-3" role="separator" aria-label={t("auth.or")}>
-				<span className="bg-border h-px flex-1" aria-hidden />
-				<span className="text-muted-foreground text-xs" aria-hidden>
-					{t("auth.or")}
-				</span>
-				<span className="bg-border h-px flex-1" aria-hidden />
-			</div>
-
-			<Button
-				type="button"
-				variant="outline"
-				className={`${authButtonClass} gap-2`}
-				onClick={continueWithGoogle}
-			>
-				<GoogleIcon />
-				{t("auth.google")}
-			</Button>
+			{signUp ? null : (
+				<>
+					<OrDivider label={t("auth.or")} />
+					<GoogleButton label={t("auth.google")} onClick={continueWithGoogle} />
+				</>
+			)}
 
 			<p className="text-muted-foreground mt-1 text-center text-[13px]">
 				{signUp ? t("auth.haveAccount") : t("auth.noAccount")}{" "}

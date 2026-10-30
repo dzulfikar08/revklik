@@ -14,10 +14,24 @@
 		"directory": "./dist/client",
 		"not_found_handling": "single-page-application",
 		"binding": "ASSETS",
-		// Only /api/* invokes the worker: klikapa-*.js tracker scripts are
-		// high-volume static fetches from customer sites and must be served
+		// The worker runs for /api/* and for page navigations (so unknown URLs get a real
+		// 404, see src/worker/lib/spa-routes.ts). Static files are excluded: klikapa-*.js
+		// tracker scripts are high-volume fetches from customer sites and must be served
 		// directly by the assets runtime.
-		"run_worker_first": ["/api/*"],
+		"run_worker_first": [
+			"/api/*",
+			"/*",
+			"!/assets/*",
+			"!/klikapa*.js",
+			"!/sw.js",
+			"!/workbox-*.js",
+			"!/registerSW.js",
+			"!/manifest.webmanifest",
+			"!/*.png",
+			"!/*.svg",
+			"!/*.ico",
+			"!/*.webp",
+		],
 	},
 	"d1_databases": [
 		{

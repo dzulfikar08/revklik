@@ -21,7 +21,7 @@ const { c } = Astro.props;
       </div>
       <aside class="faq-aside">
         <p>{c.faq_aside}</p>
-        <a class="link-plain" href="/support.html">{c.faq_aside_cta}</a>
+        <a class="link-plain" href={c.lang === 'en' ? '/en/support' : '/support'}>{c.faq_aside_cta}</a>
       </aside>
     </div>
   </div>

@@ -1,0 +1,241 @@
+---
+title: REST API
+description: "Read your RevKlik analytics from your own code: scoped API tokens, JSON endpoints for sites, traffic, revenue and exports, and per-plan rate limits."
+---
+
+The REST API serves the same data as the dashboard, MCP server and CLI. All of them run on one shared query layer, so numbers match everywhere.
+
+```
+https://app.revklik.com/api/v1
+```
+
+## Authenticate
+
+Send an API token as a Bearer token on every request:
+
+```bash
+curl https://app.revklik.com/api/v1/whoami \
+  -H "Authorization: Bearer rvt_YOUR_TOKEN"
+```
+
+Create tokens under **Share → API tokens** (see [share and access](/integrations#share-and-access)). The full token is shown once; RevKlik stores only a SHA-256 hash, so store it somewhere safe.
+
+| Prefix | Type    | Access                                                              |
+| ------ | ------- | ------------------------------------------------------------------- |
+| `rvt_` | Account | Every site you own or were invited to, within the scopes granted    |
+| `rv_`  | Site    | One site. Only the `analytics:read` and `analytics:export` scopes   |
+
+<Callout type="warn" title="Only rvt_ and rv_ tokens">
+Dashboard session tokens are rejected by the public API with `401`. Create an API token instead.
+</Callout>
+
+## Scopes
+
+| Scope              | Allows                                                                    |
+| ------------------ | ------------------------------------------------------------------------- |
+| `sites:read`       | List sites and read one site                                              |
+| `analytics:read`   | All analytics endpoints except export                                     |
+| `analytics:export` | `GET /analytics/export`                                                   |
+| `events:write`     | `POST /events/server` (see [server events API](/integrations#server-events-api)) |
+| `tokens:read`      | List API tokens                                                           |
+| `tokens:write`     | Create and revoke API tokens                                              |
+
+Account tokens default to `sites:read`, `analytics:read`, `analytics:export`, `tokens:read` and `tokens:write`. Site tokens default to `analytics:read` and `analytics:export`. A site token used against another site gets `403`.
+
+## Rate limits
+
+Limits are per minute and depend on your plan:
+
+| Plan    | Requests per minute | API tokens |
+| ------- | ------------------- | ---------- |
+| Micro   | 30                  | 2          |
+| Starter | 120                 | 5          |
+| Growth  | 300                 | Unlimited  |
+
+Every response carries `X-RateLimit-Limit`, `X-RateLimit-Remaining` and `X-RateLimit-Reset` (a Unix timestamp in seconds). When you go over, the API answers `429` with a `Retry-After` header in seconds.
+
+Data older than your plan's raw-event retention (30, 60 or 180 days for Micro, Starter and Growth) is no longer available to queries.
+
+## Response format
+
+Successful responses wrap the payload in `data`:
+
+```json
+{ "data": {}, "success": true }
+```
+
+Errors use the same envelope:
+
+```json
+{ "error": "Insufficient scope: analytics:export required", "success": false }
+```
+
+| Status | Meaning                                                                  |
+| ------ | ------------------------------------------------------------------------ |
+| `400`  | Invalid or missing parameter                                             |
+| `401`  | Token missing, malformed, unknown, expired, or its prefix does not match |
+| `403`  | Missing scope, token bound to a different site, or token limit reached   |
+| `404`  | Site or token not found                                                  |
+| `429`  | Rate limit exceeded                                                      |
+
+## Account
+
+### `GET /whoami`
+
+Describes the token in use. It needs no scope.
+
+```json
+{
+	"data": {
+		"user": { "id": "abc123", "name": "Dewi", "email": "dewi@example.com" },
+		"plan": "starter",
+		"token": {
+			"type": "account",
+			"scopes": ["sites:read", "analytics:read"],
+			"site_id": null,
+			"name": "Reporting",
+			"created_at": "2026-05-15T00:00:00Z"
+		}
+	},
+	"success": true
+}
+```
+
+### `GET /sites` and `GET /sites/:siteId`
+
+Requires `sites:read`. Account tokens list every site you own or were invited to; site tokens list only their own.
+
+```json
+{
+	"data": [
+		{
+			"id": "9f1c...",
+			"name": "My Website",
+			"domain": "mysite.com",
+			"created_at": "2026-01-15T00:00:00Z"
+		}
+	],
+	"success": true
+}
+```
+
+## Analytics
+
+Every analytics endpoint requires `analytics:read` and these query parameters:
+
+| Parameter | Description                                                                                              |
+| --------- | -------------------------------------------------------------------------------------------------------- |
+| `site_id` | Site ID. Required.                                                                                       |
+| `range`   | `24h`, `7d`, `30d` or `90d`; default `7d`. Also an explicit `start,end` pair of ISO dates. Any other value falls back to `7d`. |
+| `limit`   | List endpoints only. Capped at 100.                                                                      |
+
+Revenue is in major units of the site's revenue currency; the response includes `currency`.
+
+| Endpoint                       | Returns                                                                       | Default `limit` |
+| ------------------------------ | ----------------------------------------------------------------------------- | --------------- |
+| `GET /analytics/overview`      | Pageviews, visitors, sessions, bounce rate, average duration, revenue, conversions | n/a        |
+| `GET /analytics/timeseries`    | Pageviews and visitors per day (hourly for short ranges)                      | n/a             |
+| `GET /analytics/pages`         | Top pages                                                                     | 10              |
+| `GET /analytics/referrers`     | Traffic sources with visitor share                                            | 10              |
+| `GET /analytics/geo`           | Country, region and city                                                      | 50              |
+| `GET /analytics/devices`       | Device, OS and browser breakdowns                                             | n/a             |
+| `GET /analytics/revenue`       | Revenue by source, by country and over time                                   | n/a             |
+| `GET /analytics/campaigns`     | UTM campaign performance                                                      | n/a             |
+| `GET /analytics/journeys`      | Recent visitor journeys; optional `path` filter                               | 50              |
+
+```bash
+curl "https://app.revklik.com/api/v1/analytics/overview?site_id=SITE_ID&range=7d" \
+  -H "Authorization: Bearer rvt_YOUR_TOKEN"
+```
+
+```json
+{
+	"data": {
+		"pageviews": 12483,
+		"visitors": 3241,
+		"sessions": 4812,
+		"bounceRate": 34,
+		"avgDuration": 252,
+		"revenue": 2490000,
+		"currency": "IDR",
+		"conversions": 87
+	},
+	"success": true
+}
+```
+
+`bounceRate` is a whole percentage and `avgDuration` is in seconds.
+
+`/analytics/pages` returns `path`, `pageviews` and `visitors` per row. `/analytics/devices` returns `devices`, `os` and `browsers` arrays of `{ device, visitors, percentage }`.
+
+### Export
+
+`GET /analytics/export` requires `analytics:export`.
+
+| Parameter    | Description                                                    |
+| ------------ | -------------------------------------------------------------- |
+| `site_id`    | Required.                                                      |
+| `range`      | Same values as above; default `30d`.                           |
+| `format`     | `csv` (default) or `json`.                                     |
+| `type`       | `events` (default), `visitors` or `sessions`.                  |
+| `event_type` | Optional filter for `events`, such as `pageview` or `conversion`. |
+| `limit`      | Rows to return, 1 to 10000; default 10000.                     |
+
+```bash
+curl "https://app.revklik.com/api/v1/analytics/export?site_id=SITE_ID&range=30d&format=csv&type=events" \
+  -H "Authorization: Bearer rvt_YOUR_TOKEN" -o events.csv
+```
+
+## Portfolio revenue
+
+`GET /portfolio/revenue?from=YYYY-MM-DD&to=YYYY-MM-DD&currency=IDR` (scope `analytics:read`) totals revenue across every site you can access, converted into one currency. It is the same data the MCP `portfolio_revenue` tool returns.
+
+## Server events
+
+`POST /events/server` (scope `events:write`) lets your backend report purchases, renewals and refunds. The request body and idempotency rules are in the [server events API](/integrations#server-events-api).
+
+## Manage tokens
+
+These endpoints need an account token with the matching scope.
+
+| Endpoint             | Scope          | Does                                  |
+| -------------------- | -------------- | ------------------------------------- |
+| `GET /tokens`        | `tokens:read`  | List your tokens (prefix only)        |
+| `POST /tokens`       | `tokens:write` | Create a token                        |
+| `DELETE /tokens/:id` | `tokens:write` | Revoke a token; it stops working at once |
+
+```bash
+curl -X POST https://app.revklik.com/api/v1/tokens \
+  -H "Authorization: Bearer rvt_YOUR_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"name": "Reporting", "type": "account", "scopes": ["sites:read", "analytics:read"]}'
+```
+
+`type` is `account` or `site`. A site token also needs `site_id`, and only accepts the analytics scopes. The response contains the full `token` once, with `id`, `prefix`, `scopes` and `created_at`.
+
+## Examples
+
+```ts
+const res = await fetch(
+	"https://app.revklik.com/api/v1/analytics/overview?site_id=SITE_ID&range=7d",
+	{ headers: { Authorization: `Bearer ${process.env.REVKLIK_TOKEN}` } },
+);
+const { data } = await res.json();
+console.log(data.visitors, data.revenue);
+```
+
+```python
+import os, requests
+
+res = requests.get(
+    "https://app.revklik.com/api/v1/analytics/overview",
+    params={"site_id": "SITE_ID", "range": "7d"},
+    headers={"Authorization": f"Bearer {os.environ['REVKLIK_TOKEN']}"},
+)
+print(res.json()["data"])
+```
+
+## Related
+
+- [MCP server](/mcp): the same data for Codex, Cursor and Claude
+- [CLI](/cli): the same endpoints from your terminal

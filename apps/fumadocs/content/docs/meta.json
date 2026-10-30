@@ -9,6 +9,11 @@
 		"mcp",
 		"mobile-alerts",
 		"billing",
-		"faq"
+		"privacy",
+		"faq",
+		"---API & CLI---",
+		"api",
+		"cli",
+		"hermes-daily-analytics"
 	]
 }

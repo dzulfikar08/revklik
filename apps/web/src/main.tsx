@@ -59,7 +59,8 @@ if (!rootElement) {
 	throw new Error("Root element not found");
 }
 
-if (!rootElement.innerHTML) {
+// The inline splash from index.html is not an app render; React replaces it on mount.
+if (!rootElement.querySelector(":scope > :not(.rk-splash)")) {
 	const root = ReactDOM.createRoot(rootElement);
 	// Self-hosted instances hide pricing and upgrade UI: know which kind this is first.
 	// /demo is a fixture that never reads the flag, so it renders without any request.

@@ -1,0 +1,45 @@
+---
+title: Situs
+description: Tambahkan, pasang snippet, dan kelola situs yang Anda lacak di RevKlik, termasuk pengecualian trafik sendiri dan penghapusan kunjungan Anda sendiri.
+---
+
+Semua situs yang dilacak ada di **Manage sites** (buka dari pemilih situs di
+bilah atas dasbor).
+
+## Tambahkan situs
+
+Masukkan **nama** (misalnya `Blog saya`) dan **domain** (misalnya
+`example.com`), lalu klik **Tambah situs**. URL yang ditempelkan dipangkas
+menjadi domainnya (skema, path, dan garis miring di akhir dibuang) dan diubah ke
+huruf kecil. Domain harus unik; domain ganda ditolak. Jika batas situs paket Anda
+tercapai, RevKlik menyampaikannya dan menawarkan tombol **Upgrade**.
+
+## Snippet
+
+Jendela **Snippet pelacakan** terbuka begitu situs ditambahkan, dan setiap baris
+punya tombol **Snippet** untuk membukanya lagi. Snippet dibuat per situs; salin
+dan tempel ke HTML situs Anda. Selama jendela terbuka, ia menunggu pageview
+pertama situs dan memberi tahu saat tiba. Situs yang belum menerima data
+ditandai _Belum terpasang_ di halaman Situs. Lihat
+[memulai](/id/getting-started#install-the-tracking-snippet) untuk panduan
+lengkapnya.
+
+## Statistik per baris
+
+Setiap situs menampilkan jumlah pengunjung, jumlah tayangan, dan pendapatan
+(bila ada) sehingga Anda bisa membandingkan properti sekilas.
+
+## Pengecualian dan penghapusan [#exclusions-and-purging]
+
+Buka sebuah baris untuk mengelola trafik Anda sendiri:
+
+- **Exclude this device**: browser saat ini berhenti dilacak mulai sekarang.
+  Perangkat dikenali lewat hash berkunci dari IP, user agent, dan bahasa;
+  perangkat yang dikecualikan tercantum dengan tombol hapus per item.
+- **Purge my past visits**: menghapus semua event, sesi, dan profil pengunjung
+  yang sudah tercatat untuk perangkat ini.
+
+## Hapus situs
+
+Ikon tempat sampah menghapus situs **beserta seluruh datanya** setelah
+konfirmasi di tempat. Snippet pelacakan berhenti melapor dari properti itu.

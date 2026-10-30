@@ -14,11 +14,14 @@ import {
 } from "fumadocs-ui/components/dialog/search";
 import { useI18n } from "fumadocs-ui/contexts/i18n";
 
+const SEARCH_INDEX_URL = "/api/search.json";
+
 export default function DefaultSearchDialog(props: SharedProps) {
 	const { locale } = useI18n(); // (optional) for i18n
 	const { search, setSearch, query } = useDocsSearch({
 		client: staticClient({
 			locale,
+			from: SEARCH_INDEX_URL,
 		}),
 	});
 

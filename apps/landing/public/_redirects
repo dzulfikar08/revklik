@@ -1,15 +1,31 @@
-# Docs moved to the fumadocs site (apps/fumadocs).
-/docs https://docs.revklik.com 301
-/docs.html https://docs.revklik.com 301
-# Removed pages — keep them out of the SPA soft-404 fallback
-/blog/ai-seo-audit-searchconsole-revklik.html /blog.html 301
-/blog/analytics-script-size-core-web-vitals.html /blog.html 301
-/blog/analytics-without-cookie-banner.html /blog.html 301
-/blog/best-cookieless-analytics.html /blog.html 301
-/blog/cloudflare-analytics-alternative.html /blog.html 301
-/blog/gdpr-compliant-session-recording.html /blog.html 301
-/blog/plausible-alternatives.html /blog.html 301
-/blog/revklik-vs-fathom.html /blog.html 301
-/blog/revklik-vs-hotjar.html /blog.html 301
-/blog/revklik-vs-matomo.html /blog.html 301
-/blog/server-side-tracking-cloudflare-workers.html /blog.html 301
+# Cloudflare Pages already 308s every `x.html` URL to `/x`. Rules below cover
+# URLs that no longer have a page, so nothing falls into a soft 404.
+
+# Old snippet URL: the tracker is served by the app worker. Browsers follow
+# redirects for <script src>, so snippets pasted from older docs keep working.
+/klikapa.js https://app.revklik.com/klikapa.js 301
+
+# Docs live on docs.revklik.com (Bahasa under /id/, English at the root).
+/docs https://docs.revklik.com/id/ 301
+/docs/api https://docs.revklik.com/id/api/ 301
+/docs/cli https://docs.revklik.com/id/cli/ 301
+/docs/hermes-daily-analytics https://docs.revklik.com/id/hermes-daily-analytics/ 301
+/en/docs https://docs.revklik.com/ 301
+/en/docs/api https://docs.revklik.com/api/ 301
+/en/docs/cli https://docs.revklik.com/cli/ 301
+/en/docs/hermes-daily-analytics https://docs.revklik.com/hermes-daily-analytics/ 301
+
+# Removed or unpublished blog posts.
+/blog/ai-seo-audit-searchconsole-revklik /blog 301
+/blog/analytics-script-size-core-web-vitals /blog 301
+/blog/analytics-without-cookie-banner /blog 301
+/blog/best-cookieless-analytics /blog 301
+/blog/cloudflare-analytics-alternative /blog 301
+/blog/gdpr-compliant-session-recording /blog 301
+/blog/plausible-alternatives /blog 301
+/blog/revklik-vs-fathom /blog 301
+/blog/revklik-vs-hotjar /blog 301
+/blog/revklik-vs-matomo /blog 301
+/blog/server-side-tracking-cloudflare-workers /blog 301
+/blog/tracking-revenue-shopee-tokopedia /blog 301
+/en/blog/tracking-revenue-shopee-tokopedia /en/blog 301

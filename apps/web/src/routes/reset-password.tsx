@@ -1,12 +1,18 @@
-import { Button, buttonVariants } from "@revklik/ui/components/button";
-import { Input } from "@revklik/ui/components/input";
-import { Label } from "@revklik/ui/components/label";
+import { Button } from "@revklik/ui/components/button";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { LoaderCircle } from "lucide-react";
 import { useState } from "react";
 
-import { AuthShell, authButtonClass, authInputClass, authLinkClass } from "@/components/auth-shell";
-import { useT } from "@/lib/i18n";
+import { AuthField } from "@/components/auth-field";
+import {
+	AuthShell,
+	authLinkClass,
+	authPrimaryClass,
+	authPrimaryLinkClass,
+} from "@/components/auth-shell";
+import { authDocumentTitle, MIN_PASSWORD_LENGTH } from "@/lib/auth-page";
+import { getLocale, useT } from "@/lib/i18n";
+import type { MessageKey } from "@/lib/i18n";
 import { resetPassword } from "@/lib/legacy/api";
 
 /** Target of the emailed reset link: /reset-password?token=… */
@@ -14,10 +20,8 @@ export const Route = createFileRoute("/reset-password")({
 	validateSearch: (search: Record<string, unknown>): { token?: string } =>
 		typeof search.token === "string" && search.token ? { token: search.token } : {},
 	component: ResetPassword,
-	head: () => ({ meta: [{ title: "Reset password · RevKlik" }] }),
+	head: () => ({ meta: [{ title: authDocumentTitle(getLocale(), "reset") }] }),
 });
-
-const MIN_PASSWORD = 8;
 
 const linkClass = `justify-self-center text-[13px] ${authLinkClass}`;
 
@@ -26,14 +30,15 @@ function ResetPassword() {
 	const { token } = Route.useSearch();
 	const [password, setPassword] = useState("");
 	const [confirm, setConfirm] = useState("");
+	const [submitted, setSubmitted] = useState(false);
 	// The kind, not translated text, so a language switch keeps the state.
-	const [error, setError] = useState<"mismatch" | "failed" | null>(null);
+	const [failed, setFailed] = useState(false);
 	const [pending, setPending] = useState(false);
 	const [done, setDone] = useState(false);
 
 	if (!token) {
 		return (
-			<AuthShell title={t("reset.title")} description={t("reset.missingToken")}>
+			<AuthShell title={t("reset.title")} description={t("reset.missingToken")} page="reset">
 				<Link to="/login" className={linkClass}>
 					{t("reset.requestNew")}
 				</Link>
@@ -41,20 +46,34 @@ function ResetPassword() {
 		);
 	}
 
+	let passwordError: MessageKey | undefined;
+	if (!password) {
+		passwordError = "auth.err.passwordRequired";
+	} else if (password.length < MIN_PASSWORD_LENGTH) {
+		passwordError = "auth.err.passwordShort";
+	}
+	let confirmError: MessageKey | undefined;
+	if (!confirm) {
+		confirmError = "auth.err.passwordRequired";
+	} else if (password !== confirm) {
+		confirmError = "reset.mismatch";
+	}
+
 	const submit = async (e: React.FormEvent) => {
 		e.preventDefault();
 		if (pending) return;
-		if (password !== confirm) {
-			setError("mismatch");
+		setFailed(false);
+		if (passwordError || confirmError) {
+			setSubmitted(true);
+			document.getElementById(passwordError ? "new-password" : "confirm-password")?.focus();
 			return;
 		}
-		setError(null);
 		setPending(true);
 		try {
 			await resetPassword(token, password);
 			setDone(true);
 		} catch {
-			setError("failed");
+			setFailed(true);
 		} finally {
 			setPending(false);
 		}
@@ -62,8 +81,8 @@ function ResetPassword() {
 
 	if (done) {
 		return (
-			<AuthShell title={t("reset.title")} description={t("reset.done")}>
-				<Link to="/login" className={buttonVariants({ className: authButtonClass })}>
+			<AuthShell title={t("reset.title")} description={t("reset.done")} page="reset">
+				<Link to="/login" className={authPrimaryLinkClass}>
 					{t("auth.signInBtn")}
 				</Link>
 			</AuthShell>
@@ -71,46 +90,38 @@ function ResetPassword() {
 	}
 
 	return (
-		<AuthShell title={t("reset.title")} description={t("reset.desc")}>
-			<form onSubmit={submit} className="grid gap-3">
-				<div className="grid gap-1.5">
-					<Label htmlFor="new-password">{t("reset.new")}</Label>
-					<Input
-						id="new-password"
-						className={authInputClass}
-						type="password"
-						autoComplete="new-password"
-						value={password}
-						onChange={(e) => setPassword(e.target.value)}
-						required
-						minLength={MIN_PASSWORD}
-						autoFocus
-					/>
-				</div>
-				<div className="grid gap-1.5">
-					<Label htmlFor="confirm-password">{t("reset.confirm")}</Label>
-					<Input
-						id="confirm-password"
-						className={authInputClass}
-						type="password"
-						autoComplete="new-password"
-						value={confirm}
-						onChange={(e) => setConfirm(e.target.value)}
-						required
-						minLength={MIN_PASSWORD}
-					/>
-				</div>
-				{error && (
+		<AuthShell title={t("reset.title")} description={t("reset.desc")} page="reset">
+			<form onSubmit={submit} noValidate className="grid gap-3">
+				<AuthField
+					id="new-password"
+					label={t("reset.new")}
+					type="password"
+					autoComplete="new-password"
+					value={password}
+					onChange={setPassword}
+					error={submitted ? passwordError : undefined}
+					autoFocus
+				/>
+				<AuthField
+					id="confirm-password"
+					label={t("reset.confirm")}
+					type="password"
+					autoComplete="new-password"
+					value={confirm}
+					onChange={setConfirm}
+					error={submitted ? confirmError : undefined}
+				/>
+				{failed && (
 					<p className="text-destructive text-sm" role="alert">
-						{t(`reset.${error}`)}
+						{t("reset.failed")}
 					</p>
 				)}
-				<Button type="submit" className={`mt-1 ${authButtonClass}`} disabled={pending}>
+				<Button type="submit" className={`mt-1 ${authPrimaryClass}`} disabled={pending}>
 					{pending && <LoaderCircle className="mr-1 h-4 w-4 animate-spin" aria-hidden />}
 					{t("reset.submit")}
 				</Button>
 			</form>
-			{error === "failed" ? (
+			{failed ? (
 				<Link to="/login" className={linkClass}>
 					{t("reset.requestNew")}
 				</Link>

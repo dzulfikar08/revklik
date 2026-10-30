@@ -1,32 +1,58 @@
 ---
 import { render, type CollectionEntry } from "astro:content";
 import { Docs } from "@/components/docs";
-import defaultMdxComponents from "fumadocs-ui/mdx";
+import { createMdxComponents } from "@/components/mdx";
+import Tab from "@/components/tab.astro";
+import Tabs from "@/components/tabs.astro";
 import "@/styles/global.css";
-import { breadcrumbs, getPageImageUrl, source } from "@/lib/source";
+import { DEFAULT_LOCALE, type Locale } from "@/lib/i18n";
+import {
+  alternatesFor,
+  breadcrumbs,
+  contentLocale,
+  getPageImageUrl,
+  pageUrl,
+  source,
+} from "@/lib/source";
 import Layout from "@/components/layout.astro";
 import type { TOCItemType } from "fumadocs-core/toc";
 
 interface Props {
   page: CollectionEntry<"docs">;
+  locale: Locale;
+  slugs: string[];
 }
 
 const SITE = Astro.site ?? new URL("https://docs.revklik.com");
 
-export async function getStaticPaths() {
+export function getStaticPaths() {
   return source.getPages().map((page) => ({
-    params: { slug: page.slugs.length > 0 ? page.slugs.join("/") : undefined },
-    props: { page: page.data._raw },
+    // English lives at `/<slug>/`, Indonesian at `/id/<slug>/`: the loader's URL already carries the prefix.
+    params: { slug: page.url.replace(/^\//, "") || undefined },
+    props: { page: page.data._raw, locale: page.locale, slugs: page.slugs },
   }));
 }
 
-const { page } = Astro.props;
+const { page, locale, slugs } = Astro.props;
 const { Content, headings } = await render(page);
-const slugs = typeof Astro.params.slug === "string" ? Astro.params.slug.split("/") : [];
-const docsPage = source.getPage(slugs)!;
-const pathname = "/" + slugs.filter(Boolean).join("/");
-const image = getPageImageUrl(docsPage);
-const trail = breadcrumbs(pathname);
+const docsPage = source.getPage(slugs, locale)!;
+const url = pageUrl(docsPage);
+const bodyLocale = contentLocale(docsPage);
+const isFallback = bodyLocale !== locale;
+const alternates = alternatesFor(docsPage);
+const englishUrl = alternates.find((alternate) => alternate.locale === DEFAULT_LOCALE)?.url ?? url;
+const translated = alternates.filter((alternate) => alternate.translated);
+const hreflangLinks =
+  !isFallback && translated.length > 1
+    ? [
+        ...translated.map((alternate) => ({
+          hreflang: alternate.locale,
+          href: new URL(alternate.url, SITE).href,
+        })),
+        { hreflang: "x-default", href: new URL(englishUrl, SITE).href },
+      ]
+    : [];
+const trail = breadcrumbs(url, locale);
 
 const breadcrumbJsonLd = JSON.stringify({
   "@context": "https://schema.org",
@@ -44,13 +70,21 @@ const toc: TOCItemType[] = headings.map((heading) => ({
   title: heading.text,
   url: "#" + heading.slug,
 }));
+
+const FALLBACK_NOTICE = {
+  text: "Halaman ini belum tersedia dalam Bahasa Indonesia, jadi Anda membaca versi bahasa Inggris.",
+  link: "Buka versi bahasa Inggris",
+};
 ---
 
 <Layout
   title={page.data.title}
   description={page.data.description}
-  pathname={pathname}
-  image={image}
+  pathname={url}
+  canonicalPath={isFallback ? englishUrl : url}
+  image={getPageImageUrl(docsPage)}
+  lang={bodyLocale}
+  alternates={hreflangLinks}
 >
   <script
     is:inline
@@ -59,16 +93,36 @@ const toc: TOCItemType[] = headings.map((heading) => ({
     set:html={breadcrumbJsonLd}
   />
   <Docs
-    tree={source.getPageTree()}
+    tree={source.getPageTree(locale)}
     pathname={Astro.url.pathname}
     params={Astro.params}
     page={{ toc }}
+    locale={locale}
+    languageLinks={alternates.map(({ locale: alternateLocale, url: alternateUrl }) => ({
+      locale: alternateLocale,
+      url: alternateUrl,
+    }))}
     client:load
   >
+    {
+      isFallback && (
+        <p
+          lang="id"
+          role="note"
+          class="mb-6 rounded-lg border bg-fd-card p-3 text-sm text-fd-muted-foreground"
+        >
+          {FALLBACK_NOTICE.text}{" "}
+          <a href={englishUrl} hreflang="en" class="text-fd-primary underline">
+            {FALLBACK_NOTICE.link}
+          </a>
+          .
+        </p>
+      )
+    }
     <h1 class="font-semibold text-3xl">{page.data.title}</h1>
     <p class="text-lg text-fd-muted-foreground mb-8">{page.data.description}</p>
     <div class="prose flex-1">
-      <Content components={{ ...defaultMdxComponents }} />
+      <Content components={{ ...createMdxComponents(locale), Tabs, Tab }} />
     </div>
   </Docs>
 </Layout>

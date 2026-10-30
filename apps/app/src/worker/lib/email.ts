@@ -23,6 +23,10 @@ export interface EmailBinding {
 
 const DEFAULT_FROM = "RevKlik <noreply@revklik.com>";
 
+/** Escape text before it goes into an HTML email body (names, emails and paths are user-controlled). */
+export const escapeHtml = (value: string): string =>
+	value.replace(/[&<>"']/g, (ch) => `&#${ch.charCodeAt(0)};`);
+
 // Send email using Cloudflare Email Service Workers binding
 // Requires "send_email" binding in wrangler.jsonc
 export async function sendEmail(
@@ -53,11 +57,11 @@ export async function sendNewSignupAlert(
 ): Promise<void> {
 	if (!adminEmail || adminEmail === user.email) return;
 	const method = user.via === "google" ? "Google sign-in" : "email + password";
-	const subject = `RevKlik — new signup: ${user.email}`;
+	const subject = `RevKlik: new signup ${user.email}`;
 	const html = `
   <p>New RevKlik registration:</p>
   <ul>
-    <li><strong>${user.email}</strong> (${user.name})</li>
+    <li><strong>${escapeHtml(user.email)}</strong> (${escapeHtml(user.name)})</li>
     <li>via ${method}</li>
     <li>${new Date().toISOString()}</li>
   </ul>`;
@@ -73,11 +77,11 @@ export async function sendMilestoneAlert(
 	emailBinding?: EmailBinding,
 	opts: { from?: string; dashboardUrl?: string } = {},
 ): Promise<void> {
-	const subject = `KlikApa — ${metric} reached ${value.toLocaleString()}`;
+	const subject = `RevKlik: ${metric} reached ${value.toLocaleString()}`;
 	const html = `
     <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; max-width: 480px; margin: 0 auto; padding: 24px; background: #0a0a0a; color: #e8e4de; border-radius: 12px;">
-      <h2 style="font-size: 20px; margin: 0 0 16px; color: #d4882a;">${metric} Milestone</h2>
-      <p style="font-size: 15px; line-height: 1.6; margin: 0 0 12px;">Your site just reached <strong style="color: #d4882a;">${value.toLocaleString()} ${metric.toLowerCase()}</strong>.</p>
+      <h2 style="font-size: 20px; margin: 0 0 16px; color: #d4882a;">${escapeHtml(metric)} Milestone</h2>
+      <p style="font-size: 15px; line-height: 1.6; margin: 0 0 12px;">Your site just reached <strong style="color: #d4882a;">${value.toLocaleString()} ${escapeHtml(metric.toLowerCase())}</strong>.</p>
       <a href="${opts.dashboardUrl ?? `${DEFAULT_APP_URL}/site`}" style="display: inline-block; padding: 10px 20px; background: #d4882a; color: #0a0a0a; text-decoration: none; border-radius: 6px; font-weight: 600; font-size: 14px;">View Dashboard</a>
       <p style="font-size: 12px; color: #6b6560; margin-top: 20px;">You're receiving this because you enabled email alerts for this site.</p>
     </div>
@@ -99,15 +103,15 @@ export async function sendWeeklyReport(
 	const topPagesHtml = stats.topPages
 		.map(
 			(p) =>
-				`<tr><td style="padding: 6px 12px; border-bottom: 1px solid #222; font-size: 13px;">${p.path}</td><td style="padding: 6px 12px; border-bottom: 1px solid #222; font-size: 13px; text-align: right; font-family: monospace;">${p.views.toLocaleString()}</td></tr>`,
+				`<tr><td style="padding: 6px 12px; border-bottom: 1px solid #222; font-size: 13px;">${escapeHtml(p.path)}</td><td style="padding: 6px 12px; border-bottom: 1px solid #222; font-size: 13px; text-align: right; font-family: monospace;">${p.views.toLocaleString()}</td></tr>`,
 		)
 		.join("");
 
-	const subject = `KlikApa — Weekly report for ${siteName}`;
+	const subject = `RevKlik: weekly report for ${siteName}`;
 	const html = `
     <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; max-width: 520px; margin: 0 auto; padding: 24px; background: #0a0a0a; color: #e8e4de; border-radius: 12px;">
       <h2 style="font-size: 20px; margin: 0 0 16px; color: #d4882a;">Weekly Report</h2>
-      <p style="font-size: 15px; margin: 0 0 20px;">Here's your weekly summary for <strong>${siteName}</strong>.</p>
+      <p style="font-size: 15px; margin: 0 0 20px;">Here's your weekly summary for <strong>${escapeHtml(siteName)}</strong>.</p>
       <div style="display: flex; gap: 16px; margin-bottom: 24px;">
         <div style="flex: 1; background: #161616; padding: 16px; border-radius: 8px; text-align: center;">
           <div style="font-size: 28px; font-weight: 700; color: #d4882a; font-family: monospace;">${stats.pageviews.toLocaleString()}</div>
@@ -143,7 +147,7 @@ export async function sendAccountLinkedNotice(
 					to,
 					from,
 					subject: "RevKlik: an account was linked to yours",
-					html: `<p>The RevKlik account <strong>${other}</strong> was linked to <strong>${to}</strong>. Signed in to either one, you can now switch to the other.</p><p>If this wasn't you, sign in and remove the link under Settings, Linked accounts, then reset your password.</p>`,
+					html: `<p>The RevKlik account <strong>${escapeHtml(other)}</strong> was linked to <strong>${escapeHtml(to)}</strong>. Signed in to either one, you can now switch to the other.</p><p>If this wasn't you, sign in and remove the link under Settings, Linked accounts, then reset your password.</p>`,
 					text: `The RevKlik account ${other} was linked to ${to}. If this wasn't you, remove the link under Settings, Linked accounts, and reset your password.`,
 				},
 				emailBinding,

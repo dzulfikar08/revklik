@@ -1,0 +1,73 @@
+---
+import '../styles/content.css';
+import type { Copy, Locale } from '../data/copy';
+import { SUPPORT_EMAIL, appLink, LOGIN_URL, docsUrl } from '../data/site';
+import { localePath } from '../data/seo';
+import RootLayout from '../layouts/RootLayout.astro';
+import catalog from '../../../../packages/shared/marketing/catalog.json';
+
+interface Props {
+	c: Copy;
+	locale: Locale;
+}
+const { c, locale } = Astro.props;
+const text = {
+	id: {
+		title: 'Pembayaran berhasil',
+		lead: 'Terima kasih. Paket Anda aktif setelah pembayaran terkonfirmasi. Berikutnya:',
+		steps: [
+			'Buka dashboard RevKlik dan masuk dengan email yang sama.',
+			'Tambahkan situs Anda dan salin script tracking-nya.',
+			'Pasang script, lalu hubungkan payment gateway Anda.',
+		],
+		open: 'Buka dashboard',
+		guide: 'Panduan pemasangan',
+		help: 'Butuh bantuan? Tulis ke',
+	},
+	en: {
+		title: 'Payment successful',
+		lead: 'Thank you. Your plan is active once the payment is confirmed. Next:',
+		steps: [
+			'Open the RevKlik dashboard and sign in with the same email.',
+			'Add your site and copy its tracking script.',
+			'Paste the script, then connect your payment gateway.',
+		],
+		open: 'Open dashboard',
+		guide: 'Install guide',
+		help: 'Need help? Write to',
+	},
+}[locale];
+const plans = Object.fromEntries(catalog.plans.map((p) => [p.id, p.name]));
+---
+<RootLayout
+	c={c}
+	locale={locale}
+	path={localePath(locale, '/success')}
+	noindex
+	title={`${text.title} | RevKlik`}
+	description={text.lead}
+>
+  <section class="doc-head">
+    <div class="wrap-narrow">
+      <h1>{text.title}</h1>
+      <p class="lede">{text.lead}</p>
+      <p class="doc-updated" data-plan hidden></p>
+    </div>
+  </section>
+  <div class="doc-body">
+    <div class="wrap-narrow prose">
+      <ol>{text.steps.map((s) => <li>{s}</li>)}</ol>
+      <p class="notfound-actions">
+        <a class="btn btn-primary" href={appLink(LOGIN_URL, c.lang)}>{text.open}</a>
+        <a class="btn btn-ghost" href={`${docsUrl(locale)}getting-started/`}>{text.guide}</a>
+      </p>
+      <p>{text.help} <a href={`mailto:${SUPPORT_EMAIL}`}>{SUPPORT_EMAIL}</a>.</p>
+    </div>
+  </div>
+  <script is:inline define:vars={{ plans }}>
+    // The payment provider redirects here with ?plan=micro|starter|growth.
+    var plan = plans[new URLSearchParams(location.search).get('plan')];
+    var el = document.querySelector('[data-plan]');
+    if (plan && el) { el.textContent = plan; el.hidden = false; }
+  </script>
+</RootLayout>

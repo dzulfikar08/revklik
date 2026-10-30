@@ -1,0 +1,68 @@
+---
+title: Notifikasi penjualan di ponsel
+description: "Dapatkan notifikasi push di ponsel Anda untuk setiap penjualan dan refund di semua situs Anda, dengan sakelar per akun dan tombol uji."
+---
+
+Aplikasi mobile RevKlik (iOS dan Android) memberi tahu ponsel Anda begitu uang
+bergerak, untuk **setiap situs yang Anda miliki atau yang mengundang Anda**,
+dalam satu tempat. Aplikasi ini juga punya tampilan pendapatan lintas semua
+produk Anda.
+
+## Apa yang memicu notifikasi
+
+Event pendapatan apa pun yang tidak nol, tersimpan dari sumber terverifikasi:
+
+- **penjualan** (pendapatan positif) tampil sebagai `New sale · <nama situs>`
+- **refund** (pendapatan negatif) tampil sebagai `Refund · <nama situs>`
+
+Isi pesan berbunyi `<nama produk atau event> · <jumlah> · net <nilai bersih>`.
+Jumlah memakai mata uang event itu sendiri (IDR tanpa desimal). Bagian `net`
+dihilangkan bila sama dengan jumlah kotor atau tidak diketahui. Mengetuk
+notifikasi membuka tab Earnings.
+
+Hanya sumber terverifikasi yang memicu notifikasi: [API event server](/id/integrations)
+yang terautentikasi (`POST /api/v1/events/server`) dan webhook Polar, Stripe,
+Lemon Squeezy, Midtrans, Xendit, DOKU, Mayar, dan Paywuz yang tanda tangannya
+terverifikasi. Pendapatan yang dikirim tracker browser (`/track`,
+`/track/payment`) tidak pernah memicu notifikasi, karena siapa pun yang tahu
+site id bisa memanggil endpoint itu. Pengiriman ulang pembayaran yang sama
+(`external_id` atau order penyedia yang sama) tidak pernah memicu notifikasi dua
+kali.
+
+## Siapa yang menerimanya
+
+Pemilik situs dan setiap anggota tim yang sudah menerima undangannya, selama
+orang itu sudah masuk di aplikasi (yang mendaftarkan ponselnya) dan sakelar
+yang sesuai menyala. Notifikasi tidak dibatasi paket Anda: akun yang paketnya
+lapse tetap mendengar kabar uang yang masuk.
+
+## Menyalakan dan mematikan notifikasi
+
+Di aplikasi, **Settings** punya dua sakelar, **Sales** dan **Refunds** (keduanya
+menyala secara bawaan), dan tombol **Send test notification** yang mengirim ke
+setiap ponsel yang masuk ke akun Anda. Keluar dari akun menghapus ponsel itu.
+
+## Self-hosting
+
+Notifikasi lewat [layanan push Expo](https://docs.expo.dev/push-notifications/overview/),
+yang meneruskannya ke Apple dan Google dengan kredensial proyek Expo milik
+aplikasi. Tidak ada yang perlu dikonfigurasi untuk pengaturan bawaan. Jika Anda
+mengaktifkan "enhanced push security" di proyek Expo, atur secret
+`EXPO_ACCESS_TOKEN` pada Worker. Trigger cron `*/5 * * * *` milik Worker
+mengulang pengiriman yang gagal dan menghapus ponsel yang tidak lagi menerima
+push, jadi pertahankan di konfigurasi wrangler Anda.
+
+## API
+
+Semua endpoint memakai token sesi (`Authorization: Bearer kp_...`).
+
+| Metode dan path            | Isi                                                                           | Hasil                                |
+| -------------------------- | ----------------------------------------------------------------------------- | ------------------------------------ |
+| `POST /api/push/devices`   | `{ "expo_token", "platform": "ios" \| "android", "locale?", "app_version?" }` | `{ "success": true }`                |
+| `DELETE /api/push/devices` | `{ "expo_token" }`                                                            | `{ "success": true }`                |
+| `GET /api/push/prefs`      |                                                                               | `{ "sales": true, "refunds": true }` |
+| `PUT /api/push/prefs`      | `{ "sales?": boolean, "refunds?": boolean }`                                  | preferensi yang tersimpan            |
+| `POST /api/push/test`      |                                                                               | `{ "sent", "tickets" }`              |
+
+Mendaftarkan token yang sebelumnya dipakai akun lain memindahkannya ke akun saat
+ini.

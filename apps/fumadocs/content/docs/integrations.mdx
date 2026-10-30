@@ -1,40 +1,33 @@
 ---
 title: Integrations
-description: Connect RevKlik to webhooks, payments, marketplaces, and Google Search Console, plus sharing, email reports, and team access.
+description: Connect RevKlik to your payment gateways, App Store Connect, and Google Search Console, plus sharing, email reports, and team access.
 ---
 
-The **Integrations** view (top-bar tab) has five tabs: Webhooks, Payments,
-Marketplace, Search, and Imports.
-
-## Webhooks
-
-API-key integrations for email and ads. Connect once and RevKlik pulls the
-data in:
-
-| Integration | What it syncs                        | Config                                               |
-| ----------- | ------------------------------------ | ---------------------------------------------------- |
-| Mailchimp   | Subscriber data and email engagement | API key + server prefix                              |
-| ConvertKit  | Audience data                        | API key                                              |
-| Kit         | Kit (formerly ConvertKit) v3 API     | API key                                              |
-| Beehiiv     | Newsletter subscriber activity       | API key + publication ID                             |
-| Meta Ads    | Ad performance and conversions       | Access token + pixel ID                              |
-| Google Ads  | Campaign data                        | Client ID, client secret, refresh token, customer ID |
-
-Each connection can be configured, tested, enabled, and disabled. The event
-log records every webhook and test with direction, status, and time.
+The **Integrations** view (top-bar tab) has four tabs: Payments, Apps, Search,
+and Imports.
 
 ## Payments
 
-Payment-gateway integrations are **webhook-driven**: copy the RevKlik webhook
-URL shown on each card and paste it into the provider's webhook settings, then
-store the signing key. Revenue lands in your revenue panels automatically.
+RevKlik books revenue from these gateways. Xendit, DOKU, Mayar, and Paywuz serve
+Indonesian merchants. Polar serves merchants who sell worldwide.
 
-| Provider      | Coverage                                           |
-| ------------- | -------------------------------------------------- |
-| Midtrans      | GoPay, QRIS, bank transfer, credit card, ShopeePay |
-| Xendit        | OVO, DANA, ShopeePay, virtual accounts             |
-| Stripe        | Cards, wallets, bank debits, subscriptions         |
-| Lemon Squeezy | Digital products and SaaS billing                  |
+| Gateway | Region    |
+| ------- | --------- |
+| Xendit  | Indonesia |
+| DOKU    | Indonesia |
+| Mayar   | Indonesia |
+| Paywuz  | Indonesia |
+| Polar   | Global    |
+
+Webhook endpoints for Midtrans, Stripe, and Lemon Squeezy exist, but their cards
+are not shown in the dashboard yet, so they are not listed as supported.
+
+Gateway integrations are **webhook-driven**: copy the RevKlik webhook URL shown
+on the gateway's card and paste it into the provider's webhook settings, then
+store the signing key. Revenue lands in your revenue panels automatically.
+Polar has its own panel, described [below](#polar). If a gateway has no card in
+your dashboard yet, report its sales with the
+[server events API](#server-events-api).
 
 ### Server events API
 
@@ -191,11 +184,16 @@ left open overnight no longer inflates the average. Traffic sources are merged
 by name: `bing`, `bing.com` and `www.bing.com` are one source, and only
 pageviews from outside your own domain count as a source.
 
-## Marketplace
+## Apps
 
-Connect **Shopee** and **Tokopedia** with OAuth (or re-authorize when a grant
-expires), then **Sync orders** to pull orders into RevKlik. **View orders**
-lists recent orders with amount, status, and date.
+**App Store Connect** syncs App Store downloads, proceeds, and price changes
+into the same view as your web revenue, so a mobile app and its website share
+one dashboard. Create an App Store Connect API key (Users and Access →
+Integrations), then enter the Issuer ID, Key ID, the `.p8` private key, the
+app's Apple ID, and your vendor number. Apple shows the private key once, so
+keep the file. The same sales can also arrive through the
+[server events API](#server-events-api) when you prefer to report them from
+your own backend.
 
 ## Search
 

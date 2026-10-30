@@ -25,9 +25,20 @@ else sees USD prices and pays by card. Usage bars in the billing view show
 **Events this month** and **Sites** against your plan's limits.
 
 <Callout type="tip" title="What Growth unlocks">
-	Heatmaps, session recordings, and AI insights are Growth features; other
-	plans see a blurred preview with an *Upgrade to Growth* shortcut. The trial includes all of them.
+	Heatmaps, session recordings, and AI insights are Growth features; other plans see a blurred
+	preview with an *Upgrade to Growth* shortcut. The trial includes all of them.
 </Callout>
+
+What each plan includes:
+
+| Plan    | Dashboard window | Raw events kept | Revenue attribution and funnels | Heatmaps, recordings, AI insights |
+| ------- | ---------------- | --------------- | ------------------------------- | --------------------------------- |
+| Micro   | 7 days           | 30 days         | No                              | No                                |
+| Starter | 30 days          | 60 days         | Yes                             | No                                |
+| Growth  | 90 days          | 180 days        | Yes                             | Yes                               |
+
+The run-rate forecast is on every plan. Raw events are deleted automatically
+after the retention period; see [privacy](/privacy#what-is-stored-and-for-how-long).
 
 ## Trial
 
@@ -56,8 +67,9 @@ Every plan card offers:
   tab. Complete the payment there, then press **I've paid, check now** back
   in RevKlik. The reminder stays on the billing view, even after a reload,
   until the payment is confirmed, and it lets you reopen the payment page.
-- **Pay with card**: a hosted checkout in USD. After payment you return to
-  RevKlik and the plan activates as soon as the payment is confirmed.
+- **Pay with card**: a hosted checkout in USD, processed by Polar. After
+  payment you return to RevKlik and the plan activates as soon as the payment
+  is confirmed.
 
 All plans are **monthly and cancel anytime**.
 
@@ -70,7 +82,8 @@ is deleted at that point, you simply stop renewing.
 
 ## If you take payments yourself
 
-The QRIS/GoPay flows **into** RevKlik, not out of it: connect a payment
-provider under [Integrations → Payments](/integrations#payments) (Midtrans,
-Xendit, Stripe, Lemon Squeezy) and their transactions (GoPay, QRIS, cards,
-and more) feed your revenue panels automatically.
+Paying for RevKlik and tracking your own sales are separate things. Your
+customers' payments flow **into** RevKlik, not out of it: connect a payment
+gateway under [Integrations → Payments](/integrations#payments) (Xendit,
+DOKU, Mayar, Paywuz, or Polar) and its
+transactions feed your revenue panels automatically.

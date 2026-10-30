@@ -1,0 +1,52 @@
+---
+import type { Copy, Locale } from '../data/copy';
+import '../styles/content.css';
+import { CATEGORIES, CATEGORY_LABEL, formatDate, getPosts, postPath, slugOf } from '../lib/blog';
+interface Props {
+	c: Copy;
+	locale: Locale;
+}
+const { c, locale } = Astro.props;
+const posts = await getPosts(locale);
+const featured = posts.find((p) => p.data.featured) ?? posts[0];
+const rest = posts.filter((p) => p !== featured);
+const used = CATEGORIES.filter((cat) => posts.some((p) => p.data.category === cat));
+const minutes = (n: number) => c.post_read_min.replace('{n}', String(n));
+---
+<section class="page-head">
+  <div class="wrap">
+    <h1>{c.blog_h1}</h1>
+    <p class="lede">{c.blog_sub}</p>
+  </div>
+</section>
+
+<section class="blog-list">
+  <div class="wrap">
+    {featured && (
+      <article class="post-card post-featured" data-cat={featured.data.category}>
+        <p class="post-card-tag">{c.blog_featured} · {CATEGORY_LABEL[locale][featured.data.category]}</p>
+        <h2><a href={postPath(locale, slugOf(featured))}>{featured.data.title}</a></h2>
+        <p>{featured.data.description}</p>
+        <p class="post-card-meta">{formatDate(featured.data.published, locale)} · {minutes(featured.data.readMinutes)}</p>
+      </article>
+    )}
+
+    <div class="blog-filters" role="group" aria-label={c.blog_filter_label} data-blog-filters>
+      <button type="button" class="chip" aria-pressed="true" data-filter="all">{c.blog_all}</button>
+      {used.map((cat) => <button type="button" class="chip" aria-pressed="false" data-filter={cat}>{CATEGORY_LABEL[locale][cat]}</button>)}
+    </div>
+
+    <h2 class="visually-hidden">{c.blog_list_label}</h2>
+    <ul class="post-grid" data-blog-grid>
+      {rest.map((p) => (
+        <li class="post-card" data-cat={p.data.category}>
+          <p class="post-card-tag">{CATEGORY_LABEL[locale][p.data.category]}</p>
+          <h3><a href={postPath(locale, slugOf(p))}>{p.data.title}</a></h3>
+          <p>{p.data.description}</p>
+          <p class="post-card-meta">{formatDate(p.data.published, locale)} · {minutes(p.data.readMinutes)}</p>
+        </li>
+      ))}
+    </ul>
+    <p class="blog-empty" data-blog-empty hidden>{c.blog_empty}</p>
+  </div>
+</section>
