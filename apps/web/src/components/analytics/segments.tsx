@@ -13,6 +13,7 @@ import { toast } from "sonner";
 import { createSegment, deleteSegment, fetchSegments } from "@/lib/legacy/analytics-settings";
 import type { LegacySegment } from "@/lib/legacy/analytics-settings";
 import { encodeFilterString, LegacyApiError } from "@/lib/legacy/api";
+import { useT } from "@/lib/i18n";
 import type { LegacyFilter } from "@/lib/legacy/api";
 
 const parseSegmentFilters = (raw: string): LegacyFilter[] => {
@@ -45,6 +46,7 @@ const SegmentPopover = ({
 	onDone: () => void;
 }) => {
 	const qc = useQueryClient();
+	const t = useT();
 	const [name, setName] = useState("");
 	const inputRef = useRef<HTMLInputElement>(null);
 
@@ -52,39 +54,40 @@ const SegmentPopover = ({
 		mutationFn: () => createSegment(siteId, name.trim(), filters),
 		onSuccess: () => {
 			qc.invalidateQueries({ queryKey: ["legacy", "segments", siteId] });
-			toast.success(`Segment “${name.trim()}” saved`);
+			toast.success(t("segments.saved", { name: name.trim() }));
 			setName("");
 			onDone();
 		},
-		onError: (e) => toast.error(e instanceof LegacyApiError ? e.message : "Failed to save segment"),
+		onError: (e) =>
+			toast.error(e instanceof LegacyApiError ? e.message : t("segments.saveFailed")),
 	});
 	const deleteMut = useMutation({
 		mutationFn: (id: string) => deleteSegment(id),
 		onSuccess: () => {
 			qc.invalidateQueries({ queryKey: ["legacy", "segments", siteId] });
-			toast.success("Segment deleted");
+			toast.success(t("segments.deleted"));
 		},
 		onError: (e) =>
-			toast.error(e instanceof LegacyApiError ? e.message : "Failed to delete segment"),
+			toast.error(e instanceof LegacyApiError ? e.message : t("segments.deleteFailed")),
 	});
 
 	return (
 		<>
 			<button
 				type="button"
-				aria-label="Close segments menu"
+				aria-label={t("segments.closeMenu")}
 				className="fixed inset-0 z-30 cursor-default"
 				onClick={onDone}
 			/>
 			<div className="bg-popover ring-foreground/10 absolute top-full right-0 z-40 mt-1.5 w-72 rounded-xl p-2.5 ring-1 shadow-lg">
 				<p className="text-muted-foreground mb-1.5 text-[11px] font-medium tracking-wide uppercase">
-					Save current filters
+					{t("segments.saveFilters")}
 				</p>
 				<div className="flex gap-1.5">
 					<Input
 						ref={inputRef}
 						value={name}
-						placeholder="Segment name…"
+						placeholder={t("segments.namePlaceholder")}
 						onChange={(e) => setName(e.target.value)}
 						onKeyDown={(e) => {
 							if (e.key === "Enter" && name.trim() && filters.length) {
@@ -99,20 +102,20 @@ const SegmentPopover = ({
 						disabled={!name.trim() || filters.length === 0 || saveMut.isPending}
 						onClick={() => saveMut.mutate()}
 					>
-						Save
+						{t("segments.save")}
 					</Button>
 				</div>
 				{filters.length === 0 ? (
 					<p className="text-muted-foreground mt-1 text-[11px]">
-						Add a filter first, then save it as a segment.
+						{t("segments.addFilterFirst")}
 					</p>
 				) : null}
 
 				<p className="text-muted-foreground mt-2.5 mb-1 text-[11px] font-medium tracking-wide uppercase">
-					Manage
+					{t("segments.manage")}
 				</p>
 				{segments.length === 0 ? (
-					<p className="text-muted-foreground text-[11px]">No saved segments yet.</p>
+					<p className="text-muted-foreground text-[11px]">{t("segments.empty")}</p>
 				) : (
 					<ul className="max-h-56 space-y-0.5 overflow-y-auto">
 						{segments.map((s) => (
@@ -130,7 +133,7 @@ const SegmentPopover = ({
 								</span>
 								<button
 									type="button"
-									aria-label={`Delete segment ${s.name}`}
+									aria-label={t("segments.deleteAria", { name: s.name })}
 									disabled={deleteMut.isPending}
 									onClick={() => deleteMut.mutate(s.id)}
 									className="text-muted-foreground hover:text-(--down) focus-visible:outline-ring rounded p-1 outline-offset-2 focus-visible:outline-2 disabled:opacity-40"
@@ -155,6 +158,7 @@ export const SegmentControls = ({
 	filters: LegacyFilter[];
 	onApply: (filters: LegacyFilter[]) => void;
 }) => {
+	const t = useT();
 	const [open, setOpen] = useState(false);
 	const { data: segments = [] } = useQuery({
 		enabled: Boolean(siteId),
@@ -180,8 +184,8 @@ export const SegmentControls = ({
 								return;
 							}
 							onApply(parsed);
-							toast.success(`Segment “${s.name}” applied`, {
-								description: `${parsed.length} filter${parsed.length === 1 ? "" : "s"}`,
+							toast.success(t("segments.applied", { name: s.name }), {
+								description: t("segments.filterCount", { n: parsed.length }),
 							});
 						}}
 						className={`focus-visible:outline-ring inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium outline-offset-2 focus-visible:outline-2 ${
@@ -197,7 +201,7 @@ export const SegmentControls = ({
 			})}
 			<button
 				type="button"
-				aria-label="Save or manage segments"
+				aria-label={t("segments.saveOrManage")}
 				aria-expanded={open}
 				onClick={() => setOpen((v) => !v)}
 				className={`focus-visible:outline-ring inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium outline-offset-2 focus-visible:outline-2 ${
@@ -205,7 +209,7 @@ export const SegmentControls = ({
 				}`}
 			>
 				<Bookmark className="size-3" aria-hidden />
-				Save
+				{t("segments.save")}
 			</button>
 			{open ? (
 				<SegmentPopover

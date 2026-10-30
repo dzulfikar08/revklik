@@ -24,30 +24,32 @@ import {
 	updateEmailReport,
 } from "@/lib/legacy/analytics-settings";
 import { LegacyApiError } from "@/lib/legacy/api";
+import { formatDate, useLocale, useT } from "@/lib/i18n";
+import type { MessageKey } from "@/lib/i18n";
 
 import { Panel } from "./ui";
 
-const FREQUENCIES = [
-	{ value: "daily", label: "Daily" },
-	{ value: "weekly", label: "Weekly" },
-	{ value: "monthly", label: "Monthly" },
-] as const;
+const FREQUENCIES: readonly { value: string; labelKey: MessageKey }[] = [
+	{ value: "daily", labelKey: "emailReports.freq.daily" },
+	{ value: "weekly", labelKey: "emailReports.freq.weekly" },
+	{ value: "monthly", labelKey: "emailReports.freq.monthly" },
+];
 
 const errMsg = (e: unknown, fallback: string): string =>
 	e instanceof LegacyApiError ? e.message : fallback;
 
-const sentLabel = (iso: string | null): string =>
-	iso
-		? new Date(iso).toLocaleDateString("en-US", {
-				day: "numeric",
-				month: "short",
-				year: "numeric",
-			})
-		: "never";
-
 export const EmailReportsSection = ({ siteId }: { siteId: string }) => {
 	const qc = useQueryClient();
+	const t = useT();
+	const locale = useLocale();
 	const [frequency, setFrequency] = useState("weekly");
+
+	const frequencyLabel = (value: string): string => {
+		const match = FREQUENCIES.find((f) => f.value === value);
+		return match ? t(match.labelKey) : value;
+	};
+	const sentLabel = (iso: string | null): string =>
+		iso ? formatDate(iso, locale) : t("emailReports.never");
 
 	const { data: reports = [], isLoading } = useQuery({
 		enabled: Boolean(siteId),
@@ -62,9 +64,11 @@ export const EmailReportsSection = ({ siteId }: { siteId: string }) => {
 		mutationFn: () => createEmailReport(siteId, frequency),
 		onSuccess: () => {
 			qc.invalidateQueries(invalidate);
-			toast.success(`${frequency} report scheduled`);
+			toast.success(
+				t("emailReports.scheduled", { frequency: frequencyLabel(frequency).toLowerCase() }),
+			);
 		},
-		onError: (e) => toast.error(errMsg(e, "Failed to create report")),
+		onError: (e) => toast.error(errMsg(e, t("emailReports.createFailed"))),
 	});
 
 	const toggleMut = useMutation({
@@ -72,41 +76,44 @@ export const EmailReportsSection = ({ siteId }: { siteId: string }) => {
 			updateEmailReport(id, { enabled }),
 		onSuccess: () => {
 			qc.invalidateQueries(invalidate);
-			toast.success("Report updated");
+			toast.success(t("emailReports.updated"));
 		},
-		onError: (e) => toast.error(errMsg(e, "Failed to update report")),
+		onError: (e) => toast.error(errMsg(e, t("emailReports.updateFailed"))),
 	});
 
 	const deleteMut = useMutation({
 		mutationFn: (id: string) => deleteEmailReport(id),
 		onSuccess: () => {
 			qc.invalidateQueries(invalidate);
-			toast.success("Report deleted");
+			toast.success(t("emailReports.deleted"));
 		},
-		onError: (e) => toast.error(errMsg(e, "Failed to delete report")),
+		onError: (e) => toast.error(errMsg(e, t("emailReports.deleteFailed"))),
 	});
 
 	return (
-		<Panel title="Email reports" hint="recurring summary to your account email">
+		<Panel title={t("emailReports.title")} hint={t("emailReports.hint")}>
 			{!siteId ? (
 				<p className="text-muted-foreground py-4 text-center text-xs">
-					Connect a site to schedule reports.
+					{t("emailReports.connectSite")}
 				</p>
 			) : (
 				<>
 					<div className="mb-2.5 flex flex-wrap items-center gap-2">
 						<span className="text-muted-foreground flex items-center gap-1 text-xs">
 							<CalendarClock className="size-3.5" aria-hidden />
-							Schedule
+							{t("emailReports.schedule")}
 						</span>
 						<Select value={frequency} onValueChange={(v) => setFrequency(String(v))}>
-							<SelectTrigger aria-label="Report frequency" className="h-8 w-32 text-xs">
+							<SelectTrigger
+								aria-label={t("emailReports.frequencyLabel")}
+								className="h-8 w-32 text-xs"
+							>
 								<SelectValue />
 							</SelectTrigger>
 							<SelectContent>
 								{FREQUENCIES.map((f) => (
 									<SelectItem key={f.value} value={f.value}>
-										{f.label}
+										{t(f.labelKey)}
 									</SelectItem>
 								))}
 							</SelectContent>
@@ -117,15 +124,17 @@ export const EmailReportsSection = ({ siteId }: { siteId: string }) => {
 							disabled={createMut.isPending}
 							onClick={() => createMut.mutate()}
 						>
-							Create report
+							{t("emailReports.create")}
 						</Button>
 					</div>
 
 					{isLoading ? (
-						<p className="text-muted-foreground py-3 text-center text-xs">Loading…</p>
+						<p className="text-muted-foreground py-3 text-center text-xs">
+							{t("emailReports.loading")}
+						</p>
 					) : reports.length === 0 ? (
 						<p className="text-muted-foreground py-3 text-center text-xs">
-							No email reports configured.
+							{t("emailReports.empty")}
 						</p>
 					) : (
 						<ul className="space-y-0.5">
@@ -134,24 +143,28 @@ export const EmailReportsSection = ({ siteId }: { siteId: string }) => {
 									key={r.id}
 									className="bg-muted/40 hover:bg-muted/60 flex flex-wrap items-center gap-2 rounded-lg px-2.5 py-2"
 								>
-									<span className="w-20 font-mono text-xs capitalize">{r.frequency}</span>
+									<span className="w-20 font-mono text-xs">{frequencyLabel(r.frequency)}</span>
 									<button
 										type="button"
-										aria-label={`${r.enabled ? "Disable" : "Enable"} ${r.frequency} report`}
+										aria-label={t(r.enabled ? "emailReports.disableAria" : "emailReports.enableAria", {
+											frequency: frequencyLabel(r.frequency).toLowerCase(),
+										})}
 										disabled={toggleMut.isPending}
 										onClick={() => toggleMut.mutate({ id: r.id, enabled: !r.enabled })}
 										className={`focus-visible:outline-ring rounded-full px-2 py-0.5 text-[11px] font-medium outline-offset-2 focus-visible:outline-2 ${
 											r.enabled ? "bg-(--up)/10 text-(--up)" : "bg-muted text-muted-foreground"
 										}`}
 									>
-										{r.enabled ? "Enabled" : "Disabled"}
+										{r.enabled ? t("emailReports.enabled") : t("emailReports.disabled")}
 									</button>
 									<span className="text-muted-foreground ml-auto font-mono text-[11px] tabular-nums">
-										last sent {sentLabel(r.last_sent)}
+										{t("emailReports.lastSent", { when: sentLabel(r.last_sent) })}
 									</span>
 									<button
 										type="button"
-										aria-label={`Delete ${r.frequency} report`}
+										aria-label={t("emailReports.deleteAria", {
+											frequency: frequencyLabel(r.frequency).toLowerCase(),
+										})}
 										disabled={deleteMut.isPending}
 										onClick={() => deleteMut.mutate(r.id)}
 										className="text-muted-foreground hover:text-(--down) focus-visible:outline-ring rounded p-1 outline-offset-2 focus-visible:outline-2 disabled:opacity-40"

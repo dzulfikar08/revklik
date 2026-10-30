@@ -26,13 +26,15 @@ import {
 } from "@/lib/legacy/team";
 import type { LegacyTeamMember, TeamRole } from "@/lib/legacy/team";
 import { LegacyApiError } from "@/lib/legacy/api";
+import { useT } from "@/lib/i18n";
+import type { MessageKey } from "@/lib/i18n";
 
 import { Panel } from "./ui";
 
-const ROLES: readonly { value: TeamRole; label: string }[] = [
-	{ value: "admin", label: "Admin" },
-	{ value: "editor", label: "Editor" },
-	{ value: "viewer", label: "Viewer" },
+const ROLES: readonly { value: TeamRole; labelKey: MessageKey }[] = [
+	{ value: "admin", labelKey: "team.role.admin" },
+	{ value: "editor", labelKey: "team.role.editor" },
+	{ value: "viewer", labelKey: "team.role.viewer" },
 ];
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -51,56 +53,63 @@ const MemberRow = ({
 	onRole: (id: string, role: TeamRole) => void;
 	onRemove: (id: string) => void;
 	busy: boolean;
-}) => (
-	<li className="bg-muted/40 hover:bg-muted/60 flex flex-wrap items-center gap-2 rounded-lg px-2.5 py-2">
-		<span className="min-w-0 flex-1">
-			<span className="block truncate text-xs font-medium">
-				{member.name ?? member.email ?? member.user_id}
-			</span>
-			{member.name && member.email ? (
-				<span className="text-muted-foreground block truncate font-mono text-[11px]">
-					{member.email}
+}) => {
+	const t = useT();
+	const who = member.email ?? member.name ?? t("team.memberFallback");
+	return (
+		<li className="bg-muted/40 hover:bg-muted/60 flex flex-wrap items-center gap-2 rounded-lg px-2.5 py-2">
+			<span className="min-w-0 flex-1">
+				<span className="block truncate text-xs font-medium">
+					{member.name ?? member.email ?? member.user_id}
 				</span>
-			) : null}
-		</span>
-		<span
-			className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${
-				member.accepted_at ? "bg-(--up)/10 text-(--up)" : "bg-(--chart)/10 text-(--chart)"
-			}`}
-		>
-			{member.accepted_at ? "Active" : "Invited"}
-		</span>
-		<Select value={member.role} onValueChange={(v) => onRole(member.id, String(v) as TeamRole)}>
-			<SelectTrigger
-				aria-label={`Role for ${member.email ?? member.name ?? "member"}`}
-				className="h-7 w-24 text-xs"
+				{member.name && member.email ? (
+					<span className="text-muted-foreground block truncate font-mono text-[11px]">
+						{member.email}
+					</span>
+				) : null}
+			</span>
+			<span
+				className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${
+					member.accepted_at ? "bg-(--up)/10 text-(--up)" : "bg-(--chart)/10 text-(--chart)"
+				}`}
 			>
-				<SelectValue />
-			</SelectTrigger>
-			<SelectContent>
-				{ROLES.map((r) => (
-					<SelectItem key={r.value} value={r.value}>
-						{r.label}
-					</SelectItem>
-				))}
-			</SelectContent>
-		</Select>
-		<button
-			type="button"
-			aria-label={`Remove ${member.email ?? member.name ?? "member"}`}
-			disabled={busy}
-			onClick={() => onRemove(member.id)}
-			className="text-muted-foreground hover:text-(--down) focus-visible:outline-ring rounded p-1 outline-offset-2 focus-visible:outline-2 disabled:opacity-40"
-		>
-			<Trash2 className="size-3.5" aria-hidden />
-		</button>
-	</li>
-);
+				{member.accepted_at ? t("team.status.active") : t("team.status.invited")}
+			</span>
+			<Select value={member.role} onValueChange={(v) => onRole(member.id, String(v) as TeamRole)}>
+				<SelectTrigger aria-label={t("team.roleFor", { who })} className="h-7 w-24 text-xs">
+					<SelectValue />
+				</SelectTrigger>
+				<SelectContent>
+					{ROLES.map((r) => (
+						<SelectItem key={r.value} value={r.value}>
+							{t(r.labelKey)}
+						</SelectItem>
+					))}
+				</SelectContent>
+			</Select>
+			<button
+				type="button"
+				aria-label={t("team.removeWho", { who })}
+				disabled={busy}
+				onClick={() => onRemove(member.id)}
+				className="text-muted-foreground hover:text-(--down) focus-visible:outline-ring rounded p-1 outline-offset-2 focus-visible:outline-2 disabled:opacity-40"
+			>
+				<Trash2 className="size-3.5" aria-hidden />
+			</button>
+		</li>
+	);
+};
 
 export const TeamSection = ({ siteId }: { siteId: string }) => {
 	const qc = useQueryClient();
+	const t = useT();
 	const [email, setEmail] = useState("");
 	const [role, setRole] = useState<TeamRole>("viewer");
+
+	const roleLabel = (value: string): string => {
+		const match = ROLES.find((r) => r.value === value);
+		return match ? t(match.labelKey) : value;
+	};
 
 	const { data, isLoading } = useQuery({
 		enabled: Boolean(siteId),
@@ -116,21 +125,21 @@ export const TeamSection = ({ siteId }: { siteId: string }) => {
 		mutationFn: () => inviteTeamMember(siteId, email.trim(), role),
 		onSuccess: (res) => {
 			qc.invalidateQueries(invalidate);
-			toast.success(`Invite sent to ${res.email} as ${res.role}`);
+			toast.success(t("team.inviteSent", { email: res.email, role: roleLabel(res.role) }));
 			setEmail("");
 		},
-		onError: (e) => toast.error(errMsg(e, "Failed to send invite")),
+		onError: (e) => toast.error(errMsg(e, t("team.inviteFailed"))),
 	});
 
 	const roleMut = useMutation({
 		mutationFn: ({ id, next }: { id: string; next: TeamRole }) => updateTeamMemberRole(id, next),
 		onSuccess: () => {
 			qc.invalidateQueries(invalidate);
-			toast.success("Role updated");
+			toast.success(t("team.roleUpdated"));
 		},
 		onError: (e) => {
 			qc.invalidateQueries(invalidate);
-			toast.error(errMsg(e, "Failed to update role"));
+			toast.error(errMsg(e, t("team.roleFailed")));
 		},
 	});
 
@@ -138,37 +147,35 @@ export const TeamSection = ({ siteId }: { siteId: string }) => {
 		mutationFn: (id: string) => removeTeamMember(id),
 		onSuccess: () => {
 			qc.invalidateQueries(invalidate);
-			toast.success("Member removed");
+			toast.success(t("team.removed"));
 		},
-		onError: (e) => toast.error(errMsg(e, "Failed to remove member")),
+		onError: (e) => toast.error(errMsg(e, t("team.removeFailed"))),
 	});
 
 	const submitInvite = () => {
 		if (!emailOk) {
-			toast.error("Enter a valid email address");
+			toast.error(t("team.enterValidEmail"));
 			return;
 		}
 		inviteMut.mutate();
 	};
 
 	return (
-		<Panel title="Team" hint="people with access to this site">
+		<Panel title={t("team.title")} hint={t("team.hint")}>
 			{!siteId ? (
-				<p className="text-muted-foreground py-4 text-center text-xs">
-					Connect a site to manage its team.
-				</p>
+				<p className="text-muted-foreground py-4 text-center text-xs">{t("team.connectSite")}</p>
 			) : (
 				<>
 					<div className="mb-2.5 flex flex-wrap items-center gap-2">
 						<span className="text-muted-foreground flex items-center gap-1 text-xs">
 							<UserPlus className="size-3.5" aria-hidden />
-							Invite
+							{t("team.invite")}
 						</span>
 						<Input
 							type="email"
 							value={email}
-							placeholder="teammate@example.com"
-							aria-label="Invitee email"
+							placeholder={t("team.emailPlaceholder")}
+							aria-label={t("team.inviteeEmail")}
 							onChange={(e) => setEmail(e.target.value)}
 							onKeyDown={(e) => {
 								if (e.key === "Enter") {
@@ -178,13 +185,13 @@ export const TeamSection = ({ siteId }: { siteId: string }) => {
 							className={`h-8 w-56 text-xs ${email && !emailOk ? "border-(--down)" : ""}`}
 						/>
 						<Select value={role} onValueChange={(v) => setRole(String(v) as TeamRole)}>
-							<SelectTrigger aria-label="Invitee role" className="h-8 w-28 text-xs">
+							<SelectTrigger aria-label={t("team.inviteeRole")} className="h-8 w-28 text-xs">
 								<SelectValue />
 							</SelectTrigger>
 							<SelectContent>
 								{ROLES.map((r) => (
 									<SelectItem key={r.value} value={r.value}>
-										{r.label}
+										{t(r.labelKey)}
 									</SelectItem>
 								))}
 							</SelectContent>
@@ -195,15 +202,15 @@ export const TeamSection = ({ siteId }: { siteId: string }) => {
 							disabled={!emailOk || inviteMut.isPending}
 							onClick={submitInvite}
 						>
-							Send invite
+							{t("team.sendInvite")}
 						</Button>
 						{email && !emailOk ? (
-							<span className="text-(--down) text-[11px]">Invalid email</span>
+							<span className="text-(--down) text-[11px]">{t("team.invalidEmail")}</span>
 						) : null}
 					</div>
 
 					{isLoading ? (
-						<p className="text-muted-foreground py-3 text-center text-xs">Loading…</p>
+						<p className="text-muted-foreground py-3 text-center text-xs">{t("team.loading")}</p>
 					) : (
 						<ul className="space-y-0.5">
 							{data?.owner ? (
@@ -218,7 +225,7 @@ export const TeamSection = ({ siteId }: { siteId: string }) => {
 									</span>
 									<span className="bg-(--up)/10 text-(--up) inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium">
 										<ShieldCheck className="size-3" aria-hidden />
-										Owner
+										{t("team.role.owner")}
 									</span>
 								</li>
 							) : null}
@@ -233,14 +240,12 @@ export const TeamSection = ({ siteId }: { siteId: string }) => {
 							))}
 							{data && !data.owner && data.members.length === 0 ? (
 								<li className="text-muted-foreground py-2 text-center text-xs">
-									No team members yet.
+									{t("team.empty")}
 								</li>
 							) : null}
 						</ul>
 					)}
-					<p className="text-muted-foreground mt-2 text-[11px]">
-						Invitees need an existing revklik account. Owners can change roles and remove members.
-					</p>
+					<p className="text-muted-foreground mt-2 text-[11px]">{t("team.note")}</p>
 				</>
 			)}
 		</Panel>
