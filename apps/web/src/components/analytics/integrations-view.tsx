@@ -26,22 +26,28 @@ import {
 	Zap,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
-import { useState } from "react";
-import type { ReactNode } from "react";
+import { Fragment, useState } from "react";
+import type { ComponentType, ReactNode } from "react";
 import { toast } from "sonner";
 
+import { useLocale, useT } from "@/lib/i18n";
+import type { Locale, MessageKey } from "@/lib/i18n";
+import { LegacyApiError } from "@/lib/legacy/api";
 import {
+	aggregateGscQueries,
 	createIntegration,
 	createPaymentProvider,
 	deleteIntegration,
 	deletePaymentProvider,
+	fetchGscAuthUrl,
 	fetchGscQueries,
 	fetchIntegrations,
 	fetchMarketplaceOrders,
 	fetchPaymentProviders,
 	fetchWebhookEvents,
-	gscAuthUrl,
+	isSyncStale,
 	marketplaceAuthUrl,
+	SYNC_STALE_DAYS,
 	syncGsc,
 	syncMarketplaceOrders,
 	testIntegration,
@@ -61,34 +67,158 @@ import { ImportsView } from "./imports-view";
 import { PolarConnectPanel } from "./polar-connect-panel";
 import { Panel, PanelTabs, StatusPill } from "./ui";
 
+type Translate = (key: MessageKey, vars?: Record<string, string | number>) => string;
+
+/* ------------------------------ rich messages ------------------------------ */
+
+type RichTags = Record<string, (inner: string) => ReactNode>;
+
+const RICH_TAG = /<(\w+)>(.*?)<\/\1>/gu;
+
+/**
+ * Renders a message that carries inline tags (`<b>..</b>`, `<a>..</a>`): the
+ * words live in the dictionary, the markup stays here.
+ */
+const Rich = ({ text, tags }: { text: string; tags: RichTags }) => {
+	const out: ReactNode[] = [];
+	let last = 0;
+	for (const match of text.matchAll(RICH_TAG)) {
+		const [whole = "", tag = "", inner = ""] = match;
+		const at = match.index ?? 0;
+		if (at > last) {
+			out.push(text.slice(last, at));
+		}
+		const render = tags[tag];
+		out.push(<Fragment key={at}>{render ? render(inner) : inner}</Fragment>);
+		last = at + whole.length;
+	}
+	if (last < text.length) {
+		out.push(text.slice(last));
+	}
+	return <>{out}</>;
+};
+
+const BOLD: RichTags = {
+	b: (inner) => <strong className="text-foreground">{inner}</strong>,
+	i: (inner) => <code className="text-foreground">{inner}</code>,
+};
+
+const linkTag = (href: string, className: string) => (inner: string) => (
+	<a className={className} href={href} target="_blank" rel="noopener noreferrer">
+		{inner}
+	</a>
+);
+
 /* ------------------------------ provider meta ------------------------------ */
 
 interface ProviderField {
 	key: string;
+	/** Provider's own term (Server Key, Issuer ID, ...), shown as is. */
 	label: string;
+	/** Our own wording; wins over `label` when set. */
+	labelKey?: MessageKey;
 	placeholder: string;
 	secret?: boolean;
-	/** Multi-secret paste (e.g. PEM) — renders a textarea instead of an input. */
+	/** Multi-secret paste (e.g. PEM): renders a textarea instead of an input. */
 	multiline?: boolean;
 	/** Where to find the value, shown under the field. */
-	hint?: string;
+	hintKey?: MessageKey;
 }
 
 interface ProviderMeta {
 	type: LegacyIntegrationType;
 	name: string;
-	description: string;
+	descriptionKey: MessageKey;
 	icon: LucideIcon;
 	fields: ProviderField[];
 	/** Step-by-step acquisition guide rendered inside the connect form. */
-	instructions?: ReactNode;
+	Instructions?: ComponentType;
 }
-/* API-key webhook integrations — configured inline, tested against the provider. */
+
+export const fieldLabel = (field: ProviderField, t: Translate): string =>
+	field.labelKey ? t(field.labelKey) : field.label;
+
+const AscInstructions = () => {
+	const t = useT();
+	const tags: RichTags = {
+		...BOLD,
+		a: linkTag("https://appstoreconnect.apple.com/access/integrations/api", "underline underline-offset-2"),
+	};
+	return (
+		<div className="bg-muted/50 border-border/60 grid gap-1.5 rounded-lg border px-3 py-2.5 text-[11px] leading-relaxed">
+			<p className="text-foreground/80 font-semibold">{t("integrations.asc.before")}</p>
+			<p className="text-muted-foreground">{t("integrations.asc.beforeBody")}</p>
+			<p className="text-foreground/80 font-semibold">{t("integrations.asc.step1")}</p>
+			<ol className="text-muted-foreground list-decimal space-y-1 pl-4">
+				<li>
+					<Rich text={t("integrations.asc.step1a")} tags={tags} />
+				</li>
+				<li>
+					<Rich text={t("integrations.asc.step1b")} tags={tags} />
+				</li>
+				<li>
+					<Rich text={t("integrations.asc.step1c")} tags={tags} />
+				</li>
+			</ol>
+			<p className="text-foreground/80 font-semibold">{t("integrations.asc.step2")}</p>
+			<ol className="text-muted-foreground list-decimal space-y-1 pl-4">
+				<li>
+					<Rich text={t("integrations.asc.step2a")} tags={tags} />
+				</li>
+				<li>
+					<Rich text={t("integrations.asc.step2b")} tags={tags} />
+				</li>
+			</ol>
+			<p className="text-muted-foreground">
+				<Rich text={t("integrations.asc.after")} tags={tags} />
+			</p>
+		</div>
+	);
+};
+
+const DokuInstructions = () => {
+	const t = useT();
+	const tags: RichTags = {
+		...BOLD,
+		a: linkTag(
+			"https://dashboard.doku.com/bo/login?utm_source=docs",
+			"text-foreground underline-offset-2 hover:underline",
+		),
+	};
+	return (
+		<div className="text-muted-foreground space-y-2 text-sm">
+			<p className="text-foreground/80 font-semibold">{t("integrations.doku.step1")}</p>
+			<ol className="text-muted-foreground list-decimal space-y-1 pl-4">
+				<li>
+					<Rich text={t("integrations.doku.step1a")} tags={tags} />
+				</li>
+				<li>
+					<Rich text={t("integrations.doku.step1b")} tags={tags} />
+				</li>
+			</ol>
+			<p className="text-foreground/80 font-semibold">{t("integrations.doku.step2")}</p>
+			<ol className="text-muted-foreground list-decimal space-y-1 pl-4">
+				<li>
+					<Rich text={t("integrations.doku.step2a")} tags={tags} />
+				</li>
+				<li>
+					<Rich
+						text={t("integrations.doku.step2b", { url: `${WORKER_ORIGIN}/api/webhooks/doku` })}
+						tags={tags}
+					/>
+				</li>
+			</ol>
+			<p className="text-muted-foreground">{t("integrations.doku.after")}</p>
+		</div>
+	);
+};
+
+/* API-key webhook integrations: configured inline, tested against the provider. */
 export const WEBHOOK_PROVIDERS: ProviderMeta[] = [
 	{
 		type: "mailchimp",
 		name: "Mailchimp",
-		description: "Sync subscriber data and track email engagement",
+		descriptionKey: "integrations.provider.mailchimp.desc",
 		icon: Mail,
 		fields: [
 			{ key: "api_key", label: "API Key", placeholder: "your-mailchimp-api-key", secret: true },
@@ -98,7 +228,7 @@ export const WEBHOOK_PROVIDERS: ProviderMeta[] = [
 	{
 		type: "convertkit",
 		name: "ConvertKit",
-		description: "Connect your ConvertKit audience data",
+		descriptionKey: "integrations.provider.convertkit.desc",
 		icon: Bird,
 		fields: [
 			{ key: "api_key", label: "API Key", placeholder: "your-convertkit-api-key", secret: true },
@@ -107,14 +237,14 @@ export const WEBHOOK_PROVIDERS: ProviderMeta[] = [
 	{
 		type: "kit",
 		name: "Kit",
-		description: "Sync with Kit (formerly ConvertKit) v3 API",
+		descriptionKey: "integrations.provider.kit.desc",
 		icon: Feather,
 		fields: [{ key: "api_key", label: "API Key", placeholder: "your-kit-api-key", secret: true }],
 	},
 	{
 		type: "beehiiv",
 		name: "Beehiiv",
-		description: "Track newsletter subscriber activity",
+		descriptionKey: "integrations.provider.beehiiv.desc",
 		icon: Hexagon,
 		fields: [
 			{ key: "api_key", label: "API Key", placeholder: "your-beehiiv-api-key", secret: true },
@@ -124,7 +254,7 @@ export const WEBHOOK_PROVIDERS: ProviderMeta[] = [
 	{
 		type: "meta_ads",
 		name: "Meta Ads",
-		description: "Import ad performance and conversion data",
+		descriptionKey: "integrations.provider.meta_ads.desc",
 		icon: Target,
 		fields: [
 			{
@@ -139,7 +269,7 @@ export const WEBHOOK_PROVIDERS: ProviderMeta[] = [
 	{
 		type: "google_ads",
 		name: "Google Ads",
-		description: "Link Google Ads campaign data",
+		descriptionKey: "integrations.provider.google_ads.desc",
 		icon: Megaphone,
 		fields: [
 			{ key: "client_id", label: "Client ID", placeholder: "your-client-id" },
@@ -161,21 +291,20 @@ export const WEBHOOK_PROVIDERS: ProviderMeta[] = [
 	{
 		type: "appstoreconnect",
 		name: "App Store Connect",
-		description:
-			"Sync App Store downloads, proceeds, and price changes into the same view as web revenue",
+		descriptionKey: "integrations.provider.appstoreconnect.desc",
 		icon: Apple,
 		fields: [
 			{
 				key: "issuer_id",
 				label: "Issuer ID",
 				placeholder: "69a6de7c-…  (UUID)",
-				hint: "App Store Connect → Users and Access → Integrations → App Store Connect API — shown above the keys table.",
+				hintKey: "integrations.asc.issuerHint",
 			},
 			{
 				key: "key_id",
 				label: "Key ID",
 				placeholder: "ABC123DEFG",
-				hint: "Same page — the 10-character ID next to the key you generate in step 2 below.",
+				hintKey: "integrations.asc.keyIdHint",
 			},
 			{
 				key: "private_key",
@@ -183,105 +312,54 @@ export const WEBHOOK_PROVIDERS: ProviderMeta[] = [
 				placeholder: "-----BEGIN PRIVATE KEY-----\nMIGT…\n-----END PRIVATE KEY-----",
 				secret: true,
 				multiline: true,
-				hint: "The full .p8 contents including the BEGIN/END lines. Downloaded once when the key is created — if lost, revoke the key and create a new one.",
+				hintKey: "integrations.asc.privateKeyHint",
 			},
 			{
 				key: "app_id",
 				label: "App ID (Apple ID)",
 				placeholder: "123456789",
-				hint: "Apps → your app → General → App Information → Apple ID (the 10-digit number).",
+				hintKey: "integrations.asc.appIdHint",
 			},
 			{
 				key: "vendor_number",
 				label: "Vendor Number",
 				placeholder: "1234567",
-				hint: "Payments and Financial Reports → top-left, under your Legal Entity Name.",
+				hintKey: "integrations.asc.vendorHint",
 			},
 			{
 				key: "backfill_days",
 				label: "Backfill Days (optional)",
+				labelKey: "integrations.field.backfillDays",
 				placeholder: "30",
-				hint: "How far back to pull on first sync (max 90). Apple keeps 13 months of reports.",
+				hintKey: "integrations.asc.backfillHint",
 			},
 		],
-		instructions: (
-			<div className="bg-muted/50 border-border/60 grid gap-1.5 rounded-lg border px-3 py-2.5 text-[11px] leading-relaxed">
-				<p className="text-foreground/80 font-semibold">Before you start</p>
-				<p className="text-muted-foreground">
-					The Paid Applications Agreement must be signed (Agreements, Tax, and Banking) — without it
-					Apple has no sales reports to give.
-				</p>
-				<p className="text-foreground/80 font-semibold">Step 1 — create an API key</p>
-				<ol className="text-muted-foreground list-decimal space-y-1 pl-4">
-					<li>
-						Go to{" "}
-						<a
-							className="underline underline-offset-2"
-							href="https://appstoreconnect.apple.com/access/integrations/api"
-							target="_blank"
-							rel="noreferrer"
-						>
-							appstoreconnect.apple.com → Users and Access → Integrations
-						</a>{" "}
-						and note the <strong className="text-foreground">Issuer ID</strong> shown above the keys
-						table.
-					</li>
-					<li>
-						Click <strong className="text-foreground">+</strong> to generate a new key. Name it
-						(e.g. "RevKlik analytics") and pick the{" "}
-						<strong className="text-foreground">Admin</strong> role — Admin enables engagement
-						metrics (impressions, page views). The roles "Finance" or "Sales and Reports" also work,
-						but only for downloads and proceeds.
-					</li>
-					<li>
-						<strong className="text-foreground">Download</strong> the .p8 file — Apple lets you
-						download it exactly once. Paste its full contents below, and copy the key's{" "}
-						<strong className="text-foreground">Key ID</strong> from the table.
-					</li>
-				</ol>
-				<p className="text-foreground/80 font-semibold">Step 2 — app and vendor numbers</p>
-				<ol className="text-muted-foreground list-decimal space-y-1 pl-4">
-					<li>
-						App ID:{" "}
-						<strong className="text-foreground">
-							Apps → your app → General → App Information → Apple ID
-						</strong>
-						.
-					</li>
-					<li>
-						Vendor Number:{" "}
-						<strong className="text-foreground">Payments and Financial Reports</strong> — top-left
-						corner, under your Legal Entity Name.
-					</li>
-				</ol>
-				<p className="text-muted-foreground">
-					After connecting, hit <strong className="text-foreground">Test</strong> to verify the key,
-					then <strong className="text-foreground">Sync now</strong>. Data lands in the Revenue
-					panel under "App Store"; price changes show up as flags on the main chart. Reports arrive
-					daily, so new days appear every morning (US Pacific).
-				</p>
-			</div>
-		),
+		Instructions: AscInstructions,
 	},
 ];
 
-/* Payment providers live in their own table — webhook-driven, no test calls. */
+/* Payment providers live in their own table: webhook-driven, no test calls. */
 const PAYMENT_PROVIDERS: ProviderMeta[] = [
 	{
 		type: "midtrans",
 		name: "Midtrans",
-		description: "Indonesian payment gateway — GoPay, QRIS, bank transfer, credit card, ShopeePay",
+		descriptionKey: "integrations.provider.midtrans.desc",
 		icon: Wallet,
 		fields: [
 			{ key: "server_key", label: "Server Key", placeholder: "SB-Mid-server-...", secret: true },
 			{ key: "client_key", label: "Client Key", placeholder: "SB-Mid-client-...", secret: true },
-			{ key: "is_production", label: "Production Mode", placeholder: "false" },
+			{
+				key: "is_production",
+				label: "Production Mode",
+				labelKey: "integrations.field.isProduction",
+				placeholder: "false",
+			},
 		],
 	},
 	{
 		type: "xendit",
 		name: "Xendit",
-		description: "Southeast Asian payment gateway — OVO, DANA, ShopeePay, virtual accounts",
+		descriptionKey: "integrations.provider.xendit.desc",
 		icon: Zap,
 		fields: [
 			{
@@ -301,7 +379,7 @@ const PAYMENT_PROVIDERS: ProviderMeta[] = [
 	{
 		type: "stripe",
 		name: "Stripe",
-		description: "Global payments — cards, wallets, bank debits, subscriptions",
+		descriptionKey: "integrations.provider.stripe.desc",
 		icon: CreditCard,
 		fields: [
 			{
@@ -315,7 +393,7 @@ const PAYMENT_PROVIDERS: ProviderMeta[] = [
 	{
 		type: "lemonsqueezy",
 		name: "LemonSqueezy",
-		description: "Digital products and SaaS billing platform",
+		descriptionKey: "integrations.provider.lemonsqueezy.desc",
 		icon: Citrus,
 		fields: [
 			{
@@ -329,7 +407,7 @@ const PAYMENT_PROVIDERS: ProviderMeta[] = [
 	{
 		type: "paywuz",
 		name: "Paywuz",
-		description: "Indonesian payment gateway — QRIS, virtual accounts, e-wallets",
+		descriptionKey: "integrations.provider.paywuz.desc",
 		icon: Wallet,
 		fields: [
 			{ key: "api_key", label: "API Key", placeholder: "api.paywuz.id/v1 key", secret: true },
@@ -344,63 +422,18 @@ const PAYMENT_PROVIDERS: ProviderMeta[] = [
 	{
 		type: "doku",
 		name: "DOKU",
-		description: "Indonesian payment gateway — virtual accounts, QRIS, e-wallets, cards",
+		descriptionKey: "integrations.provider.doku.desc",
 		icon: Wallet,
 		fields: [
 			{ key: "client_id", label: "Client ID", placeholder: "BRN-0239-1736742088036" },
 			{ key: "secret_key", label: "Secret Key", placeholder: "DOKU Secret Key", secret: true },
 		],
-		instructions: (
-			<div className="text-muted-foreground space-y-2 text-sm">
-				<p className="text-foreground/80 font-semibold">Step 1 — copy your credentials</p>
-				<ol className="text-muted-foreground list-decimal space-y-1 pl-4">
-					<li>
-						Log in to the{" "}
-						<a
-							href="https://dashboard.doku.com/bo/login?utm_source=docs"
-							target="_blank"
-							rel="noopener noreferrer"
-							className="text-foreground underline-offset-2 hover:underline"
-						>
-							DOKU Dashboard
-						</a>
-						, then open <strong className="text-foreground">Settings → Account → API Keys</strong>.
-					</li>
-					<li>
-						Copy the <strong className="text-foreground">Client ID</strong> (format{" "}
-						<code>BRN-…</code>) — the field above. For the Secret Key, click{" "}
-						<strong className="text-foreground">Reveal Key</strong> and enter the 6-digit OTP sent
-						to your email; the key is visible for 30 seconds.
-					</li>
-				</ol>
-				<p className="text-foreground/80 font-semibold">
-					Step 2 — register the notification URL (per payment method)
-				</p>
-				<ol className="text-muted-foreground list-decimal space-y-1 pl-4">
-					<li>
-						In the dashboard:{" "}
-						<strong className="text-foreground">Settings → Payment Settings</strong>, then select
-						the payment method (Virtual Account, Cards, e-Wallet, Convenience Store, PayLater,
-						Direct Debit, Digital Banking, QRIS) — each is configured separately.
-					</li>
-					<li>
-						Set the notification URL to{" "}
-						<code className="text-foreground">{`${WORKER_ORIGIN}/api/webhooks/doku`}</code> and
-						save.
-					</li>
-				</ol>
-				<p className="text-muted-foreground">
-					The URL path is part of DOKU's signature, so it must match exactly. Payments arrive in the
-					Revenue panel; each DOKU virtual account / payment method needs its own notification URL
-					configured.
-				</p>
-			</div>
-		),
+		Instructions: DokuInstructions,
 	},
 	{
 		type: "mayar",
 		name: "Mayar",
-		description: "Indonesian payment links and invoices — QRIS, e-wallets, bank transfer",
+		descriptionKey: "integrations.provider.mayar.desc",
 		icon: Wallet,
 		fields: [
 			{ key: "api_key", label: "API Key", placeholder: "api.mayar.id/hl/v2 key", secret: true },
@@ -425,31 +458,28 @@ const WEBHOOK_PATHS: Record<string, string> = {
 	doku: "/api/webhooks/doku",
 };
 
+/**
+ * Shopee and Tokopedia are not offered yet. The cards below stay built and
+ * translated; flip this to render them in the Payments tab.
+ */
+const MARKETPLACES_ENABLED = false;
+
 const MARKETPLACES: {
 	marketplace: Marketplace;
 	name: string;
-	description: string;
 	icon: LucideIcon;
 }[] = [
-	{
-		marketplace: "shopee",
-		name: "Shopee",
-		description: "Indonesian e-commerce marketplace",
-		icon: ShoppingBag,
-	},
-	{
-		marketplace: "tokopedia",
-		name: "Tokopedia",
-		description: "Indonesian e-commerce marketplace",
-		icon: Store,
-	},
+	{ marketplace: "shopee", name: "Shopee", icon: ShoppingBag },
+	{ marketplace: "tokopedia", name: "Tokopedia", icon: Store },
 ];
 
 /* --------------------------------- helpers --------------------------------- */
 
-const syncLabel = (iso: string | null): string =>
+const intlLocale = (locale: Locale): string => (locale === "id" ? "id-ID" : "en-GB");
+
+const syncLabel = (iso: string | null, locale: Locale): string =>
 	iso
-		? new Date(iso).toLocaleString("en-GB", {
+		? new Date(iso).toLocaleString(intlLocale(locale), {
 				day: "numeric",
 				month: "short",
 				hour: "2-digit",
@@ -467,7 +497,7 @@ const ErrText = ({ children }: { children: ReactNode }) => (
 	<p className="bg-(--down)/10 text-(--down) rounded-lg px-3 py-2 text-xs">{children}</p>
 );
 
-/** Only config fields the user filled in — stored secrets come back masked. */
+/** Only config fields the user filled in: stored secrets come back masked. */
 const filledConfig = (meta: ProviderMeta, form: Record<string, string>) => {
 	const payload: Record<string, string> = {};
 	for (const f of meta.fields) {
@@ -491,6 +521,7 @@ export const IntegrationForm = ({
 	siteId: string;
 	onDone: () => void;
 }) => {
+	const t = useT();
 	const qc = useQueryClient();
 	const [name, setName] = useState(integration?.name ?? meta.name);
 	const [form, setForm] = useState<Record<string, string>>(() => {
@@ -522,7 +553,9 @@ export const IntegrationForm = ({
 		},
 		onSuccess: () => {
 			qc.invalidateQueries({ queryKey: ["legacy", "integrations", siteId] });
-			toast.success(integration ? "Configuration saved" : `${meta.name} connected`);
+			toast.success(
+				integration ? t("integrations.configSaved") : t("integrations.connected", { name: meta.name }),
+			);
 			onDone();
 		},
 		onError: (err: Error) => setError(err.message),
@@ -539,7 +572,7 @@ export const IntegrationForm = ({
 		>
 			<div className="grid gap-1">
 				<Label htmlFor={`int-name-${meta.type}`} className="text-[10px]">
-					Name
+					{t("integrations.name")}
 				</Label>
 				<Input
 					id={`int-name-${meta.type}`}
@@ -549,18 +582,18 @@ export const IntegrationForm = ({
 					className="h-8 font-mono text-xs"
 				/>
 			</div>
-			{meta.instructions}
+			{meta.Instructions ? <meta.Instructions /> : null}
 			{meta.fields.map((f) => (
 				<div key={f.key} className="grid gap-1">
 					<Label htmlFor={`int-${meta.type}-${f.key}`} className="text-[10px]">
-						{f.label}
+						{fieldLabel(f, t)}
 					</Label>
 					{f.multiline ? (
 						<Textarea
 							id={`int-${meta.type}-${f.key}`}
 							value={form[f.key] ?? ""}
 							onChange={(e) => setForm((prev) => ({ ...prev, [f.key]: e.target.value }))}
-							placeholder={integration ? "leave empty to keep current" : f.placeholder}
+							placeholder={integration ? t("integrations.keepCurrent") : f.placeholder}
 							className="min-h-24 font-mono text-xs"
 						/>
 					) : (
@@ -569,20 +602,24 @@ export const IntegrationForm = ({
 							type={f.secret ? "password" : "text"}
 							value={form[f.key] ?? ""}
 							onChange={(e) => setForm((prev) => ({ ...prev, [f.key]: e.target.value }))}
-							placeholder={integration ? "leave empty to keep current" : f.placeholder}
+							placeholder={integration ? t("integrations.keepCurrent") : f.placeholder}
 							className="h-8 font-mono text-xs"
 						/>
 					)}
-					{f.hint ? <p className="text-muted-foreground text-[10px]">{f.hint}</p> : null}
+					{f.hintKey ? <p className="text-muted-foreground text-[10px]">{t(f.hintKey)}</p> : null}
 				</div>
 			))}
 			{error ? <ErrText>{error}</ErrText> : null}
 			<div className="flex gap-2">
 				<Button type="submit" size="sm" disabled={saveMut.isPending}>
-					{saveMut.isPending ? "Saving…" : integration ? "Save changes" : "Connect"}
+					{saveMut.isPending
+						? t("integrations.saving")
+						: integration
+							? t("integrations.saveChanges")
+							: t("integrations.connect")}
 				</Button>
 				<Button type="button" variant="outline" size="sm" onClick={onDone}>
-					Cancel
+					{t("integrations.cancel")}
 				</Button>
 			</div>
 		</form>
@@ -592,13 +629,19 @@ export const IntegrationForm = ({
 /* -------------------------------- event log --------------------------------- */
 
 const EventLogTable = ({ integrationId }: { integrationId: string }) => {
+	const t = useT();
+	const locale = useLocale();
 	const eventsQ = useQuery({
 		queryFn: () => fetchWebhookEvents(integrationId),
 		queryKey: ["legacy", "webhook-events", integrationId],
 	});
 
 	if (eventsQ.isLoading) {
-		return <p className="text-muted-foreground py-3 text-center text-xs">Loading events…</p>;
+		return (
+			<p className="text-muted-foreground py-3 text-center text-xs">
+				{t("integrations.events.loading")}
+			</p>
+		);
 	}
 	if (eventsQ.error) {
 		return <ErrText>{(eventsQ.error as Error).message}</ErrText>;
@@ -607,7 +650,7 @@ const EventLogTable = ({ integrationId }: { integrationId: string }) => {
 	if (rows.length === 0) {
 		return (
 			<p className="text-muted-foreground py-3 text-center text-xs">
-				No events yet — webhooks and connection tests will show up here.
+				{t("integrations.events.empty")}
 			</p>
 		);
 	}
@@ -616,10 +659,10 @@ const EventLogTable = ({ integrationId }: { integrationId: string }) => {
 			<table className="w-full text-left text-xs">
 				<thead>
 					<tr className="text-muted-foreground text-[10px] tracking-wider uppercase">
-						<th className="py-1 pr-3 font-medium">Event</th>
-						<th className="py-1 pr-3 font-medium">Direction</th>
-						<th className="py-1 pr-3 font-medium">Status</th>
-						<th className="py-1 font-medium">Time</th>
+						<th className="py-1 pr-3 font-medium">{t("integrations.events.event")}</th>
+						<th className="py-1 pr-3 font-medium">{t("integrations.events.direction")}</th>
+						<th className="py-1 pr-3 font-medium">{t("integrations.events.status")}</th>
+						<th className="py-1 font-medium">{t("integrations.events.time")}</th>
 					</tr>
 				</thead>
 				<tbody>
@@ -641,7 +684,7 @@ const EventLogTable = ({ integrationId }: { integrationId: string }) => {
 								</span>
 							</td>
 							<td className="text-muted-foreground py-1.5 font-mono text-[10px] tabular-nums">
-								{syncLabel(e.created_at)}
+								{syncLabel(e.created_at, locale)}
 							</td>
 						</tr>
 					))}
@@ -662,6 +705,8 @@ const WebhookProviderCard = ({
 	integration: LegacyIntegration | undefined;
 	siteId: string;
 }) => {
+	const t = useT();
+	const locale = useLocale();
 	const qc = useQueryClient();
 	const [editing, setEditing] = useState(false);
 	const [showEvents, setShowEvents] = useState(false);
@@ -674,7 +719,11 @@ const WebhookProviderCard = ({
 
 	const deleteMut = useMutation({
 		mutationFn: async () => {
-			if (!window.confirm(`Disconnect ${integration?.name ?? meta.name}?`)) {
+			if (
+				!window.confirm(
+					t("integrations.disconnectConfirm", { name: integration?.name ?? meta.name }),
+				)
+			) {
 				return null;
 			}
 			await deleteIntegration(integration?.id ?? "");
@@ -684,7 +733,7 @@ const WebhookProviderCard = ({
 			if (deleted) {
 				qc.invalidateQueries({ queryKey: ["legacy", "integrations", siteId] });
 				setShowEvents(false);
-				toast.success(`${meta.name} disconnected`);
+				toast.success(t("integrations.disconnected", { name: meta.name }));
 			}
 		},
 		onError: (err: Error) => toast.error(err.message),
@@ -700,7 +749,9 @@ const WebhookProviderCard = ({
 		mutationFn: () => syncAppStore(siteId),
 		onSuccess: (r) => {
 			qc.invalidateQueries({ queryKey: ["legacy", "appstore-metrics", siteId] });
-			toast.success(`Synced ${r.days_synced} day(s), ${r.price_changes} price change(s) flagged`);
+			toast.success(
+				t("integrations.asc.synced", { changes: r.price_changes, days: r.days_synced }),
+			);
 		},
 		onError: (err: Error) => toast.error(err.message),
 	});
@@ -714,10 +765,14 @@ const WebhookProviderCard = ({
 			if (result.ok) {
 				toast.success(result.message);
 			} else {
-				toast.error(result.detail ? `${result.message}: ${result.detail}` : result.message);
+				toast.error(
+					result.detail
+						? t("integrations.testDetail", { detail: result.detail, message: result.message })
+						: result.message,
+				);
 			}
 		} catch (err) {
-			toast.error(err instanceof Error ? err.message : "Test failed");
+			toast.error(err instanceof Error ? err.message : t("integrations.testFailed"));
 		} finally {
 			setTesting(false);
 		}
@@ -728,7 +783,10 @@ const WebhookProviderCard = ({
 			title={meta.name}
 			hint={
 				connected ? (
-					<StatusPill on={enabled} label={enabled ? "Connected" : "Disabled"} />
+					<StatusPill
+						on={enabled}
+						label={enabled ? t("integrations.status.connected") : t("integrations.status.disabled")}
+					/>
 				) : undefined
 			}
 		>
@@ -740,11 +798,11 @@ const WebhookProviderCard = ({
 				>
 					<Icon className="size-4" aria-hidden />
 				</span>
-				<p className="text-muted-foreground text-xs leading-relaxed">{meta.description}</p>
+				<p className="text-muted-foreground text-xs leading-relaxed">{t(meta.descriptionKey)}</p>
 			</div>
 			{connected && integration?.last_sync ? (
 				<p className="text-muted-foreground mt-2 font-mono text-[10px] tabular-nums">
-					Last sync {syncLabel(integration.last_sync)}
+					{t("integrations.lastSync", { when: syncLabel(integration.last_sync, locale) })}
 				</p>
 			) : null}
 
@@ -760,10 +818,10 @@ const WebhookProviderCard = ({
 					{connected ? (
 						<>
 							<Button variant="outline" size="sm" onClick={() => setEditing(true)}>
-								Configure
+								{t("integrations.configure")}
 							</Button>
 							<Button variant="outline" size="sm" onClick={runTest} disabled={testing}>
-								{testing ? "Testing…" : "Test"}
+								{testing ? t("integrations.testing") : t("integrations.test")}
 							</Button>
 							{meta.type === "appstoreconnect" ? (
 								<Button
@@ -772,7 +830,7 @@ const WebhookProviderCard = ({
 									onClick={() => syncMut.mutate()}
 									disabled={syncMut.isPending}
 								>
-									{syncMut.isPending ? "Syncing…" : "Sync now"}
+									{syncMut.isPending ? t("integrations.syncing") : t("integrations.syncNow")}
 								</Button>
 							) : null}
 							<Button
@@ -781,7 +839,7 @@ const WebhookProviderCard = ({
 								onClick={() => toggleMut.mutate(!enabled)}
 								disabled={toggleMut.isPending}
 							>
-								{enabled ? "Disable" : "Enable"}
+								{enabled ? t("integrations.disable") : t("integrations.enable")}
 							</Button>
 							<Button
 								variant="ghost"
@@ -791,16 +849,16 @@ const WebhookProviderCard = ({
 								disabled={deleteMut.isPending}
 							>
 								<Trash2 className="size-3.5" aria-hidden />
-								Disconnect
+								{t("integrations.disconnect")}
 							</Button>
 							<Button variant="ghost" size="sm" onClick={() => setShowEvents((v) => !v)}>
-								{showEvents ? "Hide events" : "Events"}
+								{showEvents ? t("integrations.events.hide") : t("integrations.events.show")}
 							</Button>
 						</>
 					) : (
 						<Button size="sm" onClick={() => setEditing(true)}>
 							<Webhook className="size-3.5" aria-hidden />
-							Connect
+							{t("integrations.connect")}
 						</Button>
 					)}
 				</div>
@@ -812,15 +870,16 @@ const WebhookProviderCard = ({
 						test.ok ? "bg-(--up)/10 text-(--up)" : "bg-(--down)/10 text-(--down)"
 					}`}
 				>
-					{test.message}
-					{test.detail ? ` — ${test.detail}` : ""}
+					{test.detail
+						? t("integrations.testDetail", { detail: test.detail, message: test.message })
+						: test.message}
 				</p>
 			) : null}
 
 			{connected && showEvents ? (
 				<div className="border-(--border) mt-2 border-t pt-2">
 					<p className="text-muted-foreground mb-1 text-[10px] font-semibold tracking-wider uppercase">
-						Recent events
+						{t("integrations.events.recent")}
 					</p>
 					<EventLogTable integrationId={integration?.id ?? ""} />
 				</div>
@@ -840,6 +899,7 @@ const PaymentProviderCard = ({
 	provider: { id: string; provider: string; enabled: boolean } | undefined;
 	siteId: string;
 }) => {
+	const t = useT();
 	const qc = useQueryClient();
 	const [editing, setEditing] = useState(false);
 	const [form, setForm] = useState<Record<string, string>>(() => {
@@ -860,7 +920,7 @@ const PaymentProviderCard = ({
 		mutationFn: () => createPaymentProvider(siteId, meta.type, filledConfig(meta, form)),
 		onSuccess: () => {
 			qc.invalidateQueries({ queryKey: ["legacy", "payment-providers", siteId] });
-			toast.success(`${meta.name} connected`);
+			toast.success(t("integrations.connected", { name: meta.name }));
 			setEditing(false);
 		},
 		onError: (err: Error) => setError(err.message),
@@ -868,7 +928,7 @@ const PaymentProviderCard = ({
 
 	const deleteMut = useMutation({
 		mutationFn: async () => {
-			if (!window.confirm(`Disconnect ${meta.name}?`)) {
+			if (!window.confirm(t("integrations.disconnectConfirm", { name: meta.name }))) {
 				return null;
 			}
 			await deletePaymentProvider(siteId, meta.type);
@@ -877,14 +937,17 @@ const PaymentProviderCard = ({
 		onSuccess: (deleted) => {
 			if (deleted) {
 				qc.invalidateQueries({ queryKey: ["legacy", "payment-providers", siteId] });
-				toast.success(`${meta.name} disconnected`);
+				toast.success(t("integrations.disconnected", { name: meta.name }));
 			}
 		},
 		onError: (err: Error) => toast.error(err.message),
 	});
 
 	return (
-		<Panel title={meta.name} hint={connected ? <StatusPill on label="Connected" /> : undefined}>
+		<Panel
+			title={meta.name}
+			hint={connected ? <StatusPill on label={t("integrations.status.connected")} /> : undefined}
+		>
 			<div className="flex items-start gap-2.5">
 				<span
 					className={`flex size-8 shrink-0 items-center justify-center rounded-lg ${
@@ -893,13 +956,13 @@ const PaymentProviderCard = ({
 				>
 					<Icon className="size-4" aria-hidden />
 				</span>
-				<p className="text-muted-foreground text-xs leading-relaxed">{meta.description}</p>
+				<p className="text-muted-foreground text-xs leading-relaxed">{t(meta.descriptionKey)}</p>
 			</div>
 
 			{connected ? (
 				<div className="bg-muted/60 mt-2 rounded-lg px-2.5 py-2">
 					<p className="text-muted-foreground mb-1 text-[10px] font-semibold tracking-wider uppercase">
-						Webhook URL
+						{t("integrations.webhookUrl")}
 					</p>
 					<div className="flex items-center gap-2">
 						<code className="min-w-0 flex-1 font-mono text-[10px] break-all">{webhookUrl}</code>
@@ -914,11 +977,11 @@ const PaymentProviderCard = ({
 							}}
 						>
 							<Copy className="size-3" aria-hidden />
-							{copied ? "Copied" : "Copy"}
+							{copied ? t("integrations.copied") : t("integrations.copy")}
 						</Button>
 					</div>
 					<p className="text-muted-foreground mt-1 text-[10px]">
-						Paste this URL in your {meta.name} dashboard webhook settings.
+						{t("integrations.webhookUrlHint", { name: meta.name })}
 					</p>
 				</div>
 			) : null}
@@ -932,10 +995,11 @@ const PaymentProviderCard = ({
 						saveMut.mutate();
 					}}
 				>
+					{meta.Instructions ? <meta.Instructions /> : null}
 					{meta.fields.map((f) => (
 						<div key={f.key} className="grid gap-1">
 							<Label htmlFor={`pp-${meta.type}-${f.key}`} className="text-[10px]">
-								{f.label}
+								{fieldLabel(f, t)}
 							</Label>
 							<Input
 								id={`pp-${meta.type}-${f.key}`}
@@ -950,10 +1014,10 @@ const PaymentProviderCard = ({
 					{error ? <ErrText>{error}</ErrText> : null}
 					<div className="flex gap-2">
 						<Button type="submit" size="sm" disabled={saveMut.isPending}>
-							{saveMut.isPending ? "Saving…" : "Connect"}
+							{saveMut.isPending ? t("integrations.saving") : t("integrations.connect")}
 						</Button>
 						<Button type="button" variant="outline" size="sm" onClick={() => setEditing(false)}>
-							Cancel
+							{t("integrations.cancel")}
 						</Button>
 					</div>
 				</form>
@@ -968,12 +1032,12 @@ const PaymentProviderCard = ({
 							disabled={deleteMut.isPending}
 						>
 							<Trash2 className="size-3.5" aria-hidden />
-							Disconnect
+							{t("integrations.disconnect")}
 						</Button>
 					) : (
 						<Button size="sm" onClick={() => setEditing(true)}>
 							<Webhook className="size-3.5" aria-hidden />
-							Connect
+							{t("integrations.connect")}
 						</Button>
 					)}
 				</div>
@@ -984,67 +1048,71 @@ const PaymentProviderCard = ({
 
 /* ------------------------------ marketplace card ---------------------------- */
 
-const OrdersTable = ({ orders }: { orders: LegacyMarketplaceOrder[] }) => (
-	<div className="overflow-x-auto">
-		<table className="w-full text-left text-xs">
-			<thead>
-				<tr className="text-muted-foreground text-[10px] tracking-wider uppercase">
-					<th className="py-1 pr-3 font-medium">Order</th>
-					<th className="py-1 pr-3 font-medium">Amount</th>
-					<th className="py-1 pr-3 font-medium">Status</th>
-					<th className="py-1 font-medium">Ordered</th>
-				</tr>
-			</thead>
-			<tbody>
-				{orders.slice(0, 20).map((o) => (
-					<tr key={o.id} className="border-(--border) border-t">
-						<td className="py-1.5 pr-3 font-mono">{o.order_sn}</td>
-						<td className="py-1.5 pr-3 font-mono tabular-nums">
-							{orderMoney(o.amount, o.currency)}
-						</td>
-						<td className="py-1.5 pr-3">
-							<span
-								className={`font-mono text-[10px] rounded-full px-2 py-0.5 ${
-									o.status === "completed" || o.status === "SHIPPED"
-										? "bg-(--up)/10 text-(--up)"
-										: o.status === "cancelled" || o.status === "CANCELLED"
-											? "bg-(--down)/10 text-(--down)"
-											: "bg-muted text-muted-foreground"
-								}`}
-							>
-								{o.status}
-							</span>
-						</td>
-						<td className="text-muted-foreground py-1.5 font-mono text-[10px] tabular-nums">
-							{syncLabel(o.ordered_at)}
-						</td>
+const OrdersTable = ({ orders }: { orders: LegacyMarketplaceOrder[] }) => {
+	const t = useT();
+	const locale = useLocale();
+	return (
+		<div className="overflow-x-auto">
+			<table className="w-full text-left text-xs">
+				<thead>
+					<tr className="text-muted-foreground text-[10px] tracking-wider uppercase">
+						<th className="py-1 pr-3 font-medium">{t("integrations.marketplace.order")}</th>
+						<th className="py-1 pr-3 font-medium">{t("integrations.marketplace.amount")}</th>
+						<th className="py-1 pr-3 font-medium">{t("integrations.marketplace.status")}</th>
+						<th className="py-1 font-medium">{t("integrations.marketplace.ordered")}</th>
 					</tr>
-				))}
-			</tbody>
-		</table>
-		{orders.length > 20 ? (
-			<p className="text-muted-foreground mt-1 text-[10px]">
-				Showing 20 of {orders.length} orders.
-			</p>
-		) : null}
-	</div>
-);
+				</thead>
+				<tbody>
+					{orders.slice(0, 20).map((o) => (
+						<tr key={o.id} className="border-(--border) border-t">
+							<td className="py-1.5 pr-3 font-mono">{o.order_sn}</td>
+							<td className="py-1.5 pr-3 font-mono tabular-nums">
+								{orderMoney(o.amount, o.currency)}
+							</td>
+							<td className="py-1.5 pr-3">
+								<span
+									className={`font-mono text-[10px] rounded-full px-2 py-0.5 ${
+										o.status === "completed" || o.status === "SHIPPED"
+											? "bg-(--up)/10 text-(--up)"
+											: o.status === "cancelled" || o.status === "CANCELLED"
+												? "bg-(--down)/10 text-(--down)"
+												: "bg-muted text-muted-foreground"
+									}`}
+								>
+									{o.status}
+								</span>
+							</td>
+							<td className="text-muted-foreground py-1.5 font-mono text-[10px] tabular-nums">
+								{syncLabel(o.ordered_at, locale)}
+							</td>
+						</tr>
+					))}
+				</tbody>
+			</table>
+			{orders.length > 20 ? (
+				<p className="text-muted-foreground mt-1 text-[10px]">
+					{t("integrations.marketplace.showing", { n: orders.length })}
+				</p>
+			) : null}
+		</div>
+	);
+};
 
 const MarketplaceCard = ({
 	marketplace,
 	name,
-	description,
 	icon: Icon,
 	integration,
 	siteId,
 }: {
 	marketplace: Marketplace;
 	name: string;
-	description: string;
 	icon: LucideIcon;
 	integration: LegacyIntegration | undefined;
 	siteId: string;
 }) => {
+	const t = useT();
+	const locale = useLocale();
 	const qc = useQueryClient();
 	const [showOrders, setShowOrders] = useState(false);
 	const [syncing, setSyncing] = useState(false);
@@ -1053,7 +1121,7 @@ const MarketplaceCard = ({
 
 	const deleteMut = useMutation({
 		mutationFn: async () => {
-			if (!window.confirm(`Disconnect ${name}?`)) {
+			if (!window.confirm(t("integrations.disconnectConfirm", { name }))) {
 				return null;
 			}
 			await deleteIntegration(integration?.id ?? "");
@@ -1063,7 +1131,7 @@ const MarketplaceCard = ({
 			if (deleted) {
 				qc.invalidateQueries({ queryKey: ["legacy", "integrations", siteId] });
 				setShowOrders(false);
-				toast.success(`${name} disconnected`);
+				toast.success(t("integrations.disconnected", { name }));
 			}
 		},
 		onError: (err: Error) => toast.error(err.message),
@@ -1073,7 +1141,7 @@ const MarketplaceCard = ({
 		enabled: showOrders && connected,
 		queryFn: () => fetchMarketplaceOrders(marketplace, siteId),
 		queryKey: ["legacy", "mp-orders", marketplace, siteId],
-		// Sync failures/order gaps render inline below — no global toast.
+		// Sync failures/order gaps render inline below: no global toast.
 		meta: { silent: true },
 		retry: false,
 	});
@@ -1084,9 +1152,9 @@ const MarketplaceCard = ({
 			await syncMarketplaceOrders(marketplace, siteId);
 			qc.invalidateQueries({ queryKey: ["legacy", "mp-orders", marketplace, siteId] });
 			qc.invalidateQueries({ queryKey: ["legacy", "integrations", siteId] });
-			toast.success(`${name} orders synced`);
+			toast.success(t("integrations.marketplace.synced", { name }));
 		} catch (err) {
-			toast.error(err instanceof Error ? err.message : "Sync failed");
+			toast.error(err instanceof Error ? err.message : t("integrations.syncFailed"));
 		} finally {
 			setSyncing(false);
 		}
@@ -1097,7 +1165,10 @@ const MarketplaceCard = ({
 	};
 
 	return (
-		<Panel title={name} hint={connected ? <StatusPill on label="Connected" /> : undefined}>
+		<Panel
+			title={name}
+			hint={connected ? <StatusPill on label={t("integrations.status.connected")} /> : undefined}
+		>
 			<div className="flex items-start gap-2.5">
 				<span
 					className={`flex size-8 shrink-0 items-center justify-center rounded-lg ${
@@ -1106,27 +1177,31 @@ const MarketplaceCard = ({
 				>
 					<Icon className="size-4" aria-hidden />
 				</span>
-				<p className="text-muted-foreground text-xs leading-relaxed">{description}</p>
+				<p className="text-muted-foreground text-xs leading-relaxed">
+					{t("integrations.marketplace.desc")}
+				</p>
 			</div>
 			{connected && integration?.last_sync ? (
 				<p className="text-muted-foreground mt-2 font-mono text-[10px] tabular-nums">
-					Last sync {syncLabel(integration.last_sync)}
+					{t("integrations.lastSync", { when: syncLabel(integration.last_sync, locale) })}
 				</p>
 			) : null}
 
 			<div className="mt-2.5 flex flex-wrap items-center gap-2">
 				<Button size="sm" onClick={connect}>
 					<ExternalLink className="size-3.5" aria-hidden />
-					{connected ? "Re-authorize" : `Connect ${name}`}
+					{connected ? t("integrations.reauthorize") : t("integrations.connectName", { name })}
 				</Button>
 				{connected ? (
 					<>
 						<Button variant="outline" size="sm" onClick={handleSync} disabled={syncing}>
 							<RefreshCw className={`size-3.5 ${syncing ? "animate-spin" : ""}`} aria-hidden />
-							{syncing ? "Syncing…" : "Sync orders"}
+							{syncing ? t("integrations.syncing") : t("integrations.marketplace.syncOrders")}
 						</Button>
 						<Button variant="ghost" size="sm" onClick={() => setShowOrders((v) => !v)}>
-							{showOrders ? "Hide orders" : "View orders"}
+							{showOrders
+								? t("integrations.marketplace.hideOrders")
+								: t("integrations.marketplace.viewOrders")}
 						</Button>
 						<Button
 							variant="ghost"
@@ -1136,7 +1211,7 @@ const MarketplaceCard = ({
 							disabled={deleteMut.isPending}
 						>
 							<Trash2 className="size-3.5" aria-hidden />
-							Disconnect
+							{t("integrations.disconnect")}
 						</Button>
 					</>
 				) : null}
@@ -1145,12 +1220,14 @@ const MarketplaceCard = ({
 			{connected && showOrders ? (
 				<div className="border-(--border) mt-2 border-t pt-2">
 					{ordersQ.isLoading ? (
-						<p className="text-muted-foreground py-3 text-center text-xs">Loading orders…</p>
+						<p className="text-muted-foreground py-3 text-center text-xs">
+							{t("integrations.marketplace.loading")}
+						</p>
 					) : ordersQ.error ? (
 						<ErrText>{(ordersQ.error as Error).message}</ErrText>
 					) : (ordersQ.data ?? []).length === 0 ? (
 						<p className="text-muted-foreground py-3 text-center text-xs">
-							No orders found. Click “Sync orders” to fetch from {name}.
+							{t("integrations.marketplace.empty", { name })}
 						</p>
 					) : (
 						<OrdersTable orders={ordersQ.data ?? []} />
@@ -1163,6 +1240,16 @@ const MarketplaceCard = ({
 
 /* --------------------------------- GSC panel -------------------------------- */
 
+const GSC_ROWS_SHOWN = 25;
+
+/** The auth-url route answers 403 to anyone who is not an admin or owner of the site. */
+const gscAuthError = (err: unknown, t: Translate): string => {
+	if (err instanceof LegacyApiError && err.status === 403) {
+		return t("integrations.gsc.authAdminOnly");
+	}
+	return err instanceof Error && err.message ? err.message : t("integrations.gsc.authFailed");
+};
+
 const GscPanel = ({
 	integration,
 	siteId,
@@ -1170,14 +1257,23 @@ const GscPanel = ({
 	integration: LegacyIntegration | undefined;
 	siteId: string;
 }) => {
+	const t = useT();
+	const locale = useLocale();
 	const qc = useQueryClient();
 	const [syncing, setSyncing] = useState(false);
+	const [authorizing, setAuthorizing] = useState(false);
 
 	const connected = Boolean(integration);
+	const lastSync = integration?.last_sync ?? null;
+	const stale = connected && isSyncStale(lastSync);
 
 	const deleteMut = useMutation({
 		mutationFn: async () => {
-			if (!window.confirm("Disconnect Google Search Console?")) {
+			if (
+				!window.confirm(
+					t("integrations.disconnectConfirm", { name: t("integrations.gsc.disconnectName") }),
+				)
+			) {
 				return null;
 			}
 			await deleteIntegration(integration?.id ?? "");
@@ -1186,7 +1282,9 @@ const GscPanel = ({
 		onSuccess: (deleted) => {
 			if (deleted) {
 				qc.invalidateQueries({ queryKey: ["legacy", "integrations", siteId] });
-				toast.success("Google Search Console disconnected");
+				toast.success(
+					t("integrations.disconnected", { name: t("integrations.gsc.disconnectName") }),
+				);
 			}
 		},
 		onError: (err: Error) => toast.error(err.message),
@@ -1198,35 +1296,61 @@ const GscPanel = ({
 			const { synced } = await syncGsc(siteId);
 			qc.invalidateQueries({ queryKey: ["legacy", "integrations", siteId] });
 			qc.invalidateQueries({ queryKey: ["legacy", "gsc-queries", siteId] });
-			toast.success(`Search Console synced — ${synced} day${synced === 1 ? "" : "s"} of queries`);
+			toast.success(t("integrations.gsc.synced", { n: synced }));
 		} catch (err) {
-			toast.error(err instanceof Error ? err.message : "Sync failed");
+			toast.error(err instanceof Error ? err.message : t("integrations.syncFailed"));
 		} finally {
 			setSyncing(false);
+		}
+	};
+
+	const handleAuthorize = async () => {
+		setAuthorizing(true);
+		try {
+			const { url } = await fetchGscAuthUrl(siteId);
+			if (!url) {
+				throw new Error(t("integrations.gsc.authFailed"));
+			}
+			// The page is replaced by Google's consent screen; keep the button busy until then.
+			window.location.assign(url);
+		} catch (err) {
+			toast.error(gscAuthError(err, t));
+			setAuthorizing(false);
 		}
 	};
 
 	const queriesQ = useQuery({
 		queryFn: () => fetchGscQueries(siteId),
 		queryKey: ["legacy", "gsc-queries", siteId],
-		// Not-connected answers 404 — the panel shows its own inline state.
+		// Not-connected answers 404: the panel shows its own inline state.
 		meta: { silent: true },
 		retry: false,
 	});
 
-	const rows = queriesQ.data ?? [];
-	const totals = rows.reduce(
-		(acc, r) => ({
-			clicks: acc.clicks + r.clicks,
-			impressions: acc.impressions + r.impressions,
+	const queries = aggregateGscQueries(queriesQ.data ?? []);
+	const totals = queries.reduce(
+		(acc, q) => ({
+			clicks: acc.clicks + q.clicks,
+			impressions: acc.impressions + q.impressions,
 		}),
 		{ clicks: 0, impressions: 0 },
 	);
 
+	const numberFmt = new Intl.NumberFormat(intlLocale(locale));
+	const percentFmt = new Intl.NumberFormat(intlLocale(locale), {
+		maximumFractionDigits: 1,
+		minimumFractionDigits: 1,
+		style: "percent",
+	});
+	const positionFmt = new Intl.NumberFormat(intlLocale(locale), {
+		maximumFractionDigits: 1,
+		minimumFractionDigits: 1,
+	});
+
 	return (
 		<Panel
 			title="Google Search Console"
-			hint={connected ? <StatusPill on label="Connected" /> : undefined}
+			hint={connected ? <StatusPill on label={t("integrations.status.connected")} /> : undefined}
 		>
 			<div className="flex items-start gap-2.5">
 				<span
@@ -1236,26 +1360,35 @@ const GscPanel = ({
 				>
 					<Search className="size-4" aria-hidden />
 				</span>
-				<p className="text-muted-foreground text-xs leading-relaxed">
-					Import search query performance — clicks, impressions, CTR, and position from Google.
-				</p>
+				<p className="text-muted-foreground text-xs leading-relaxed">{t("integrations.gsc.desc")}</p>
 			</div>
-			{connected && integration?.last_sync ? (
+			{connected && lastSync ? (
 				<p className="text-muted-foreground mt-2 font-mono text-[10px] tabular-nums">
-					Last sync {syncLabel(integration.last_sync)}
+					{t("integrations.lastSync", { when: syncLabel(lastSync, locale) })}
+				</p>
+			) : null}
+			{stale && lastSync ? (
+				<p
+					className="mt-2 rounded-lg bg-amber-500/10 px-3 py-2 text-xs text-amber-800 dark:text-amber-300"
+					role="status"
+				>
+					{t("integrations.gsc.stale", {
+						days: SYNC_STALE_DAYS,
+						when: syncLabel(lastSync, locale),
+					})}
 				</p>
 			) : null}
 
 			<div className="mt-2.5 flex flex-wrap items-center gap-2">
-				<Button size="sm" onClick={() => window.open(gscAuthUrl(siteId), "_blank", "noopener")}>
+				<Button size="sm" onClick={handleAuthorize} disabled={authorizing}>
 					<ExternalLink className="size-3.5" aria-hidden />
-					{connected ? "Re-authorize" : "Authorize with Google"}
+					{connected ? t("integrations.reauthorize") : t("integrations.authorizeGoogle")}
 				</Button>
 				{connected ? (
 					<>
 						<Button variant="outline" size="sm" onClick={handleSync} disabled={syncing}>
 							<RefreshCw className={`size-3.5 ${syncing ? "animate-spin" : ""}`} aria-hidden />
-							{syncing ? "Syncing…" : "Sync now"}
+							{syncing ? t("integrations.syncing") : t("integrations.syncNow")}
 						</Button>
 						<Button
 							variant="ghost"
@@ -1265,7 +1398,7 @@ const GscPanel = ({
 							disabled={deleteMut.isPending}
 						>
 							<Trash2 className="size-3.5" aria-hidden />
-							Disconnect
+							{t("integrations.disconnect")}
 						</Button>
 					</>
 				) : null}
@@ -1273,60 +1406,55 @@ const GscPanel = ({
 
 			<div className="border-(--border) mt-2 border-t pt-2">
 				{queriesQ.isLoading ? (
-					<p className="text-muted-foreground py-3 text-center text-xs">Loading queries…</p>
+					<p className="text-muted-foreground py-3 text-center text-xs">
+						{t("integrations.gsc.loading")}
+					</p>
 				) : queriesQ.error ? (
 					<ErrText>{(queriesQ.error as Error).message}</ErrText>
-				) : rows.length === 0 ? (
+				) : queries.length === 0 ? (
 					<p className="text-muted-foreground py-3 text-center text-xs">
-						No search queries yet{connected ? " — run a sync after authorizing" : ""}.
+						{connected ? t("integrations.gsc.emptyConnected") : t("integrations.gsc.empty")}
 					</p>
 				) : (
 					<>
 						<p className="text-muted-foreground mb-1.5 text-[10px]">
-							Last 30 days:{" "}
-							<span className="text-foreground font-mono tabular-nums">
-								{totals.clicks.toLocaleString()}
-							</span>{" "}
-							clicks ·{" "}
-							<span className="text-foreground font-mono tabular-nums">
-								{totals.impressions.toLocaleString()}
-							</span>{" "}
-							impressions
+							{t("integrations.gsc.totals", {
+								clicks: numberFmt.format(totals.clicks),
+								impressions: numberFmt.format(totals.impressions),
+							})}
 						</p>
 						<div className="overflow-x-auto">
 							<table className="w-full text-left text-xs">
 								<thead>
 									<tr className="text-muted-foreground text-[10px] tracking-wider uppercase">
-										<th className="py-1 pr-3 font-medium">Query</th>
-										<th className="py-1 pr-3 font-medium">Clicks</th>
-										<th className="py-1 pr-3 font-medium">Impr.</th>
-										<th className="py-1 pr-3 font-medium">CTR</th>
-										<th className="py-1 pr-3 font-medium">Pos.</th>
-										<th className="py-1 font-medium">Date</th>
+										<th className="py-1 pr-3 font-medium">{t("integrations.gsc.query")}</th>
+										<th className="py-1 pr-3 font-medium">{t("integrations.gsc.clicks")}</th>
+										<th className="py-1 pr-3 font-medium">{t("integrations.gsc.impressions")}</th>
+										<th className="py-1 pr-3 font-medium">{t("integrations.gsc.ctr")}</th>
+										<th className="py-1 font-medium">{t("integrations.gsc.position")}</th>
 									</tr>
 								</thead>
 								<tbody>
-									{rows.slice(0, 25).map((r, i) => (
-										<tr key={`${r.query}-${r.date}-${i}`} className="border-(--border) border-t">
-											<td className="max-w-56 truncate py-1.5 pr-3">{r.query}</td>
-											<td className="py-1.5 pr-3 font-mono tabular-nums">{r.clicks}</td>
-											<td className="py-1.5 pr-3 font-mono tabular-nums">{r.impressions}</td>
+									{queries.slice(0, GSC_ROWS_SHOWN).map((q) => (
+										<tr key={q.query} className="border-(--border) border-t">
+											<td className="max-w-56 truncate py-1.5 pr-3">{q.query}</td>
 											<td className="py-1.5 pr-3 font-mono tabular-nums">
-												{(r.ctr * 100).toFixed(1)}%
+												{numberFmt.format(q.clicks)}
 											</td>
 											<td className="py-1.5 pr-3 font-mono tabular-nums">
-												{r.position.toFixed(1)}
+												{numberFmt.format(q.impressions)}
 											</td>
-											<td className="text-muted-foreground py-1.5 font-mono text-[10px] tabular-nums">
-												{r.date}
+											<td className="py-1.5 pr-3 font-mono tabular-nums">
+												{percentFmt.format(q.ctr)}
 											</td>
+											<td className="py-1.5 font-mono tabular-nums">{positionFmt.format(q.position)}</td>
 										</tr>
 									))}
 								</tbody>
 							</table>
-							{rows.length > 25 ? (
+							{queries.length > GSC_ROWS_SHOWN ? (
 								<p className="text-muted-foreground mt-1 text-[10px]">
-									Showing 25 of {rows.length} rows.
+									{t("integrations.gsc.showing", { n: queries.length, shown: GSC_ROWS_SHOWN })}
 								</p>
 							) : null}
 						</div>
@@ -1339,11 +1467,11 @@ const GscPanel = ({
 
 /* ----------------------------------- view ----------------------------------- */
 
-type IntegrationsTabKey = "webhooks" | "payments" | "search" | "imports";
+type IntegrationsTabKey = "payments" | "apps" | "search" | "imports";
 
 /**
  * Visibility gate: only providers that have actually been set up and tested
- * appear in the UI. Everything else stays defined above — re-enable by adding
+ * appear in the UI. Everything else stays defined above: re-enable by adding
  * its type here.
  */
 const SHOWN_PROVIDERS: ReadonlySet<LegacyIntegrationType> = new Set([
@@ -1354,15 +1482,16 @@ const SHOWN_PROVIDERS: ReadonlySet<LegacyIntegrationType> = new Set([
 	"mayar",
 ] as const);
 
-const SECTION_TABS: readonly { readonly key: IntegrationsTabKey; readonly label: string }[] = [
-	{ key: "webhooks", label: "Webhooks" },
-	{ key: "payments", label: "Payments" },
-	{ key: "search", label: "Search" },
-	{ key: "imports", label: "Imports" },
-];
-
 export const IntegrationsView = ({ siteId }: { siteId: string }) => {
-	const [tab, setTab] = useState<IntegrationsTabKey>("webhooks");
+	const t = useT();
+	const [tab, setTab] = useState<IntegrationsTabKey>("payments");
+
+	const tabs: readonly { readonly key: IntegrationsTabKey; readonly label: string }[] = [
+		{ key: "payments", label: t("integrations.tab.payments") },
+		{ key: "apps", label: t("integrations.tab.apps") },
+		{ key: "search", label: t("integrations.tab.search") },
+		{ key: "imports", label: t("integrations.tab.imports") },
+	];
 
 	const integrationsQ = useQuery({
 		enabled: Boolean(siteId),
@@ -1393,12 +1522,10 @@ export const IntegrationsView = ({ siteId }: { siteId: string }) => {
 		<main className="mx-auto max-w-7xl px-3 pt-3 pb-6 md:px-4">
 			<div className="mb-2.5 flex flex-wrap items-end justify-between gap-2">
 				<div>
-					<h1 className="text-lg font-semibold tracking-tight">Integrations</h1>
-					<p className="text-muted-foreground text-xs">
-						Webhooks, payments, marketplaces, and search data — live from your revklik account
-					</p>
+					<h1 className="text-lg font-semibold tracking-tight">{t("integrations.title")}</h1>
+					<p className="text-muted-foreground text-xs">{t("integrations.subtitle")}</p>
 				</div>
-				<PanelTabs tabs={SECTION_TABS} value={tab} onChange={setTab} />
+				<PanelTabs tabs={tabs} value={tab} onChange={setTab} />
 			</div>
 
 			{errorMsg ? (
@@ -1408,19 +1535,6 @@ export const IntegrationsView = ({ siteId }: { siteId: string }) => {
 				>
 					{errorMsg}
 				</p>
-			) : null}
-
-			{tab === "webhooks" ? (
-				<div className="grid items-start gap-2.5 md:grid-cols-2">
-					{WEBHOOK_PROVIDERS.filter((meta) => SHOWN_PROVIDERS.has(meta.type)).map((meta) => (
-						<WebhookProviderCard
-							key={meta.type}
-							meta={meta}
-							integration={integrationByType[meta.type]}
-							siteId={siteId}
-						/>
-					))}
-				</div>
 			) : null}
 
 			{tab === "payments" ? (
@@ -1436,18 +1550,35 @@ export const IntegrationsView = ({ siteId }: { siteId: string }) => {
 							siteId={siteId}
 						/>
 					))}
-					<Panel title="Pakasir" hint={<StatusPill on label="Built-in" />}>
-						<div className="flex items-start gap-2.5">
-							<span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-(--up)/15 text-(--up)">
-								<Wallet className="size-4" aria-hidden />
-							</span>
-							<p className="text-muted-foreground text-xs leading-relaxed">
-								RevKlik's own QRIS checkout for plan payments. Verified and activated automatically
-								— no per-site setup needed.
-							</p>
-						</div>
-					</Panel>
+					{MARKETPLACES_ENABLED
+						? MARKETPLACES.map((m) => (
+								<MarketplaceCard
+									key={m.marketplace}
+									marketplace={m.marketplace}
+									name={m.name}
+									icon={m.icon}
+									integration={integrationByType[m.marketplace]}
+									siteId={siteId}
+								/>
+							))
+						: null}
 				</div>
+			) : null}
+
+			{tab === "apps" ? (
+				<>
+					<p className="text-muted-foreground mb-2.5 text-xs">{t("integrations.apps.intro")}</p>
+					<div className="grid items-start gap-2.5 md:grid-cols-2">
+						{WEBHOOK_PROVIDERS.filter((meta) => SHOWN_PROVIDERS.has(meta.type)).map((meta) => (
+							<WebhookProviderCard
+								key={meta.type}
+								meta={meta}
+								integration={integrationByType[meta.type]}
+								siteId={siteId}
+							/>
+						))}
+					</div>
+				</>
 			) : null}
 
 			{tab === "search" ? (
