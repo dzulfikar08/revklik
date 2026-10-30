@@ -462,6 +462,10 @@ export interface AscSyncResult {
 	days_skipped: number;
 	price_changes: number;
 	analytics_days: number;
+	/** The shared fetch budget ran out before every day of the window was requested. */
+	budget_exhausted: boolean;
+	/** Newest day of the gap-free completed run after this sync (null = none yet). */
+	synced_through: string | null;
 }
 
 const isoDaysAgo = (n: number): string =>
@@ -573,11 +577,55 @@ async function recordPriceChangeAnnotations(
 	return inserted;
 }
 
+/** Lookback for a regular run: Apple restates recent days, so they are re-fetched. */
+export const ASC_STEADY_DAYS = 7;
+
+/**
+ * Days of sales reports to request. A manual `days` wins. Otherwise: from the sync cursor
+ * (never fewer than the steady lookback, so an outage longer than a week is caught up),
+ * or the configured backfill on an integration that has never completed a day.
+ */
+export function ascWindowDays(opts: {
+	days?: number;
+	syncedThrough: string | null;
+	backfillDays?: string;
+	today?: string;
+}): number {
+	const today = opts.today ?? isoDaysAgo(0);
+	let wanted: number;
+	if (opts.days !== undefined) wanted = opts.days;
+	else if (opts.syncedThrough) {
+		const behind = Math.round(
+			(Date.parse(`${today}T00:00:00Z`) - Date.parse(`${opts.syncedThrough}T00:00:00Z`)) /
+				86_400_000,
+		);
+		wanted = Math.max(ASC_STEADY_DAYS, behind);
+	} else wanted = Number.parseInt(opts.backfillDays ?? "30", 10) || 30;
+	return Math.max(1, Math.min(wanted, 90));
+}
+
+/** A report for today or yesterday may simply not exist yet; older 404s mean Apple has nothing for that day. */
+const REPORT_PENDING_DAYS = 2;
+
+/**
+ * Whether a sales-report answer settles its day. Complete days let the sync cursor pass;
+ * a pending day (not published yet), a rate limit or an Apple 5xx keeps it where it is so
+ * the next run asks again. Any other 4xx will not change by retrying, so it must not
+ * block every later day forever.
+ */
+export function ascDayComplete(status: number, daysAgo: number): boolean {
+	if (status >= 200 && status < 300) return true;
+	if (status === 404) return daysAgo >= REPORT_PENDING_DAYS;
+	if (status === 429 || status >= 500) return false;
+	return true;
+}
+
 /**
  * Sync one appstoreconnect integration: sales reports for the lookback window
- * (7 days steady-state, longer on first sync / manual run), price-change
- * annotations from per-unit price diffs, then engagement metrics while
- * subrequest budget remains. Idempotent — every day is upserted.
+ * (see ascWindowDays), price-change annotations from per-unit price diffs, then
+ * engagement metrics while subrequest budget remains. Idempotent — every day is
+ * upserted. The `synced_through` cursor advances only across a gap-free run of
+ * completed days, so days cut off by the shared fetch budget are retried.
  */
 export async function syncAppStoreConnect(
 	db: Kysely<KlikapaDatabase>,
@@ -586,14 +634,20 @@ export async function syncAppStoreConnect(
 ): Promise<AscSyncResult> {
 	const cfg = parseAscConfig(JSON.parse(integration.config || "{}"));
 	const budget = opts.budget ?? { n: 0, max: 40 };
-	const windowDays = Math.max(
-		1,
-		Math.min(
-			opts.days ??
-				(integration.last_sync ? 7 : Number.parseInt(cfg.backfill_days ?? "30", 10) || 30),
-			90,
-		),
-	);
+	// Read here, not from the caller's row, so every entry point (cron, manual sync) honours the cursor.
+	const syncedThrough =
+		(
+			await db
+				.selectFrom("integrations")
+				.select("synced_through")
+				.where("id", "=", integration.id)
+				.executeTakeFirst()
+		)?.synced_through ?? null;
+	const windowDays = ascWindowDays({
+		days: opts.days,
+		syncedThrough,
+		backfillDays: cfg.backfill_days,
+	});
 	const token = await signAscToken(cfg);
 	const result: AscSyncResult = {
 		app_id: cfg.app_id,
@@ -601,8 +655,12 @@ export async function syncAppStoreConnect(
 		days_skipped: 0,
 		price_changes: 0,
 		analytics_days: 0,
+		budget_exhausted: false,
+		synced_through: syncedThrough,
 	};
 	const allCountries: AscCountryAgg[] = [];
+	let completedThrough: string | null = null;
+	let gapFree = true;
 
 	for (let i = windowDays - 1; i >= 0; i--) {
 		const date = isoDaysAgo(i);
@@ -614,17 +672,17 @@ export async function syncAppStoreConnect(
 				budget,
 			);
 		} catch (err) {
-			if (err instanceof AscAuthError && err.message === "__budget__") break;
+			if (err instanceof AscAuthError && err.message === "__budget__") {
+				result.budget_exhausted = true;
+				break;
+			}
 			throw err;
 		}
-		if (res.status === 404) {
-			// Report not generated yet (lands ~8am Pacific next day) — skip.
-			result.days_skipped++;
-			continue;
-		}
 		if (!res.ok) {
-			console.log(`ASC sales report ${date}: HTTP ${res.status}`);
+			if (res.status !== 404) console.log(`ASC sales report ${date}: HTTP ${res.status}`);
 			result.days_skipped++;
+			if (!ascDayComplete(res.status, i)) gapFree = false;
+			if (gapFree) completedThrough = date;
 			continue;
 		}
 		const tsv = await res.text();
@@ -633,6 +691,7 @@ export async function syncAppStoreConnect(
 		await upsertCountries(db, integration.site_id, cfg.app_id, countries);
 		allCountries.push(...countries);
 		result.days_synced++;
+		if (gapFree) completedThrough = date;
 	}
 
 	result.price_changes = await recordPriceChangeAnnotations(
@@ -727,39 +786,54 @@ export async function syncAppStoreConnect(
 		}
 	}
 
+	// A run that fetched nothing (the shared budget went to other integrations first) must not
+	// look like a sync. Only fully fetched days move the cursor: a day cut off by the budget,
+	// still pending at Apple or failing transiently is fetched again by the next run.
+	if (result.days_synced + result.days_skipped === 0) return result;
+	const advanced = completedThrough !== null && completedThrough > (syncedThrough ?? "");
 	await db
 		.updateTable("integrations")
-		.set({ last_sync: new Date().toISOString() })
+		.set({
+			last_sync: new Date().toISOString(),
+			...(advanced ? { synced_through: completedThrough } : {}),
+		})
 		.where("id", "=", integration.id)
 		.execute();
+	if (advanced) result.synced_through = completedThrough;
 
 	return result;
 }
 
-/** Cron entry: sync every enabled appstoreconnect integration. */
+/** Cron entry: sync every enabled appstoreconnect integration; throws after the loop if any failed. */
 export async function syncAllAppStoreConnect(db: Kysely<KlikapaDatabase>): Promise<void> {
 	const integrations = await db
 		.selectFrom("integrations")
 		.select(["id", "site_id", "user_id", "config", "last_sync"])
 		.where("type", "=", "appstoreconnect")
 		.where("enabled", "=", 1)
+		// Longest-waiting first (never synced = NULL sorts first): when the shared budget runs
+		// out mid-run, the integrations it skipped lead the next run instead of starving.
+		.orderBy("last_sync", "asc")
 		.execute();
 	if (!integrations.length) return;
 	// One shared budget per cron invocation — sales reports win over analytics.
 	const budget: FetchBudget = { n: 0, max: 45 };
+	const failed: string[] = [];
 	for (const integration of integrations) {
 		try {
 			const r = await syncAppStoreConnect(db, integration, { budget });
 			console.log(
-				`ASC sync site=${integration.site_id}: ${r.days_synced}d synced, ${r.days_skipped}d skipped, ${r.price_changes} price changes, ${r.analytics_days}d engagement`,
+				`ASC sync site=${integration.site_id}: ${r.days_synced}d synced, ${r.days_skipped}d skipped, ${r.price_changes} price changes, ${r.analytics_days}d engagement${r.budget_exhausted ? " (budget spent, resumes next run)" : ""}`,
 			);
 		} catch (err) {
+			failed.push(integration.site_id);
 			console.error(
 				`ASC sync failed site=${integration.site_id}:`,
 				err instanceof Error ? err.message : err,
 			);
 		}
 	}
+	if (failed.length) throw new Error(`ASC sync failed for site(s): ${failed.join(", ")}`);
 }
 
 /** Latest per-country price rows (read endpoint helper). */
