@@ -21,7 +21,10 @@ const METHOD_LABELS: Record<string, string> = {
 };
 
 const PROVIDER_LABELS: Record<string, string> = {
+	app_store_sales_report: "App Store",
+	apple: "App Store",
 	doku: "DOKU",
+	google_play: "Google Play",
 	lemonsqueezy: "Lemon Squeezy",
 	mayar: "Mayar",
 	midtrans: "Midtrans",
@@ -30,6 +33,7 @@ const PROVIDER_LABELS: Record<string, string> = {
 	paypal: "PayPal",
 	paywuz: "Paywuz",
 	polar: "Polar",
+	polar_import: "Polar",
 	stripe: "Stripe",
 	xendit: "Xendit",
 };
