@@ -5,7 +5,14 @@
  * casual "kamu" register. `<key>_one` entries are English singulars.
  */
 
+import { integrationsEn, integrationsId } from "./i18n-messages-integrations";
+import { polarEn, polarId } from "./i18n-messages-polar";
+import { settingsEn, settingsId } from "./i18n-messages-settings";
+
 export const viewsEn = {
+	...integrationsEn,
+	...polarEn,
+	...settingsEn,
 	// share & access
 	"share.title": "Share & access",
 	"share.subtitle": "Public dashboard link, live widget embed, and API tokens for {domain}",
@@ -107,6 +114,9 @@ export const viewsEn = {
 } as const;
 
 export const viewsId: Record<Exclude<keyof typeof viewsEn, `${string}_one`>, string> = {
+	...integrationsId,
+	...polarId,
+	...settingsId,
 	// share & access
 	"share.title": "Bagikan & akses",
 	"share.subtitle": "Tautan dashboard publik, widget live, dan token API untuk {domain}",
