@@ -25,6 +25,7 @@ import {
 	toCsv,
 } from "../../lib/public-api-queries";
 import { PortfolioQueryError, queryPortfolioRevenue } from "../../lib/portfolio";
+import { tzOffsetFrom } from "../../lib/metrics";
 import { getToolDef, type ToolName } from "./tools";
 
 export type ToolCallOutcome =
@@ -53,13 +54,19 @@ function intArg(args: Record<string, unknown>, key: string, def: number, max: nu
 
 type ToolHandler = (ctx: PublicApiCtx, args: Record<string, unknown>) => Promise<unknown>;
 
+/** The call's `tz` argument (east-positive minutes) as the day-bucket offset. */
+const withTz = (ctx: PublicApiCtx, args: Record<string, unknown>): PublicApiCtx => ({
+	...ctx,
+	tzOffset: tzOffsetFrom(args.tz),
+});
+
 export const TOOL_HANDLERS: Record<ToolName, ToolHandler> = {
 	whoami: (ctx) => queryWhoami(ctx),
 	list_sites: (ctx) => querySites(ctx),
 	analytics_overview: async (ctx, a) =>
 		queryOverview(ctx, resolveSiteId(ctx, a.site_id), strArg(a, "range") ?? "7d"),
 	analytics_timeseries: async (ctx, a) =>
-		queryTimeseries(ctx, resolveSiteId(ctx, a.site_id), strArg(a, "range") ?? "7d"),
+		queryTimeseries(withTz(ctx, a), resolveSiteId(ctx, a.site_id), strArg(a, "range") ?? "7d"),
 	top_pages: async (ctx, a) =>
 		queryTopPages(
 			ctx,
@@ -84,13 +91,18 @@ export const TOOL_HANDLERS: Record<ToolName, ToolHandler> = {
 	device_breakdown: async (ctx, a) =>
 		queryDevices(ctx, resolveSiteId(ctx, a.site_id), strArg(a, "range") ?? "7d"),
 	revenue_breakdown: async (ctx, a) =>
-		queryRevenue(ctx, resolveSiteId(ctx, a.site_id), strArg(a, "range") ?? "7d"),
+		queryRevenue(withTz(ctx, a), resolveSiteId(ctx, a.site_id), strArg(a, "range") ?? "7d"),
 	portfolio_revenue: async (ctx, a) => {
 		try {
 			return await queryPortfolioRevenue(
 				ctx.db,
 				ctx.userId,
-				{ from: strArg(a, "from"), to: strArg(a, "to"), currency: strArg(a, "currency") },
+				{
+					from: strArg(a, "from"),
+					to: strArg(a, "to"),
+					currency: strArg(a, "currency"),
+					tz: tzOffsetFrom(a.tz),
+				},
 				{ env: ctx.env, onlySiteId: ctx.tokenSiteId },
 			);
 		} catch (e) {

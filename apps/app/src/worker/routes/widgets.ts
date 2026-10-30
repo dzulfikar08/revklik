@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import type { Kysely } from "kysely";
 import type { KlikapaDatabase } from "@revklik/shared";
-import { sql } from "../db";
+import { dayBucketSql, pageviewsSql, visitorsSql } from "../lib/metrics";
 import { hashToken } from "../utils";
 
 type Variables = { db: Kysely<KlikapaDatabase> };
@@ -44,27 +44,24 @@ widgetRoutes.get("/", async (c) => {
 	const [stats, trendRow, sparkRows] = await Promise.all([
 		db
 			.selectFrom("events")
-			.select([
-				({ fn }) => fn.count<number>("id").as("pageviews"),
-				({ fn }) => fn.count<number>("visitor_id").distinct().as("visitors"),
-			])
+			.select([pageviewsSql().as("pageviews"), visitorsSql().as("visitors")])
 			.where("site_id", "=", siteId)
 			.where("timestamp", ">=", start7d)
 			.executeTakeFirst(),
 		db
 			.selectFrom("events")
-			.select(({ fn }) => fn.count<number>("visitor_id").distinct().as("count"))
+			.select(visitorsSql().as("count"))
 			.where("site_id", "=", siteId)
 			.where("timestamp", ">=", start14d)
 			.where("timestamp", "<", start7d)
 			.executeTakeFirst(),
 		db
 			.selectFrom("events")
-			.select(({ fn }) => fn.count<number>("visitor_id").distinct().as("v"))
+			.select(visitorsSql().as("v"))
 			.where("site_id", "=", siteId)
 			.where("timestamp", ">=", start7d)
-			.groupBy(sql`date(timestamp)`)
-			.orderBy(sql`date(timestamp)`)
+			.groupBy(dayBucketSql(0))
+			.orderBy(dayBucketSql(0))
 			.execute(),
 	]);
 

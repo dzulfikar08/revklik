@@ -4,13 +4,37 @@ import type { KlikapaDatabase, WhoamiResponse } from "@revklik/shared";
 import { sql } from "../db";
 import type { PublicApiEnv } from "../middleware/public-auth";
 import { getDateRange } from "../utils";
-import { executePlan, queryPlan, runBatch, type QueryPlan } from "../queries/analytics";
+import {
+	DEFAULT_SCOPE,
+	executePlan,
+	planDeviceBreakdown,
+	planGeo,
+	planOverview,
+	planReferrers,
+	planRevenueByCountry,
+	planRevenueBySource,
+	planRevenueTimeseries,
+	planTimeseries,
+	planTopPages,
+	queryPlan,
+	runBatch,
+	type QueryPlan,
+	type QueryScope,
+} from "../queries/analytics";
 import { ensureSiteCurrency } from "./currency-backfill";
-import { type MoneyContext, loadUsdRates, revenueSql } from "./fx";
+import { type MoneyContext, loadUsdRates } from "./fx";
+import {
+	conversionsSql,
+	isHourlyRange,
+	pageviewsSql,
+	revenueTotalSql,
+	tzOffsetFrom,
+	visitorsSql,
+} from "./metrics";
 import { displayCurrency } from "./site-scope";
 import { toCsv } from "./analytics-queries";
-import { avgSessionSecondsSql } from "./session-duration";
-import { canonicalSource, externalReferrerOnly, sourceSql } from "./source-sql";
+import { planNetRevenue, resolveNetRevenue } from "./net-revenue";
+import { canonicalSource } from "./source-sql";
 
 /**
  * Shared query layer for the public API. Consumed by both the v1 REST routes
@@ -30,6 +54,8 @@ export interface PublicApiCtx {
 	tokenScopes: string[];
 	tokenSiteId: string | null;
 	tokenType: "account" | "site";
+	/** East-positive minutes the day/hour buckets are cut at (`tz` param); UTC when absent. */
+	tzOffset?: number;
 }
 
 export class PublicApiError extends Error {
@@ -51,6 +77,7 @@ export function publicApiCtx(c: Context<PublicApiEnv>): PublicApiCtx {
 		tokenScopes: c.get("tokenScopes"),
 		tokenSiteId: c.get("tokenSiteId"),
 		tokenType: c.get("tokenType"),
+		tzOffset: tzOffsetFrom(c.req.query("tz")),
 	};
 }
 
@@ -212,20 +239,17 @@ function first<T>(rows: T[]): T | undefined {
 	return rows[0];
 }
 
-// --- Shared SQL fragments ---
+// --- Shared windows and scopes ---
 
-function tsFragments(range: string) {
+/** The half-open window `[start, end)` of a range, as the dashboard reads it. */
+function windowOf(range: string) {
 	const { start, end } = getDateRange(range);
-	const startIso = start.toISOString();
-	const spanHours = (end.getTime() - start.getTime()) / (1000 * 60 * 60);
-	const isHourly = spanHours <= 48;
-	const tsDate = isHourly
-		? sql<string>`strftime('%Y-%m-%dT%H:00:00', ${sql.ref("timestamp")})`
-		: sql<string>`date(${sql.ref("timestamp")})`;
-	const tsGroup = isHourly
-		? sql`strftime('%Y-%m-%dT%H:00:00', ${sql.ref("timestamp")})`
-		: sql`date(${sql.ref("timestamp")})`;
-	return { start, end, startIso, isHourly, tsDate, tsGroup };
+	return { start, end, startIso: start.toISOString(), endIso: end.toISOString() };
+}
+
+/** Display scope of a public read: the site's currency and the caller's `tz` buckets. */
+async function scopeFor(ctx: PublicApiCtx, site: SiteInfo): Promise<QueryScope> {
+	return { money: await moneyFor(ctx, site), tzOffset: ctx.tzOffset ?? 0 };
 }
 
 // --- Whoami ---
@@ -331,88 +355,22 @@ export async function queryOverview(ctx: PublicApiCtx, siteId: string | undefine
 	const site = await guardSiteInfo(ctx, siteId);
 	const id = site.id;
 
-	const { start } = getDateRange(range);
-	const startIso = start.toISOString();
-	const money = await moneyFor(ctx, site);
+	// The very plans the dashboard runs (queries/analytics.ts), over the same
+	// half-open window, so both surfaces answer with identical numbers.
+	const { startIso, endIso } = windowOf(range);
+	const scope = await scopeFor(ctx, site);
 
-	const [pv, vi, se, bo, du, rev, conv] = await runPlans(ctx, [
-		queryPlan(
-			db
-				.selectFrom("events")
-				.select(({ fn }) => [fn.count<number>("id").as("count")])
-				.where("site_id", "=", id)
-				.where("event_type", "=", "pageview")
-				.where("timestamp", ">=", startIso),
-			first,
-		),
-		queryPlan(
-			db
-				.selectFrom("events")
-				.select(() => [
-					// Server-reported sales (external_id) belong to a buyer, not a site visit.
-					sql<number>`COUNT(DISTINCT CASE WHEN external_id IS NULL THEN visitor_id END)`.as(
-						"count",
-					),
-				])
-				.where("site_id", "=", id)
-				.where("timestamp", ">=", startIso),
-			first,
-		),
-		queryPlan(
-			db
-				.selectFrom("sessions")
-				.select(({ fn }) => [fn.count<number>("id").as("count")])
-				.where("site_id", "=", id)
-				.where("started_at", ">=", startIso),
-			first,
-		),
-		queryPlan(
-			db
-				.selectFrom("sessions")
-				.select(({ fn }) => [fn.avg<number>("is_bounce").as("avg")])
-				.where("site_id", "=", id)
-				.where("started_at", ">=", startIso),
-			first,
-		),
-		// Session duration: same formula as the dashboard rollup
-		// (queries/analytics.ts) — sessions with ≥2 events carry ended_at.
-		queryPlan(
-			db
-				.selectFrom("sessions")
-				.select(() => [avgSessionSecondsSql.as("avg_duration")])
-				.where("site_id", "=", id)
-				.where("started_at", ">=", startIso),
-			first,
-		),
-		queryPlan(
-			db
-				.selectFrom("events")
-				.select(() => [sql<number>`SUM(${revenueSql(money)})`.as("total")])
-				.where("site_id", "=", id)
-				.where("revenue", "!=", 0)
-				.where("timestamp", ">=", startIso),
-			first,
-		),
-		queryPlan(
-			db
-				.selectFrom("events")
-				.select(({ fn }) => [fn.count<number>("id").as("count")])
-				.where("site_id", "=", id)
-				.where("event_type", "=", "conversion")
-				.where("timestamp", ">=", startIso),
-			first,
-		),
+	const [stats, netRows] = await runPlans(ctx, [
+		planOverview(db, id, startIso, undefined, endIso, scope),
+		planNetRevenue(db, id, { prevStartIso: startIso, startIso, endIso }, undefined, scope),
 	]);
+	const net = await resolveNetRevenue(db, id, netRows, scope);
 
 	return {
-		pageviews: Number(pv?.count ?? 0),
-		visitors: Number(vi?.count ?? 0),
-		sessions: Number(se?.count ?? 0),
-		bounceRate: Math.round(Number(bo?.avg ?? 0) * 100),
-		avgDuration: Math.round(Number(du?.avg_duration ?? 0)),
-		revenue: Number(rev?.total ?? 0),
-		currency: money.currency,
-		conversions: Number(conv?.count ?? 0),
+		...stats,
+		currency: scope.money.currency,
+		netRevenue: net.current,
+		netEstimated: net.estimated,
 	};
 }
 
@@ -421,30 +379,13 @@ export async function queryTimeseries(
 	siteId: string | undefined,
 	range: string,
 ) {
-	const db = ctx.db;
 	const id = await guardSite(ctx, siteId);
-
-	const { startIso, tsDate, tsGroup } = tsFragments(range);
-
-	const rows = await db
-		.selectFrom("events")
-		.select([
-			({ fn }) => fn.count<number>("id").as("pageviews"),
-			({ fn }) => fn.count<number>("visitor_id").distinct().as("visitors"),
-			tsDate.as("date"),
-		])
-		.where("site_id", "=", id)
-		.where("event_type", "=", "pageview")
-		.where("timestamp", ">=", startIso)
-		.groupBy(tsGroup)
-		.orderBy("date", "asc")
-		.execute();
-
-	return rows.map((r) => ({
-		date: String(r.date ?? ""),
-		pageviews: Number(r.pageviews),
-		visitors: Number(r.visitors),
-	}));
+	const { start, end, startIso, endIso } = windowOf(range);
+	const scope = { ...DEFAULT_SCOPE, tzOffset: ctx.tzOffset ?? 0 };
+	return executePlan(
+		ctx.db,
+		planTimeseries(ctx.db, id, startIso, isHourlyRange(start, end), undefined, endIso, scope),
+	);
 }
 
 export async function queryTopPages(
@@ -453,32 +394,9 @@ export async function queryTopPages(
 	range: string,
 	limit: number,
 ) {
-	const db = ctx.db;
 	const id = await guardSite(ctx, siteId);
-
-	const { start } = getDateRange(range);
-	const startIso = start.toISOString();
-
-	const rows = await db
-		.selectFrom("events")
-		.select([
-			"path",
-			({ fn }) => fn.count<number>("id").as("pageviews"),
-			({ fn }) => fn.count<number>("visitor_id").distinct().as("visitors"),
-		])
-		.where("site_id", "=", id)
-		.where("event_type", "=", "pageview")
-		.where("timestamp", ">=", startIso)
-		.groupBy("path")
-		.orderBy("pageviews", "desc")
-		.limit(limit)
-		.execute();
-
-	return rows.map((r) => ({
-		path: r.path,
-		pageviews: Number(r.pageviews),
-		visitors: Number(r.visitors),
-	}));
+	const { startIso, endIso } = windowOf(range);
+	return executePlan(ctx.db, planTopPages(ctx.db, id, startIso, limit, undefined, endIso));
 }
 
 export async function queryReferrers(
@@ -487,36 +405,12 @@ export async function queryReferrers(
 	range: string,
 	limit: number,
 ) {
-	const db = ctx.db;
 	const site = await guardSiteInfo(ctx, siteId);
-	const id = site.id;
-
-	const { start } = getDateRange(range);
-	const startIso = start.toISOString();
-
-	// Pageviews only (custom events carry no referrer and would inflate "direct"),
-	// and the site's own navigation is not a traffic source.
-	const rows = await db
-		.selectFrom("events")
-		.select([
-			sourceSql.as("source"),
-			({ fn }) => fn.count<number>("visitor_id").distinct().as("visitors"),
-		])
-		.where("site_id", "=", id)
-		.where("event_type", "=", "pageview")
-		.where("timestamp", ">=", startIso)
-		.where(externalReferrerOnly(site?.domain ?? ""))
-		.groupBy(sourceSql)
-		.orderBy("visitors", "desc")
-		.limit(limit)
-		.execute();
-
-	const total = rows.reduce((s, r) => s + Number(r.visitors), 0);
-	return rows.map((r) => ({
-		source: String(r.source),
-		visitors: Number(r.visitors),
-		percentage: total > 0 ? Math.round((Number(r.visitors) / total) * 100) : 0,
-	}));
+	const { startIso, endIso } = windowOf(range);
+	return executePlan(
+		ctx.db,
+		planReferrers(ctx.db, site.id, startIso, limit, undefined, endIso, site.domain ?? ""),
+	);
 }
 
 export async function queryGeo(
@@ -525,95 +419,15 @@ export async function queryGeo(
 	range: string,
 	limit: number,
 ) {
-	const db = ctx.db;
 	const id = await guardSite(ctx, siteId);
-
-	const { start } = getDateRange(range);
-	const startIso = start.toISOString();
-
-	return db
-		.selectFrom("events")
-		.select([
-			"country",
-			"region",
-			"city",
-			({ fn }) => fn.count<number>("visitor_id").distinct().as("visitors"),
-		])
-		.where("site_id", "=", id)
-		.where("external_id", "is", null)
-		.where("timestamp", ">=", startIso)
-		.groupBy(["country", "region", "city"])
-		.orderBy("visitors", "desc")
-		.limit(limit)
-		.execute();
+	const { startIso, endIso } = windowOf(range);
+	return executePlan(ctx.db, planGeo(ctx.db, id, startIso, limit, undefined, endIso));
 }
 
 export async function queryDevices(ctx: PublicApiCtx, siteId: string | undefined, range: string) {
-	const db = ctx.db;
 	const id = await guardSite(ctx, siteId);
-
-	const { start } = getDateRange(range);
-	const startIso = start.toISOString();
-
-	const [deviceRows, osRows, browserRows] = await runPlans(ctx, [
-		queryPlan(
-			db
-				.selectFrom("sessions")
-				.select([
-					sql<string>`COALESCE(device_type, 'unknown')`.as("device"),
-					({ fn }) => fn.count<number>("visitor_id").distinct().as("visitors"),
-				])
-				.where("site_id", "=", id)
-				.where("started_at", ">=", startIso)
-				.groupBy("device_type")
-				.orderBy("visitors", "desc")
-				.limit(10),
-			(rows) => rows,
-		),
-		queryPlan(
-			db
-				.selectFrom("sessions")
-				.select([
-					sql<string>`COALESCE(os, 'unknown')`.as("device"),
-					({ fn }) => fn.count<number>("visitor_id").distinct().as("visitors"),
-				])
-				.where("site_id", "=", id)
-				.where("started_at", ">=", startIso)
-				.groupBy("os")
-				.orderBy("visitors", "desc")
-				.limit(10),
-			(rows) => rows,
-		),
-		queryPlan(
-			db
-				.selectFrom("sessions")
-				.select([
-					sql<string>`COALESCE(browser, 'unknown')`.as("device"),
-					({ fn }) => fn.count<number>("visitor_id").distinct().as("visitors"),
-				])
-				.where("site_id", "=", id)
-				.where("started_at", ">=", startIso)
-				.groupBy("browser")
-				.orderBy("visitors", "desc")
-				.limit(10),
-			(rows) => rows,
-		),
-	]);
-
-	const toEntries = (rows: typeof deviceRows) => {
-		const total = rows.reduce((s, r) => s + Number(r.visitors), 0);
-		return rows.map((r) => ({
-			device: String(r.device),
-			visitors: Number(r.visitors),
-			percentage: total > 0 ? Math.round((Number(r.visitors) / total) * 100) : 0,
-		}));
-	};
-
-	return {
-		devices: toEntries(deviceRows),
-		os: toEntries(osRows),
-		browsers: toEntries(browserRows),
-	};
+	const { startIso, endIso } = windowOf(range);
+	return executePlan(ctx.db, planDeviceBreakdown(ctx.db, id, startIso, undefined, endIso));
 }
 
 export async function queryRevenue(ctx: PublicApiCtx, siteId: string | undefined, range: string) {
@@ -621,80 +435,16 @@ export async function queryRevenue(ctx: PublicApiCtx, siteId: string | undefined
 	const site = await guardSiteInfo(ctx, siteId);
 	const id = site.id;
 
-	const { startIso, tsDate, tsGroup } = tsFragments(range);
-	const money = await moneyFor(ctx, site);
+	const { start, end, startIso, endIso } = windowOf(range);
+	const scope = await scopeFor(ctx, site);
 
-	const [revBySource, revByCountry, revTs] = await runPlans(ctx, [
-		// Revenue by source
-		queryPlan(
-			db
-				.selectFrom("events")
-				.select([
-					sourceSql.as("source"),
-					sql<number>`SUM(${revenueSql(money)})`.as("revenue"),
-					sql<number>`COUNT(CASE WHEN revenue > 0 THEN 1 END)`.as("conversions"),
-				])
-				.where("site_id", "=", id)
-				.where("revenue", "!=", 0)
-				.where("timestamp", ">=", startIso)
-				.groupBy(sourceSql)
-				.orderBy("revenue", "desc")
-				.limit(10),
-			(rows) => rows,
-		),
-		// Revenue by country
-		queryPlan(
-			db
-				.selectFrom("events")
-				.select([
-					sql<string>`COALESCE(country, 'unknown')`.as("country"),
-					sql<number>`SUM(${revenueSql(money)})`.as("revenue"),
-					sql<number>`COUNT(CASE WHEN revenue > 0 THEN 1 END)`.as("conversions"),
-				])
-				.where("site_id", "=", id)
-				.where("revenue", "!=", 0)
-				.where("timestamp", ">=", startIso)
-				.groupBy("country")
-				.orderBy("revenue", "desc")
-				.limit(10),
-			(rows) => rows,
-		),
-		// Revenue timeseries
-		queryPlan(
-			db
-				.selectFrom("events")
-				.select([
-					tsDate.as("date"),
-					sql<number>`SUM(${revenueSql(money)})`.as("revenue"),
-					sql<number>`COUNT(CASE WHEN revenue > 0 THEN 1 END)`.as("conversions"),
-				])
-				.where("site_id", "=", id)
-				.where("revenue", "!=", 0)
-				.where("timestamp", ">=", startIso)
-				.groupBy(tsGroup)
-				.orderBy("date", "asc"),
-			(rows) => rows,
-		),
+	const [bySource, byCountry, timeseries] = await runPlans(ctx, [
+		planRevenueBySource(db, id, startIso, undefined, endIso, scope),
+		planRevenueByCountry(db, id, startIso, undefined, endIso, scope),
+		planRevenueTimeseries(db, id, startIso, isHourlyRange(start, end), undefined, endIso, scope),
 	]);
 
-	return {
-		currency: money.currency,
-		bySource: revBySource.map((r) => ({
-			source: String(r.source),
-			revenue: Number(r.revenue ?? 0),
-			conversions: Number(r.conversions ?? 0),
-		})),
-		byCountry: revByCountry.map((r) => ({
-			country: String(r.country),
-			revenue: Number(r.revenue ?? 0),
-			conversions: Number(r.conversions ?? 0),
-		})),
-		timeseries: revTs.map((r) => ({
-			date: String(r.date ?? ""),
-			revenue: Number(r.revenue ?? 0),
-			conversions: Number(r.conversions ?? 0),
-		})),
-	};
+	return { currency: scope.money.currency, bySource, byCountry, timeseries };
 }
 
 export interface PublicJourneyStep {
@@ -875,10 +625,10 @@ export async function queryCampaigns(ctx: PublicApiCtx, siteId: string | undefin
 			canonicalSource(sql.ref("utm_source")).as("utm_source"),
 			"utm_medium",
 			"utm_campaign",
-			sql<string>`count(distinct visitor_id)`.as("visitors"),
-			sql<string>`sum(case when event_type = 'pageview' then 1 else 0 end)`.as("pageviews"),
-			sql<string>`sum(case when event_type = 'conversion' then 1 else 0 end)`.as("conversions"),
-			sql<string>`coalesce(sum(${revenueSql(money)}), 0)`.as("revenue"),
+			visitorsSql().as("visitors"),
+			pageviewsSql().as("pageviews"),
+			conversionsSql().as("conversions"),
+			revenueTotalSql(money).as("revenue"),
 		])
 		.where("site_id", "=", id)
 		.where("timestamp", ">=", startIso)

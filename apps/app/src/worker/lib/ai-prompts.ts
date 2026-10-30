@@ -9,6 +9,7 @@ import type { Kysely } from "kysely";
 import type { InsightType, KlikapaDatabase } from "@revklik/shared";
 import { sql } from "../db";
 import { type MoneyContext, USD_MONEY, revenueSql } from "./fx";
+import { revenueTotalSql, visitorsSql } from "./metrics";
 import { canonicalSource } from "./source-sql";
 
 // ---------------------------------------------------------------------------
@@ -136,10 +137,10 @@ export async function aggregateData(
 			.limit(10)
 			.execute(),
 
-		// 3. Total unique visitors (funnel entry)
+		// 3. Total unique visitors (funnel entry): the dashboard's visitor definition
 		db
 			.selectFrom("events")
-			.select(({ fn }) => [fn.count<number>("visitor_id").distinct().as("count")])
+			.select(visitorsSql().as("count"))
 			.where("site_id", "=", siteId)
 			.where("timestamp", ">=", startIso)
 			.executeTakeFirst(),
@@ -193,15 +194,12 @@ export async function aggregateData(
 			.orderBy("page_count", "asc")
 			.execute(),
 
-		// 8. Total events + total revenue. Same expression as the dashboard KPI
-		// (getOverviewStats): refunds/negative rows are excluded there too.
+		// 8. Total events + total revenue: the dashboard KPI definition (lib/metrics.ts).
 		db
 			.selectFrom("events")
 			.select([
 				({ fn }) => fn.count<number>("id").as("total_events"),
-				sql<number>`COALESCE(SUM(CASE WHEN revenue != 0 THEN ${revenue} END), 0)`.as(
-					"total_revenue",
-				),
+				revenueTotalSql(money).as("total_revenue"),
 			])
 			.where("site_id", "=", siteId)
 			.where("timestamp", ">=", startIso)

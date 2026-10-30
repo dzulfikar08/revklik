@@ -2,13 +2,16 @@ import type { Kysely } from "kysely";
 import type { KlikapaDatabase } from "@revklik/shared";
 import { sql } from "../db";
 import { canonicalRail, defaultFeeRule, netAfterRule, type FeeRule } from "./fees";
-import { fxFactorSql, loadUsdRates, normalizeCurrency, type MoneyContext } from "./fx";
+import { loadUsdRates, normalizeCurrency, type MoneyContext } from "./fx";
+import { dayBucketSql } from "./metrics";
 import { displayCurrency } from "./site-scope";
 
 export interface PortfolioQuery {
 	from?: string;
 	to?: string;
 	currency?: string;
+	/** East-positive UTC offset in minutes the days are cut at (WIB = 420); default UTC. */
+	tz?: number;
 }
 
 export interface PortfolioTotals {
@@ -78,19 +81,20 @@ function parseDay(value: string, field: string): number {
 	return ms;
 }
 
-/** Inclusive UTC day range; defaults to the last 30 days ending today. */
+/** Inclusive day range in the caller's local days (UTC unless `tz`); defaults to the last 30 days ending today. */
 export function resolvePortfolioRange(
 	q: PortfolioQuery,
 	nowMs = Date.now(),
 ): { from: string; to: string; startIso: string; endIso: string } {
-	const toMs = q.to ? parseDay(q.to, "to") : parseDay(isoDay(nowMs), "to");
+	const shiftMs = (q.tz ?? 0) * 60_000;
+	const toMs = q.to ? parseDay(q.to, "to") : parseDay(isoDay(nowMs + shiftMs), "to");
 	const fromMs = q.from ? parseDay(q.from, "from") : toMs - (DEFAULT_RANGE_DAYS - 1) * MS_PER_DAY;
 	if (fromMs > toMs) throw new PortfolioQueryError("from must not be after to");
 	return {
 		from: isoDay(fromMs),
 		to: isoDay(toMs),
-		startIso: new Date(fromMs).toISOString(),
-		endIso: new Date(toMs + MS_PER_DAY).toISOString(),
+		startIso: new Date(fromMs - shiftMs).toISOString(),
+		endIso: new Date(toMs + MS_PER_DAY - shiftMs).toISOString(),
 	};
 }
 
@@ -161,7 +165,7 @@ export async function queryPortfolioRevenue(
 	const ownRailExpr = sql<string | null>`NULLIF(events.rail, '')`;
 	const providerExpr = sql<string | null>`NULLIF(events.payment_provider, '')`;
 	const currencyExpr = sql<string>`UPPER(COALESCE(NULLIF(events.currency, ''), 'USD'))`;
-	const dayExpr = sql<string>`substr(events.timestamp, 1, 10)`;
+	const dayExpr = dayBucketSql(query.tz ?? 0, "events.timestamp");
 
 	const toRate = rates[money.currency] ?? 1;
 	const fallbackFactor = Number.isFinite(toRate) ? toRate : 1;

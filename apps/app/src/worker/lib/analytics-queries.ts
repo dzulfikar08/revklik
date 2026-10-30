@@ -1,6 +1,8 @@
-import type { Kysely, SelectQueryBuilder } from "kysely";
+import type { Kysely, RawBuilder, SelectQueryBuilder } from "kysely";
 import type { HeatmapData, KlikapaDatabase } from "@revklik/shared";
+import { sql } from "../db";
 import { loadAccess, type SiteAccess } from "./site-access";
+import { computedSourceSql } from "./source-sql";
 
 /**
  * Validate that a user has access to a site (owns it or is an accepted team member).
@@ -58,7 +60,30 @@ const VALID_DIMENSIONS = new Set([
 	"utm_source",
 	"utm_medium",
 	"utm_campaign",
+	"source",
+	"payment_method",
+	"payment_provider",
 ]);
+
+/** Dimensions that exist on `events` only; sessions reach them through a semi-join. */
+const EVENT_ONLY_DIMENSIONS: readonly string[] = ["path", "payment_method", "payment_provider"];
+
+/** True when a session query needs a semi-join against events for this filter set. */
+export function hasEventOnlyFilter(filters: ParsedFilter[] | undefined): boolean {
+	return filters?.some((f) => EVENT_ONLY_DIMENSIONS.includes(f.dimension)) ?? false;
+}
+
+/**
+ * Canonical traffic source of a row, the same label the Sources and
+ * revenue-by-source panels group by: the stamped `source`, else computed from
+ * utm_source / referrer / browser. A joined query names the table (`alias`)
+ * because both sides carry those columns.
+ */
+function sourceColumn(alias?: string): RawBuilder<string> {
+	return alias
+		? sql<string>`COALESCE(${sql.ref(`${alias}.source`)}, ${computedSourceSql})`
+		: sql<string>`COALESCE(${sql.ref("source")}, ${computedSourceSql})`;
+}
 
 export function applyFilters<DB, TB extends keyof DB, O>(
 	qb: SelectQueryBuilder<DB, TB, O>,
@@ -73,7 +98,7 @@ export function applyFilters<DB, TB extends keyof DB, O>(
 		// Dimension not present on this table (e.g. "path" on sessions) —
 		// D1 would silently treat the quoted identifier as a string literal.
 		if (skip.includes(f.dimension)) continue;
-		const c = col(f.dimension);
+		const c = f.dimension === "source" ? sourceColumn(alias) : col(f.dimension);
 		if (f.operator === "is") {
 			qb = qb.where(c as never, "=", f.value as never);
 		} else if (f.operator === "is_not") {
@@ -104,9 +129,9 @@ interface SessionScope {
 
 /**
  * Apply parsed filters to a sessions query. Sessions carry every dimension
- * except `path`; a path filter is honoured through a semi-join against the
- * session's events, so "path:is:/pricing" narrows session-derived panels to
- * sessions that actually had a pageview on that path.
+ * except `path` and the payment ones; those are honoured through a semi-join
+ * against the session's events, so "path:is:/pricing" narrows session-derived
+ * panels to sessions that actually had a pageview on that path.
  */
 export function applySessionFilters<DB, TB extends keyof DB, O>(
 	qb: SelectQueryBuilder<DB, TB, O>,
@@ -114,12 +139,12 @@ export function applySessionFilters<DB, TB extends keyof DB, O>(
 	filters?: ParsedFilter[],
 ): SelectQueryBuilder<DB, TB, O> {
 	if (!filters || filters.length === 0) return qb;
-	const pathFilters = filters.filter((f) => f.dimension === "path");
+	const eventFilters = filters.filter((f) => EVENT_ONLY_DIMENSIONS.includes(f.dimension));
 	let out = applyFilters(
 		qb,
-		filters.filter((f) => f.dimension !== "path"),
+		filters.filter((f) => !EVENT_ONLY_DIMENSIONS.includes(f.dimension)),
 	);
-	for (const f of pathFilters) {
+	for (const f of eventFilters) {
 		out = out.where((eb) => {
 			let sq = scope.db
 				.selectFrom("events")

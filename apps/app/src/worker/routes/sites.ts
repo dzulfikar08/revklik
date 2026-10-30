@@ -7,8 +7,16 @@ import { convertAmount, loadUsdRates, normalizeCurrency, usdRates } from "../lib
 import { getPlanLimits } from "../lib/plans";
 import { purgeSiteRows } from "../lib/purge";
 import { displayCurrency } from "../lib/site-scope";
+import {
+	dayBucketSql,
+	hasRevenuePredicate,
+	pageviewPredicate,
+	pageviewsSql,
+	tzOffsetFrom,
+	visitorsSql,
+} from "../lib/metrics";
 import { clampTzOffset } from "../lib/widget-live";
-import { fingerprintFromRequest, generateId } from "../utils";
+import { fingerprintFromRequest, generateId, getDateRange } from "../utils";
 import { invalidateExcludedCache } from "./track";
 
 type Variables = { db: Kysely<KlikapaDatabase>; userId: string };
@@ -50,57 +58,46 @@ siteRoutes.get("/", async (c) => {
 		.execute();
 	const rates = await loadUsdRates(db, c.env);
 
-	const rangeParam = c.req.query("range") || "7d";
-	let startIso: string;
-	if (rangeParam.includes(",")) {
-		startIso = new Date(rangeParam.split(",")[0] ?? "").toISOString();
-	} else {
-		const days: Record<string, number> = {
-			"24h": 1,
-			"7d": 7,
-			"30d": 30,
-			"90d": 90,
-		};
-		startIso = new Date(Date.now() - (days[rangeParam] ?? 7) * 86400000).toISOString();
-	}
+	// Same window and definitions as the dashboard (lib/metrics.ts); `tz` cuts
+	// the sparkline days where the dashboard cuts them.
+	const { start, end } = getDateRange(c.req.query("range") || "7d");
+	const startIso = start.toISOString();
+	const endIso = end.toISOString();
+	const tz = tzOffsetFrom(c.req.query("tz"));
+	const day = dayBucketSql(tz);
 
 	const ownedSites = db.selectFrom("sites").select("id").where("user_id", "=", userId);
 	const statsQuery = db
 		.selectFrom("events")
-		.select([
-			"site_id",
-			({ fn }) => fn.count<number>("id").as("pageviews"),
-			({ fn }) => fn.count<number>("visitor_id").distinct().as("visitors"),
-		])
+		.select(["site_id", pageviewsSql().as("pageviews"), visitorsSql().as("visitors")])
 		.where("site_id", "in", ownedSites)
-		.where("event_type", "=", "pageview")
+		.where(pageviewPredicate())
 		.where("timestamp", ">=", startIso)
+		.where("timestamp", "<", endIso)
 		.groupBy("site_id");
 	const sparkQuery = db
 		.selectFrom("events")
-		.select([
-			"site_id",
-			sql<string>`date(${sql.ref("timestamp")})`.as("day"),
-			({ fn }) => fn.count<number>("id").as("pv"),
-		])
+		.select(["site_id", day.as("day"), pageviewsSql().as("pv")])
 		.where("site_id", "in", ownedSites)
-		.where("event_type", "=", "pageview")
+		.where(pageviewPredicate())
 		.where("timestamp", ">=", startIso)
-		.groupBy(["site_id", sql`date(${sql.ref("timestamp")})`])
+		.where("timestamp", "<", endIso)
+		.groupBy(["site_id", day])
 		.orderBy("day", "asc");
 	// Revenue can ride on any event type; literal `!= 0` lets SQLite use the partial index.
 	const revenueQuery = db
 		.selectFrom("events")
 		.select([
 			"site_id",
-			sql<string>`date(${sql.ref("timestamp")})`.as("day"),
+			day.as("day"),
 			sql<string>`UPPER(COALESCE(NULLIF(${sql.ref("currency")}, ''), 'USD'))`.as("cur"),
 			sql<number>`SUM(${sql.ref("revenue")})`.as("rev"),
 		])
 		.where("site_id", "in", ownedSites)
-		.where(sql<boolean>`revenue != 0`)
+		.where(hasRevenuePredicate())
 		.where("timestamp", ">=", startIso)
-		.groupBy(["site_id", sql`date(${sql.ref("timestamp")})`, sql`cur`])
+		.where("timestamp", "<", endIso)
+		.groupBy(["site_id", day, sql`cur`])
 		.orderBy("day", "asc");
 	// Ever received anything: drives the "Not installed" badge.
 	const probeQuery = sql<{
