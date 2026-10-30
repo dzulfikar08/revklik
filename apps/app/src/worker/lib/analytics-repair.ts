@@ -17,9 +17,10 @@ export interface AnalyticsRepair {
 
 /**
  * OneDollarStats imports stored `2026-04-30 00:00:00T12:00:00Z`, which SQLite's
- * date()/strftime() read as NULL, so the rows dropped out of every daily bucket.
+ * date()/strftime() read as NULL, so the rows dropped out of every daily bucket. The GLOB
+ * stays short: D1 refuses LIKE/GLOB patterns over 50 bytes ("pattern too complex").
  */
-const MALFORMED_ODS_TIMESTAMP = `length(timestamp) = 29 AND timestamp GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9] 00:00:00T*' AND json_valid(props) AND json_extract(props, '$.source') = 'onedollarstats_import'`;
+const MALFORMED_ODS_TIMESTAMP = `length(timestamp) = 29 AND timestamp GLOB '????-??-?? 00:00:00T*' AND json_valid(props) AND json_extract(props, '$.source') = 'onedollarstats_import'`;
 
 const REPAIRED_ODS_TIMESTAMP = `substr(timestamp, 1, 10) || substr(timestamp, 20)`;
 
