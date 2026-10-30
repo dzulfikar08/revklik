@@ -100,7 +100,7 @@ import { SitesView } from "./sites-view";
 import { siteHasEvents, SnippetModal } from "./snippet-modal";
 import { AiInsightsPanel } from "./ai-insights";
 import { HeatmapPanel } from "./heatmap";
-import { PredictionsPanel } from "./predictions";
+import { RunRateForecastPanel } from "./forecast-panel";
 import { RecordingsPanel } from "./recordings";
 import { SegmentControls } from "./segments";
 import { ShareWidgetTokensView } from "./share-widget-tokens";
@@ -2216,13 +2216,8 @@ const AnalyticsPage = ({
 							rangeKey={rangeKey}
 							siteId={siteId}
 						/>
-						{/* Fifth cell of the 2-col grid: span the row instead of leaving a gap. */}
 						<div className="grid md:col-span-2 xl:col-span-1">
-							<PredictionsPanel
-								onOpenVisitor={openVisitorSheet}
-								onUpgrade={() => setView("billing")}
-								siteId={siteId}
-							/>
+							<RunRateForecastPanel currency={dash?.currency} siteId={siteId} />
 						</div>
 					</div>
 					<div className="mb-2.5">
@@ -2236,7 +2231,7 @@ const AnalyticsPage = ({
 					/>
 				</main>
 			) : view === "share" ? (
-				<ShareWidgetTokensView />
+				<ShareWidgetTokensView siteId={siteId} />
 			) : view === "billing" ? (
 				<BillingView highlightPlan={highlightPlan} />
 			) : view === "admin" ? (
