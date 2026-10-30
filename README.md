@@ -17,14 +17,17 @@ database, a tracking script of about 4 KB, and a dashboard in English and Bahasa
 ## What it does
 
 - **Web analytics**: visitors, pageviews, sessions, bounce rate, visit duration, sources, UTM
-  campaigns, pages, geography, devices, with previous-period comparison. Cookieless; visitors are
-  shown under pseudonyms. Bot and datacenter traffic is flagged and filtered.
+  campaigns, pages, geography, devices, with previous-period comparison. No third-party cookies and
+  no cross-site tracking; a first-party visitor ID (random, per site) is personal data, so see
+  [the privacy docs](https://docs.revklik.com/privacy/). Bot and datacenter traffic is flagged and
+  filtered.
 - **Revenue analytics**: conversions carry revenue. Payment providers feed the same panels:
-  Stripe, LemonSqueezy, Polar, Midtrans, Xendit, DOKU, Mayar, Paywuz, plus Shopee and Tokopedia,
-  App Store Connect, and a server-side events API for anything else.
+  Midtrans, Xendit, DOKU, Mayar, Paywuz, Polar, Stripe, LemonSqueezy, App Store Connect, and a
+  server-side events API for anything else. (Shopee, Tokopedia and NICEPAY code exists but is
+  hidden until it is fixed.)
 - **Funnels and journeys**: scroll funnels derived from page sections, per-visitor journey
   timelines, segments, annotations.
-- **Heatmaps and session replays**, **AI insights** (Cloudflare Workers AI), revenue predictions.
+- **Heatmaps and session replays**, **AI insights** (Cloudflare Workers AI), a run-rate revenue forecast.
 - **Search Console** queries next to your traffic (Google OAuth or a service account key).
 - **Realtime** visitor count and event feed, public dashboards, embeddable live widget.
 - **Public API and MCP server** (`rvt_` account tokens, `rv_` site tokens with scopes), a
