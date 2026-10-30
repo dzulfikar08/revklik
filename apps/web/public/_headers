@@ -1,3 +1,8 @@
 # The landing-page demo dashboard is fixture data: keep it out of search results.
 /demo
   X-Robots-Tag: noindex, nofollow
+
+# Tracker scripts are fetched on every page view of customer sites: let browsers
+# and the edge reuse them for an hour instead of revalidating each time.
+/klikapa*.js
+  Cache-Control: public, max-age=3600, stale-while-revalidate=86400
