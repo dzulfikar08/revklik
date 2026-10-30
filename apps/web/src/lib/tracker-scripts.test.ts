@@ -31,11 +31,21 @@ interface TrackerWindow {
 	klikapa?: {
 		track: (name: string, props?: unknown, revenue?: number) => void;
 		getVisitorId: () => string;
+		consent?: (granted: boolean) => void;
 	};
 }
 
+interface LoadOptions {
+	/** Attributes on the <script> tag besides data-site-id. */
+	attrs?: Record<string, string>;
+	/** Properties defined on navigator before the script runs (globalPrivacyControl, doNotTrack). */
+	navigatorProps?: Record<string, unknown>;
+	/** localStorage entries present before the script runs (a returning visitor). */
+	storage?: Record<string, string>;
+}
+
 /** Executes the tracker like a browser tag would: currentScript points at the <script> carrying data-site-id. */
-function loadTracker(source: string) {
+function loadTracker(source: string, opts: LoadOptions = {}) {
 	const win = new Window({ url: PAGE_URL });
 	const requests: Array<{ url: string; via: "fetch" | "sendBeacon"; events: TrackerEvent[] }> = [];
 	const errors: unknown[] = [];
@@ -60,6 +70,12 @@ function loadTracker(source: string) {
 	tag.setAttribute("data-site-id", SITE_ID);
 	tag.setAttribute("src", SCRIPT_URL);
 	Object.defineProperty(win.document, "currentScript", { value: tag });
+	for (const [name, value] of Object.entries(opts.attrs ?? {})) tag.setAttribute(name, value);
+	for (const [name, value] of Object.entries(opts.navigatorProps ?? {})) {
+		Object.defineProperty(win.navigator, name, { value, configurable: true });
+	}
+	for (const [key, value] of Object.entries(opts.storage ?? {}))
+		win.localStorage.setItem(key, value);
 
 	let thrown: unknown;
 	try {
@@ -124,6 +140,72 @@ describe.each(variants)("tracker script $name", ({ source }) => {
 				pr: { plan: "pro" },
 			}),
 		);
+	});
+
+	describe("privacy controls", () => {
+		const storedKeys = (win: Window) => [
+			...Array.from({ length: win.localStorage.length }, (_, i) => win.localStorage.key(i)),
+			...Array.from({ length: win.sessionStorage.length }, (_, i) => win.sessionStorage.key(i)),
+		];
+
+		it.each([
+			["Global Privacy Control", { globalPrivacyControl: true }],
+			["Do Not Track", { doNotTrack: "1" }],
+		])("%s stops all tracking and storage", (_name, navigatorProps) => {
+			const { win, thrown, flush, requests } = loadTracker(source, { navigatorProps });
+			expect(thrown).toBeUndefined();
+			const api = (win as unknown as TrackerWindow).klikapa;
+			api?.track("signup_started");
+			api?.consent?.(true);
+			flush();
+			expect(requests).toEqual([]);
+			expect(storedKeys(win)).toEqual([]);
+			expect(api?.getVisitorId()).toBe("");
+		});
+
+		it('data-consent="required" stores and sends nothing before consent', () => {
+			const { win, flush, requests } = loadTracker(source, {
+				attrs: { "data-consent": "required" },
+			});
+			(win as unknown as TrackerWindow).klikapa?.track("signup_started");
+			flush();
+			expect(requests).toEqual([]);
+			expect(storedKeys(win)).toEqual([]);
+		});
+
+		it("consent(true) sends the pageview, stores the ids and remembers the grant", () => {
+			const { win, flush, sent } = loadTracker(source, { attrs: { "data-consent": "required" } });
+			const api = (win as unknown as TrackerWindow).klikapa;
+			api?.consent?.(true);
+			flush();
+			expect(sent().filter((e) => e.t === "p")).toHaveLength(1);
+			expect(win.localStorage.getItem("_kp_consent")).toBe("1");
+			expect(win.localStorage.getItem("_kp_vid")).toMatch(/\S/);
+			expect(api?.getVisitorId()).toBe(win.localStorage.getItem("_kp_vid") ?? "");
+		});
+
+		it("a remembered grant resumes tracking on the next page load", () => {
+			const { sent, flush } = loadTracker(source, {
+				attrs: { "data-consent": "required" },
+				storage: { _kp_consent: "1" },
+			});
+			flush();
+			expect(sent().filter((e) => e.t === "p")).toHaveLength(1);
+		});
+
+		it("consent(false) erases the identifiers and stops sending", () => {
+			const { win, flush, requests } = loadTracker(source, {
+				attrs: { "data-consent": "required" },
+				storage: { _kp_consent: "1" },
+			});
+			const api = (win as unknown as TrackerWindow).klikapa;
+			expect(win.localStorage.getItem("_kp_vid")).toMatch(/\S/);
+			api?.consent?.(false);
+			api?.track("after_withdrawal");
+			flush();
+			expect(storedKeys(win)).toEqual([]);
+			expect(requests).toEqual([]);
+		});
 	});
 });
 

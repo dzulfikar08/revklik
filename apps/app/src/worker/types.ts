@@ -18,6 +18,8 @@ export type Bindings = RateLimitBindings & {
 	AI: Ai;
 	// Daily DB dump destination
 	BACKUP_BUCKET: R2Bucket;
+	// Base64 of 32 random bytes (`openssl rand -base64 32`): seals every database dump. Without it the backup job fails instead of writing plaintext.
+	BACKUP_ENCRYPTION_KEY?: string;
 	// Polar billing
 	POLAR_ACCESS_TOKEN?: string;
 	POLAR_ORG_ID?: string;
@@ -50,7 +52,8 @@ export type Bindings = RateLimitBindings & {
 	SELF_HOSTED?: string;
 	// "1" or "true": mount the unfinished Shopee/Tokopedia routes. Unset = they answer 404.
 	MARKETPLACES_ENABLED?: string;
-	// Hard-delete raw analytics older than N days (unset = never; default off)
+	// Self-hosted only: hard-delete raw analytics older than N days (minimum 30; unset = keep
+	// forever). Hosted installs ignore it: retention follows each owner's plan (lib/purge.ts).
 	RETENTION_HARD_DELETE_DAYS?: string;
 	// Expo push access token; only needed when "enhanced push security" is on for the EAS project
 	EXPO_ACCESS_TOKEN?: string;

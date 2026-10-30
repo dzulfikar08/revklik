@@ -31,6 +31,7 @@ import { pushRoutes } from "./routes/push";
 import { segmentRoutes } from "./routes/segments";
 import { shareRoutes } from "./routes/share";
 import { publicLiveRoutes } from "./routes/public-live";
+import { accountPrivacyRoutes, visitorPrivacyRoutes } from "./routes/privacy";
 import { siteRoutes } from "./routes/sites";
 import { teamRoutes } from "./routes/team";
 import { tokenRoutes } from "./routes/tokens";
@@ -199,10 +200,13 @@ export function createApp(): Hono<Env> {
 	app.route("/auth", authRoutes);
 	// Linked accounts + switcher resolve their own session token the same way.
 	app.route("/auth", accountLinkRoutes);
+	// Account erasure re-checks the password itself, so it resolves the session inline too.
+	app.route("/auth", accountPrivacyRoutes);
 
 	app.use("/sites/*", authMiddleware);
 	app.route("/sites", siteAccessRoutes);
 	app.route("/sites", siteRoutes);
+	app.route("/sites", visitorPrivacyRoutes);
 
 	app.use("/analytics/*", authMiddleware);
 	app.use("/analytics/*", requireActiveSubscription);

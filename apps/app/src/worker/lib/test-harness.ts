@@ -6,6 +6,7 @@ export interface D1Like {
 	prepare: (sql: string) => {
 		bind: (...params: unknown[]) => {
 			all: () => Promise<{ results: unknown[] }>;
+			first: () => Promise<unknown>;
 			run: () => Promise<unknown>;
 		};
 		run: (...params: unknown[]) => Promise<unknown>;
@@ -38,6 +39,7 @@ export function makeD1(db: Database): D1Like {
 					}
 					return {
 						all: async () => ({ results: get().all(...(params as never[])) }),
+						first: async () => get().get(...(params as never[])) ?? null,
 						run: async () => {
 							get().run(...(params as never[]));
 							return { success: true };

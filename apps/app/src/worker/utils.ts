@@ -325,19 +325,6 @@ export function classifyDatacenterVisitor(
 	return null;
 }
 
-export async function fingerprintFromRequest(req: Request, screenRes?: string): Promise<string> {
-	const ip =
-		req.headers.get("cf-connecting-ip") ??
-		req.headers.get("x-forwarded-for")?.split(",")[0] ??
-		"unknown";
-	const ua = req.headers.get("user-agent") ?? "";
-	const lang = req.headers.get("accept-language") ?? "";
-	const input = `${ip}|${ua}|${lang}|${screenRes ?? ""}`;
-	const data = new TextEncoder().encode(input);
-	const buf = await crypto.subtle.digest("SHA-256", data);
-	return Array.from(new Uint8Array(buf), (b) => b.toString(16).padStart(2, "0")).join("");
-}
-
 export function getDateRange(range: string): { start: Date; end: Date } {
 	const end = new Date();
 	const start = new Date();

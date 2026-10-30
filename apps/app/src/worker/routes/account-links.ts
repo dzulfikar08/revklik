@@ -51,7 +51,7 @@ type StepUp = { ok: true } | { ok: false; status: 403 | 429; error: string };
  * accounts have none and instead need a session minted in the last 10 minutes.
  * Wrong guesses count against the login budget of the current account's email.
  */
-async function requireStepUp(
+export async function requireStepUp(
 	db: Kysely<KlikapaDatabase>,
 	session: ResolvedSession,
 	currentPassword: string,

@@ -16,7 +16,8 @@ import {
 	visitorsSql,
 } from "../lib/metrics";
 import { clampTzOffset } from "../lib/widget-live";
-import { fingerprintFromRequest, generateId, getDateRange } from "../utils";
+import { siteFingerprint } from "../lib/visitor-hash";
+import { generateId, getDateRange } from "../utils";
 import { invalidateExcludedCache } from "./track";
 
 type Variables = { db: Kysely<KlikapaDatabase>; userId: string };
@@ -361,7 +362,7 @@ siteRoutes.get("/:siteId/my-fingerprint", async (c) => {
 	const siteId = c.req.param("siteId");
 	const site = await loadSiteForOwner(db, userId, siteId);
 	if (!site) return c.json({ error: "Site not found", success: false }, 404);
-	const fingerprint = await fingerprintFromRequest(c.req.raw);
+	const fingerprint = await siteFingerprint(db, siteId, c.req.raw);
 	return c.json({ data: { fingerprint }, success: true });
 });
 
@@ -386,10 +387,10 @@ siteRoutes.post("/:siteId/exclusions", async (c) => {
 
 	const body = await c.req.json().catch(() => ({}));
 	// Body may pass { fingerprint }; otherwise derive from the current request.
-	let fingerprint: string =
+	const fingerprint: string | null =
 		typeof body?.fingerprint === "string" && body.fingerprint.length > 0
 			? body.fingerprint
-			: await fingerprintFromRequest(c.req.raw);
+			: await siteFingerprint(db, siteId, c.req.raw);
 	if (!fingerprint) return c.json({ error: "Could not resolve fingerprint", success: false }, 400);
 
 	const list = parseExcluded(site.excluded_fingerprints);
@@ -429,10 +430,10 @@ siteRoutes.post("/:siteId/purge", async (c) => {
 	if (!site) return c.json({ error: "Site not found", success: false }, 404);
 
 	const body = await c.req.json().catch(() => ({}));
-	const fingerprint: string =
+	const fingerprint: string | null =
 		typeof body?.fingerprint === "string" && body.fingerprint.length > 0
 			? body.fingerprint
-			: await fingerprintFromRequest(c.req.raw);
+			: await siteFingerprint(db, siteId, c.req.raw);
 	if (!fingerprint) return c.json({ error: "Could not resolve fingerprint", success: false }, 400);
 
 	const [events, sessions, profiles] = await Promise.all([

@@ -20,13 +20,13 @@ import { executeBatch } from "../lib/d1-batch";
 import { isSelfHosted } from "../lib/entitlement";
 import { allowRequest, type RateLimitBindings } from "../lib/rate-limit";
 import { enforceSiteQuota, incrementCachedUsage } from "../lib/subscription-cache";
-import { resolveVisitorId } from "../lib/visitor-identity";
 import { authenticateApiToken, bearerToken } from "../lib/token-auth";
+import { resolveVisitorId } from "../lib/visitor-identity";
+import { siteFingerprint } from "../lib/visitor-hash";
 import {
 	countryFromTimezone,
 	classifyCrawler,
 	classifyDatacenterVisitor,
-	fingerprintFromRequest,
 	generateId,
 	isBotUserAgent,
 } from "../utils";
@@ -126,6 +126,11 @@ trackRoutes.post("/track", async (c) => {
 	const ip = c.req.header("cf-connecting-ip") || "unknown";
 	if (!(await allowRequest(c.env.RL_TRACK, ip, TRACK_LIMIT_PER_MINUTE))) {
 		return c.json({ error: "Rate limit exceeded", success: false }, 429);
+	}
+
+	// Visitors who send Global Privacy Control or Do Not Track are not recorded.
+	if (c.req.header("sec-gpc") === "1" || c.req.header("dnt") === "1") {
+		return c.json({ success: true, excluded: true, reason: "privacy_signal" }, { status: 202 });
 	}
 
 	const db = c.get("db");
@@ -282,10 +287,10 @@ trackRoutes.post("/track", async (c) => {
 	if (botUa && /WhatsApp\/\d/.test(botUa)) browser = "WhatsApp";
 	const os = first.os ?? null;
 
-	// Request fingerprint: the self-traffic blocklist key, and the identity of a
-	// client that sends no visitor id. It never overrides a client-sent id, so
-	// visitors sharing an IP, browser and screen (carrier NAT, offices) stay apart.
-	const fingerprint = await fingerprintFromRequest(c.req.raw, first.sr);
+	// Per-site salted fingerprint (the raw IP is never stored): the self-traffic blocklist key,
+	// and the identity of a client that sends no visitor id. It never overrides a client-sent id,
+	// so visitors sharing an IP, browser and screen (carrier NAT, offices) stay apart.
+	const fingerprint = await siteFingerprint(db, siteId, c.req.raw, first.sr);
 
 	// Self-traffic exclusion: drop events from blocklisted fingerprints.
 	if (fingerprint && (await isExcludedFingerprint(db, siteId, fingerprint))) {
@@ -529,7 +534,7 @@ trackRoutes.post("/identify", async (c) => {
 		return c.json({ success: true, reason: enforcement.reason }, { status: 202 });
 	}
 
-	const fingerprint = await fingerprintFromRequest(c.req.raw);
+	const fingerprint = await siteFingerprint(db, siteId, c.req.raw);
 
 	await db
 		.insertInto("visitor_profiles")

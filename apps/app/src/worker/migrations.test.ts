@@ -150,3 +150,82 @@ describe("migrateDatabase", () => {
 		});
 	});
 });
+
+/** D1 whose statements matching `failOn` throw a transient error the first `times` times they run. */
+function flakyD1(db: Database, failOn: RegExp, times = 1) {
+	const inner = makeD1(db);
+	let left = times;
+	const fail = async () => {
+		left--;
+		throw new Error("D1_ERROR: network connection lost");
+	};
+	return {
+		...inner,
+		prepare(sql: string) {
+			const stmt = inner.prepare(sql);
+			if (!failOn.test(sql) || left <= 0) return stmt;
+			return { ...stmt, run: fail, bind: (...p: unknown[]) => ({ ...stmt.bind(...p), run: fail }) };
+		},
+	} as unknown as D1Database;
+}
+
+const storedVersion = (db: Database) =>
+	(
+		db.query("SELECT version FROM schema_version WHERE id = 1").get() as
+			| { version: number }
+			| undefined
+	)?.version;
+
+describe("a failing migration step is never marked done", () => {
+	it("a DDL that errors halts at that step, keeps earlier steps stamped, and the retry finishes", async () => {
+		const db = new Database(":memory:");
+		const flaky = flakyD1(db, /ALTER TABLE integrations ADD COLUMN synced_through/);
+
+		await expect(migrateDatabase(flaky)).rejects.toThrow("network connection lost");
+		expect(storedVersion(db)).toBe(SCHEMA_VERSION - 1);
+		expect(hasMigrated(flaky)).toBe(false);
+
+		await migrateDatabase(flaky);
+		expect(storedVersion(db)).toBe(SCHEMA_VERSION);
+		expect(hasMigrated(flaky)).toBe(true);
+		const columns = db.query("PRAGMA table_info(integrations)").all() as { name: string }[];
+		expect(columns.map((c) => c.name)).toContain("synced_through");
+	});
+
+	it("a data backfill that errors is retried instead of being skipped for good", async () => {
+		const db = new Database(":memory:");
+		// v12 lifts Polar order ids out of props: a transient error there used to be logged and forgotten.
+		const flaky = flakyD1(db, /polar_order_id/);
+
+		await expect(migrateDatabase(flaky)).rejects.toThrow("network connection lost");
+		expect(storedVersion(db)).toBe(11);
+
+		await migrateDatabase(flaky);
+		expect(storedVersion(db)).toBe(SCHEMA_VERSION);
+	});
+
+	it("a baseline table that fails to create is no longer swallowed", async () => {
+		const db = new Database(":memory:");
+		const flaky = flakyD1(db, /CREATE TABLE IF NOT EXISTS heatmap_clicks/);
+
+		await expect(migrateDatabase(flaky)).rejects.toThrow("network connection lost");
+		expect(
+			db.query("SELECT name FROM sqlite_master WHERE name = 'heatmap_clicks'").get(),
+		).toBeNull();
+		expect(storedVersion(db) ?? 0).toBeLessThan(2);
+
+		await migrateDatabase(flaky);
+		expect(
+			db.query("SELECT name FROM sqlite_master WHERE name = 'heatmap_clicks'").get(),
+		).toBeTruthy();
+		expect(storedVersion(db)).toBe(SCHEMA_VERSION);
+	});
+
+	it("still tolerates re-running DDL that was already applied", async () => {
+		const db = new Database(":memory:");
+		await migrateDatabase(makeD1(db) as unknown as D1Database);
+		db.exec("UPDATE schema_version SET version = 0");
+		await migrateDatabase(makeD1(db) as unknown as D1Database);
+		expect(storedVersion(db)).toBe(SCHEMA_VERSION);
+	});
+});

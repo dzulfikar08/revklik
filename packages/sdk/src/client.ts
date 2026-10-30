@@ -45,6 +45,8 @@ export class RevKlikClient {
 		});
 
 		const text = await res.text();
+		// CSV exports are plain text; every other success is a JSON envelope.
+		if (res.ok && !(res.headers.get("content-type") ?? "").includes("json")) return text as T;
 		let data: { success?: boolean; data?: T; error?: string };
 		try {
 			data = JSON.parse(text);

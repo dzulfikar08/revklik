@@ -1,16 +1,5 @@
 import { createApp } from "./app";
-import { createDb } from "./db";
-import { backupDatabase } from "./backup";
-import { syncAllAppStoreConnect } from "./lib/appstoreconnect";
-import { reclassifyRecentBots } from "./lib/bot-reclassify";
-import { inferSiteCurrencies } from "./lib/currency-backfill";
-import { isSelfHosted } from "./lib/entitlement";
-import { refreshFxRates } from "./lib/fx";
-import { checkIngestHealth } from "./lib/ingest-watchdog";
-import { pruneOutbox, runPushCron } from "./lib/push";
-import { syncAllPolar } from "./lib/polar-sync";
-import { purgeExpiredRows } from "./lib/purge";
-import { carryOverPakasirOrders } from "./migrations";
+import { runScheduled } from "./cron";
 import type { Bindings } from "./types";
 
 const app = createApp();
@@ -22,52 +11,6 @@ export default {
 		return env.ASSETS.fetch(request);
 	},
 	async scheduled(controller: ScheduledController, env: Bindings, _ctx: ExecutionContext) {
-		if (controller.cron === "0 3 * * *") {
-			await backupDatabase(env);
-			// Runs after the dump; a no-op unless RETENTION_HARD_DELETE_DAYS is set.
-			if (env.DB) {
-				// Pakasir orders are RevKlik's own subscription billing: hosted only.
-				if (!isSelfHosted(env)) await carryOverPakasirOrders(env.DB);
-				await refreshFxRates(createDb(env.DB)).catch((err) =>
-					console.error("FX refresh failed:", err),
-				);
-				await inferSiteCurrencies(createDb(env.DB)).catch((err) =>
-					console.error("Currency backfill failed:", err),
-				);
-				const purged = await purgeExpiredRows(env.DB, env.RETENTION_HARD_DELETE_DAYS);
-				if (purged > 0) console.log(`Retention purge: ${purged} rows deleted`);
-				await pruneOutbox(env).catch((err) => console.error("Push outbox prune failed:", err));
-			}
-			return;
-		}
-		if (controller.cron === "*/5 * * * *") {
-			// Sale alerts: retry failed sends, then read Expo receipts and drop dead devices.
-			if (env.DB) await runPushCron(env);
-			return;
-		}
-		if (controller.cron === "15 * * * *") {
-			// Hourly: sessions that grew into bot-shaped bursts since the last pass, the ingest
-			// canary (mails SUPER_ADMIN_EMAIL when pageviews stop), then the last two weeks of
-			// Polar orders for sites with a saved token (a missed webhook, a refund, Polar's real
-			// fee). Polar runs last on a capped budget so it cannot starve the others of D1's
-			// per-invocation query limit, and each job fails on its own.
-			if (env.DB) {
-				await reclassifyRecentBots(env.DB).catch((err) =>
-					console.error("Bot reclassification failed:", err),
-				);
-				await checkIngestHealth(env).catch((err) =>
-					console.error("Ingest health check failed:", err),
-				);
-				await syncAllPolar(createDb(env.DB), env).catch((err) =>
-					console.error("Polar sync failed:", err),
-				);
-			}
-			return;
-		}
-		if (controller.cron === "0 18 * * *") {
-			// App Store Connect daily sync (reports land ~8am Pacific).
-			if (env.DB) await syncAllAppStoreConnect(createDb(env.DB));
-			return;
-		}
+		await runScheduled(controller.cron, env);
 	},
 } satisfies ExportedHandler<Bindings>;

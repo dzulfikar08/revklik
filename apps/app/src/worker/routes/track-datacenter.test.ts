@@ -2,6 +2,7 @@ import { describe, expect, it } from "bun:test";
 import { Database } from "bun:sqlite";
 import { createApp } from "../app";
 import { makeD1, type D1Like } from "../lib/test-harness";
+import { migrateDatabase } from "../migrations";
 
 /**
  * Route test for the datacenter exclusion in POST /track.
@@ -11,20 +12,11 @@ import { makeD1, type D1Like } from "../lib/test-harness";
  * request must leave `events` untouched and land in `crawler_hits` instead, so
  * datacenter traffic never inflates human analytics.
  *
- * Tables are created directly because the migrations module has a process-wide
- * "already ran" guard (same reason as routes/public-live.test.ts).
+ * The schema comes from the real migrations: a hand-written subset would let the
+ * migration runner fail halfway and leave columns the ingest path needs missing.
  */
-function createTables(db: Database): void {
-	db.exec(`
-		CREATE TABLE IF NOT EXISTS users (id TEXT PRIMARY KEY, email TEXT NOT NULL UNIQUE, password_hash TEXT NOT NULL, name TEXT NOT NULL, google_id TEXT, avatar_url TEXT, role TEXT NOT NULL DEFAULT 'user', created_at TEXT NOT NULL DEFAULT (datetime('now')));
-		CREATE TABLE IF NOT EXISTS subscriptions (id TEXT PRIMARY KEY, user_id TEXT NOT NULL, plan TEXT NOT NULL DEFAULT 'free', status TEXT NOT NULL DEFAULT 'active', current_period_end TEXT, pakasir_order_id TEXT);
-		CREATE TABLE IF NOT EXISTS sites (id TEXT PRIMARY KEY, user_id TEXT NOT NULL, name TEXT NOT NULL, domain TEXT NOT NULL, excluded_fingerprints TEXT, created_at TEXT NOT NULL DEFAULT (datetime('now')));
-		CREATE TABLE IF NOT EXISTS events (id TEXT PRIMARY KEY, site_id TEXT NOT NULL, session_id TEXT NOT NULL, visitor_id TEXT NOT NULL, timestamp TEXT NOT NULL DEFAULT (datetime('now')), event_type TEXT NOT NULL DEFAULT 'pageview', name TEXT, path TEXT NOT NULL, hostname TEXT, referrer TEXT, utm_source TEXT, utm_medium TEXT, utm_campaign TEXT, utm_term TEXT, utm_content TEXT, country TEXT, region TEXT, city TEXT, device_type TEXT, browser TEXT, os TEXT, revenue REAL, props TEXT, fingerprint TEXT, payment_provider TEXT, payment_method TEXT, currency TEXT DEFAULT 'USD', subscription_id TEXT);
-		CREATE TABLE IF NOT EXISTS sessions (id TEXT PRIMARY KEY, site_id TEXT NOT NULL, visitor_id TEXT NOT NULL, started_at TEXT NOT NULL DEFAULT (datetime('now')), ended_at TEXT, entry_path TEXT, exit_path TEXT, referrer TEXT, utm_source TEXT, utm_medium TEXT, utm_campaign TEXT, country TEXT, region TEXT, city TEXT, device_type TEXT, browser TEXT, os TEXT, page_count INTEGER NOT NULL DEFAULT 1, is_bounce INTEGER NOT NULL DEFAULT 1, fingerprint TEXT);
-		CREATE TABLE IF NOT EXISTS visitor_profiles (id TEXT PRIMARY KEY, site_id TEXT NOT NULL, visitor_id TEXT NOT NULL, name TEXT, email TEXT, phone TEXT, avatar TEXT, first_seen TEXT NOT NULL DEFAULT (datetime('now')), last_seen TEXT NOT NULL DEFAULT (datetime('now')), country TEXT, region TEXT, city TEXT, device_type TEXT, browser TEXT, os TEXT, total_sessions INTEGER NOT NULL DEFAULT 0, total_pageviews INTEGER NOT NULL DEFAULT 0, total_revenue REAL NOT NULL DEFAULT 0, tags TEXT, notes TEXT, fingerprint TEXT);
-		CREATE TABLE IF NOT EXISTS crawler_hits (id TEXT PRIMARY KEY, site_id TEXT NOT NULL, bot TEXT NOT NULL, category TEXT NOT NULL DEFAULT 'other', path TEXT, user_agent TEXT, country TEXT, timestamp TEXT NOT NULL DEFAULT (datetime('now')));
-		CREATE UNIQUE INDEX IF NOT EXISTS idx_vp_site_visitor ON visitor_profiles(site_id, visitor_id);
-	`);
+async function createTables(db: Database): Promise<void> {
+	await migrateDatabase(makeD1(db) as unknown as D1Database);
 	db.prepare("INSERT INTO sites (id, user_id, name, domain) VALUES (?,?,?,?)").run(
 		"s1",
 		"u1",
@@ -93,7 +85,7 @@ async function track(
 describe("POST /track datacenter exclusion", () => {
 	it("drops a browser-shaped pageview from a hosting ASN into crawler_hits", async () => {
 		const db = new Database(":memory:");
-		createTables(db);
+		await createTables(db);
 		const { status, body } = await track(db, {
 			country: "SG",
 			city: "Singapore",
@@ -119,7 +111,7 @@ describe("POST /track datacenter exclusion", () => {
 
 	it("does not classify a consumer ISP pageview as bot traffic", async () => {
 		const db = new Database(":memory:");
-		createTables(db);
+		await createTables(db);
 		const { status, body } = await track(db, {
 			country: "ID",
 			city: "Surabaya",
@@ -142,7 +134,7 @@ describe("POST /track datacenter exclusion", () => {
 
 	it("treats a missing cf object as unknown and does not classify", async () => {
 		const db = new Database(":memory:");
-		createTables(db);
+		await createTables(db);
 		const { body } = await track(db, undefined);
 		expect(body.excluded).toBeUndefined();
 		const hits = db.prepare("SELECT COUNT(*) AS n FROM crawler_hits").get() as { n: number };

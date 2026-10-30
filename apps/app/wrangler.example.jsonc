@@ -39,10 +39,10 @@
 	// Needs Cloudflare Email Service on a domain you own; set EMAIL_FROM to an address on it.
 	// "send_email": [{ "name": "EMAIL" }],
 	"triggers": {
-		// 03:00 backup (+ opt-in retention purge), 18:00 App Store Connect sync,
-		// :15 hourly Polar order sync and bot reclassification of recent sessions, every 5 minutes the
-		// sale-alert retry + push receipt pass.
-		"crons": ["0 3 * * *", "0 18 * * *", "15 * * * *", "*/5 * * * *"],
+		// 03:00 encrypted backup, 03:30 nightly upkeep (retention purge, FX, currency backfill), 18:00 App
+		// Store Connect sync, :15 hourly Polar order sync and bot reclassification of recent sessions,
+		// every 5 minutes the sale-alert retry + push receipt pass. Each trigger is its own invocation.
+		"crons": ["0 3 * * *", "30 3 * * *", "0 18 * * *", "15 * * * *", "*/5 * * * *"],
 	},
 	"vars": {
 		// Fully unlocked: no plans, limits, trials, checkout or referral program.

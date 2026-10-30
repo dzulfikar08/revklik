@@ -13,6 +13,8 @@ export interface AnalyticsListParams {
 	limit?: number;
 }
 
+type ExportType = "events" | "visitors" | "sessions";
+
 export class AnalyticsResource {
 	constructor(private client: RevKlikClient) {}
 
@@ -70,23 +72,30 @@ export class AnalyticsResource {
 	}
 
 	/**
-	 * Export analytics data as CSV or JSON.
-	 * Returns raw text for CSV format, parsed JSON for JSON format.
+	 * Export analytics data. CSV (the default) resolves to the raw CSV text;
+	 * `format: "json"` resolves to the parsed rows.
 	 */
 	export(
 		siteId: string,
 		range: string,
-		options?: {
-			format?: "csv" | "json";
-			type?: "events" | "visitors" | "sessions";
-		},
-	): Promise<string> {
+		options: { format: "json"; type?: ExportType },
+	): Promise<Record<string, unknown>[]>;
+	export(
+		siteId: string,
+		range: string,
+		options?: { format?: "csv"; type?: ExportType },
+	): Promise<string>;
+	export(
+		siteId: string,
+		range: string,
+		options?: { format?: "csv" | "json"; type?: ExportType },
+	): Promise<string | Record<string, unknown>[]> {
 		const q: Record<string, string> = {
 			site_id: siteId,
 			range,
 			format: options?.format || "csv",
 			type: options?.type || "events",
 		};
-		return this.client.request<string>("GET", "/analytics/export", q);
+		return this.client.request<string | Record<string, unknown>[]>("GET", "/analytics/export", q);
 	}
 }

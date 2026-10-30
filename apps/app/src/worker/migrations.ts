@@ -1,12 +1,13 @@
 import { createDb } from "./db";
 import { PROBE_MARKERS } from "./lib/bot-detection";
 import { computedSourceSql } from "./lib/source-sql";
+import { newSiteSalt, SALTED_FINGERPRINT_PREFIX, saltFingerprint } from "./lib/visitor-hash";
 
 /**
  * Version the live schema must reach. Bump it whenever a step is appended to
  * VERSIONED_STEPS; a DB already at this version costs one SELECT per isolate.
  */
-export const SCHEMA_VERSION = 25;
+export const SCHEMA_VERSION = 26;
 
 const migrated = new WeakSet<D1Database>();
 
@@ -15,30 +16,31 @@ export const hasMigrated = (d1: D1Database): boolean => migrated.has(d1);
 
 const ALREADY_APPLIED_RE = /duplicate column|already exists|no such index/i;
 
+/** Rethrow unless the error only says the change was applied earlier (re-run of an idempotent DDL). */
+function rethrowUnlessApplied(err: unknown): void {
+	if (err instanceof Error && ALREADY_APPLIED_RE.test(err.message)) return;
+	throw err;
+}
+
 /** Run one idempotent DDL statement; only "already applied" errors are swallowed. */
 async function runDdl(d1: D1Database, statement: string): Promise<void> {
 	try {
 		await d1.prepare(statement).run();
 	} catch (err) {
-		if (err instanceof Error && ALREADY_APPLIED_RE.test(err.message)) return;
-		throw err;
+		rethrowUnlessApplied(err);
 	}
 }
 
 /**
- * Data repair whose absence is merely cosmetic: a failure is logged and the
- * version still advances. Repairs that correctness depends on use runDdl-style
- * statements that throw, so the version is not stamped and the next isolate retries.
+ * Data repair inside a migration step. A failure propagates like any other step
+ * error: the version is not stamped and the next isolate retries the step, so every
+ * repair here must be idempotent.
  */
 async function runBackfill(d1: D1Database, statement: string, ...params: unknown[]): Promise<void> {
-	try {
-		await d1
-			.prepare(statement)
-			.bind(...params)
-			.run();
-	} catch (err) {
-		console.error("migration backfill skipped:", err);
-	}
+	await d1
+		.prepare(statement)
+		.bind(...params)
+		.run();
 }
 
 const SCHEMA_VERSION_TABLE =
@@ -132,6 +134,12 @@ const VERSIONED_STEPS: MigrationStep[] = [
 		// valid for, and whether it came from the feed, the fallback table, or no rate at all.
 		run: fxStampSchema,
 	},
+	{
+		version: 26,
+		// sites.visitor_salt (per-site key for visitor fingerprints) and integrations.synced_through
+		// (App Store Connect sync cursor); re-keys self-traffic blocklists with the new salts.
+		run: privacySchema,
+	},
 ];
 
 /** Nullable metadata-only ALTERs: legacy rows keep NULL and convert at today's rate. */
@@ -188,11 +196,70 @@ async function sourceSchema(d1: D1Database): Promise<void> {
 	await runDdl(d1, "ALTER TABLE sessions ADD COLUMN source TEXT");
 	const expression = computedSourceSql.compile(createDb(d1)).sql;
 	for (const table of ["events", "sessions"]) {
-		try {
-			await backfillSource(d1, table, expression);
-		} catch (err) {
-			console.error(`source backfill stopped on ${table}:`, err);
+		await backfillSource(d1, table, expression);
+	}
+}
+
+/**
+ * Per-site visitor salt (lib/visitor-hash.ts) and the App Store sync cursor.
+ * Salts are minted for every site now, and self-traffic blocklists (stored as bare
+ * request digests) are re-keyed with them, together with the rows they point at, so
+ * a blocked device stays blocked and its history stays purgeable. Every other legacy
+ * fingerprint is blanked by the nightly lib/purge.ts scrubLegacyFingerprints job.
+ * Idempotent: a re-run skips fingerprints that already carry the salted prefix.
+ */
+async function privacySchema(d1: D1Database): Promise<void> {
+	await runDdl(d1, "ALTER TABLE sites ADD COLUMN visitor_salt TEXT");
+	await runDdl(d1, "ALTER TABLE integrations ADD COLUMN synced_through TEXT");
+	const { results: sites } = await d1
+		.prepare("SELECT id, visitor_salt, excluded_fingerprints FROM sites")
+		.all<{ id: string; visitor_salt: string | null; excluded_fingerprints: string | null }>();
+	for (const site of sites) {
+		let salt = site.visitor_salt;
+		if (!salt) {
+			salt = newSiteSalt();
+			await d1
+				.prepare("UPDATE sites SET visitor_salt = ?1 WHERE id = ?2 AND visitor_salt IS NULL")
+				.bind(salt, site.id)
+				.run();
+			// A concurrent first request may have won the race: adopt whichever salt is stored.
+			const stored = await d1
+				.prepare("SELECT visitor_salt FROM sites WHERE id = ?1")
+				.bind(site.id)
+				.first<{ visitor_salt: string }>();
+			salt = stored?.visitor_salt ?? salt;
 		}
+		const blocked = parseFingerprintList(site.excluded_fingerprints);
+		if (!blocked.some((fp) => !fp.startsWith(SALTED_FINGERPRINT_PREFIX))) continue;
+		const rekeyed: string[] = [];
+		for (const fp of blocked) {
+			if (fp.startsWith(SALTED_FINGERPRINT_PREFIX)) {
+				rekeyed.push(fp);
+				continue;
+			}
+			const next = await saltFingerprint(salt, fp);
+			rekeyed.push(next);
+			for (const table of ["events", "sessions", "visitor_profiles"]) {
+				await d1
+					.prepare(`UPDATE ${table} SET fingerprint = ?1 WHERE site_id = ?2 AND fingerprint = ?3`)
+					.bind(next, site.id, fp)
+					.run();
+			}
+		}
+		await d1
+			.prepare("UPDATE sites SET excluded_fingerprints = ?1 WHERE id = ?2")
+			.bind(JSON.stringify(rekeyed), site.id)
+			.run();
+		await heartbeat();
+	}
+}
+
+function parseFingerprintList(raw: string | null): string[] {
+	try {
+		const list: unknown = raw ? JSON.parse(raw) : [];
+		return Array.isArray(list) ? list.filter((x): x is string => typeof x === "string") : [];
+	} catch {
+		return [];
 	}
 }
 
@@ -257,6 +324,7 @@ async function probeBotBackfill(d1: D1Database): Promise<void> {
 				.bind(...bounds)
 				.run();
 			from = until;
+			await heartbeat();
 		}
 		// Events of probe sessions that carry no marker themselves. Sessions
 		// are walked in rowid chunks; each pass only touches rows still unflagged.
@@ -283,9 +351,11 @@ async function probeBotBackfill(d1: D1Database): Promise<void> {
 				.bind(...bounds)
 				.run();
 			sessionFrom = until;
+			await heartbeat();
 		}
 	} catch (err) {
 		console.error("probe bot backfill stopped:", err);
+		throw err;
 	}
 }
 
@@ -311,6 +381,7 @@ async function backfillSource(d1: D1Database, table: string, expression: string)
 			.bind(...bounds)
 			.run();
 		from = until;
+		await heartbeat();
 	}
 }
 
@@ -513,8 +584,10 @@ async function readSchemaVersion(d1: D1Database): Promise<number> {
 			.prepare("SELECT version FROM schema_version WHERE id = 1")
 			.first<{ version: number }>();
 		return Number(row?.version ?? 0);
-	} catch {
-		return 0;
+	} catch (err) {
+		// A brand-new database has no schema_version table yet: that is version 0, anything else is a real failure.
+		if (err instanceof Error && /no such table/i.test(err.message)) return 0;
+		throw err;
 	}
 }
 
@@ -548,6 +621,19 @@ async function releaseMigrationLock(d1: D1Database, token: string): Promise<void
 	}
 }
 
+async function refreshMigrationLock(d1: D1Database, token: string): Promise<void> {
+	await d1
+		.prepare("UPDATE migration_lock SET locked_at = ? WHERE id = 1 AND token = ?")
+		.bind(new Date().toISOString(), token)
+		.run();
+}
+
+/**
+ * Keeps the lock alive while a long step runs, so a slow backfill is not mistaken
+ * for a crashed holder after LOCK_TTL_MS. Set for the duration of one migration run.
+ */
+let heartbeat: () => Promise<void> = async () => {};
+
 const LOCK_POLL_MS = 250;
 const LOCK_WAIT_MS = 15_000;
 
@@ -578,24 +664,35 @@ export async function migrateDatabase(
 			else console.error("migration lock held past the wait budget; serving on the current schema");
 			return;
 		}
+		heartbeat = () => refreshMigrationLock(d1, token);
 		try {
 			// Re-read under the lock: another isolate may have finished meanwhile.
 			const locked = await readSchemaVersion(d1);
-			for (const step of VERSIONED_STEPS) {
-				if (step.version > locked) await step.run(d1);
-			}
 			await runDdl(d1, SCHEMA_VERSION_TABLE);
-			await d1
-				.prepare(
-					"INSERT INTO schema_version (id, version, updated_at) VALUES (1, ?, ?) ON CONFLICT(id) DO UPDATE SET version = MAX(version, excluded.version), updated_at = excluded.updated_at",
-				)
-				.bind(SCHEMA_VERSION, new Date().toISOString())
-				.run();
+			for (const step of VERSIONED_STEPS) {
+				if (step.version <= locked) continue;
+				// A throwing step leaves the stored version below it: nothing is marked done, the
+				// next request retries from this step, and the error reaches the caller.
+				await step.run(d1);
+				await stampVersion(d1, step.version);
+				await heartbeat();
+			}
 		} finally {
+			heartbeat = async () => {};
 			await releaseMigrationLock(d1, token);
 		}
 	}
 	migrated.add(d1);
+}
+
+/** Record that every step up to `version` ran to completion. */
+async function stampVersion(d1: D1Database, version: number): Promise<void> {
+	await d1
+		.prepare(
+			"INSERT INTO schema_version (id, version, updated_at) VALUES (1, ?, ?) ON CONFLICT(id) DO UPDATE SET version = MAX(version, excluded.version), updated_at = excluded.updated_at",
+		)
+		.bind(version, new Date().toISOString())
+		.run();
 }
 
 /**
@@ -671,8 +768,9 @@ async function baselineSchema(d1: D1Database): Promise<void> {
 			d1.prepare("CREATE INDEX IF NOT EXISTS idx_api_keys_hash ON api_keys(key_hash)"),
 			d1.prepare("CREATE INDEX IF NOT EXISTS idx_api_keys_user ON api_keys(user_id)"),
 		]);
-	} catch {
+	} catch (err) {
 		// tables may already exist
+		rethrowUnlessApplied(err);
 	}
 
 	try {
@@ -708,8 +806,9 @@ async function baselineSchema(d1: D1Database): Promise<void> {
 	for (const stmt of alterStatements) {
 		try {
 			await d1.prepare(stmt).run();
-		} catch {
+		} catch (err) {
 			/* column may already exist */
+			rethrowUnlessApplied(err);
 		}
 	}
 
@@ -722,12 +821,13 @@ async function baselineSchema(d1: D1Database): Promise<void> {
 	for (const stmt of indexStatements) {
 		try {
 			await d1.prepare(stmt).run();
-		} catch {
+		} catch (err) {
 			/* index may already exist */
+			rethrowUnlessApplied(err);
 		}
 	}
 
-	// Migrate: add fingerprint column for cookieless attribution
+	// Migrate: add the device fingerprint column (salted per site since v25)
 	const fingerprintStatements = [
 		"ALTER TABLE events ADD COLUMN fingerprint TEXT",
 		"ALTER TABLE sessions ADD COLUMN fingerprint TEXT",
@@ -736,8 +836,9 @@ async function baselineSchema(d1: D1Database): Promise<void> {
 	for (const stmt of fingerprintStatements) {
 		try {
 			await d1.prepare(stmt).run();
-		} catch {
+		} catch (err) {
 			/* column may already exist */
+			rethrowUnlessApplied(err);
 		}
 	}
 	const fingerprintIndexes = [
@@ -748,8 +849,9 @@ async function baselineSchema(d1: D1Database): Promise<void> {
 	for (const stmt of fingerprintIndexes) {
 		try {
 			await d1.prepare(stmt).run();
-		} catch {
+		} catch (err) {
 			/* index may already exist */
+			rethrowUnlessApplied(err);
 		}
 	}
 
@@ -778,8 +880,9 @@ async function baselineSchema(d1: D1Database): Promise<void> {
 				"CREATE INDEX IF NOT EXISTS idx_hmc_site_time ON heatmap_clicks(site_id, timestamp)",
 			),
 		]);
-	} catch {
+	} catch (err) {
 		/* table may already exist */
+		rethrowUnlessApplied(err);
 	}
 
 	// Heatmap scroll data
@@ -802,8 +905,9 @@ async function baselineSchema(d1: D1Database): Promise<void> {
 				"CREATE INDEX IF NOT EXISTS idx_hms_site_path ON heatmap_scrolls(site_id, path, timestamp)",
 			)
 			.run();
-	} catch {
+	} catch (err) {
 		/* table may already exist */
+		rethrowUnlessApplied(err);
 	}
 
 	// Session recordings
@@ -829,8 +933,9 @@ async function baselineSchema(d1: D1Database): Promise<void> {
 			),
 			d1.prepare("CREATE INDEX IF NOT EXISTS idx_sr_session ON session_recordings(session_id)"),
 		]);
-	} catch {
+	} catch (err) {
 		/* table may already exist */
+		rethrowUnlessApplied(err);
 	}
 
 	// Aggregated heatmap data
@@ -853,8 +958,9 @@ async function baselineSchema(d1: D1Database): Promise<void> {
 				"CREATE UNIQUE INDEX IF NOT EXISTS idx_hma_site_path_period ON heatmap_aggregates(site_id, path, period)",
 			)
 			.run();
-	} catch {
+	} catch (err) {
 		/* table may already exist */
+		rethrowUnlessApplied(err);
 	}
 
 	// Integrations
@@ -876,8 +982,9 @@ async function baselineSchema(d1: D1Database): Promise<void> {
 			d1.prepare("CREATE INDEX IF NOT EXISTS idx_int_site ON integrations(site_id)"),
 			d1.prepare("CREATE INDEX IF NOT EXISTS idx_int_user ON integrations(user_id)"),
 		]);
-	} catch {
+	} catch (err) {
 		/* table may already exist */
+		rethrowUnlessApplied(err);
 	}
 
 	// Webhook events log
@@ -901,8 +1008,9 @@ async function baselineSchema(d1: D1Database): Promise<void> {
 			d1.prepare("CREATE INDEX IF NOT EXISTS idx_we_status ON webhook_events(status, created_at)"),
 			d1.prepare("CREATE INDEX IF NOT EXISTS idx_we_int ON webhook_events(integration_id)"),
 		]);
-	} catch {
+	} catch (err) {
 		/* table may already exist */
+		rethrowUnlessApplied(err);
 	}
 
 	// AI insights cache
@@ -926,8 +1034,9 @@ async function baselineSchema(d1: D1Database): Promise<void> {
 			),
 			d1.prepare("CREATE INDEX IF NOT EXISTS idx_ai_expires ON ai_insights(expires_at)"),
 		]);
-	} catch {
+	} catch (err) {
 		/* table may already exist */
+		rethrowUnlessApplied(err);
 	}
 
 	// Subscriptions
@@ -953,15 +1062,17 @@ async function baselineSchema(d1: D1Database): Promise<void> {
 				"CREATE INDEX IF NOT EXISTS idx_sub_polar ON subscriptions(polar_subscription_id)",
 			),
 		]);
-	} catch {
+	} catch (err) {
 		/* table may already exist */
+		rethrowUnlessApplied(err);
 	}
 
 	// Migrate: pakasir_order_id for QRIS checkout verification
 	try {
 		await d1.prepare("ALTER TABLE subscriptions ADD COLUMN pakasir_order_id TEXT").run();
-	} catch {
+	} catch (err) {
 		/* column may already exist */
+		rethrowUnlessApplied(err);
 	}
 
 	// Team members
@@ -983,8 +1094,9 @@ async function baselineSchema(d1: D1Database): Promise<void> {
 			),
 			d1.prepare("CREATE INDEX IF NOT EXISTS idx_tm_user ON team_members(user_id)"),
 		]);
-	} catch {
+	} catch (err) {
 		/* table may already exist */
+		rethrowUnlessApplied(err);
 	}
 
 	// Migrate: add google_id, avatar_url, role to users
@@ -995,16 +1107,18 @@ async function baselineSchema(d1: D1Database): Promise<void> {
 	]) {
 		try {
 			await d1.prepare(stmt).run();
-		} catch {
+		} catch (err) {
 			/* column may already exist */
+			rethrowUnlessApplied(err);
 		}
 	}
 	try {
 		await d1
 			.prepare("CREATE UNIQUE INDEX IF NOT EXISTS idx_users_google ON users(google_id)")
 			.run();
-	} catch {
+	} catch (err) {
 		/* index may already exist */
+		rethrowUnlessApplied(err);
 	}
 
 	// Revenue analytics index for fast revenue breakdown queries
@@ -1014,8 +1128,9 @@ async function baselineSchema(d1: D1Database): Promise<void> {
 				"CREATE INDEX IF NOT EXISTS idx_events_site_revenue_time ON events(site_id, revenue, timestamp)",
 			)
 			.run();
-	} catch {
+	} catch (err) {
 		/* index may already exist */
+		rethrowUnlessApplied(err);
 	}
 
 	// Public API: extend api_keys with token types, scopes, site binding, usage tracking
@@ -1028,16 +1143,18 @@ async function baselineSchema(d1: D1Database): Promise<void> {
 	]) {
 		try {
 			await d1.prepare(stmt).run();
-		} catch {
+		} catch (err) {
 			/* column may already exist */
+			rethrowUnlessApplied(err);
 		}
 	}
 	try {
 		await d1
 			.prepare("CREATE INDEX IF NOT EXISTS idx_api_keys_type ON api_keys(user_id, token_type)")
 			.run();
-	} catch {
+	} catch (err) {
 		/* index may already exist */
+		rethrowUnlessApplied(err);
 	}
 
 	// Payment provider configurations per site
@@ -1058,8 +1175,9 @@ async function baselineSchema(d1: D1Database): Promise<void> {
 				"CREATE INDEX IF NOT EXISTS idx_pp_site_provider ON payment_providers(site_id, provider)",
 			)
 			.run();
-	} catch {
+	} catch (err) {
 		/* table may already exist */
+		rethrowUnlessApplied(err);
 	}
 
 	// Webhook delivery log for payment providers
@@ -1081,8 +1199,9 @@ async function baselineSchema(d1: D1Database): Promise<void> {
 		await d1
 			.prepare("CREATE INDEX IF NOT EXISTS idx_wl_site_provider ON webhook_logs(site_id, provider)")
 			.run();
-	} catch {
+	} catch (err) {
 		/* table may already exist */
+		rethrowUnlessApplied(err);
 	}
 
 	// Saved segments
@@ -1097,8 +1216,9 @@ async function baselineSchema(d1: D1Database): Promise<void> {
     )`)
 			.run();
 		await d1.prepare("CREATE INDEX IF NOT EXISTS idx_segments_site ON segments(site_id)").run();
-	} catch {
+	} catch (err) {
 		/* table may already exist */
+		rethrowUnlessApplied(err);
 	}
 
 	// Chart annotations
@@ -1116,8 +1236,9 @@ async function baselineSchema(d1: D1Database): Promise<void> {
 		await d1
 			.prepare("CREATE INDEX IF NOT EXISTS idx_annotations_site ON annotations(site_id, date)")
 			.run();
-	} catch {
+	} catch (err) {
 		/* table may already exist */
+		rethrowUnlessApplied(err);
 	}
 
 	// Email reports config
@@ -1134,8 +1255,9 @@ async function baselineSchema(d1: D1Database): Promise<void> {
     )`)
 			.run();
 		await d1.prepare("CREATE INDEX IF NOT EXISTS idx_er_site ON email_reports(site_id)").run();
-	} catch {
+	} catch (err) {
 		/* table may already exist */
+		rethrowUnlessApplied(err);
 	}
 
 	// Payment-related columns on events and sites
@@ -1149,8 +1271,9 @@ async function baselineSchema(d1: D1Database): Promise<void> {
 	]) {
 		try {
 			await d1.prepare(stmt).run();
-		} catch {
+		} catch (err) {
 			/* column may already exist */
+			rethrowUnlessApplied(err);
 		}
 	}
 	try {
@@ -1159,8 +1282,9 @@ async function baselineSchema(d1: D1Database): Promise<void> {
 				"CREATE INDEX IF NOT EXISTS idx_events_site_payment ON events(site_id, payment_provider, payment_method, timestamp)",
 			)
 			.run();
-	} catch {
+	} catch (err) {
 		/* index may already exist */
+		rethrowUnlessApplied(err);
 	}
 
 	// Backfill payment columns from webhook props (handlers wrote JSON-only before columns existed)
@@ -1181,8 +1305,9 @@ async function baselineSchema(d1: D1Database): Promise<void> {
 	]) {
 		try {
 			await d1.prepare(stmt).run();
-		} catch {
-			/* props may be invalid JSON */
+		} catch (err) {
+			// Legacy rows may hold malformed props JSON; the repair is cosmetic and re-run by nothing else.
+			console.error("legacy props repair skipped:", err);
 		}
 	}
 
@@ -1204,8 +1329,9 @@ async function baselineSchema(d1: D1Database): Promise<void> {
 		await d1
 			.prepare("CREATE INDEX IF NOT EXISTS idx_scd_site_date ON search_console_data(site_id, date)")
 			.run();
-	} catch {
+	} catch (err) {
 		/* table may already exist */
+		rethrowUnlessApplied(err);
 	}
 
 	// Marketplace orders
@@ -1236,8 +1362,9 @@ async function baselineSchema(d1: D1Database): Promise<void> {
 				"CREATE INDEX IF NOT EXISTS idx_mo_site ON marketplace_orders(site_id, marketplace, ordered_at)",
 			)
 			.run();
-	} catch {
+	} catch (err) {
 		/* table may already exist */
+		rethrowUnlessApplied(err);
 	}
 
 	// Affiliates
@@ -1256,8 +1383,9 @@ async function baselineSchema(d1: D1Database): Promise<void> {
 			.run();
 		await d1.prepare("CREATE INDEX IF NOT EXISTS idx_aff_user ON affiliates(user_id)").run();
 		await d1.prepare("CREATE INDEX IF NOT EXISTS idx_aff_code ON affiliates(referral_code)").run();
-	} catch {
+	} catch (err) {
 		/* table may already exist */
+		rethrowUnlessApplied(err);
 	}
 
 	// Referrals
@@ -1279,16 +1407,18 @@ async function baselineSchema(d1: D1Database): Promise<void> {
 		await d1
 			.prepare("CREATE INDEX IF NOT EXISTS idx_ref_user ON referrals(referred_user_id)")
 			.run();
-	} catch {
+	} catch (err) {
 		/* table may already exist */
+		rethrowUnlessApplied(err);
 	}
 
 	// Self-traffic exclusion: per-site fingerprint blocklist (JSON text array)
 	for (const stmt of ["ALTER TABLE sites ADD COLUMN excluded_fingerprints TEXT"]) {
 		try {
 			await d1.prepare(stmt).run();
-		} catch {
+		} catch (err) {
 			/* column may already exist */
+			rethrowUnlessApplied(err);
 		}
 	}
 
@@ -1300,8 +1430,9 @@ async function baselineSchema(d1: D1Database): Promise<void> {
 	]) {
 		try {
 			await d1.prepare(stmt).run();
-		} catch {
+		} catch (err) {
 			/* column may already exist */
+			rethrowUnlessApplied(err);
 		}
 	}
 	// AI/other crawler hits for the Crawlers analytics panel (bots excluded
@@ -1325,8 +1456,9 @@ async function baselineSchema(d1: D1Database): Promise<void> {
 				"CREATE INDEX IF NOT EXISTS idx_ch_site_bot ON crawler_hits(site_id, bot, timestamp)",
 			),
 		]);
-	} catch {
+	} catch (err) {
 		/* table may already exist */
+		rethrowUnlessApplied(err);
 	}
 
 	// App Store Connect: daily app totals (sales-report sync) and per-country
@@ -1356,8 +1488,9 @@ async function baselineSchema(d1: D1Database): Promise<void> {
 			),
 			d1.prepare("CREATE INDEX IF NOT EXISTS idx_asc_m_site ON asc_daily_metrics(site_id, date)"),
 		]);
-	} catch {
+	} catch (err) {
 		/* table may already exist */
+		rethrowUnlessApplied(err);
 	}
 	try {
 		await d1
@@ -1380,7 +1513,8 @@ async function baselineSchema(d1: D1Database): Promise<void> {
 			),
 			d1.prepare("CREATE INDEX IF NOT EXISTS idx_asc_c_site ON asc_daily_country(site_id, date)"),
 		]);
-	} catch {
+	} catch (err) {
 		/* table may already exist */
+		rethrowUnlessApplied(err);
 	}
 }

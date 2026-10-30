@@ -60,7 +60,7 @@ export function getApiRateLimit(plan: string, selfHosted = false): number {
 export function getFeatures(tier: PlanTier): string[] {
 	const base = [
 		"Privacy-first analytics",
-		"Cookieless tracking",
+		"No third-party cookies",
 		"Visitor profiles",
 		"UTM tracking",
 		"CSV export",
