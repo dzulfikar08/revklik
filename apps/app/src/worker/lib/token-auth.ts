@@ -42,7 +42,8 @@ export async function authenticateApiToken(
 	} catch {
 		scopes = [];
 	}
-	if (!scopes.includes(check.scope)) return deny(403, `Insufficient scope: ${check.scope} required`);
+	if (!scopes.includes(check.scope))
+		return deny(403, `Insufficient scope: ${check.scope} required`);
 	if (row.site_id && row.site_id !== check.siteId) {
 		return deny(403, "Token not valid for this site");
 	}

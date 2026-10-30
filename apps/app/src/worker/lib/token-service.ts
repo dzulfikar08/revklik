@@ -34,7 +34,9 @@ export interface CreateTokenInput {
 	site_id?: unknown;
 }
 
-export type TokenResult<T> = { ok: true; data: T } | { ok: false; status: 400 | 403 | 404; error: string };
+export type TokenResult<T> =
+	| { ok: true; data: T }
+	| { ok: false; status: 400 | 403 | 404; error: string };
 
 const fail = (status: 400 | 403 | 404, error: string): TokenResult<never> => ({
 	ok: false,
@@ -172,7 +174,16 @@ export async function listApiTokens(
 ): Promise<TokenInfo[]> {
 	const keys = await db
 		.selectFrom("api_keys")
-		.select(["id", "key_prefix", "name", "token_type", "scopes", "site_id", "last_used_at", "created_at"])
+		.select([
+			"id",
+			"key_prefix",
+			"name",
+			"token_type",
+			"scopes",
+			"site_id",
+			"last_used_at",
+			"created_at",
+		])
 		.where("user_id", "=", userId)
 		.where("token_type", "in", ["account", "site"])
 		.orderBy("created_at", "desc")
