@@ -18,12 +18,13 @@ const el = (tagName: string, properties: Record<string, unknown>, children: Node
 const text = (value: string): Node => ({ type: 'text', value });
 
 /**
- * Drops one sign-up prompt into each blog post, after the block that follows the
+ * Drops one sign-up prompt into each blog post (not other markdown pages), after the block that follows the
  * first H2, so readers meet a CTA before the end-of-post panel. The link is
  * UTM-tagged with the post slug and carries a goal for the tracker.
  */
 export function rehypeInlineCta() {
 	return (tree: Node, file: { path?: string; data?: { astro?: { frontmatter?: { lang?: string } } } }) => {
+		if (!file.path?.includes('/content/blog/')) return;
 		const lang = file.data?.astro?.frontmatter?.lang === 'en' ? 'en' : 'id';
 		const slug = (file.path ?? '').split('/').pop()?.replace(/\.md$/, '') ?? 'post';
 		const c = lang === 'en' ? EN : ID;
