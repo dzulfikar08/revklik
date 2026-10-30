@@ -1,6 +1,6 @@
 /**
  * Client endpoints for the Growth-tier features (Wave 2):
- * heatmap, session recordings, AI insights, revenue predictions.
+ * heatmap, session recordings, AI insights.
  *
  * All four routes are gated server-side: a non-Growth subscription receives
  * a 403 { error: "plan_required", required_plan }. Only that envelope is
@@ -85,19 +85,6 @@ export interface InsightsResponse {
 	};
 }
 
-export interface RevenuePrediction {
-	visitor_id: string;
-	conversion_probability: number;
-	predicted_revenue: number;
-	factors: string[];
-}
-
-export interface PredictionResponse {
-	predictions: RevenuePrediction[];
-	model_version: string;
-	generated_at: string;
-}
-
 /* ---------------------------------- gate ----------------------------------- */
 
 /** Thrown when a Growth-gated endpoint answers 403. */
@@ -153,20 +140,23 @@ export const fetchRecordings = (
 export const fetchRecording = (id: string): Promise<RecordingDetail> =>
 	growthFetch(`/analytics/recordings/${id}`);
 
-export const fetchInsights = (siteId: string, range: string): Promise<InsightsResponse> =>
-	growthFetch(`/ai-insights?${new URLSearchParams({ site_id: siteId, range })}`);
+/** Insight text is generated server side in this language. */
+export type InsightLang = "en" | "id";
 
-export const refreshInsights = (siteId: string, range: string): Promise<InsightsResponse> =>
+export const fetchInsights = (
+	siteId: string,
+	range: string,
+	lang: InsightLang,
+): Promise<InsightsResponse> =>
+	growthFetch(`/ai-insights?${new URLSearchParams({ lang, range, site_id: siteId })}`);
+
+export const refreshInsights = (
+	siteId: string,
+	range: string,
+	lang: InsightLang,
+): Promise<InsightsResponse> =>
 	growthFetch("/ai-insights/refresh", {
-		body: JSON.stringify({ site_id: siteId, range }),
-		method: "POST",
-	});
-
-export const fetchPredictions = (siteId: string): Promise<PredictionResponse> =>
-	growthFetch(`/predictions?site_id=${encodeURIComponent(siteId)}`);
-
-export const refreshPredictions = (siteId: string): Promise<PredictionResponse> =>
-	growthFetch(`/predictions/refresh?site_id=${encodeURIComponent(siteId)}`, {
+		body: JSON.stringify({ lang, range, site_id: siteId }),
 		method: "POST",
 	});
 

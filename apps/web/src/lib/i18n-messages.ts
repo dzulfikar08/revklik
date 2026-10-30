@@ -5,7 +5,15 @@
  * Indonesian side never needs them.
  */
 
+import { behaviorEn, behaviorId } from "./i18n-messages-behavior";
+import { shellEn, shellId } from "./i18n-messages-shell";
+import { visitorsEn, visitorsId } from "./i18n-messages-visitors";
+import { viewsEn, viewsId } from "./i18n-messages-views";
+
 const en = {
+	...shellEn,
+	...behaviorEn,
+	...visitorsEn,
 	// language toggle
 	"locale.label": "Language",
 
@@ -176,7 +184,7 @@ const en = {
 	"billing.includes.micro": "Includes",
 	"billing.includes.starter": "Everything in Micro, plus",
 	"billing.includes.growth": "Everything in Starter, plus",
-	"billing.feature.cookieless": "Privacy-first tracking without cookies",
+	"billing.feature.cookieless": "No third-party cookies",
 	"billing.feature.profiles": "Visitor profiles",
 	"billing.feature.utm": "Campaign (UTM) tracking",
 	"billing.feature.csv": "CSV export",
@@ -267,7 +275,6 @@ const en = {
 		"No clicks recorded on this page. Heatmaps need {attr} on your tracking script and visitor consent via {consent}.",
 	"recordings.empty":
 		"No recordings in this range. Recording needs {attr} on your tracking script and visitor consent via {consent}.",
-	"predictions.empty": "No visitors to score yet. Predictions start once visitor profiles exist.",
 
 	// portfolio
 	"portfolio.title": "Portfolio",
@@ -361,12 +368,16 @@ const en = {
 		"Google confirmed {email}. Once linked, you can switch between it and this account.",
 	"accounts.confirmLink": "Link account",
 	"accounts.keepOthers": "Keep my other accounts signed in on this device",
+	...viewsEn,
 } as const;
 
 export type MessageKey = keyof typeof en;
 type BaseKey = Exclude<MessageKey, `${string}_one`>;
 
 const id: Record<BaseKey, string> = {
+	...shellId,
+	...behaviorId,
+	...visitorsId,
 	"locale.label": "Bahasa",
 
 	"auth.signIn.title": "Selamat datang lagi",
@@ -525,7 +536,7 @@ const id: Record<BaseKey, string> = {
 	"billing.includes.micro": "Sudah termasuk",
 	"billing.includes.starter": "Semua fitur Micro, ditambah",
 	"billing.includes.growth": "Semua fitur Starter, ditambah",
-	"billing.feature.cookieless": "Pelacakan tanpa cookie, ramah privasi",
+	"billing.feature.cookieless": "Tanpa cookie pihak ketiga",
 	"billing.feature.profiles": "Profil pengunjung",
 	"billing.feature.utm": "Pelacakan kampanye (UTM)",
 	"billing.feature.csv": "Ekspor CSV",
@@ -616,8 +627,6 @@ const id: Record<BaseKey, string> = {
 		"Belum ada klik tercatat di halaman ini. Heatmap butuh {attr} di skrip tracking dan izin pengunjung lewat {consent}.",
 	"recordings.empty":
 		"Belum ada rekaman di rentang ini. Rekaman butuh {attr} di skrip tracking dan izin pengunjung lewat {consent}.",
-	"predictions.empty":
-		"Belum ada pengunjung untuk dinilai. Prediksi mulai muncul setelah ada profil pengunjung.",
 
 	"portfolio.title": "Portofolio",
 	"portfolio.subtitle":
@@ -711,6 +720,7 @@ const id: Record<BaseKey, string> = {
 		"Google memastikan {email}. Setelah tertaut, kamu bisa pindah antara akun itu dan akun ini.",
 	"accounts.confirmLink": "Tautkan akun",
 	"accounts.keepOthers": "Biarkan akunku yang lain tetap masuk di perangkat ini",
+	...viewsId,
 };
 
 export const MESSAGES: {

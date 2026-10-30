@@ -3,6 +3,7 @@ import { toast } from "sonner";
 
 import { openBilling } from "@/lib/billing-nav";
 import { t } from "@/lib/i18n";
+import { loadErrorKey } from "@/lib/load-error";
 import { isPlanRequired, isSubscriptionInactive, LegacyApiError } from "@/lib/legacy/api";
 import { parsePlan, planLabel } from "@/lib/legacy/billing";
 import { GrowthPlanLockedError } from "@/lib/legacy/growth";
@@ -66,9 +67,9 @@ export function createQueryClient() {
 				if (notifyPlanRequired(error)) {
 					return;
 				}
-				toast.error(`Error: ${error.message}`, {
+				toast.error(t(loadErrorKey(error)), {
 					action: {
-						label: "retry",
+						label: t("state.retry"),
 						onClick: () => {
 							query.invalidate();
 						},

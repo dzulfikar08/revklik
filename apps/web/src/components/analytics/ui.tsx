@@ -3,10 +3,12 @@ import {
 	ArrowDownRight,
 	ArrowDownUp,
 	ArrowUpRight,
+	Check,
 	Monitor,
 	Smartphone,
 	Tablet,
 } from "lucide-react";
+import { useTheme } from "next-themes";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { MouseEvent, ReactNode, TouchEvent } from "react";
 
@@ -84,22 +86,24 @@ export const PanelTabs = <T extends string>({
 	tabs,
 	value,
 	onChange,
+	label,
 }: {
 	tabs: readonly { readonly key: T; readonly label: string }[];
 	value: T;
 	onChange: (key: T) => void;
+	/** Names the switch for assistive tech ("Revenue by"). */
+	label?: string;
 }) => (
-	<div role="tablist" className="bg-muted/70 flex flex-wrap rounded-lg p-0.5">
+	<div role="group" aria-label={label} className="bg-muted/70 flex flex-wrap rounded-lg p-0.5">
 		{tabs.map((t) => (
 			<button
 				key={t.key}
 				type="button"
-				role="tab"
-				aria-selected={value === t.key}
+				aria-pressed={value === t.key}
 				onClick={() => onChange(t.key)}
-				className={`focus-visible:outline-ring rounded-md px-2 py-1 text-xs font-medium outline-offset-1 focus-visible:outline-2 ${
+				className={`focus-visible:outline-ring pointer-coarse:min-h-11 pointer-coarse:px-3.5 min-h-8 rounded-md px-2.5 text-[13px] font-medium outline-offset-1 focus-visible:outline-2 ${
 					value === t.key
-						? "bg-card text-foreground ring-foreground/10 ring-1"
+						? "bg-card text-foreground ring-foreground/10 shadow-xs ring-1"
 						: "text-muted-foreground hover:text-foreground"
 				}`}
 			>
@@ -123,7 +127,7 @@ export const Panel = ({
 	<section className="bg-card ring-foreground/10 rounded-2xl p-3 ring-1">
 		<div className="mb-1.5 flex flex-wrap items-center justify-between gap-2">
 			{tabs ?? <h2 className="text-sm font-semibold">{title}</h2>}
-			{hint ? <span className="text-muted-foreground text-xs">{hint}</span> : null}
+			{hint ? <span className="text-muted-foreground text-[13px]">{hint}</span> : null}
 		</div>
 		{children}
 	</section>
@@ -167,7 +171,7 @@ export const SkeletonRows = ({ rows = 6, label }: { rows?: number; label?: strin
 				<div
 					key={i}
 					aria-hidden
-					className="bg-muted/40 flex h-9 items-center justify-between gap-4 rounded-lg px-2.5"
+					className="bg-muted/40 pointer-coarse:h-11 flex h-9 items-center justify-between gap-4 rounded-lg px-2.5"
 				>
 					<span
 						className="bg-muted h-3 animate-pulse rounded"
@@ -218,17 +222,24 @@ export const SortHint = ({
 	label: string;
 	dir?: "desc" | "asc";
 	onToggle: () => void;
-}) => (
-	<button
-		type="button"
-		onClick={onToggle}
-		aria-label={`Sort by ${label}${dir ? (dir === "desc" ? ", high to low" : ", low to high") : ""}`}
-		className="text-muted-foreground hover:text-foreground focus-visible:outline-ring inline-flex items-center gap-1 rounded-md px-1 py-0.5 text-xs outline-offset-2 focus-visible:outline-2"
-	>
-		{label}
-		<ArrowDownUp className={`size-3 ${dir === "asc" ? "rotate-180" : ""}`} aria-hidden />
-	</button>
-);
+}) => {
+	const t = useT();
+	let aria = t("sort.by", { label });
+	if (dir) {
+		aria = t(dir === "desc" ? "sort.desc" : "sort.asc", { label });
+	}
+	return (
+		<button
+			type="button"
+			onClick={onToggle}
+			aria-label={aria}
+			className="text-muted-foreground hover:text-foreground focus-visible:outline-ring pointer-coarse:min-h-11 inline-flex min-h-8 items-center gap-1 rounded-md px-1.5 text-[13px] outline-offset-2 focus-visible:outline-2"
+		>
+			{label}
+			<ArrowDownUp className={`size-3.5 ${dir === "asc" ? "rotate-180" : ""}`} aria-hidden />
+		</button>
+	);
+};
 
 /* -------------------------------- bar rows --------------------------------- */
 
@@ -244,22 +255,36 @@ export const CountBarRow = ({
 	value,
 	share,
 	fill = "var(--chart)",
+	note,
+	onSelect,
+	selected = false,
+	selectLabel,
 }: {
 	glyph?: ReactNode;
 	label: string;
 	value: string;
 	share: number;
 	fill?: string;
+	/** Quiet secondary figure next to the value ("3 sales"). */
+	note?: string;
+	/** Makes the row a filter toggle; omit for rows the API cannot filter on. */
+	onSelect?: () => void;
+	selected?: boolean;
+	/** Accessible name for the toggle ("Filter by google"). */
+	selectLabel?: string;
 }) => {
 	const pct = Number.isFinite(share) ? Math.min(100, Math.max(share, 0)) : 0;
-	return (
-		<div className="hover:bg-muted/60 bg-muted/40 relative h-9 overflow-hidden rounded-lg transition-colors">
+	const rowClass = `relative block h-9 w-full overflow-hidden rounded-lg text-start transition-colors ${
+		selected ? "bg-muted ring-foreground/25 ring-1" : "bg-muted/40 hover:bg-muted/60"
+	} pointer-coarse:h-11`;
+	const body = (
+		<>
 			{pct > 0 ? (
-				<div
+				<span
 					aria-hidden
 					className="absolute inset-y-0 left-0 border-r-2"
 					style={{
-						backgroundColor: `color-mix(in oklab, ${fill} 22%, transparent)`,
+						backgroundColor: `color-mix(in oklab, ${fill} ${selected ? 30 : 22}%, transparent)`,
 						borderColor: `color-mix(in oklab, ${fill} 60%, transparent)`,
 						minWidth: 3,
 						width: `${pct}%`,
@@ -269,11 +294,36 @@ export const CountBarRow = ({
 			<span className="relative flex h-full items-center gap-2 px-2.5 text-[13px]">
 				{glyph}
 				<span className="min-w-0 flex-1 truncate font-medium">{label}</span>
-				<span className="text-foreground/85 shrink-0 text-xs font-medium tabular-nums">
+				{note ? (
+					<span className="text-muted-foreground hidden shrink-0 text-xs tabular-nums sm:inline">
+						{note}
+					</span>
+				) : null}
+				<span className="text-foreground/90 shrink-0 text-[13px] font-medium tabular-nums">
 					{value}
 				</span>
+				{onSelect ? (
+					<Check
+						className={`size-3.5 shrink-0 ${selected ? "text-foreground" : "text-transparent"}`}
+						aria-hidden
+					/>
+				) : null}
 			</span>
-		</div>
+		</>
+	);
+	if (!onSelect) {
+		return <div className={rowClass}>{body}</div>;
+	}
+	return (
+		<button
+			type="button"
+			aria-pressed={selected}
+			aria-label={selectLabel}
+			onClick={onSelect}
+			className={`${rowClass} focus-visible:outline-ring cursor-pointer outline-offset-2 focus-visible:outline-2`}
+		>
+			{body}
+		</button>
 	);
 };
 
@@ -456,6 +506,7 @@ export const TrafficChart = ({
 	/** ISO code for the revenue axis and tooltip; USD when absent. */
 	currency?: string;
 }) => {
+	const t = useT();
 	const wide = useIsWide();
 	const g = useGeometry(points, wide, Boolean(revenue?.length));
 	const rev = useRevenueGeometry(revenue);
@@ -500,7 +551,7 @@ export const TrafficChart = ({
 			onTouchEnd={() => setHover(null)}
 		>
 			<p className="sr-only">
-				Visitors trend, {first?.full} to {last?.full}, compared with the previous period.
+				{t("chart.summary", { from: first?.full ?? "", to: last?.full ?? "" })}
 			</p>
 			<svg
 				viewBox={`0 0 ${W} ${H}`}
@@ -521,7 +572,7 @@ export const TrafficChart = ({
 						x2={W}
 						y1={H - 8 - f * (H - 28)}
 						y2={H - 8 - f * (H - 28)}
-						stroke="oklch(1 0 0 / 7%)"
+						stroke="var(--grid)"
 						vectorEffect="non-scaling-stroke"
 					/>
 				))}
@@ -630,19 +681,19 @@ export const TrafficChart = ({
 						<p className="text-foreground/90 mb-1 font-medium">{point.full}</p>
 						<p className="flex items-center gap-2 font-mono tabular-nums">
 							<span className="size-1.5 rounded-full bg-(--chart)" />
-							Visitors <span className="font-semibold">{fmt(point.current)}</span>
+							{t("chart.visitors")} <span className="font-semibold">{fmt(point.current)}</span>
 						</p>
 						{rev ? (
 							<p className="mt-0.5 flex items-center gap-2 font-mono tabular-nums">
 								<span className="bg-(--money) size-1.5 rounded-[2px]" />
-								Revenue{" "}
+								{t("chart.revenue")}{" "}
 								<span className="font-semibold">{money(revenue?.[hover] ?? 0, currency)}</span>
 							</p>
 						) : null}
 						{g.hasPrev ? (
 							<p className="text-muted-foreground mt-0.5 flex items-center gap-2 font-mono tabular-nums">
 								<span className="size-1.5 rounded-full border border-dashed border-(--compare)" />
-								Previous <span>{fmt(point.previous ?? 0)}</span>
+								{t("chart.previous")} <span>{fmt(point.previous ?? 0)}</span>
 							</p>
 						) : null}
 					</div>
@@ -692,6 +743,7 @@ export const FunnelChart = ({
 	}[];
 	rate?: number;
 }) => {
+	const t = useT();
 	const [hover, setHover] = useState<number | null>(null);
 	const n = steps.length;
 	const max = steps[0]?.visitors ?? 1;
@@ -730,7 +782,9 @@ export const FunnelChart = ({
 			<svg
 				viewBox={`0 0 ${FW} ${FH + FLABEL}`}
 				className="h-auto w-full"
-				aria-label={`Landing page scroll funnel, ${n} steps${rate !== undefined ? `, ${rate}% conversion` : ""}`}
+				aria-label={
+					rate === undefined ? t("funnel.aria", { n }) : t("funnel.ariaRate", { n, rate })
+				}
 			>
 				<defs>
 					{bands.map((b) => (
@@ -775,7 +829,7 @@ export const FunnelChart = ({
 
 			{rate !== undefined ? (
 				<div className="pointer-events-none absolute top-2 right-2 hidden text-right sm:block">
-					<p className="text-[13px] font-semibold tracking-tight">{rate}% conversion rate</p>
+					<p className="text-[13px] font-semibold tracking-tight">{t("funnel.rate", { rate })}</p>
 				</div>
 			) : null}
 
@@ -789,7 +843,9 @@ export const FunnelChart = ({
 						top: `${((FH + 6) / (FH + FLABEL)) * 100}%`,
 					}}
 				>
-					<p className="text-[11px] font-semibold tabular-nums">{fmt(b.visitors)} visitors</p>
+					<p className="text-[11px] font-semibold tabular-nums">
+						{t("funnel.visitors", { count: fmt(b.visitors) })}
+					</p>
 					<p className="text-muted-foreground truncate text-[10px]">{b.section}</p>
 				</div>
 			))}
@@ -799,8 +855,11 @@ export const FunnelChart = ({
 					<span className="font-medium">{bands[hover].section}</span>
 					<span className="text-muted-foreground font-mono tabular-nums">
 						{" "}
-						· {fmt(bands[hover].visitors)} visitors · {bands[hover].percentage}%
-						{bands[hover].dropoff > 0 ? ` · −${bands[hover].dropoff}% dropoff` : ""}
+						· {t("funnel.visitors", { count: fmt(bands[hover].visitors) })} ·{" "}
+						{bands[hover].percentage}%
+						{bands[hover].dropoff > 0
+							? ` · ${t("funnel.dropoff", { pct: bands[hover].dropoff })}`
+							: ""}
 					</span>
 				</div>
 			) : null}
@@ -813,6 +872,8 @@ export const GlobePanel = ({
 }: {
 	markers: { city: string; location: [number, number] }[];
 }) => {
+	const t = useT();
+	const isDark = useTheme().resolvedTheme !== "light";
 	const canvasRef = useRef<HTMLCanvasElement | null>(null);
 	const wrapRef = useRef<HTMLDivElement | null>(null);
 	const [width, setWidth] = useState(560);
@@ -835,13 +896,13 @@ export const GlobePanel = ({
 		}
 		let phi = 1.2;
 		const globe = createGlobe(canvas, {
-			baseColor: [0.32, 0.33, 0.38],
-			dark: 1,
+			baseColor: isDark ? [0.32, 0.33, 0.38] : [1, 1, 1],
+			dark: isDark ? 1 : 0,
 			devicePixelRatio: 2,
 			diffuse: 1.15,
-			glowColor: [0.16, 0.17, 0.22],
+			glowColor: isDark ? [0.16, 0.17, 0.22] : [0.92, 0.92, 0.94],
 			height: width * 2,
-			mapBrightness: 5.5,
+			mapBrightness: isDark ? 5.5 : 6,
 			mapSamples: 16_000,
 			markerColor: [0.96, 0.55, 0.25],
 			markers: markers.map((m) => ({
@@ -864,12 +925,12 @@ export const GlobePanel = ({
 			cancelAnimationFrame(raf);
 			globe.destroy();
 		};
-	}, [width, markers]);
+	}, [width, markers, isDark]);
 
 	return (
 		<div>
 			<div ref={wrapRef} className="relative flex justify-center">
-				<canvas ref={canvasRef} aria-label="Globe of visitor locations" />
+				<canvas ref={canvasRef} aria-label={t("globe.aria")} />
 			</div>
 			<div className="border-border/60 text-muted-foreground mt-2 flex flex-wrap gap-x-4 gap-y-1 border-t pt-2 text-xs">
 				{markers.slice(0, 4).map((m) => (
@@ -878,7 +939,9 @@ export const GlobePanel = ({
 						{m.city}
 					</span>
 				))}
-				<span className="ms-auto font-mono tabular-nums">{markers.length} active regions</span>
+				<span className="ms-auto font-mono tabular-nums">
+					{t("globe.regions", { n: markers.length })}
+				</span>
 			</div>
 		</div>
 	);

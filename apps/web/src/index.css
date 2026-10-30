@@ -1,23 +1,66 @@
 @import "@revklik/ui/globals.css";
 
 /* ----------------------------------------------------------------------------
-   revklik analytics theme — the single global theme.
-   Deep blue-charcoal surfaces, orange traffic accent, gold money.
-   Applied to :root and .dark alike so the palette is theme-independent;
-   swap the values here to re-skin the entire app.
+   revklik analytics theme: a real light palette on :root and the existing
+   blue-charcoal night palette on .dark. next-themes toggles the `dark` class
+   (System / Light / Dark, default System).
 
-   Design Read: pre-login and signed-in surface for Indonesian site owners,
-   calm tool aesthetic, dial ENERGY 1 / RHYTHM 1 / MOTION 1.
-   Palette: blue-charcoal base reads as a night-mode ops room; orange is the
-   brand traffic color, gold marks money; text pairs checked WCAG AA (R-25).
-   Type: @revklik/ui sans stack (Inter Variable token, system fallback);
-   clarity over personality for dense numbers, no display face at dial 1.
-   Icons: lucide-react thin strokes matching the recharts control vocabulary
-   (play, pause, filter, zoom); one set, so charts and chrome agree.
-   Motion: nothing loops; spinners mark real async state only (MOTION 1).
+   Design Read: signed-in surface for Indonesian site owners, calm tool
+   aesthetic, dial ENERGY 1 / RHYTHM 1 / MOTION 1.
+   Light: warm paper background, white cards, ink text. Orange stays the
+   traffic colour; money moves to a deep amber so it clears 4.5:1 on white.
+   Dark: blue-charcoal base, orange traffic, gold money.
+   Every text pair is checked WCAG AA (R-25); input borders reach 3:1.
+   Type: @revklik/ui sans stack, tabular numerals for every figure.
+   Icons: lucide-react thin strokes. Motion: nothing loops; spinners mark real
+   async state only (MOTION 1).
    -------------------------------------------------------------------------- */
-:root,
+:root {
+	color-scheme: light;
+	--background: oklch(0.982 0.004 85);
+	--foreground: oklch(0.2 0.016 260);
+	--card: oklch(1 0 0);
+	--card-foreground: oklch(0.2 0.016 260);
+	--popover: oklch(1 0 0);
+	--popover-foreground: oklch(0.2 0.016 260);
+	--primary: oklch(0.24 0.02 260);
+	--primary-foreground: oklch(0.985 0.004 85);
+	--secondary: oklch(0.955 0.006 85);
+	--secondary-foreground: oklch(0.2 0.016 260);
+	--muted: oklch(0.955 0.006 85);
+	--muted-foreground: oklch(0.47 0.016 260);
+	--accent: oklch(0.94 0.008 85);
+	--accent-foreground: oklch(0.2 0.016 260);
+	--destructive: oklch(0.5 0.19 25);
+	--border: oklch(0.9 0.008 85);
+	--input: oklch(0.72 0.01 260);
+	--ring: oklch(0.55 0.04 260);
+	--chart-1: oklch(0.62 0.17 50);
+	--chart-2: oklch(0.55 0.115 80);
+	--chart-3: oklch(0.52 0.13 155);
+	--chart-4: oklch(0.55 0.19 25);
+	--chart-5: oklch(0.56 0.15 3);
+	--sidebar: oklch(1 0 0);
+	--sidebar-foreground: oklch(0.2 0.016 260);
+	--sidebar-primary: oklch(0.62 0.17 50);
+	--sidebar-primary-foreground: oklch(0.985 0.004 85);
+	--sidebar-accent: oklch(0.94 0.008 85);
+	--sidebar-accent-foreground: oklch(0.2 0.016 260);
+	--sidebar-border: oklch(0.9 0.008 85);
+	--sidebar-ring: oklch(0.55 0.04 260);
+
+	/* Analytics viz tokens (referenced as var(--chart), text-(--money), ...). */
+	--chart: oklch(0.62 0.17 50);
+	--compare: oklch(0.6 0.012 255);
+	--money: oklch(0.5 0.115 75);
+	--up: oklch(0.48 0.13 155);
+	--down: oklch(0.5 0.19 25);
+	--violet: oklch(0.5 0.15 300);
+	--grid: oklch(0.2 0.016 260 / 9%);
+}
+
 .dark {
+	color-scheme: dark;
 	--background: oklch(0.165 0.014 260);
 	--foreground: oklch(0.955 0.006 250);
 	--card: oklch(0.207 0.016 260);
@@ -36,7 +79,7 @@
 		0.704 0.191 22.216
 	); /* @revklik/ui dark value: 6.2:1 on card; the light default is 3.7:1 here (R-25) */
 	--border: oklch(0.28 0.017 260);
-	--input: oklch(0.262 0.018 260);
+	--input: oklch(0.5 0.02 260);
 	--ring: oklch(0.62 0.02 255);
 	--chart-1: oklch(0.78 0.13 55);
 	--chart-2: oklch(0.8 0.13 88);
@@ -51,16 +94,14 @@
 	--sidebar-accent-foreground: oklch(0.955 0.006 250);
 	--sidebar-border: oklch(0.28 0.017 260);
 	--sidebar-ring: oklch(0.62 0.02 255);
-}
 
-/* Analytics-specific viz tokens (referenced as var(--chart), text-(--money), …). */
-:root {
 	--chart: oklch(0.78 0.13 55);
 	--compare: oklch(0.6 0.012 255);
 	--money: oklch(0.8 0.13 88);
 	--up: oklch(0.75 0.14 155);
 	--down: oklch(0.66 0.19 25);
 	--violet: oklch(0.72 0.14 300);
+	--grid: oklch(1 0 0 / 7%);
 }
 
 /* Expose them as first-class Tailwind utilities (bg-money, text-up, …). */
@@ -71,6 +112,7 @@
 	--color-up: var(--up);
 	--color-down: var(--down);
 	--color-violet: var(--violet);
+	--color-grid: var(--grid);
 }
 
 /* Reduced motion: loading skeletons stay as static placeholders instead of

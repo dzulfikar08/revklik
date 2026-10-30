@@ -84,6 +84,10 @@ export interface LegacyStats {
 	avgDuration: number;
 	revenue: number;
 	conversions: number;
+	/** Revenue after payment fees, same currency and window as `revenue`. */
+	netRevenue?: number;
+	/** True when some of `netRevenue` comes from fee rules, not a stored net. */
+	netEstimated?: boolean;
 }
 
 export interface StatsChange {
@@ -99,6 +103,7 @@ export type CompareKey =
 	| "bounceRate"
 	| "avgDuration"
 	| "revenue"
+	| "netRevenue"
 	| "conversions";
 
 export interface TimeSeriesPoint {
@@ -625,8 +630,11 @@ const rangeQuery = (p: URLSearchParams, range: string): URLSearchParams => {
  */
 export const tzParam = (date = new Date()): string => String(-date.getTimezoneOffset());
 
-export const fetchSites = (range: string): Promise<SiteWithStats[]> =>
-	legacyFetch(`/sites?${rangeQuery(new URLSearchParams(), range)}`);
+export const fetchSites = (range: string): Promise<SiteWithStats[]> => {
+	const p = rangeQuery(new URLSearchParams(), range);
+	p.set("tz", tzParam());
+	return legacyFetch(`/sites?${p}`);
+};
 
 export const fetchDashboard = (
 	siteId: string,

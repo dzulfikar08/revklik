@@ -1,4 +1,4 @@
 {
 	"title": "Dashboard",
-	"pages": ["overview", "sites", "visitors", "funnels", "predictions"]
+	"pages": ["overview", "sites", "visitors", "funnels", "insights"]
 }

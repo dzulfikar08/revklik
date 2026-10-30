@@ -1,5 +1,5 @@
 ((w, d) => {
-  var consent = w.klikapa_consent || {};
+  var consent = w.revklik_consent || w.klikapa_consent || {};
   if (!consent.heatmap && !consent.recording) return;
 
   var el = d.currentScript;

@@ -178,12 +178,19 @@ function RootComponent() {
 		pathname === "/reset-password" ||
 		pathname === "/verify-email";
 
+	// Embedded demo and public dashboards sit inside the dark landing page.
+	const searchStr = useRouterState({ select: (s) => s.location.searchStr });
+	const embedded = new URLSearchParams(searchStr).has("embed");
+	const forcedTheme = embedded && (pathname.startsWith("/demo") || pathname.startsWith("/public"));
+
 	return (
 		<>
 			<HeadContent />
 			<ThemeProvider
 				attribute="class"
-				defaultTheme="dark"
+				defaultTheme="system"
+				enableSystem
+				forcedTheme={forcedTheme ? "dark" : undefined}
 				disableTransitionOnChange
 				storageKey="vite-ui-theme"
 			>

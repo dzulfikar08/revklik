@@ -3,22 +3,32 @@
  * versus net of fees, plus the per-rail fee rules that decide the net.
  * Backed by GET /portfolio/revenue and GET/PUT /fee-rules.
  */
-import { BrandMark } from "@revklik/ui/components/brand-mark";
 import { Button } from "@revklik/ui/components/button";
 import { Input } from "@revklik/ui/components/input";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Link } from "@tanstack/react-router";
-import { ArrowLeft, Loader2, Plus, RotateCcw } from "lucide-react";
+import {
+	Select,
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+} from "@revklik/ui/components/select";
+import { useNavigate } from "@tanstack/react-router";
+import { Loader2, Plus, RotateCcw } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 
-import { LocaleToggle } from "@/components/locale-toggle";
-import { useT } from "@/lib/i18n";
-import { LegacyApiError } from "@/lib/legacy/api";
+import { lastActiveSite } from "@/lib/active-site";
+import { formatDate, getLocale, useLocale, useT } from "@/lib/i18n";
+import { fetchSites, LegacyApiError } from "@/lib/legacy/api";
+import type { SiteWithStats } from "@/lib/legacy/api";
 import { fetchFeeRules, fetchPortfolio, saveFeeRules } from "@/lib/legacy/portfolio";
 import type { FeeRule, FeeRuleInput, PortfolioRevenue } from "@/lib/legacy/portfolio";
 
+import { AppShell } from "./app-shell";
 import { fmt } from "./data";
+import { ErrorBlock } from "./panel-state";
+import { railLabel } from "./payment-labels";
 import { Panel, StatTile } from "./ui";
 
 const PORTFOLIO_RANGES = [
@@ -44,7 +54,7 @@ const rangeFor = (days: number): { from: string; to: string } => {
 const money = (value: number, currency: string): string => {
 	const zeroDecimal = currency === "IDR" || currency === "JPY";
 	try {
-		return new Intl.NumberFormat(currency === "IDR" ? "id-ID" : "en-US", {
+		return new Intl.NumberFormat(currency === "IDR" || getLocale() === "id" ? "id-ID" : "en-US", {
 			currency,
 			maximumFractionDigits: zeroDecimal ? 0 : 2,
 			minimumFractionDigits: zeroDecimal ? 0 : 2,
@@ -61,7 +71,13 @@ const errMessage = (e: unknown, fallback: string): string =>
 /* ----------------------------- daily bar chart ----------------------------- */
 
 /** Gross as a light bar, net as the darker bar inside it, one pair per day. */
-const DailyChart = ({ daily }: { daily: PortfolioRevenue["daily"] }) => {
+const DailyChart = ({
+	daily,
+	currency,
+}: {
+	daily: PortfolioRevenue["daily"];
+	currency: string;
+}) => {
 	const max = Math.max(...daily.map((d) => d.gross), 1);
 	const slot = CHART_W / Math.max(daily.length, 1);
 	const barW = Math.max(slot * 0.7, 1);
@@ -71,7 +87,7 @@ const DailyChart = ({ daily }: { daily: PortfolioRevenue["daily"] }) => {
 			className="h-32 w-full"
 			preserveAspectRatio="none"
 			role="img"
-			aria-label={daily.map((d) => `${d.date}: ${fmt(d.gross)}`).join(", ")}
+			aria-label={daily.map((d) => `${d.date}: ${money(d.gross, currency)}`).join(", ")}
 		>
 			{daily.map((d, i) => {
 				const x = i * slot + (slot - barW) / 2;
@@ -79,7 +95,7 @@ const DailyChart = ({ daily }: { daily: PortfolioRevenue["daily"] }) => {
 				const netH = Math.max((Math.max(d.net, 0) / max) * (CHART_H - 4), 0);
 				return (
 					<g key={d.date}>
-						<title>{`${d.date}: ${fmt(d.gross)} / ${fmt(d.net)}`}</title>
+						<title>{`${d.date}: ${money(d.gross, currency)} / ${money(d.net, currency)}`}</title>
 						<rect
 							x={x}
 							y={CHART_H - grossH}
@@ -250,7 +266,17 @@ const FeeRulesEditor = () => {
 				</div>
 			) : (
 				<>
-					<ul className="mt-2 space-y-1.5">
+					<div
+						aria-hidden
+						className="text-muted-foreground mt-2 grid grid-cols-[minmax(5rem,1fr)_5rem_5rem_4rem_auto] items-center gap-2 text-[13px]"
+					>
+						<span>{t("portfolio.rail")}</span>
+						<span>{t("fees.percent")} (%)</span>
+						<span>{t("fees.fixed")}</span>
+						<span>{t("fees.currency")}</span>
+						<span className="size-8" />
+					</div>
+					<ul className="mt-1 space-y-1.5">
 						{drafts.map((d) => (
 							<li
 								key={d.rail}
@@ -269,21 +295,21 @@ const FeeRulesEditor = () => {
 									inputMode="decimal"
 									value={d.percent}
 									onChange={(e) => update(d.rail, { percent: e.target.value })}
-									className="h-8 text-xs"
+									className="pointer-coarse:h-11 h-9 text-[13px]"
 								/>
 								<Input
 									aria-label={`${d.rail} ${t("fees.fixed")}`}
 									inputMode="decimal"
 									value={d.fixed}
 									onChange={(e) => update(d.rail, { fixed: e.target.value })}
-									className="h-8 text-xs"
+									className="pointer-coarse:h-11 h-9 text-[13px]"
 								/>
 								<Input
 									aria-label={`${d.rail} ${t("fees.currency")}`}
 									maxLength={3}
 									value={d.currency}
 									onChange={(e) => update(d.rail, { currency: e.target.value })}
-									className="h-8 text-xs uppercase"
+									className="pointer-coarse:h-11 h-9 text-[13px] uppercase"
 								/>
 								{d.isDefault ? (
 									<span className="size-8" aria-hidden />
@@ -302,9 +328,6 @@ const FeeRulesEditor = () => {
 							</li>
 						))}
 					</ul>
-					<p className="text-muted-foreground mt-1.5 text-[11px]">
-						{t("fees.percent")} (%) · {t("fees.fixed")} · {t("fees.currency")}
-					</p>
 					<div className="mt-3 flex flex-wrap items-center gap-2">
 						<Input
 							aria-label={t("fees.addRail")}
@@ -314,7 +337,7 @@ const FeeRulesEditor = () => {
 							onKeyDown={(e) => {
 								if (e.key === "Enter") addRail();
 							}}
-							className="h-8 w-40 text-xs"
+							className="pointer-coarse:h-11 h-9 w-40 text-[13px]"
 						/>
 						<Button type="button" variant="outline" className="h-8" onClick={addRail}>
 							<Plus aria-hidden /> {t("fees.addRail")}
@@ -337,80 +360,184 @@ const FeeRulesEditor = () => {
 
 /* ---------------------------------- page ----------------------------------- */
 
+const CURRENCY_KEY = "kp_portfolio_currency";
+const COMMON_CURRENCIES = ["IDR", "USD", "SGD", "MYR", "EUR"] as const;
+
+const storedCurrency = (): string | null => {
+	try {
+		return localStorage.getItem(CURRENCY_KEY);
+	} catch {
+		return null;
+	}
+};
+
+/**
+ * The currency the owner earns in: the one carrying the most revenue across
+ * their sites, so Portfolio reads in the same unit as each site's Home. Ties
+ * and zero revenue fall back to the most common site currency.
+ */
+export const defaultCurrency = (sites: readonly SiteWithStats[], locale: string): string => {
+	const revenue = new Map<string, number>();
+	const count = new Map<string, number>();
+	for (const s of sites) {
+		const code = (s.currency ?? "USD").toUpperCase();
+		revenue.set(code, (revenue.get(code) ?? 0) + s.revenue);
+		count.set(code, (count.get(code) ?? 0) + 1);
+	}
+	const best = [...revenue.keys()].toSorted(
+		(a, b) =>
+			(revenue.get(b) ?? 0) - (revenue.get(a) ?? 0) || (count.get(b) ?? 0) - (count.get(a) ?? 0),
+	)[0];
+	return best ?? (locale === "id" ? "IDR" : "USD");
+};
+
+const CurrencyPicker = ({
+	value,
+	options,
+	onChange,
+}: {
+	value: string;
+	options: string[];
+	onChange: (code: string) => void;
+}) => {
+	const t = useT();
+	return (
+		<Select value={value} onValueChange={(v) => onChange(String(v))}>
+			<SelectTrigger
+				aria-label={t("portfolio.currency")}
+				className="pointer-coarse:min-h-11 h-9 w-24 rounded-full text-[13px] font-medium"
+			>
+				<SelectValue>{value}</SelectValue>
+			</SelectTrigger>
+			<SelectContent align="end">
+				{options.map((code) => (
+					<SelectItem key={code} value={code} className="pointer-coarse:min-h-11 text-[13px]">
+						{code}
+					</SelectItem>
+				))}
+			</SelectContent>
+		</Select>
+	);
+};
+
 const PortfolioPage = () => {
 	const t = useT();
+	const locale = useLocale();
+	const navigate = useNavigate();
 	const [days, setDays] = useState<number>(30);
+	const [choice, setChoice] = useState<string | null>(storedCurrency);
 	const range = useMemo(() => rangeFor(days), [days]);
+	const activeSite = lastActiveSite() ?? undefined;
+
+	// The site list names the owner's currency; waiting for it avoids fetching the portfolio twice.
+	const sitesQ = useQuery({
+		queryFn: () => fetchSites("30d"),
+		queryKey: ["legacy", "sites", "30d"],
+		retry: false,
+		staleTime: 60_000,
+	});
+	const sitesSettled = sitesQ.isSuccess || sitesQ.isError;
+	const currency = choice ?? defaultCurrency(sitesQ.data ?? [], locale);
+	const currencyOptions = useMemo(
+		() => [
+			...new Set([
+				currency,
+				...(sitesQ.data ?? []).map((s) => (s.currency ?? "USD").toUpperCase()),
+				...COMMON_CURRENCIES,
+			]),
+		],
+		[currency, sitesQ.data],
+	);
+
+	const pickCurrency = (code: string) => {
+		setChoice(code);
+		try {
+			localStorage.setItem(CURRENCY_KEY, code);
+		} catch {
+			// Not persisted; still applies for this page view.
+		}
+	};
 
 	const q = useQuery({
-		queryFn: () => fetchPortfolio(range.from, range.to),
-		queryKey: ["legacy", "portfolio", range.from, range.to],
+		enabled: sitesSettled,
+		meta: { silent: true },
+		queryFn: () => fetchPortfolio(range.from, range.to, currency),
+		queryKey: ["legacy", "portfolio", range.from, range.to, currency],
 		retry: false,
 		staleTime: 60_000,
 	});
 	const data = q.data;
-	const currency = data?.currency ?? "USD";
+	const shownCurrency = data?.currency ?? currency;
 	const fees = data ? data.totals.gross - data.totals.net : undefined;
+	const loading = q.isPending && !q.error;
 
 	return (
-		<div className="bg-background text-foreground min-h-svh">
-			<header className="border-border/60 border-b">
-				<div className="mx-auto flex max-w-7xl items-center gap-2 px-3 py-2 md:px-4">
-					<Link
-						to="/analytics"
-						className="hover:bg-accent focus-visible:outline-ring -m-1 flex min-h-11 items-center gap-2.5 rounded-lg p-1 pe-2 outline-offset-2 transition-colors focus-visible:outline-2"
-					>
-						<ArrowLeft className="text-muted-foreground size-4" aria-hidden />
-						<BrandMark className="h-5 w-auto" />
-						<span className="text-[15px] font-semibold tracking-tight">RevKlik</span>
-						<span className="text-muted-foreground text-xs">· {t("portfolio.back")}</span>
-					</Link>
-					<LocaleToggle className="ms-auto" />
-				</div>
-			</header>
-			<main className="mx-auto max-w-7xl space-y-2.5 px-3 pt-4 pb-8 md:px-4 md:pt-6">
+		<AppShell
+			active="portfolio"
+			siteId={activeSite}
+			onLinkAccount={
+				activeSite
+					? () =>
+							void navigate({
+								params: { siteId: activeSite },
+								search: { view: "settings" },
+								to: "/analytics/$siteId",
+							})
+					: undefined
+			}
+		>
+			<main className="mx-auto max-w-7xl space-y-3 px-3 pt-4 pb-8 md:px-4 md:pt-6">
 				<div className="flex flex-wrap items-center gap-3">
 					<div className="min-w-0 flex-1">
-						<h1 className="text-lg font-semibold tracking-tight">{t("portfolio.title")}</h1>
-						<p className="text-muted-foreground text-xs">{t("portfolio.subtitle")}</p>
+						<h1 className="text-xl font-semibold tracking-tight">{t("portfolio.title")}</h1>
+						<p className="text-muted-foreground text-[13px]">{t("portfolio.subtitle")}</p>
 					</div>
-					<div role="group" className="bg-muted/70 flex rounded-full p-0.5">
-						{PORTFOLIO_RANGES.map((r) => (
-							<button
-								key={r.days}
-								type="button"
-								aria-pressed={days === r.days}
-								onClick={() => setDays(r.days)}
-								className={`focus-visible:outline-ring pointer-coarse:min-h-10 min-h-8 rounded-full px-2.5 text-xs font-medium tabular-nums outline-offset-2 transition-colors duration-150 focus-visible:outline-2 ${
-									days === r.days
-										? "bg-card text-foreground ring-foreground/10 ring-1"
-										: "text-muted-foreground hover:text-foreground"
-								}`}
-							>
-								{r.label}
-							</button>
-						))}
+					<div className="flex w-full items-center gap-2 sm:w-auto">
+						<div
+							role="group"
+							aria-label={t("overview.rangeLabel")}
+							className="bg-muted/70 flex flex-1 rounded-full p-1 sm:flex-none"
+						>
+							{PORTFOLIO_RANGES.map((r) => (
+								<button
+									key={r.days}
+									type="button"
+									aria-pressed={days === r.days}
+									onClick={() => setDays(r.days)}
+									className={`focus-visible:outline-ring pointer-coarse:min-h-11 min-h-8 flex-1 rounded-full px-3 text-[13px] font-medium tabular-nums outline-offset-2 transition-colors duration-150 focus-visible:outline-2 sm:flex-none ${
+										days === r.days
+											? "bg-card text-foreground ring-foreground/10 shadow-xs ring-1"
+											: "text-muted-foreground hover:text-foreground"
+									}`}
+								>
+									{r.label}
+								</button>
+							))}
+						</div>
+						<CurrencyPicker value={currency} options={currencyOptions} onChange={pickCurrency} />
 					</div>
 				</div>
 
 				{q.error ? (
-					<p className="rounded-xl bg-(--down)/10 px-3 py-2 text-xs text-(--down)" role="alert">
-						{errMessage(q.error, t("portfolio.loadError"))}
-					</p>
+					<div className="bg-card ring-foreground/10 rounded-2xl ring-1">
+						<ErrorBlock error={q.error} onRetry={() => void q.refetch()} retrying={q.isFetching} />
+					</div>
 				) : (
 					<>
 						<div className="grid grid-cols-2 gap-2.5 lg:grid-cols-4">
 							<StatTile
-								label={t("portfolio.gross")}
-								value={data ? money(data.totals.gross, currency) : undefined}
+								label={t("portfolio.net")}
+								value={loading ? undefined : money(data?.totals.net ?? 0, shownCurrency)}
+								className="col-span-2 lg:col-span-1"
 							/>
 							<StatTile
-								label={t("portfolio.net")}
-								value={data ? money(data.totals.net, currency) : undefined}
+								label={t("portfolio.gross")}
+								value={loading ? undefined : money(data?.totals.gross ?? 0, shownCurrency)}
+								className="col-span-2 lg:col-span-1"
 							/>
 							<StatTile
 								label={t("portfolio.fees")}
-								value={fees === undefined ? undefined : money(fees, currency)}
+								value={fees === undefined ? undefined : money(fees, shownCurrency)}
 							/>
 							<StatTile
 								label={t("portfolio.sales")}
@@ -419,27 +546,46 @@ const PortfolioPage = () => {
 									data && data.totals.refunds > 0
 										? `${fmt(data.totals.refunds)} ${t("portfolio.refunds").toLowerCase()} · ${t(
 												"portfolio.refundsNote",
-												{ amount: money(data.totals.refund_amount, currency) },
+												{ amount: money(data.totals.refund_amount, shownCurrency) },
 											)}`
 										: undefined
 								}
 							/>
 						</div>
+						{data && data.totals.estimated_rows > 0 ? (
+							<p className="text-muted-foreground px-1 text-[13px]">
+								{t("portfolio.estimated", { n: data.totals.estimated_rows })}
+							</p>
+						) : null}
 
 						{data && data.daily.length === 0 ? (
-							<p className="bg-card ring-foreground/10 text-muted-foreground rounded-2xl px-3 py-8 text-center text-xs ring-1">
+							<p className="bg-card ring-foreground/10 text-muted-foreground rounded-2xl px-3 py-8 text-center text-[13px] ring-1">
 								{t("portfolio.empty")}
 							</p>
 						) : (
 							<>
 								<Panel title={t("portfolio.daily")} hint={`${range.from} → ${range.to}`}>
-									{data ? <DailyChart daily={data.daily} /> : <div className="h-32" />}
+									<div className="text-muted-foreground mb-2 flex items-center gap-4 text-[13px]">
+										<span className="flex items-center gap-1.5">
+											<span className="size-2.5 rounded-[3px] bg-(--chart)/25" aria-hidden />
+											{t("portfolio.gross")}
+										</span>
+										<span className="flex items-center gap-1.5">
+											<span className="size-2.5 rounded-[3px] bg-(--chart)" aria-hidden />
+											{t("portfolio.net")}
+										</span>
+									</div>
+									{data ? (
+										<DailyChart daily={data.daily} currency={shownCurrency} />
+									) : (
+										<div className="bg-muted/40 h-32 animate-pulse rounded-lg" />
+									)}
 								</Panel>
-								<div className="grid gap-2.5 lg:grid-cols-2">
+								<div className="grid gap-3 lg:grid-cols-2">
 									<Panel title={t("portfolio.byProduct")}>
 										<BreakdownTable
 											labelHeader={t("portfolio.product")}
-											currency={currency}
+											currency={shownCurrency}
 											rows={(data?.by_product ?? []).map((r) => ({
 												gross: r.gross,
 												key: `${r.site_id}:${r.product ?? ""}`,
@@ -453,11 +599,11 @@ const PortfolioPage = () => {
 									<Panel title={t("portfolio.byRail")}>
 										<BreakdownTable
 											labelHeader={t("portfolio.rail")}
-											currency={currency}
+											currency={shownCurrency}
 											rows={(data?.by_rail ?? []).map((r) => ({
 												gross: r.gross,
 												key: r.rail,
-												label: r.rail,
+												label: railLabel(r.rail),
 												net: r.net,
 												sales: r.sales,
 											}))}
@@ -466,11 +612,14 @@ const PortfolioPage = () => {
 								</div>
 								<Panel title={t("portfolio.recent")}>
 									<div className="overflow-x-auto">
-										<table className="w-full text-xs">
+										<table className="w-full text-[13px]">
 											<thead>
 												<tr className="text-muted-foreground">
 													<th scope="col" className="py-1 pe-2 text-start font-medium">
 														{t("portfolio.date")}
+													</th>
+													<th scope="col" className="px-2 py-1 text-start font-medium">
+														{t("portfolio.site")}
 													</th>
 													<th scope="col" className="px-2 py-1 text-start font-medium">
 														{t("portfolio.product")}
@@ -490,17 +639,16 @@ const PortfolioPage = () => {
 												{(data?.recent ?? []).map((r) => (
 													<tr key={r.event_id} className="border-border/60 border-t">
 														<td className="py-1.5 pe-2 whitespace-nowrap tabular-nums">
-															{r.occurred_at.slice(0, 10)}
+															{formatDate(r.occurred_at, locale)}
 														</td>
-														<td className="max-w-40 truncate px-2 py-1.5">
-															{r.product ?? r.site_name}
-														</td>
-														<td className="px-2 py-1.5">{r.rail}</td>
+														<td className="max-w-40 truncate px-2 py-1.5">{r.site_name}</td>
+														<td className="max-w-40 truncate px-2 py-1.5">{r.product ?? "–"}</td>
+														<td className="px-2 py-1.5">{railLabel(r.rail)}</td>
 														<td className="px-2 py-1.5 text-end whitespace-nowrap tabular-nums">
-															{money(r.converted_gross, currency)}
-															{r.currency !== currency ? (
+															{money(r.converted_gross, shownCurrency)}
+															{r.currency !== shownCurrency ? (
 																<span className="text-muted-foreground ms-1">
-																	({r.revenue} {r.currency})
+																	({fmt(r.revenue)} {r.currency})
 																</span>
 															) : null}
 														</td>
@@ -509,7 +657,7 @@ const PortfolioPage = () => {
 																r.converted_net < 0 ? "text-(--down)" : "text-(--money)"
 															}`}
 														>
-															{money(r.converted_net, currency)}
+															{money(r.converted_net, shownCurrency)}
 														</td>
 													</tr>
 												))}
@@ -524,7 +672,7 @@ const PortfolioPage = () => {
 
 				<FeeRulesEditor />
 			</main>
-		</div>
+		</AppShell>
 	);
 };
 

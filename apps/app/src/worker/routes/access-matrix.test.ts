@@ -393,9 +393,6 @@ const PUBLIC_ROUTES = [
 /** Unfinished, 404 unless MARKETPLACES_ENABLED. */
 const GATED_ROUTES = ["POST /api/marketplace/shopee/sync", "POST /api/marketplace/tokopedia/sync"];
 
-/** Routes that existed on other branches' work and may not be mounted here. */
-const OPTIONAL_ROUTES = ["POST /api/predictions/refresh"];
-
 const MUTATING = new Set(["POST", "PUT", "PATCH", "DELETE"]);
 
 function mountedMutatingRoutes(): string[] {
@@ -415,7 +412,6 @@ describe("route census", () => {
 			...API_TOKEN_ROUTES,
 			...PUBLIC_ROUTES,
 			...GATED_ROUTES,
-			...OPTIONAL_ROUTES,
 		]);
 		const unclassified = mountedMutatingRoutes().filter((r) => !classified.has(r));
 		// A new route lands here until it is added to the right list above. Site routes need an

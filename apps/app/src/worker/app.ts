@@ -26,7 +26,6 @@ import { feeRuleRoutes } from "./routes/fee-rules";
 import { paymentProviderRoutes } from "./routes/payment-providers";
 import { polarConnectRoutes } from "./routes/polar-connect";
 import { portfolioRoutes } from "./routes/portfolio";
-import { predictionsRoutes } from "./routes/predictions";
 import { pushRoutes } from "./routes/push";
 import { segmentRoutes } from "./routes/segments";
 import { shareRoutes } from "./routes/share";
@@ -342,11 +341,6 @@ export function createApp(): Hono<Env> {
 
 	// GSC routes: auth/callback are public (OAuth flow), queries/sync are authenticated
 	app.route("/gsc", gscRoutes);
-
-	app.use("/predictions/*", authMiddleware);
-	app.use("/predictions/*", requireActiveSubscription);
-	app.use("/predictions/*", requirePlanTier("growth"));
-	app.route("/predictions", predictionsRoutes);
 
 	app.use("/affiliates/*", hostedOnly("The referral program"));
 	app.use("/affiliates/*", authMiddleware);

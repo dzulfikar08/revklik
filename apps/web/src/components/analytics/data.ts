@@ -2,6 +2,9 @@
  * Shared UI models + formatting helpers for the analytics page.
  * All data comes from the production API (see lib/legacy/api.ts).
  */
+import { getLocale, t } from "@/lib/i18n";
+import type { MessageKey } from "@/lib/i18n";
+
 import { avatarUrl, nameFromVisitorId } from "./identity";
 
 /* --------------------------------- types ----------------------------------- */
@@ -82,47 +85,72 @@ export interface ActiveFilter {
 
 /* -------------------------------- formats ---------------------------------- */
 
-export const nf = new Intl.NumberFormat("en-US");
-export const fmt = (v: number): string => nf.format(Math.round(v));
-const nfc = new Intl.NumberFormat("en-US", {
-	maximumFractionDigits: 1,
-	notation: "compact",
-});
-export const fmtC = (v: number): string => nfc.format(Math.round(v));
-const moneyFormats = new Map<string, Intl.NumberFormat>();
+/**
+ * Number, money and date helpers follow the active UI language (id-ID groups
+ * with dots, "Rp 232.000", "23 Okt"). They read the locale at call time;
+ * the dashboard remounts its content on a language switch so cached values
+ * never go stale.
+ */
+const intlTag = (): string => (getLocale() === "id" ? "id-ID" : "en-US");
 
-/** Whole-unit currency formatter; IDR uses id-ID grouping ("Rp 64.000"). */
-const moneyFormat = (currency: string): Intl.NumberFormat | null => {
-	const cached = moneyFormats.get(currency);
+const numberFormats = new Map<string, Intl.NumberFormat>();
+
+const numberFormat = (key: string, make: (tag: string) => Intl.NumberFormat): Intl.NumberFormat => {
+	const tag = intlTag();
+	const cacheKey = `${tag}|${key}`;
+	const cached = numberFormats.get(cacheKey);
 	if (cached) {
 		return cached;
 	}
+	const created = make(tag);
+	numberFormats.set(cacheKey, created);
+	return created;
+};
+
+export const fmt = (v: number): string =>
+	numberFormat("int", (tag) => new Intl.NumberFormat(tag)).format(Math.round(v));
+export const fmtC = (v: number): string =>
+	numberFormat(
+		"compact",
+		(tag) => new Intl.NumberFormat(tag, { maximumFractionDigits: 1, notation: "compact" }),
+	).format(Math.round(v));
+
+/** Fractional number with `digits` decimals in the active language ("1,4" / "1.4"). */
+export const fmtDecimal = (v: number, digits = 1): string =>
+	numberFormat(
+		`dec${digits}`,
+		(tag) =>
+			new Intl.NumberFormat(tag, { maximumFractionDigits: digits, minimumFractionDigits: digits }),
+	).format(v);
+
+/** Whole-unit currency formatter; IDR always uses id-ID grouping ("Rp 64.000"). */
+const moneyFormat = (currency: string): Intl.NumberFormat | null => {
 	try {
-		const f = new Intl.NumberFormat(currency === "IDR" ? "id-ID" : "en-US", {
-			currency,
-			maximumFractionDigits: 0,
-			minimumFractionDigits: 0,
-			style: "currency",
-		});
-		moneyFormats.set(currency, f);
-		return f;
+		return numberFormat(
+			`money:${currency}`,
+			(tag) =>
+				new Intl.NumberFormat(currency === "IDR" ? "id-ID" : tag, {
+					currency,
+					maximumFractionDigits: 0,
+					minimumFractionDigits: 0,
+					style: "currency",
+				}),
+		);
 	} catch {
-		// Unknown ISO code from the API: fall back to USD formatting.
+		// Unknown ISO code from the API: callers fall back to USD formatting.
 		return null;
 	}
 };
 
 /** Revenue amount in `currency` (ISO 4217, default USD), rounded to whole units. */
 export const money = (v: number, currency?: string | null): string => {
-	const code = currency?.toUpperCase();
-	if (!code || code === "USD") {
-		return `$${nf.format(Math.round(v))}`;
-	}
-	return moneyFormat(code)?.format(Math.round(v)) ?? `$${nf.format(Math.round(v))}`;
+	const code = currency?.toUpperCase() || "USD";
+	const formatted = moneyFormat(code) ?? moneyFormat("USD");
+	return formatted ? formatted.format(Math.round(v)) : `$${Math.round(v)}`;
 };
 export const pctDelta = (now: number, before: number): number =>
 	before === 0 ? 0 : ((now - before) / before) * 100;
-export const fmtPct = (v: number): string => `${v >= 0 ? "+" : ""}${v.toFixed(1)}%`;
+export const fmtPct = (v: number): string => `${v >= 0 ? "+" : ""}${fmtDecimal(v, 1)}%`;
 
 /**
  * KPI delta badge, or null when there is nothing honest to compare against:
@@ -141,7 +169,7 @@ export const deltaBadge = (
 	return { label: fmtPct(pct), tone: better ? "good" : "bad" };
 };
 export const duration = (s: number): string =>
-	`${Math.floor(s / 60)}m ${String(Math.round(s % 60)).padStart(2, "0")}s`;
+	t("time.duration", { m: Math.floor(s / 60), s: String(Math.round(s % 60)).padStart(2, "0") });
 
 export const niceMax = (v: number): number => {
 	const base = 10 ** Math.floor(Math.log10(v));
@@ -155,27 +183,31 @@ export const niceMax = (v: number): number => {
 
 /* ------------------------------- date labels -------------------------------- */
 
-const MONTHS = [
-	"Jan",
-	"Feb",
-	"Mar",
-	"Apr",
-	"May",
-	"Jun",
-	"Jul",
-	"Aug",
-	"Sep",
-	"Oct",
-	"Nov",
-	"Dec",
-] as const;
-
 export const RANGES: readonly { key: RangeKey; label: string }[] = [
 	{ key: "24h", label: "24h" },
 	{ key: "7d", label: "7d" },
 	{ key: "30d", label: "30d" },
 	{ key: "90d", label: "90d" },
 ];
+
+const dateFormats = new Map<string, Intl.DateTimeFormat>();
+
+const dateFormat = (key: string, options: Intl.DateTimeFormatOptions): Intl.DateTimeFormat => {
+	const tag = intlTag();
+	const cacheKey = `${tag}|${key}`;
+	const cached = dateFormats.get(cacheKey);
+	if (cached) {
+		return cached;
+	}
+	const created = new Intl.DateTimeFormat(tag, options);
+	dateFormats.set(cacheKey, created);
+	return created;
+};
+
+const SHORT_DAY: Intl.DateTimeFormatOptions = { day: "numeric", month: "short" };
+
+/** "23 Okt" / "Oct 23". */
+export const shortDate = (d: Date): string => dateFormat("short", SHORT_DAY).format(d);
 
 /** Chart tick + full labels for a timeseries point. */
 export const pointLabel = (iso: string, hourly: boolean): { label: string; full: string } => {
@@ -185,82 +217,80 @@ export const pointLabel = (iso: string, hourly: boolean): { label: string; full:
 	}
 	if (hourly) {
 		const hh = String(d.getHours()).padStart(2, "0");
-		return {
-			full: `${MONTHS[d.getMonth()]} ${d.getDate()}, ${hh}:00`,
-			label: `${hh}:00`,
-		};
+		return { full: `${shortDate(d)}, ${hh}:00`, label: `${hh}:00` };
 	}
-	const md = `${MONTHS[d.getMonth()]} ${d.getDate()}`;
-	return { full: `${md}, ${d.getFullYear()}`, label: md };
+	return {
+		full: dateFormat("full", { ...SHORT_DAY, year: "numeric" }).format(d),
+		label: shortDate(d),
+	};
 };
 
-/** "2:13 AM" style time-of-day for journey steps. */
+/** "2:13 AM" / "14.13" time-of-day for journey steps. */
 export const timeLabel = (iso: string): string => {
 	const d = new Date(iso);
 	if (Number.isNaN(d.getTime())) {
 		return "";
 	}
-	return d.toLocaleTimeString("en-US", {
-		hour: "numeric",
-		minute: "2-digit",
-	});
+	return dateFormat("time", { hour: "numeric", minute: "2-digit" }).format(d);
 };
 
 /** Relative "last seen" label: minutes/hours ago, then a date. */
 export const agoLabel = (iso: string): string => {
-	const t = new Date(iso).getTime();
-	if (Number.isNaN(t)) {
+	const ms = new Date(iso).getTime();
+	if (Number.isNaN(ms)) {
 		return "";
 	}
-	const mins = Math.max(0, Math.round((Date.now() - t) / 60_000));
+	const mins = Math.max(0, Math.round((Date.now() - ms) / 60_000));
 	if (mins < 1) {
-		return "just now";
+		return t("time.justNow");
 	}
 	if (mins < 60) {
-		return `${mins}m ago`;
+		return t("time.minsAgo", { n: mins });
 	}
 	const hours = Math.round(mins / 60);
 	if (hours < 24) {
-		return `${hours}h ago`;
+		return t("time.hoursAgo", { n: hours });
 	}
-	const d = new Date(iso);
-	return `${MONTHS[d.getMonth()]} ${d.getDate()}`;
+	return shortDate(new Date(iso));
 };
 
 /** Weekday date header for the journey timeline. */
 export const dayLabel = (iso: string): string =>
-	new Date(iso).toLocaleDateString("en-US", {
+	dateFormat("day", {
 		day: "numeric",
 		month: "short",
 		weekday: "long",
 		year: "numeric",
-	});
+	}).format(new Date(iso));
 
 /* --------------------------------- filters --------------------------------- */
 
 /** Dimensions accepted by the /analytics/* filters param. */
-export const FILTER_DIMS: readonly { value: string; label: string }[] = [
-	{ label: "Page", value: "path" },
-	{ label: "Country", value: "country" },
-	{ label: "Region", value: "region" },
-	{ label: "City", value: "city" },
-	{ label: "Device", value: "device_type" },
-	{ label: "Browser", value: "browser" },
-	{ label: "OS", value: "os" },
-	{ label: "Referrer", value: "referrer" },
-	{ label: "UTM Source", value: "utm_source" },
-	{ label: "UTM Medium", value: "utm_medium" },
-	{ label: "UTM Campaign", value: "utm_campaign" },
+export const FILTER_DIMS: readonly { value: string; label: MessageKey }[] = [
+	{ label: "fdim.source", value: "source" },
+	{ label: "fdim.path", value: "path" },
+	{ label: "fdim.country", value: "country" },
+	{ label: "fdim.region", value: "region" },
+	{ label: "fdim.city", value: "city" },
+	{ label: "fdim.device_type", value: "device_type" },
+	{ label: "fdim.browser", value: "browser" },
+	{ label: "fdim.os", value: "os" },
+	{ label: "fdim.referrer", value: "referrer" },
+	{ label: "fdim.utm_source", value: "utm_source" },
+	{ label: "fdim.utm_medium", value: "utm_medium" },
+	{ label: "fdim.utm_campaign", value: "utm_campaign" },
+	{ label: "fdim.payment_method", value: "payment_method" },
+	{ label: "fdim.payment_provider", value: "payment_provider" },
 ];
 
-export const FILTER_OPS: readonly { value: string; label: string }[] = [
-	{ label: "is", value: "is" },
-	{ label: "is not", value: "is_not" },
-	{ label: "contains", value: "contains" },
-	{ label: "excludes", value: "not_contains" },
-	{ label: "starts with", value: "starts_with" },
-	{ label: "exists", value: "exists" },
-	{ label: "missing", value: "not_exists" },
+export const FILTER_OPS: readonly { value: string; label: MessageKey }[] = [
+	{ label: "fop.is", value: "is" },
+	{ label: "fop.is_not", value: "is_not" },
+	{ label: "fop.contains", value: "contains" },
+	{ label: "fop.not_contains", value: "not_contains" },
+	{ label: "fop.starts_with", value: "starts_with" },
+	{ label: "fop.exists", value: "exists" },
+	{ label: "fop.not_exists", value: "not_exists" },
 ];
 
 /* -------------------------------- visitors --------------------------------- */

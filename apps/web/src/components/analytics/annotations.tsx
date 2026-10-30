@@ -16,6 +16,7 @@ import {
 } from "@/lib/legacy/analytics-settings";
 import type { LegacyAnnotation } from "@/lib/legacy/analytics-settings";
 import { LegacyApiError } from "@/lib/legacy/api";
+import { formatDate, useLocale, useT } from "@/lib/i18n";
 
 const errMsg = (e: unknown, fallback: string): string =>
 	e instanceof LegacyApiError ? e.message : fallback;
@@ -31,6 +32,8 @@ export const AnnotationsControl = ({
 	const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
 	const [text, setText] = useState("");
 	const qc = useQueryClient();
+	const t = useT();
+	const locale = useLocale();
 
 	const { data, isLoading } = useQuery({
 		enabled: Boolean(siteId),
@@ -49,19 +52,19 @@ export const AnnotationsControl = ({
 		mutationFn: () => createAnnotation(siteId, date, text.trim()),
 		onSuccess: () => {
 			qc.invalidateQueries({ queryKey: ["legacy", "annotations", siteId] });
-			toast.success("Annotation added");
+			toast.success(t("annotations.added"));
 			setText("");
 		},
-		onError: (e) => toast.error(errMsg(e, "Failed to add annotation")),
+		onError: (e) => toast.error(errMsg(e, t("annotations.addFailed"))),
 	});
 
 	const deleteMut = useMutation({
 		mutationFn: (id: string) => deleteAnnotation(id),
 		onSuccess: () => {
 			qc.invalidateQueries({ queryKey: ["legacy", "annotations", siteId] });
-			toast.success("Annotation deleted");
+			toast.success(t("annotations.deleted"));
 		},
-		onError: (e) => toast.error(errMsg(e, "Failed to delete annotation")),
+		onError: (e) => toast.error(errMsg(e, t("annotations.deleteFailed"))),
 	});
 
 	const annotations = data ?? [];
@@ -70,10 +73,10 @@ export const AnnotationsControl = ({
 		<span className="relative">
 			<button
 				type="button"
-				aria-label={`Annotations (${annotations.length})`}
+				aria-label={t("annotations.ariaCount", { n: annotations.length })}
 				aria-expanded={open}
 				onClick={() => setOpen((v) => !v)}
-				className={`focus-visible:outline-ring inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-medium outline-offset-2 focus-visible:outline-2 ${
+				className={`focus-visible:outline-ring inline-flex items-center gap-1 rounded-lg pointer-coarse:min-h-11 min-h-8 px-2.5 text-[13px] font-medium outline-offset-2 focus-visible:outline-2 ${
 					open
 						? "bg-muted text-foreground"
 						: "text-muted-foreground hover:bg-muted/70 hover:text-foreground"
@@ -86,27 +89,27 @@ export const AnnotationsControl = ({
 				<>
 					<button
 						type="button"
-						aria-label="Close annotations"
+						aria-label={t("annotations.close")}
 						className="fixed inset-0 z-30 cursor-default"
 						onClick={() => setOpen(false)}
 					/>
 					<div className="bg-popover ring-foreground/10 absolute top-full right-0 z-40 mt-1.5 w-72 rounded-xl p-2.5 ring-1 shadow-lg">
 						<p className="text-muted-foreground mb-1.5 text-[11px] font-medium tracking-wide uppercase">
-							New annotation
+							{t("annotations.new")}
 						</p>
 						<div className="flex gap-1.5">
 							<Input
 								type="date"
 								value={date}
 								onChange={(e) => setDate(e.target.value)}
-								aria-label="Annotation date"
+								aria-label={t("annotations.date")}
 								className="h-8 w-[7.5rem] px-2 font-mono text-[11px]"
 							/>
 							<Input
 								value={text}
-								placeholder="e.g. Launch v2"
+								placeholder={t("annotations.placeholder")}
 								onChange={(e) => setText(e.target.value)}
-								aria-label="Annotation label"
+								aria-label={t("annotations.label")}
 								onKeyDown={(e) => {
 									if (e.key === "Enter" && text.trim() && date) {
 										createMut.mutate();
@@ -120,19 +123,17 @@ export const AnnotationsControl = ({
 								disabled={!text.trim() || !date || createMut.isPending}
 								onClick={() => createMut.mutate()}
 							>
-								Add
+								{t("annotations.add")}
 							</Button>
 						</div>
 
 						<p className="text-muted-foreground mt-2.5 mb-1 text-[11px] font-medium tracking-wide uppercase">
-							On this site
+							{t("annotations.onThisSite")}
 						</p>
 						{isLoading ? (
-							<p className="text-muted-foreground text-[11px]">Loading…</p>
+							<p className="text-muted-foreground text-[11px]">{t("annotations.loading")}</p>
 						) : annotations.length === 0 ? (
-							<p className="text-muted-foreground text-[11px]">
-								No annotations yet — they show as flags on the traffic chart.
-							</p>
+							<p className="text-muted-foreground text-[11px]">{t("annotations.empty")}</p>
 						) : (
 							<ul className="max-h-56 space-y-0.5 overflow-y-auto">
 								{annotations.map((a) => (
@@ -141,12 +142,12 @@ export const AnnotationsControl = ({
 										className="hover:bg-muted/60 flex items-center gap-1.5 rounded-lg px-1.5 py-1"
 									>
 										<span className="font-mono text-[10px] whitespace-nowrap text-(--money)">
-											{a.date}
+											{formatDate(a.date, locale)}
 										</span>
 										<span className="min-w-0 flex-1 truncate text-xs">{a.text}</span>
 										<button
 											type="button"
-											aria-label={`Delete annotation ${a.text}`}
+											aria-label={t("annotations.deleteAria", { text: a.text })}
 											disabled={deleteMut.isPending}
 											onClick={() => deleteMut.mutate(a.id)}
 											className="text-muted-foreground hover:text-(--down) focus-visible:outline-ring rounded p-1 outline-offset-2 focus-visible:outline-2 disabled:opacity-40"

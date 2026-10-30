@@ -60,8 +60,12 @@ function staleDollarRow(t: MigratedTestApp, createdAt: string, expiresAt: string
 		);
 }
 
-const get = async (t: MigratedTestApp, token: string): Promise<Body> => {
-	const res = await t.call("GET", "/api/ai-insights?site_id=s-ai&range=7d", { token });
+const get = async (t: MigratedTestApp, token: string, lang?: string): Promise<Body> => {
+	const res = await t.call(
+		"GET",
+		`/api/ai-insights?site_id=s-ai&range=7d${lang ? `&lang=${lang}` : ""}`,
+		{ token },
+	);
 	expect(res.status).toBe(200);
 	return (await res.json()) as Body;
 };
@@ -118,5 +122,31 @@ describe("GET /ai-insights currency-aware cache", () => {
 
 		expect(body.data.insights.map((i) => i.summary)).toEqual(["cached Rp 1"]);
 		expect(body.data.data_summary.currency).toBe("IDR");
+	});
+});
+
+describe("GET /ai-insights language", () => {
+	it("writes insights in Bahasa Indonesia for lang=id without reusing the English cache", async () => {
+		const { t, token } = await idrSite();
+
+		const en = await get(t, token);
+		const id = await get(t, token, "id");
+
+		const enText = en.data.insights.map((i) => i.summary).join(" ");
+		const idText = id.data.insights.map((i) => i.summary).join(" ");
+		expect(enText).toContain("brought in Rp 3.000.000");
+		expect(idText).toContain("membawa Rp 3.000.000");
+		expect(idText).not.toContain("brought in");
+		// Each language keeps its own cached batch (same rows, row order is not specified).
+		const summaries = async (lang?: string) =>
+			(await get(t, token, lang)).data.insights.map((i) => i.summary).sort();
+		expect(await summaries()).toEqual(en.data.insights.map((i) => i.summary).sort());
+		expect(await summaries("id")).toEqual(id.data.insights.map((i) => i.summary).sort());
+	});
+
+	it("treats an unknown lang as English", async () => {
+		const { t, token } = await idrSite();
+		const body = await get(t, token, "xx");
+		expect(body.data.insights.map((i) => i.summary).join(" ")).toContain("brought in");
 	});
 });

@@ -1,19 +1,19 @@
-import { Button, buttonVariants } from "@revklik/ui/components/button";
+import { Button } from "@revklik/ui/components/button";
 import { useQuery } from "@tanstack/react-query";
 import { Link, useNavigate } from "@tanstack/react-router";
-import { ChartColumn, Code2, CreditCard, Globe, Loader2, Plus } from "lucide-react";
-import { useId, useState } from "react";
+import { Code2, Globe, Plus } from "lucide-react";
+import { useId, useMemo, useState } from "react";
+import type { ReactNode } from "react";
 
-import { LocaleToggle } from "@/components/locale-toggle";
 import { openBilling } from "@/lib/billing-nav";
-import { isSelfHosted } from "@/lib/instance-config";
 import { useT } from "@/lib/i18n";
 import { fetchSites, isSubscriptionInactive } from "@/lib/legacy/api";
 import type { SiteWithStats } from "@/lib/legacy/api";
 
-import { AccountMenu } from "./account-menu";
 import { AccountNotices } from "./account-notices";
+import { AppShell } from "./app-shell";
 import { fmt, money, RANGES } from "./data";
+import { ErrorBlock } from "./panel-state";
 import type { RangeKey } from "./data";
 import { siteHasEvents, SnippetModal } from "./snippet-modal";
 import type { SnippetSite } from "./snippet-modal";
@@ -110,18 +110,18 @@ const SiteCard = ({
 					{/* One line box (leading-8) for every value keeps the labels on one row. */}
 					<dl className="mt-4 flex flex-wrap items-start gap-x-6 gap-y-2">
 						<div>
-							<dt className="text-muted-foreground text-xs">{t("overview.visitors")}</dt>
+							<dt className="text-muted-foreground text-[13px]">{t("overview.visitors")}</dt>
 							<dd className="text-2xl leading-8 font-semibold tracking-tight tabular-nums">
 								{fmt(site.visitors)}
 							</dd>
 						</div>
 						<div>
-							<dt className="text-muted-foreground text-xs">{t("overview.pageviews")}</dt>
+							<dt className="text-muted-foreground text-[13px]">{t("overview.pageviews")}</dt>
 							<dd className="text-sm leading-8 font-medium tabular-nums">{fmt(site.pageviews)}</dd>
 						</div>
 						{site.revenue > 0 ? (
 							<div>
-								<dt className="text-muted-foreground text-xs">{t("overview.revenue")}</dt>
+								<dt className="text-muted-foreground text-[13px]">{t("overview.revenue")}</dt>
 								<dd className="text-(--money) text-sm leading-8 font-medium tabular-nums">
 									{money(site.revenue, site.currency)}
 								</dd>
@@ -130,7 +130,7 @@ const SiteCard = ({
 					</dl>
 					<div className="mt-4">
 						<Spark values={site.sparkline} />
-						<p className="text-muted-foreground mt-1 text-[11px]">{t("overview.spark")}</p>
+						<p className="text-muted-foreground mt-1 text-xs">{t("overview.spark")}</p>
 					</div>
 				</>
 			) : (
@@ -170,7 +170,7 @@ const RangePills = ({
 					type="button"
 					aria-pressed={rangeKey === r.key}
 					onClick={() => onRange(r.key)}
-					className={`focus-visible:outline-ring pointer-coarse:min-h-10 min-h-8 rounded-full px-2.5 text-xs font-medium tabular-nums outline-offset-2 transition-colors duration-150 focus-visible:outline-2 ${
+					className={`focus-visible:outline-ring pointer-coarse:min-h-11 min-h-8 rounded-full px-3 text-[13px] font-medium tabular-nums outline-offset-2 transition-colors duration-150 focus-visible:outline-2 ${
 						rangeKey === r.key
 							? "bg-card text-foreground ring-foreground/10 ring-1"
 							: "text-muted-foreground hover:text-foreground"
@@ -189,6 +189,28 @@ const RangePills = ({
 const gridCols = (count: number): string =>
 	count <= 2 ? "md:grid-cols-2" : "sm:grid-cols-2 lg:grid-cols-3";
 
+/** Installed sites with sales first, then installed ones by visitors, silent sites last. */
+const triage = (sites: SiteWithStats[]): SiteWithStats[] => {
+	const rank = (s: SiteWithStats): number => {
+		if (!siteHasEvents(s)) {
+			return 2;
+		}
+		return s.revenue > 0 ? 0 : 1;
+	};
+	return sites.toSorted((a, b) => rank(a) - rank(b) || b.visitors - a.visitors);
+};
+
+/** Totals across sites; revenue only when every site earns in one currency. */
+const totalsOf = (sites: SiteWithStats[]) => {
+	const currencies = new Set(sites.filter((s) => s.revenue > 0).map((s) => s.currency ?? "USD"));
+	return {
+		currency: currencies.size === 1 ? [...currencies][0] : null,
+		pageviews: sites.reduce((sum, s) => sum + s.pageviews, 0),
+		revenue: sites.reduce((sum, s) => sum + s.revenue, 0),
+		visitors: sites.reduce((sum, s) => sum + s.visitors, 0),
+	};
+};
+
 const SitesOverviewPage = () => {
 	const t = useT();
 	const [rangeKey, setRangeKey] = useState<RangeKey>("7d");
@@ -196,122 +218,124 @@ const SitesOverviewPage = () => {
 	const [installFor, setInstallFor] = useState<SnippetSite | null>(null);
 
 	const sitesQ = useQuery({
+		meta: { silent: true },
 		queryFn: () => fetchSites(rangeKey),
 		queryKey: ["legacy", "sites", rangeKey],
 		retry: false,
 		staleTime: 60_000,
 	});
-	const sites = sitesQ.data ?? [];
+	const sites = useMemo(() => triage(sitesQ.data ?? []), [sitesQ.data]);
+	const totals = useMemo(() => totalsOf(sites), [sites]);
 	const navigate = useNavigate();
 	const firstSiteId = sites[0]?.id;
+	const goView = (view: "settings" | "admin") =>
+		firstSiteId
+			? () =>
+					void navigate({
+						params: { siteId: firstSiteId },
+						search: { view },
+						to: "/analytics/$siteId",
+					})
+			: undefined;
+	const goSettings = goView("settings");
+	const goAdmin = goView("admin");
 
 	if (isSubscriptionInactive(sitesQ.error)) {
 		return (
-			<div className="bg-background text-foreground min-h-svh pt-3">
-				<div className="flex justify-end px-3 md:px-4">
-					<AccountMenu />
-				</div>
+			<AppShell active="sites">
 				<UpgradeLock error={sitesQ.error} onUpgrade={() => openBilling()} />
+			</AppShell>
+		);
+	}
+
+	let content: ReactNode;
+	if (sitesQ.error) {
+		content = (
+			<div className="bg-card ring-foreground/10 rounded-2xl ring-1">
+				<ErrorBlock
+					error={sitesQ.error}
+					onRetry={() => void sitesQ.refetch()}
+					retrying={sitesQ.isFetching}
+				/>
 			</div>
+		);
+	} else if (sitesQ.isLoading) {
+		content = (
+			<div className={`grid gap-3 ${gridCols(3)}`} role="status">
+				<span className="sr-only">{t("sites.loading")}</span>
+				{[0, 1, 2].map((i) => (
+					<div key={i} className="bg-muted/40 h-52 animate-pulse rounded-2xl" aria-hidden />
+				))}
+			</div>
+		);
+	} else if (sites.length === 0) {
+		content = (
+			<div className="bg-card ring-foreground/10 flex flex-col items-center rounded-2xl px-6 py-12 text-center ring-1">
+				<span className="bg-muted text-muted-foreground flex size-10 items-center justify-center rounded-xl">
+					<Globe className="size-5" aria-hidden />
+				</span>
+				<p className="mt-3 text-sm font-semibold">{t("overview.emptyTitle")}</p>
+				<p className="text-muted-foreground mt-1 max-w-sm text-[13px] leading-relaxed">
+					{t("overview.emptyDesc")}
+				</p>
+				<Button className="pointer-coarse:h-11 mt-5 h-10 px-4" onClick={() => setManageOpen(true)}>
+					<Plus aria-hidden /> {t("overview.emptyCta")}
+				</Button>
+			</div>
+		);
+	} else {
+		content = (
+			<>
+				<dl className="mb-3 flex flex-wrap gap-x-8 gap-y-2 px-1">
+					<div>
+						<dt className="text-muted-foreground text-[13px]">{t("overview.totalVisitors")}</dt>
+						<dd className="text-lg font-semibold tabular-nums">{fmt(totals.visitors)}</dd>
+					</div>
+					{totals.currency && totals.revenue > 0 ? (
+						<div>
+							<dt className="text-muted-foreground text-[13px]">{t("overview.totalRevenue")}</dt>
+							<dd className="text-lg font-semibold text-(--money) tabular-nums">
+								{money(totals.revenue, totals.currency)}
+							</dd>
+						</div>
+					) : null}
+				</dl>
+				<div className={`grid gap-3 ${gridCols(sites.length)}`}>
+					{sites.map((s) => (
+						<SiteCard
+							key={s.id}
+							site={s}
+							onInstall={(site) =>
+								setInstallFor({ domain: site.domain, hasEvents: false, id: site.id })
+							}
+						/>
+					))}
+				</div>
+			</>
 		);
 	}
 
 	return (
-		<div className="bg-background text-foreground min-h-svh">
+		<AppShell active="sites" onLinkAccount={goSettings} onAdmin={goAdmin}>
 			<main className="mx-auto max-w-7xl px-3 pt-4 pb-8 md:px-4 md:pt-6">
 				<AccountNotices onUpgrade={() => openBilling()} />
-				{/* Phones: title + language toggle on one line, actions below.
-				    sm and up: title, actions, toggle in one row. */}
 				<div className="mb-4 flex flex-wrap items-center gap-3">
 					<div className="min-w-0 flex-1">
-						<h1 className="text-lg font-semibold tracking-tight">{t("sites.title")}</h1>
-						<p className="text-muted-foreground text-xs">{t("overview.subtitle")}</p>
-					</div>
-					<div className="flex items-center gap-2 sm:order-last">
-						<LocaleToggle />
-						<AccountMenu
-							onLinkAccount={
-								firstSiteId
-									? () =>
-											void navigate({
-												params: { siteId: firstSiteId },
-												search: { view: "settings" },
-												to: "/analytics/$siteId",
-											})
-									: undefined
-							}
-						/>
+						<h1 className="text-xl font-semibold tracking-tight">{t("sites.title")}</h1>
+						<p className="text-muted-foreground text-[13px]">{t("overview.subtitle")}</p>
 					</div>
 					<div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
 						<RangePills rangeKey={rangeKey} onRange={setRangeKey} />
-						<Link
-							to="/analytics/portfolio"
-							className={buttonVariants({
-								className: "pointer-coarse:h-10 h-8",
-								variant: "outline",
-							})}
-						>
-							<ChartColumn aria-hidden /> {t("portfolio.nav")}
-						</Link>
-						{isSelfHosted() ? null : (
-							<Link
-								to="/analytics/billing"
-								className={buttonVariants({
-									className: "pointer-coarse:h-10 h-8",
-									variant: "outline",
-								})}
-							>
-								<CreditCard aria-hidden /> {t("billing.title")}
-							</Link>
-						)}
-						<Button className="pointer-coarse:h-10 h-8" onClick={() => setManageOpen(true)}>
+						<Button className="pointer-coarse:h-11 h-9" onClick={() => setManageOpen(true)}>
 							<Plus aria-hidden /> {t("sites.addBtn")}
 						</Button>
 					</div>
 				</div>
-
-				{sitesQ.error ? (
-					<p className="rounded-xl bg-(--down)/10 px-3 py-2 text-xs text-(--down)" role="alert">
-						{t("sites.loadError")}
-					</p>
-				) : sitesQ.isLoading ? (
-					<div
-						className="text-muted-foreground flex items-center justify-center gap-2 py-20 text-xs"
-						role="status"
-					>
-						<Loader2 className="size-4 animate-spin" aria-hidden />
-						{t("sites.loading")}
-					</div>
-				) : sites.length === 0 ? (
-					<div className="bg-card ring-foreground/10 flex flex-col items-center rounded-2xl px-6 py-12 text-center ring-1">
-						<span className="bg-muted text-muted-foreground flex size-10 items-center justify-center rounded-xl">
-							<Globe className="size-5" aria-hidden />
-						</span>
-						<p className="mt-3 text-sm font-semibold">{t("overview.emptyTitle")}</p>
-						<p className="text-muted-foreground mt-1 max-w-sm text-xs leading-relaxed">
-							{t("overview.emptyDesc")}
-						</p>
-						<Button className="mt-5 h-10 px-4" onClick={() => setManageOpen(true)}>
-							<Plus aria-hidden /> {t("overview.emptyCta")}
-						</Button>
-					</div>
-				) : (
-					<div className={`grid gap-2.5 ${gridCols(sites.length)}`}>
-						{sites.map((s) => (
-							<SiteCard
-								key={s.id}
-								site={s}
-								onInstall={(site) =>
-									setInstallFor({ domain: site.domain, hasEvents: false, id: site.id })
-								}
-							/>
-						))}
-					</div>
-				)}
+				{content}
 			</main>
 			<SitesView open={manageOpen} onClose={() => setManageOpen(false)} />
 			{installFor ? <SnippetModal site={installFor} onClose={() => setInstallFor(null)} /> : null}
-		</div>
+		</AppShell>
 	);
 };
 

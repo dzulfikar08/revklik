@@ -15,9 +15,11 @@ import {
 	createPakasirCheckout,
 	fetchPlans,
 	fetchSubscription,
+	isOpenEnded,
 	parsePlan,
 	planLabel,
 	subscriptionState,
+	usageLevel,
 	verifyPakasirPayment,
 } from "@/lib/legacy/billing";
 import type {
@@ -26,6 +28,7 @@ import type {
 	CheckoutResult,
 	PlanTier,
 	SubscriptionStatus,
+	UsageLevel,
 } from "@/lib/legacy/billing";
 
 import { money } from "./data";
@@ -131,7 +134,17 @@ const StatusBadge = ({ status, label }: { status: string; label: string }) => (
 /** Smallest visible fill, so any usage above zero shows on the bar. */
 const MIN_FILL_PCT = 2;
 
-const UsageBar = ({ label, used, limit }: { label: string; used: number; limit: number }) => {
+const UsageBar = ({
+	label,
+	level,
+	used,
+	limit,
+}: {
+	label: string;
+	level: UsageLevel;
+	used: number;
+	limit: number;
+}) => {
 	const t = useT();
 	const locale = useLocale();
 	const nf = locale === "id" ? "id-ID" : "en-US";
@@ -141,7 +154,9 @@ const UsageBar = ({ label, used, limit }: { label: string; used: number; limit: 
 		<div className="grid gap-1.5">
 			<div className="flex items-baseline justify-between gap-3 text-xs">
 				<span className="text-muted-foreground">{label}</span>
-				<span className="text-foreground tabular-nums">
+				<span
+					className={`tabular-nums ${level === "over" || level === "full" ? "text-(--down) font-medium" : "text-foreground"}`}
+				>
 					{t("billing.usageOf", {
 						limit: limit.toLocaleString(nf),
 						used: used.toLocaleString(nf),
@@ -156,7 +171,10 @@ const UsageBar = ({ label, used, limit }: { label: string; used: number; limit: 
 				aria-valuemax={limit}
 				aria-valuenow={used}
 			>
-				<div className="bg-(--chart) h-full rounded-full" style={{ width: `${pct}%` }} />
+				<div
+					className={`h-full rounded-full ${level === "over" || level === "full" ? "bg-(--down)" : "bg-(--chart)"}`}
+					style={{ width: `${pct}%` }}
+				/>
 			</div>
 		</div>
 	);
@@ -380,13 +398,15 @@ const PlanCard = ({
 };
 
 /** Text under the plan name: when the trial or period ends or renews. */
-const periodLine = (
+export const periodLine = (
 	sub: BillingSubscription,
 	t: ReturnType<typeof useT>,
 	date: (iso: string) => string,
 ): string => {
 	if (!sub.id) return t("billing.noPlan");
 	const state = subscriptionState(sub);
+	// Grandfathered plans never end; showing "1 Jan 10000" reads as a bug.
+	if (state.paidActive && isOpenEnded(sub.current_period_end)) return t("billing.lifetime");
 	if (state.trialing) {
 		if (state.trialEnded) return t("billing.trialEnded");
 		return state.trialDaysLeft > 0
@@ -543,7 +563,12 @@ export const BillingView = ({
 	const state = sub ? subscriptionState(sub) : null;
 	// Only Polar (card) subscriptions renew, so only they can be canceled;
 	// a paid plan without one was bought with QRIS for a single period.
-	const isQrisPlan = Boolean(sub?.id && state?.paidActive && !sub.polar_subscription_id);
+	const isQrisPlan = Boolean(
+		sub?.id &&
+		state?.paidActive &&
+		!sub.polar_subscription_id &&
+		!isOpenEnded(sub.current_period_end),
+	);
 	const canCancel = Boolean(
 		sub?.id && state?.paidActive && sub.polar_subscription_id && !sub.cancel_at_period_end,
 	);
@@ -650,17 +675,42 @@ export const BillingView = ({
 						</div>
 
 						{sub.usage ? (
-							<div className="grid gap-x-8 gap-y-3 sm:grid-cols-2">
-								<UsageBar
-									label={t("billing.usageEvents")}
-									used={sub.usage.events.used}
-									limit={sub.usage.events.limit}
-								/>
-								<UsageBar
-									label={t("billing.usageSites")}
-									used={sub.usage.sites.used}
-									limit={sub.usage.sites.limit}
-								/>
+							<div className="grid gap-3">
+								<div className="grid gap-x-8 gap-y-3 sm:grid-cols-2">
+									<UsageBar
+										label={t("billing.usageEvents")}
+										level={usageLevel(sub.usage.events.used, sub.usage.events.limit)}
+										used={sub.usage.events.used}
+										limit={sub.usage.events.limit}
+									/>
+									<UsageBar
+										label={t("billing.usageSites")}
+										level={usageLevel(sub.usage.sites.used, sub.usage.sites.limit)}
+										used={sub.usage.sites.used}
+										limit={sub.usage.sites.limit}
+									/>
+								</div>
+								{usageLevel(sub.usage.sites.used, sub.usage.sites.limit) === "over" ? (
+									<p
+										className="text-(--down) bg-(--down)/10 max-w-prose rounded-lg px-2.5 py-1.5 text-xs leading-relaxed"
+										role="status"
+									>
+										{t("billing.overSites", {
+											limit: sub.usage.sites.limit,
+											plan: planLabel(sub.plan),
+											used: sub.usage.sites.used,
+										})}
+									</p>
+								) : null}
+								{usageLevel(sub.usage.events.used, sub.usage.events.limit) === "full" ||
+								usageLevel(sub.usage.events.used, sub.usage.events.limit) === "over" ? (
+									<p
+										className="text-(--down) bg-(--down)/10 max-w-prose rounded-lg px-2.5 py-1.5 text-xs leading-relaxed"
+										role="status"
+									>
+										{t("billing.overEvents")}
+									</p>
+								) : null}
 							</div>
 						) : null}
 

@@ -51,6 +51,38 @@ export const daysUntil = (iso: string | null | undefined, now = Date.now()): num
 	return Number.isFinite(diff) && diff > 0 ? Math.ceil(diff / DAY_MS) : 0;
 };
 
+/**
+ * Grandfathered and self-hosted accounts carry a period end in the year 9999
+ * ("never"). Anything this far out is open-ended, not a date to show.
+ */
+const OPEN_ENDED_FROM_YEAR = 3000;
+
+export const isOpenEnded = (iso: string | null | undefined): boolean => {
+	if (!iso) {
+		return false;
+	}
+	const year = new Date(iso).getUTCFullYear();
+	return Number.isFinite(year) && year >= OPEN_ENDED_FROM_YEAR;
+};
+
+/** How full a limit is: "over" past it, "full" at it, "near" from 90%. */
+export type UsageLevel = "ok" | "near" | "full" | "over";
+
+const NEAR_LIMIT_RATIO = 0.9;
+
+export const usageLevel = (used: number, limit: number): UsageLevel => {
+	if (!(limit > 0)) {
+		return "ok";
+	}
+	if (used > limit) {
+		return "over";
+	}
+	if (used === limit) {
+		return "full";
+	}
+	return used / limit >= NEAR_LIMIT_RATIO ? "near" : "ok";
+};
+
 export type SubscriptionStatus = "active" | "canceled" | "past_due" | "trialing";
 
 export interface BillingUsage {

@@ -10,10 +10,12 @@ import type {
 import {
 	type AggregatedData,
 	type AiBinding,
+	type InsightLang,
 	type RawInsight,
 	aggregateData,
 	callWorkersAI,
 	generateFallbackInsights,
+	parseInsightLang,
 } from "../lib/ai-prompts";
 import { executeBatch } from "../lib/d1-batch";
 import { planRequiredBody } from "../lib/plan-gate";
@@ -38,6 +40,14 @@ function getCacheTtlHours(range: string): number {
 	return 4; // 24h, 7d
 }
 
+/**
+ * Cached insight text is written in one language, so each language gets its
+ * own cache rows (and its own rate-limit window) under a suffixed range key.
+ */
+function cacheKey(range: string, lang: InsightLang): string {
+	return lang === "id" ? `${range}:id` : range;
+}
+
 /** Rate limit window: max 1 AI call per site per hour */
 const RATE_LIMIT_MS = 60 * 60 * 1000;
 
@@ -49,6 +59,8 @@ aiInsightsRoutes.get("/", async (c) => {
 	const userId = c.get("userId");
 	const siteId = c.req.query("site_id");
 	const range = c.req.query("range") || "7d";
+	const lang = parseInsightLang(c.req.query("lang"));
+	const key = cacheKey(range, lang);
 
 	if (!siteId) return c.json({ error: "site_id required", success: false }, 400);
 
@@ -76,7 +88,7 @@ aiInsightsRoutes.get("/", async (c) => {
 			.selectFrom("ai_insights")
 			.selectAll()
 			.where("site_id", "=", siteId)
-			.where("range", "=", range)
+			.where("range", "=", key)
 			.where("expires_at", ">", now)
 			.orderBy("created_at", "desc")
 			.execute(),
@@ -92,7 +104,7 @@ aiInsightsRoutes.get("/", async (c) => {
 		.selectFrom("ai_insights")
 		.select(["created_at"])
 		.where("site_id", "=", siteId)
-		.where("range", "=", range)
+		.where("range", "=", key)
 		.orderBy("created_at", "desc")
 		.limit(1)
 		.executeTakeFirst();
@@ -107,7 +119,7 @@ aiInsightsRoutes.get("/", async (c) => {
 					.selectFrom("ai_insights")
 					.selectAll()
 					.where("site_id", "=", siteId)
-					.where("range", "=", range)
+					.where("range", "=", key)
 					.orderBy("created_at", "desc")
 					.execute(),
 				currency,
@@ -121,7 +133,7 @@ aiInsightsRoutes.get("/", async (c) => {
 				const data = await aggregateData(db, siteId, start.toISOString(), scope.money);
 				return c.json({
 					data: freshResponse(
-						generateFallbackInsights(data),
+						generateFallbackInsights(data, lang),
 						data,
 						range,
 						new Date().toISOString(),
@@ -137,7 +149,7 @@ aiInsightsRoutes.get("/", async (c) => {
 	}
 
 	// Generate fresh insights
-	const insights = await generateInsights(c, db, siteId, range, ttlHours);
+	const insights = await generateInsights(c, db, siteId, range, ttlHours, lang);
 	return c.json({ data: insights, success: true });
 });
 
@@ -150,6 +162,7 @@ aiInsightsRoutes.post("/refresh", async (c) => {
 	const body = await c.req.json().catch(() => ({}));
 	const siteId = body.site_id as string | undefined;
 	const range = (body.range as string) || "7d";
+	const lang = parseInsightLang(body.lang);
 
 	if (!siteId) return c.json({ error: "site_id required", success: false }, 400);
 
@@ -168,11 +181,11 @@ aiInsightsRoutes.post("/refresh", async (c) => {
 	await db
 		.deleteFrom("ai_insights")
 		.where("site_id", "=", siteId)
-		.where("range", "=", range)
+		.where("range", "=", cacheKey(range, lang))
 		.execute();
 
 	const ttlHours = getCacheTtlHours(range);
-	const insights = await generateInsights(c, db, siteId, range, ttlHours);
+	const insights = await generateInsights(c, db, siteId, range, ttlHours, lang);
 	return c.json({ data: insights, success: true });
 });
 
@@ -186,7 +199,9 @@ async function generateInsights(
 	siteId: string,
 	range: string,
 	ttlHours: number,
+	lang: InsightLang,
 ): Promise<InsightsResponse> {
+	const key = cacheKey(range, lang);
 	const { start } = getDateRange(range);
 	const startIso = start.toISOString();
 	let currency = "USD";
@@ -197,7 +212,7 @@ async function generateInsights(
 		const scope = await resolveQueryScope(db, siteId, c.env, undefined);
 		currency = scope.money.currency;
 		data = await aggregateData(db, siteId, startIso, scope.money);
-		const rawInsights = await callWorkersAI(c.env?.AI, data, range);
+		const rawInsights = await callWorkersAI(c.env?.AI, data, range, lang);
 
 		const now = new Date();
 		const expiresAt = new Date(now.getTime() + ttlHours * 60 * 60 * 1000).toISOString();
@@ -207,7 +222,7 @@ async function generateInsights(
 		// from an older batch, another currency, or a concurrent writer never
 		// mix into the next cache read.
 		const writes: Compilable[] = [
-			db.deleteFrom("ai_insights").where("site_id", "=", siteId).where("range", "=", range),
+			db.deleteFrom("ai_insights").where("site_id", "=", siteId).where("range", "=", key),
 		];
 		for (const insight of rawInsights) {
 			const id = generateId();
@@ -215,7 +230,7 @@ async function generateInsights(
 				db.insertInto("ai_insights").values({
 					id,
 					site_id: siteId,
-					range,
+					range: key,
 					insight_type: insight.type,
 					insight_text: JSON.stringify({
 						title: insight.title,
@@ -243,7 +258,7 @@ async function generateInsights(
 				.selectFrom("ai_insights")
 				.selectAll()
 				.where("site_id", "=", siteId)
-				.where("range", "=", range)
+				.where("range", "=", key)
 				.orderBy("created_at", "desc")
 				.execute(),
 			currency,
@@ -254,7 +269,12 @@ async function generateInsights(
 		}
 		// Aggregation worked but the AI call or the cache write failed.
 		if (data) {
-			return freshResponse(generateFallbackInsights(data), data, range, new Date().toISOString());
+			return freshResponse(
+				generateFallbackInsights(data, lang),
+				data,
+				range,
+				new Date().toISOString(),
+			);
 		}
 
 		return emptyResponse(range);

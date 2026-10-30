@@ -17,10 +17,12 @@ import {
 	X,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
-import type { KeyboardEvent as ReactKeyboardEvent } from "react";
+import type { KeyboardEvent as ReactKeyboardEvent, ReactNode } from "react";
 import { toast } from "sonner";
+import { useT } from "@/lib/i18n";
+import type { MessageKey } from "@/lib/i18n";
 
-import { dayLabel, fmt, timeLabel, visitorAvatar, visitorName } from "./data";
+import { dayLabel, timeLabel, visitorAvatar, visitorName } from "./data";
 import type { Visitor, VisitorEvent } from "./data";
 
 const eventIcon = (kind: VisitorEvent["kind"]) => {
@@ -46,6 +48,18 @@ const chip = "bg-muted rounded px-1.5 py-0.5 font-mono text-[11px] text-foregrou
 
 const isConversionKind = (ev: VisitorEvent): boolean => ev.kind === "conversion";
 
+const StepText = ({ k, children }: { k: MessageKey; children: ReactNode }) => {
+	const t = useT();
+	const [before, after] = t(k, { value: "\u0000" }).split("\u0000");
+	return (
+		<>
+			{before}
+			{children}
+			{after}
+		</>
+	);
+};
+
 const VisitorStep = ({ ev }: { ev: VisitorEvent }) => {
 	const isConversion = ev.kind === "conversion";
 	return (
@@ -53,40 +67,37 @@ const VisitorStep = ({ ev }: { ev: VisitorEvent }) => {
 			className={`flex flex-wrap items-center gap-1.5 ${isConversion ? "font-medium text-(--up)" : ""}`}
 		>
 			{ev.kind === "view" ? (
-				<>
-					Viewed page <span className={chip}>{ev.page}</span>
-				</>
-			) : null}
-			{ev.kind === "view" ? (
-				<>
-					Viewed page <span className={chip}>{ev.page}</span>
-				</>
+				<StepText k="visitor.step.view">
+					<span className={chip}>{ev.page}</span>
+				</StepText>
 			) : null}
 			{ev.kind === "scroll" ? (
-				<>
-					Scrolled to <span className={chip}>{ev.milestone}%</span>
-				</>
+				<StepText k="visitor.step.scroll">
+					<span className={chip}>{ev.milestone}%</span>
+				</StepText>
 			) : null}
 			{ev.kind === "section" ? (
-				<>
-					Read section <span className={chip}>{ev.section}</span>
-				</>
+				<StepText k="visitor.step.section">
+					<span className={chip}>{ev.section}</span>
+				</StepText>
 			) : null}
 			{ev.kind === "click" ? (
-				<>
-					Clicked <span className={chip}>{ev.click}</span>
-				</>
+				<StepText k="visitor.step.click">
+					<span className={chip}>{ev.click}</span>
+				</StepText>
 			) : null}
 			{ev.kind === "conversion" ? (
 				<>
-					Conversion: <span className={chip}>{ev.event}</span>
+					<StepText k="visitor.step.conversion">
+						<span className={chip}>{ev.event}</span>
+					</StepText>
 					{ev.revenue ? <span className="font-mono">{ev.revenue}</span> : null}
 				</>
 			) : null}
 			{ev.kind === "event" ? (
-				<>
-					Triggered event: <span className={chip}>{ev.event}</span>
-				</>
+				<StepText k="visitor.step.event">
+					<span className={chip}>{ev.event}</span>
+				</StepText>
 			) : null}
 		</span>
 	);
@@ -121,6 +132,7 @@ export const VisitorSheet = ({
 	onClose: () => void;
 	onSave: (patch: { tags: string[]; note: string }) => Promise<void>;
 }) => {
+	const t = useT();
 	const [oldestFirst, setOldestFirst] = useState(true);
 	const [copied, setCopied] = useState(false);
 	const [tags, setTags] = useState<string[]>([...visitor.tags]);
@@ -150,17 +162,17 @@ export const VisitorSheet = ({
 			setCopied(true);
 			setTimeout(() => setCopied(false), 1600);
 		} catch {
-			toast.error("Couldn't copy the journey");
+			toast.error(t("visitor.copyFailed"));
 		}
 	};
 
 	const addTag = () => {
-		const t = tagDraft.trim().toLowerCase();
-		if (!t) {
+		const tag = tagDraft.trim().toLowerCase();
+		if (!tag) {
 			return;
 		}
-		if (!tags.includes(t)) {
-			setTags([...tags, t]);
+		if (!tags.includes(tag)) {
+			setTags([...tags, tag]);
 		}
 		setTagDraft("");
 	};
@@ -197,28 +209,28 @@ export const VisitorSheet = ({
 		<div className="fixed inset-0 z-40">
 			<dialog
 				open
-				aria-label={`Journey for ${displayName}`}
+				aria-label={t("visitor.journeyAria", { name: displayName })}
 				className="fixed inset-0 z-40 m-0 h-svh max-h-none w-full max-w-none overflow-visible border-0 bg-transparent p-0"
 			>
 				<button
 					type="button"
-					aria-label="Close panel"
+					aria-label={t("visitor.closePanel")}
 					onClick={onClose}
 					className="animate-in fade-in absolute inset-0 bg-black/55 backdrop-blur-[2px]"
 				/>
 				<aside
 					role="dialog"
 					aria-modal="true"
-					aria-label={`Journey for ${displayName}`}
+					aria-label={t("visitor.journeyAria", { name: displayName })}
 					tabIndex={-1}
 					autoFocus
 					className="bg-card ring-foreground/10 animate-in slide-in-from-right-8 absolute inset-y-0 right-0 flex w-full max-w-[560px] flex-col rounded-l-2xl ring-1 duration-200 outline-none"
 				>
 					<div className="border-border/60 flex items-center gap-2 border-b p-3">
 						<p className="truncate text-sm font-semibold">
-							Journey <span className="text-muted-foreground">· {displayName}</span>
+							{t("visitor.journey")} <span className="text-muted-foreground">· {displayName}</span>
 							<span className="bg-muted text-muted-foreground ml-1.5 rounded px-1 py-0.5 font-mono text-[10px]">
-								{fmt(visitor.events.length)} events
+								{t("visitor.events", { n: visitor.events.length })}
 							</span>
 						</p>
 						<div className="ms-auto flex items-center gap-1">
@@ -228,7 +240,7 @@ export const VisitorSheet = ({
 								className="text-muted-foreground hover:text-foreground hover:bg-muted focus-visible:outline-ring focus-visible:outline-2 outline-offset-2 inline-flex items-center gap-1 rounded-md px-1.5 py-1 font-mono text-[10px] tracking-wider uppercase"
 							>
 								<ArrowDownUp className="size-3" aria-hidden />
-								{oldestFirst ? "Oldest first" : "Newest first"}
+								{oldestFirst ? t("visitor.oldestFirst") : t("visitor.newestFirst")}
 							</button>
 							<button
 								type="button"
@@ -240,11 +252,11 @@ export const VisitorSheet = ({
 								) : (
 									<Copy className="size-3" aria-hidden />
 								)}
-								{copied ? "Copied" : "Copy"}
+								{copied ? t("visitor.copied") : t("visitor.copy")}
 							</button>
 							<button
 								type="button"
-								aria-label="Close"
+								aria-label={t("visitor.close")}
 								onClick={onClose}
 								className="hover:bg-muted focus-visible:outline-ring rounded-md p-1.5 outline-offset-2 focus-visible:outline-2"
 							>
@@ -266,21 +278,21 @@ export const VisitorSheet = ({
 									{displayName}
 									{visitor.customer ? (
 										<span className="rounded-full bg-(--chart)/10 px-2 py-0.5 text-[10px] font-medium text-(--chart)">
-											Customer
+											{t("visitor.customer")}
 										</span>
 									) : null}
 								</p>
 								<p className="text-muted-foreground font-mono text-xs">
-									{visitor.email ?? "not identified"}
+									{visitor.email ?? t("visitor.notIdentified")}
 								</p>
 								<div className="text-muted-foreground mt-2 grid gap-1 text-[13px]">
 									<span>
-										{visitor.flag} {visitor.country ?? "Unknown"}
+										{visitor.flag} {visitor.country ?? t("visitor.unknown")}
 										{visitor.city ? `, ${visitor.city}` : ""}
 									</span>
 									<span className="flex items-center gap-1.5">
 										<Monitor className="size-3.5" aria-hidden />
-										{visitor.device ?? "—"}
+										{visitor.device ?? "-"}
 									</span>
 									<span className="flex items-center gap-1.5">
 										<span className="size-1.5 rounded-full bg-(--compare)" aria-hidden />
@@ -297,7 +309,7 @@ export const VisitorSheet = ({
 						{visitor.params.length > 0 ? (
 							<div className="border-border/60 border-b p-4">
 								<p className="text-muted-foreground mb-1.5 text-[11px] tracking-wider uppercase">
-									Parameters
+									{t("visitor.parameters")}
 								</p>
 								<div className="grid gap-1">
 									{visitor.params.map((p) => (
@@ -309,19 +321,19 @@ export const VisitorSheet = ({
 
 						<div className="border-border/60 border-b p-4">
 							<Label htmlFor="visitor-tags" className="mb-1.5 block">
-								Tags
+								{t("visitor.tags")}
 							</Label>
 							<div className="mb-2 flex flex-wrap gap-1.5">
-								{tags.map((t) => (
+								{tags.map((tag) => (
 									<span
-										key={t}
+										key={tag}
 										className="inline-flex items-center gap-1 rounded-full bg-(--chart)/10 px-2 py-0.5 text-[11px] font-medium text-(--chart)"
 									>
-										{t}
+										{tag}
 										<button
 											type="button"
-											aria-label={`Remove tag ${t}`}
-											onClick={() => setTags(tags.filter((x) => x !== t))}
+											aria-label={t("visitor.removeTag", { tag })}
+											onClick={() => setTags(tags.filter((x) => x !== tag))}
 											className="hover:text-foreground focus-visible:outline-ring outline-offset-2 focus-visible:outline-2"
 										>
 											<X className="size-3" aria-hidden />
@@ -329,30 +341,30 @@ export const VisitorSheet = ({
 									</span>
 								))}
 								{tags.length === 0 ? (
-									<span className="text-muted-foreground text-xs">No tags yet.</span>
+									<span className="text-muted-foreground text-xs">{t("visitor.noTags")}</span>
 								) : null}
 							</div>
 							<div className="flex gap-2">
 								<Input
 									id="visitor-tags"
 									value={tagDraft}
-									placeholder="Add a tag…"
+									placeholder={t("visitor.addTagPlaceholder")}
 									onChange={(e) => setTagDraft(e.target.value)}
 									onKeyDown={onTagKey}
 									className="h-8 text-xs"
 								/>
 								<Button variant="outline" size="sm" onClick={addTag}>
 									<Plus className="size-3.5" aria-hidden />
-									Add
+									{t("visitor.add")}
 								</Button>
 							</div>
 							<div className="mt-3 grid gap-1.5">
-								<Label htmlFor="visitor-note">Notes</Label>
+								<Label htmlFor="visitor-note">{t("visitor.notes")}</Label>
 								<Textarea
 									id="visitor-note"
 									rows={3}
 									value={note}
-									placeholder="Context for the team…"
+									placeholder={t("visitor.notesPlaceholder")}
 									onChange={(e) => setNote(e.target.value)}
 									className="text-xs"
 								/>
@@ -365,14 +377,14 @@ export const VisitorSheet = ({
 											setSaving(true);
 											try {
 												await onSave({ note, tags });
-												toast.success("Saved");
+												toast.success(t("visitor.saved"));
 											} catch {
-												toast.error("Couldn't save");
+												toast.error(t("visitor.saveFailed"));
 											}
 											setSaving(false);
 										}}
 									>
-										Save
+										{t("visitor.save")}
 									</Button>
 								</div>
 							</div>
@@ -384,7 +396,7 @@ export const VisitorSheet = ({
 							</p>
 							<ol className="grid gap-0.5">{events.map(renderEvent)}</ol>
 							<p className="text-muted-foreground mt-3 text-center font-mono text-[11px] tabular-nums">
-								{fmt(visitor.events.length)} steps
+								{t("visitor.steps", { n: visitor.events.length })}
 								{visitor.source ? ` · ${visitor.source}` : ""}
 							</p>
 						</div>
