@@ -1,5 +1,18 @@
 @import "@revklik/ui/globals.css";
 
+/* Inter is self-hosted (no third-party font request, matching the privacy copy).
+   Family name matches --font-sans in @revklik/ui. Latin subset, same file as the landing. */
+@font-face {
+	font-family: "Inter Variable";
+	font-style: normal;
+	font-weight: 100 900;
+	font-display: swap;
+	src: url("/fonts/inter-latin-wght.woff2") format("woff2");
+	unicode-range:
+		U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308,
+		U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
 /* ----------------------------------------------------------------------------
    revklik analytics theme: a real light palette on :root and the existing
    blue-charcoal night palette on .dark. next-themes toggles the `dark` class
@@ -10,7 +23,7 @@
    Light: warm paper background, white cards, ink text. Orange stays the
    traffic colour; money moves to a deep amber so it clears 4.5:1 on white.
    Dark: blue-charcoal base, orange traffic, gold money.
-   Every text pair is checked WCAG AA (R-25); input borders reach 3:1.
+   Every text pair is checked WCAG AA (R-25); input borders reach 3:1 (light 3.3 on background, 3.5 on card; dark 3.8 on card, 4.1 on background).
    Type: @revklik/ui sans stack, tabular numerals for every figure.
    Icons: lucide-react thin strokes. Motion: nothing loops; spinners mark real
    async state only (MOTION 1).
@@ -33,7 +46,7 @@
 	--accent-foreground: oklch(0.2 0.016 260);
 	--destructive: oklch(0.5 0.19 25);
 	--border: oklch(0.9 0.008 85);
-	--input: oklch(0.72 0.01 260);
+	--input: oklch(0.63 0.012 260);
 	--ring: oklch(0.55 0.04 260);
 	--chart-1: oklch(0.62 0.17 50);
 	--chart-2: oklch(0.55 0.115 80);
@@ -79,7 +92,7 @@
 		0.704 0.191 22.216
 	); /* @revklik/ui dark value: 6.2:1 on card; the light default is 3.7:1 here (R-25) */
 	--border: oklch(0.28 0.017 260);
-	--input: oklch(0.5 0.02 260);
+	--input: oklch(0.56 0.02 260);
 	--ring: oklch(0.62 0.02 255);
 	--chart-1: oklch(0.78 0.13 55);
 	--chart-2: oklch(0.8 0.13 88);

@@ -26,6 +26,9 @@ export default defineConfig({
 			workbox: {
 				// Embedded pages (landing demo, public dashboards) always load the deployed shell.
 				navigateFallbackDenylist: [/^\/api\//, /^\/demo/, /^\/public\//],
+				// Precache includes hashed CSS and the font; old caches are dropped on each new SW.
+				globPatterns: ["**/*.{js,css,html,ico,png,svg,webp,woff2}"],
+				cleanupOutdatedCaches: true,
 				skipWaiting: true,
 				clientsClaim: true,
 			},
