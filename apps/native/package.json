@@ -12,6 +12,7 @@
 		"web": "expo start --web",
 		"check-types": "tsc --noEmit",
 		"test": "bun test lib",
+		"update:publish": "EXPO_PUBLIC_REVKLIK_API_URL=https://app.revklik.com/api bunx eas-cli update --channel production --environment production",
 		"prebuild:android": "expo prebuild -p android --no-install --clean",
 		"prebuild:ios": "expo prebuild -p ios --no-install --clean"
 	},
@@ -32,6 +33,7 @@
 		"expo-splash-screen": "~57.0.10",
 		"expo-status-bar": "~57.0.1",
 		"expo-system-ui": "~57.0.2",
+		"expo-updates": "~57.0.26",
 		"expo-web-browser": "~57.0.2",
 		"react": "19.2.3",
 		"react-dom": "19.2.3",

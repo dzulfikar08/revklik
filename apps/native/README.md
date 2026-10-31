@@ -91,13 +91,30 @@ JoyoRogo), which also registers the bundle id and enables Push Notifications. Th
 production APNs entitlement (`APS_ENVIRONMENT=production`) and the build checks it. Build numbers are minutes since
 2024-01-01 UTC (Android `versionCode`, iOS `CFBundleVersion`), so they only ever increase.
 
-## Updates
+## Updates (OTA)
 
-The app does not use `expo-updates` (no `runtimeVersion`, no update channel), so a JavaScript change reaches users
-only through a new store build. Bump `version` in `app.json` and run the `release-mobile` workflow; build numbers
-come from the clock. Money figures, labels and day boundaries mirror the web dashboard: net after fees, gross,
-sales (paid orders), visitor to sale, in the site currency, and days cut at the device's local midnight (`tz`).
-Strings for those screens live in `lib/i18n.ts` (Bahasa Indonesia when the device language is `id`, else English).
+Builds embed `expo-updates` (SDK 57), configured in `app.json`: `runtimeVersion` policy `appVersion`, update URL
+`https://u.expo.dev/<extra.eas.projectId>` and channel `production` (sent as the `expo-channel-name` request
+header, so no EAS Build is needed; `expo prebuild` in CI writes it into the manifest/plist). The app checks on
+launch and applies a downloaded update on the next cold start.
+
+Because the runtime version is the app version, an update only reaches binaries with the same `version` in
+`app.json`. JavaScript, styles and assets can ship over the air; anything that changes native code (a new Expo
+module, permission, plugin option) or `version` needs a new store build, and the version bump starts a new
+update line. `app.config.ts` turns updates off when `EXPO_PUBLIC_REVKLIK_API_URL` points anywhere but
+`https://app.revklik.com`, because an OTA bundle bakes that URL in at publish time.
+
+Publish an update (needs the Expo account that owns the project, `EXPO_TOKEN` in CI or `bunx eas-cli login`):
+
+```bash
+cd apps/native
+bun run update:publish -- --message "what changed"     # eas update --channel production
+```
+
+The first publish on a project may ask to create the `production` channel/branch; accept. Updates for 1.1.0 are
+only delivered to 1.1.0 builds. Store builds still go through `release-mobile.yml`; build numbers come from the
+clock. Money figures, labels and day boundaries mirror the web dashboard (net after fees, gross, sales, visitor
+to sale, site currency, device-local days via `tz`). Strings for those screens live in `lib/i18n.ts`.
 
 ## License
 
