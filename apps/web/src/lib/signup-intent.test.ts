@@ -6,10 +6,12 @@ import {
 	parseTrackerId,
 	rememberVisitorId,
 	rememberRef,
+	rememberSignInNext,
 	rememberSignupPlan,
 	signupRef,
 	signupVisitorId,
 	storedRef,
+	takeSignInNext,
 	takeSignupPlan,
 } from "./signup-intent";
 
@@ -91,5 +93,21 @@ describe("journey visitor id", () => {
 		rememberVisitorId(VID);
 		clearSignupIntent();
 		expect(signupVisitorId(undefined)).toBeNull();
+	});
+});
+
+describe("sign-in destination across the Google round trip", () => {
+	const NEXT = "/oauth/authorize?client_id=revklik-books&state=abc";
+
+	it("is read once, then gone", () => {
+		rememberSignInNext(NEXT);
+		expect(takeSignInNext()).toBe(NEXT);
+		expect(takeSignInNext()).toBeNull();
+	});
+
+	it("is replaced by a start that has no destination", () => {
+		rememberSignInNext(NEXT);
+		rememberSignInNext(undefined);
+		expect(takeSignInNext()).toBeNull();
 	});
 });

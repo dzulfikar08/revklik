@@ -46,6 +46,32 @@ window otherwise (dev, tests, self-hosted installs without the bindings). API li
 The `limit` values in wrangler.jsonc must match the caps in `lib/rate-limit.ts` and `routes/track.ts`.
 Namespace ids (7101-7106) must be unique within the Cloudflare account.
 
+## Sign-in to RevKlik Books
+
+RevKlik is the OAuth 2.0 provider (authorization code + PKCE S256) for one first-party client, `revklik-books`
+(`lib/oauth-provider.ts`, `routes/oauth.ts`). It is identity only: no access or refresh token is ever issued.
+
+- `GET /oauth/authorize`: an unknown client or a `redirect_uri` that is not an exact match of
+  `BOOKS_OAUTH_REDIRECT_URIS` gets an error page and is never redirected to. Other request problems (missing
+  `state`, `response_type` other than `code`, no S256 challenge) go back to the validated `redirect_uri` as an
+  RFC 6749 error. A valid request gets a small page whose script reads the dashboard token from `localStorage`,
+  calls `POST /api/oauth/authorize` (Bearer session, re-validates everything) and follows the returned redirect.
+  With no session it goes to `/login?next=/oauth/authorize?…`, the only `next` besides `/analytics` the login
+  accepts (`parseNext`), including after "Continue with Google". No consent screen: the client is first-party.
+- Codes are 32 random bytes, stored as SHA-256 in `oauth_codes`, valid 60 s, bound to client, redirect URI,
+  challenge and user. Redemption is one `DELETE ... RETURNING`: a replay, a race and a failed redirect/PKCE check all
+  leave the code dead. A wrong client secret answers `invalid_client` before the code is touched.
+- `POST /oauth/token` (form-encoded) answers `{sub, email, email_verified, name}` with `Cache-Control: no-store`,
+  or 400 `invalid_request | invalid_client | invalid_grant`. The secret is compared in constant time. No CORS.
+  Books must refuse `email_verified: false`.
+- Rate limits: `RL_API_120` per IP on both public endpoints, `RL_API_30` per user on the approval call.
+- The client is off until the Worker secret `BOOKS_OAUTH_CLIENT_SECRET` exists (same value as Books'
+  `REVKLIK_OAUTH_CLIENT_SECRET`). `BOOKS_OAUTH_REDIRECT_URIS` is a comma list; production sets
+  `https://books.revklik.com/auth/revklik/callback` in wrangler.jsonc, local dev adds
+  `http://localhost:8787/auth/revklik/callback` in `.dev.vars`.
+- The dashboard's account menu links to `https://books.revklik.com/auth/revklik/start` (`VITE_BOOKS_URL` overrides the
+  base; self-hosted installs show the item only when it is set).
+
 ## Unfinished integrations
 
 Shopee and Tokopedia answer 404 unless `MARKETPLACES_ENABLED=1`. Do not enable it before the placeholder partner

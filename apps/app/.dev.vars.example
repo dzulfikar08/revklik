@@ -24,6 +24,12 @@ SUPER_ADMIN_EMAIL=you@example.com
 # Site id that records each new signup as a `signup` conversion (default: off)
 # REVKLIK_SELF_SITE_ID=
 
+# --- Sign in to RevKlik Books with this account (hosted RevKlik only) -----------------
+# Shared secret; the same value goes into Books as REVKLIK_OAUTH_CLIENT_SECRET. Unset = off.
+# BOOKS_OAUTH_CLIENT_SECRET=
+# Comma-separated redirect URIs Books may use, matched exactly.
+# BOOKS_OAUTH_REDIRECT_URIS=http://localhost:8787/auth/revklik/callback
+
 # --- Phone sale alerts ---------------------------------------------------------
 # Expo push access token. Alerts to the RevKlik mobile app work without it; set it only
 # when "enhanced push security" is enabled for the Expo project.

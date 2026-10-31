@@ -22,12 +22,18 @@ export interface AuthSearch {
 	utm_campaign?: string;
 }
 
+/** A sign-in request from RevKlik Books (served by the worker, not the SPA); only this one endpoint. */
+const OAUTH_AUTHORIZE_NEXT = /^\/oauth\/authorize\?[^#]*$/u;
+
 /**
- * Only same-app dashboard paths are accepted as `next`, so the param can't
- * be used as an open redirect ("//evil.com", "https://…").
+ * Only same-app dashboard paths and the Books sign-in endpoint are accepted as
+ * `next`, so the param can't be used as an open redirect ("//evil.com", "https://…").
  */
 export const parseNext = (value: unknown): string | undefined =>
-	typeof value === "string" && /^\/analytics(?:[/?]|$)/u.test(value) ? value : undefined;
+	typeof value === "string" &&
+	(/^\/analytics(?:[/?]|$)/u.test(value) || OAUTH_AUTHORIZE_NEXT.test(value))
+		? value
+		: undefined;
 
 /** Keep a known plan, a valid ref, a safe `next`, journey ids and UTM tags; drop the rest. */
 export const validateAuthSearch = (search: Record<string, unknown>): AuthSearch => {

@@ -317,6 +317,7 @@ export interface KlikapaDatabase {
 	account_links: AccountLinkTable;
 	account_link_intents: AccountLinkIntentTable;
 	account_link_flows: AccountLinkFlowTable;
+	oauth_codes: OAuthCodeTable;
 }
 
 export interface PasswordResetTable {
@@ -361,6 +362,17 @@ export interface AccountLinkFlowTable {
 	browser_hash: string;
 	target_id: string | null;
 	code_hash: string | null;
+	expires_at: string;
+}
+
+/** An SSO authorization code in flight; only its SHA-256 is stored, consumed by deleting the row. */
+export interface OAuthCodeTable {
+	code_hash: string;
+	client_id: string;
+	redirect_uri: string;
+	/** PKCE S256 challenge: base64url(SHA-256(code_verifier)). */
+	code_challenge: string;
+	user_id: string;
 	expires_at: string;
 }
 

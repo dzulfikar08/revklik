@@ -12,9 +12,10 @@ import { lazy, Suspense, useEffect } from "react";
 
 import { AuthShell, authButtonClass } from "@/components/auth-shell";
 import { ThemeProvider } from "@/components/theme-provider";
+import { parseNext } from "@/lib/auth-search";
 import { useT } from "@/lib/i18n";
 import { rememberToken } from "@/lib/legacy/account-tokens";
-import { clearSignupIntent, takeSignupPlan } from "@/lib/signup-intent";
+import { clearSignupIntent, takeSignInNext, takeSignupPlan } from "@/lib/signup-intent";
 
 import "../index.css";
 
@@ -103,9 +104,11 @@ function captureOAuthToken(): void {
 			}
 			// A plan picked on the pricing page before "Continue with Google".
 			const plan = takeSignupPlan();
+			// Where the sign-in was headed (e.g. the Books sign-in request), checked again here.
+			const next = parseNext(takeSignInNext());
 			// The ref went to /auth/google and is attributed server-side now.
 			clearSignupIntent();
-			window.location.replace(plan ? `/analytics/billing?plan=${plan}` : "/analytics");
+			window.location.replace(plan ? `/analytics/billing?plan=${plan}` : (next ?? "/analytics"));
 		})
 		.catch(() => {
 			// Bad/expired token: drop it; the login guard takes it from here.

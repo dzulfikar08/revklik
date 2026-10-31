@@ -61,6 +61,11 @@ export type Bindings = RateLimitBindings & {
 	FX_USD_IDR?: string;
 	// Site id that receives a `signup` conversion for every new account (unset = off)
 	REVKLIK_SELF_SITE_ID?: string;
+	// Single sign-on to RevKlik Books (OAuth client `revklik-books`, lib/oauth-provider.ts).
+	// Shared secret, same value as Books' REVKLIK_OAUTH_CLIENT_SECRET. Unset = the client is disabled.
+	BOOKS_OAUTH_CLIENT_SECRET?: string;
+	// Comma-separated redirect URIs Books may use, matched exactly.
+	BOOKS_OAUTH_REDIRECT_URIS?: string;
 };
 
 export type Env = { Bindings: Bindings; Variables: Variables };

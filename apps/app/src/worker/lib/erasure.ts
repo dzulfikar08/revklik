@@ -163,6 +163,7 @@ const USER_OWNED_TABLES = [
 	"password_resets",
 	"email_verifications",
 	"account_link_intents",
+	"oauth_codes",
 	"subscriptions",
 ] as const;
 

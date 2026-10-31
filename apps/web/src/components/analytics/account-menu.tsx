@@ -15,12 +15,21 @@ import {
 } from "@revklik/ui/components/dropdown-menu";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
-import { CreditCard, Languages, LogOut, ShieldCheck, SunMoon, UserPlus } from "lucide-react";
+import {
+	BookOpen,
+	CreditCard,
+	Languages,
+	LogOut,
+	ShieldCheck,
+	SunMoon,
+	UserPlus,
+} from "lucide-react";
 import { useTheme } from "next-themes";
 import { useState } from "react";
 import { toast } from "sonner";
 
 import { openBilling } from "@/lib/billing-nav";
+import { booksSignInUrl } from "@/lib/books-link";
 import { isSelfHosted } from "@/lib/instance-config";
 import { setLocale, useLocale, useT } from "@/lib/i18n";
 import type { Locale } from "@/lib/i18n";
@@ -81,6 +90,11 @@ export const AccountMenu = ({
 	if (!me) {
 		return null;
 	}
+
+	const booksUrl = booksSignInUrl({
+		override: import.meta.env.VITE_BOOKS_URL,
+		selfHosted: isSelfHosted(),
+	});
 
 	const switchTo = async (target: LinkedUser): Promise<void> => {
 		try {
@@ -178,6 +192,16 @@ export const AccountMenu = ({
 						{t("menu.billing")}
 					</DropdownMenuItem>
 				)}
+				{booksUrl ? (
+					<DropdownMenuItem
+						render={<a href={booksUrl} target="_blank" rel="noopener" />}
+						className="pointer-coarse:min-h-11"
+					>
+						<BookOpen className="size-3.5" aria-hidden />
+						{t("menu.books")}
+						<span className="sr-only">{t("menu.booksNewTab")}</span>
+					</DropdownMenuItem>
+				) : null}
 				{onAdmin && me.role === "super_admin" ? (
 					<DropdownMenuItem onClick={onAdmin} className="pointer-coarse:min-h-11">
 						<ShieldCheck className="size-3.5" aria-hidden />

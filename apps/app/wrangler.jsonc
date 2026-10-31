@@ -73,5 +73,8 @@
 	"vars": {
 		// revklik.com's own site: new accounts are recorded there as a `signup` conversion.
 		"REVKLIK_SELF_SITE_ID": "d9701d64-9e78-4b73-9726-e4f41593b843",
+		// Where RevKlik Books may receive sign-in codes (exact match). The shared secret
+		// BOOKS_OAUTH_CLIENT_SECRET is a Worker secret; without it Books sign-in stays off.
+		"BOOKS_OAUTH_REDIRECT_URIS": "https://books.revklik.com/auth/revklik/callback",
 	},
 }

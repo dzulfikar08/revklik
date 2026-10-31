@@ -7,7 +7,7 @@ import { newSiteSalt, SALTED_FINGERPRINT_PREFIX, saltFingerprint } from "./lib/v
  * Version the live schema must reach. Bump it whenever a step is appended to
  * VERSIONED_STEPS; a DB already at this version costs one SELECT per isolate.
  */
-export const SCHEMA_VERSION = 26;
+export const SCHEMA_VERSION = 27;
 
 const migrated = new WeakSet<D1Database>();
 
@@ -140,6 +140,11 @@ const VERSIONED_STEPS: MigrationStep[] = [
 		// (App Store Connect sync cursor); re-keys self-traffic blocklists with the new salts.
 		run: privacySchema,
 	},
+	{
+		version: 27,
+		// Single-use authorization codes of the first-party SSO client (lib/oauth-provider.ts).
+		run: oauthCodesSchema,
+	},
 ];
 
 /** Nullable metadata-only ALTERs: legacy rows keep NULL and convert at today's rate. */
@@ -180,6 +185,15 @@ async function accountLinkFlowsSchema(d1: D1Database): Promise<void> {
 		d1,
 		"CREATE UNIQUE INDEX IF NOT EXISTS idx_account_link_flows_code ON account_link_flows(code_hash)",
 	);
+}
+
+/** Hashed, single-use, 60 s authorization codes bound to client, redirect URI, PKCE challenge and user. */
+async function oauthCodesSchema(d1: D1Database): Promise<void> {
+	await runDdl(
+		d1,
+		"CREATE TABLE IF NOT EXISTS oauth_codes (code_hash TEXT PRIMARY KEY, client_id TEXT NOT NULL, redirect_uri TEXT NOT NULL, code_challenge TEXT NOT NULL, user_id TEXT NOT NULL, expires_at TEXT NOT NULL)",
+	);
+	await runDdl(d1, "CREATE INDEX IF NOT EXISTS idx_oauth_codes_expires ON oauth_codes(expires_at)");
 }
 
 /** Rows rewritten per backfill statement: far below D1's per-query CPU and row-write limits. */

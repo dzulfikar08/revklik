@@ -48,6 +48,7 @@ import { dokuWebhookRoutes } from "./routes/webhooks-doku";
 import { paywuzWebhookRoutes } from "./routes/webhooks-paywuz";
 import { xenditWebhookRoutes } from "./routes/webhooks-xendit";
 import { widgetRoutes } from "./routes/widgets";
+import { oauthRoutes, oauthSessionRoutes } from "./routes/oauth";
 import { widgetLiveRoutes } from "./routes/widgets-live";
 import {
 	requireActiveSubscription,
@@ -149,7 +150,10 @@ const PUBLIC_RANGES = ["24h", "7d", "30d", "90d"];
 const PUBLIC_DASHBOARD_LIMIT_PER_MINUTE = 60;
 
 export function createApp(): Hono<Env> {
-	const app = new Hono<Env>().basePath("/api");
+	// `app` serves /api/*; `root` shares its router and also carries the public /oauth/* paths
+	// (the OAuth client contract has no /api prefix).
+	const root = new Hono<Env>();
+	const app = root.basePath("/api");
 	app.use(cors());
 
 	// Public instance config the SPA reads at startup (self_hosted hides pricing/upgrade UI).
@@ -168,7 +172,7 @@ export function createApp(): Hono<Env> {
 	const MIGRATION_RETRY_MS = 60_000;
 	let lastMigrationAttempt = 0;
 
-	app.use(async (c, next) => {
+	const bindDb = createMiddleware<Env>(async (c, next) => {
 		const d1 = c.env.DB;
 		if (d1) {
 			// Bind first: the API must serve even when migrations fail.
@@ -185,6 +189,14 @@ export function createApp(): Hono<Env> {
 		}
 		await next();
 	});
+	app.use(bindDb);
+
+	// Sign-in for RevKlik Books: the provider endpoints a browser or Books' server calls.
+	// No CORS: the browser only navigates here, and the token call is server to server.
+	root.use("/oauth/*", bindDb);
+	root.route("/oauth", oauthRoutes);
+	app.use("/oauth/*", authMiddleware);
+	app.route("/oauth", oauthSessionRoutes);
 
 	app.route("/", trackRoutes);
 
@@ -456,12 +468,12 @@ export function createApp(): Hono<Env> {
 	app.use("/admin/*", adminMiddleware);
 	app.route("/admin", adminRoutes);
 
-	app.onError((err, c) => {
+	root.onError((err, c) => {
 		// The message can carry SQL or internals: log it, tell the client only a reference.
 		const requestId = crypto.randomUUID();
 		console.error(`Server error [${requestId}]:`, err);
 		return c.json({ error: "Internal server error", request_id: requestId, success: false }, 500);
 	});
 
-	return app;
+	return root;
 }

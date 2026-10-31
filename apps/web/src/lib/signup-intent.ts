@@ -11,6 +11,7 @@ import type { PlanTier } from "./legacy/billing";
 const REF_KEY = "kp_ref";
 const PLAN_KEY = "kp_signup_plan";
 const VISITOR_KEY = "kp_rk_vid";
+const NEXT_KEY = "kp_signin_next";
 
 /** Tracker ids are `crypto.randomUUID()` values. */
 const TRACKER_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/iu;
@@ -79,6 +80,18 @@ export const takeSignupPlan = (): PlanTier | undefined => {
 	const plan = parsePlan(read(PLAN_KEY));
 	write(PLAN_KEY, null);
 	return plan;
+};
+
+/** Where the user was heading before "Continue with Google"; unvalidated, callers run it through parseNext. */
+export const rememberSignInNext = (next: string | undefined): void => {
+	write(NEXT_KEY, next ?? null);
+};
+
+/** Read and clear the saved destination (raw: the caller validates it). */
+export const takeSignInNext = (): string | null => {
+	const next = read(NEXT_KEY);
+	write(NEXT_KEY, null);
+	return next;
 };
 
 /** Called once the account exists: the referral has been attributed. */

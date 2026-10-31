@@ -8,7 +8,9 @@ const app = createApp();
 export default {
 	async fetch(request: Request, env: Bindings, ctx: ExecutionContext): Promise<Response> {
 		const { pathname } = new URL(request.url);
-		if (pathname.startsWith("/api/")) return app.fetch(request, env, ctx);
+		if (pathname.startsWith("/api/") || pathname.startsWith("/oauth/")) {
+			return app.fetch(request, env, ctx);
+		}
 		const res = await env.ASSETS.fetch(request);
 		// The assets runtime answers unknown paths with the SPA shell (status 200). Keep the
 		// shell, so the dashboard renders its not-found view, but tell crawlers it is a 404.

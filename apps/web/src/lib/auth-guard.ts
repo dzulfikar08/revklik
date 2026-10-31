@@ -15,7 +15,8 @@ export const redirectIfSignedIn = async (search: AuthSearch): Promise<void> => {
 	}
 	const target = afterAuthTarget(search);
 	if ("href" in target) {
-		throw redirect({ href: target.href });
+		// /oauth/authorize is answered by the worker, not a SPA route: load it as a document.
+		throw redirect({ href: target.href, reloadDocument: target.href.startsWith("/oauth/") });
 	}
 	if (target.to === "/analytics/billing") {
 		throw redirect({ search: target.search, to: target.to });

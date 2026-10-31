@@ -348,6 +348,7 @@ const OWN_DATA_ROUTES = [
 	"POST /api/billing/checkout/pakasir",
 	"POST /api/billing/pakasir/verify",
 	"POST /api/billing/test-email",
+	"POST /api/oauth/authorize",
 	"POST /api/push/devices",
 	"POST /api/push/test",
 	"POST /api/sites",
@@ -397,6 +398,8 @@ const PUBLIC_ROUTES = [
 	"POST /api/webhooks/polar",
 	"POST /api/webhooks/stripe",
 	"POST /api/webhooks/xendit",
+	// Books' server redeems a code with its client secret and PKCE verifier; no session involved.
+	"POST /oauth/token",
 ];
 
 /** Unfinished, 404 unless MARKETPLACES_ENABLED. */
@@ -670,6 +673,8 @@ describe("every authenticated route refuses a request with no token", () => {
 				/^GET \/api\/widget-data$/,
 				/^GET \/api\/marketplace\//,
 				/^GET \/api\/billing\/plans$/,
+				// Validates the SSO request, then hands over to a page that signs in with the dashboard token.
+				/^GET \/oauth\/authorize$/,
 				// MCP GET describes the endpoint and DELETE is a fixed 405; tool calls (POST) need a token.
 				/^GET \/api\/mcp$/,
 				/^DELETE \/api\/mcp$/,

@@ -182,7 +182,8 @@ describe("a failing migration step is never marked done", () => {
 		const flaky = flakyD1(db, /ALTER TABLE integrations ADD COLUMN synced_through/);
 
 		await expect(migrateDatabase(flaky)).rejects.toThrow("network connection lost");
-		expect(storedVersion(db)).toBe(SCHEMA_VERSION - 1);
+		// v26 (synced_through) failed, so v25 is the last step that was stamped.
+		expect(storedVersion(db)).toBe(25);
 		expect(hasMigrated(flaky)).toBe(false);
 
 		await migrateDatabase(flaky);

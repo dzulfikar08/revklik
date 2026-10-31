@@ -17,6 +17,10 @@ describe("validateAuthSearch", () => {
 			{ next: "/analytics/billing?checkout=success" },
 			{ next: "/analytics/billing?checkout=success" },
 		],
+		[
+			{ next: "/oauth/authorize?client_id=revklik-books&state=abc" },
+			{ next: "/oauth/authorize?client_id=revklik-books&state=abc" },
+		],
 		[{ next: "//evil.com" }, {}],
 		[{ next: "https://evil.com/analytics" }, {}],
 		[
@@ -35,6 +39,13 @@ describe("validateAuthSearch", () => {
 		["/analytics/abc?view=billing", "/analytics/abc?view=billing"],
 		["/analyticsfoo", undefined],
 		["/login", undefined],
+		["/oauth/authorize?state=x", "/oauth/authorize?state=x"],
+		["/oauth/authorize", undefined],
+		["/oauth/authorize#frag", undefined],
+		["/oauth/authorize/../token?x=1", undefined],
+		["/oauth/token?x=1", undefined],
+		["https://evil.com/oauth/authorize?x=1", undefined],
+		["//evil.com/oauth/authorize?x=1", undefined],
 	])("parseNext(%j) -> %j", (input, expected) => {
 		expect(parseNext(input)).toBe(expected);
 	});
@@ -46,6 +57,12 @@ describe("afterAuthTarget", () => {
 			search: { plan: "starter" },
 			to: "/analytics/billing",
 		});
+	});
+
+	it("returns to a Books sign-in request as a document path", () => {
+		const next = "/oauth/authorize?client_id=revklik-books&state=abc";
+		expect(afterAuthTarget({ next })).toEqual({ href: next });
+		expect(afterAuthPath({ next })).toBe(next);
 	});
 
 	it("returns to next, else the sites list", () => {

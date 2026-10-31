@@ -29,6 +29,7 @@ import { planLabel } from "@/lib/legacy/billing";
 import {
 	clearSignupIntent,
 	rememberRef,
+	rememberSignInNext,
 	rememberSignupPlan,
 	rememberVisitorId,
 	signupRef,
@@ -213,6 +214,7 @@ export const AuthForm = ({ mode, search }: { mode: AuthMode; search: AuthSearch 
 	const continueWithGoogle = () => {
 		// The Google callback lands on /#token=…; the plan rides along in storage.
 		rememberSignupPlan(plan);
+		rememberSignInNext(search.next);
 		// The worker carries ?ref through the OAuth state to the new account.
 		window.location.href = googleAuthUrl(
 			LEGACY_API_BASE,
