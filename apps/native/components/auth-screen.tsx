@@ -6,6 +6,7 @@ import { z } from "zod";
 
 import { Button, Input } from "@/components/ui";
 import { authCompleteGoogle, authContinueAs, authRegister, authSignIn, useAuth } from "@/lib/auth";
+import { marketingUrl, t } from "@/lib/i18n";
 import { fetchRememberedAccounts } from "@/lib/klikapa/accounts";
 import { GOOGLE_AUTH_URL, GOOGLE_CALLBACK_URL, LegacyApiError } from "@/lib/klikapa/api";
 import type { LegacyUser } from "@/lib/klikapa/api";
@@ -197,6 +198,25 @@ export const AuthScreen = () => {
 							label={mode === "sign-in" ? "Sign In" : "Create Account"}
 							onPress={() => submit()}
 						/>
+						{mode === "sign-up" ? (
+							<Text style={styles.consent}>
+								{t("auth.consentBefore")}{" "}
+								<Text
+									onPress={() => WebBrowser.openBrowserAsync(marketingUrl("terms"))}
+									style={styles.switchLink}
+								>
+									{t("auth.consentTerms")}
+								</Text>{" "}
+								{t("auth.consentAnd")}{" "}
+								<Text
+									onPress={() => WebBrowser.openBrowserAsync(marketingUrl("privacy"))}
+									style={styles.switchLink}
+								>
+									{t("auth.consentPrivacy")}
+								</Text>
+								.
+							</Text>
+						) : null}
 					</View>
 
 					<View style={styles.divider}>
@@ -316,6 +336,12 @@ const styles = StyleSheet.create((theme) => ({
 	switchLink: {
 		color: theme.colors.foreground,
 		fontWeight: "600",
+	},
+	consent: {
+		color: theme.colors.mutedForeground,
+		fontSize: theme.fontSize.xs,
+		lineHeight: 18,
+		textAlign: "center",
 	},
 	switchText: {
 		color: theme.colors.mutedForeground,

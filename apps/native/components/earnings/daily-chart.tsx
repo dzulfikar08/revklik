@@ -3,14 +3,15 @@ import { Text, View } from "react-native";
 import { StyleSheet, useUnistyles } from "react-native-unistyles";
 
 import { niceMax } from "@/lib/analytics-data";
+import { numberLocale } from "@/lib/i18n";
 import type { Earnings } from "@/lib/klikapa/earnings";
 import { formatMoney } from "@/lib/klikapa/earnings";
 
 const MAX_TICKS = 6;
 
-/** "Oct 28" from a YYYY-MM-DD UTC day. */
+/** "Oct 28" from a YYYY-MM-DD day key (already local; formatted in UTC so it does not shift). */
 const dayTick = (date: string): string =>
-	new Date(`${date}T00:00:00Z`).toLocaleDateString("en-US", {
+	new Date(`${date}T00:00:00Z`).toLocaleDateString(numberLocale, {
 		day: "numeric",
 		month: "short",
 		timeZone: "UTC",

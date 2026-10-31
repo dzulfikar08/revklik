@@ -107,6 +107,16 @@ export const authSignOut = async ({ keepOthers = false } = {}): Promise<void> =>
 	setState({ status: "signed-out", user: null });
 };
 
+/**
+ * After DELETE /auth/account succeeded: the account and its session are gone
+ * server-side (the push device row went with it), so only local state is left.
+ */
+export const authAccountDeleted = (): void => {
+	resetActiveSite();
+	legacyLogout();
+	setState({ status: "signed-out", user: null });
+};
+
 /** Called when an API call answers 401 — the persisted token is dead. */
 export const authSessionExpired = (): void => {
 	legacyLogout();

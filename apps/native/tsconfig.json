@@ -11,5 +11,7 @@
 			"@/*": ["./*"]
 		}
 	},
-	"include": ["**/*.ts", "**/*.tsx", ".expo/types/**/*.ts", "expo-env.d.ts"]
+	"include": ["**/*.ts", "**/*.tsx", ".expo/types/**/*.ts", "expo-env.d.ts"],
+	// bun:test files run under `bun test lib`; the app tsconfig has no Bun types.
+	"exclude": ["node_modules", "**/*.test.ts"]
 }

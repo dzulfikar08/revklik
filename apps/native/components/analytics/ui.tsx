@@ -66,24 +66,38 @@ export const StatTile = ({
 	value,
 	delta,
 	tone,
+	sub,
+	flag,
+	primary = false,
 }: {
 	label: string;
 	value: string;
-	delta: string;
-	tone: "good" | "bad";
+	/** Omit when there is no earlier window to compare with. */
+	delta?: string | null;
+	tone?: "good" | "bad";
+	sub?: string;
+	/** Small badge next to the label, e.g. "est.". */
+	flag?: string;
+	primary?: boolean;
 }) => {
 	const { theme } = useUnistyles();
-	const color = tone === "good" ? theme.colors.up : theme.colors.down;
+	const color = tone === "bad" ? theme.colors.down : theme.colors.up;
 	return (
-		<View style={styles.tile}>
-			<Text style={styles.tileLabel}>{label}</Text>
+		<View style={[styles.tile, primary && { borderColor: theme.colors.money }]}>
+			<Text style={styles.tileLabel}>
+				{label}
+				{flag ? ` · ${flag}` : ""}
+			</Text>
 			<View style={styles.tileRow}>
-				<Text style={styles.tileValue}>{value}</Text>
-				<View style={[styles.delta, { backgroundColor: `${color}1A` }]}>
-					<Ionicons color={color} name={tone === "good" ? "arrow-up" : "arrow-down"} size={10} />
-					<Text style={[styles.deltaText, { color }]}>{delta}</Text>
-				</View>
+				<Text style={[styles.tileValue, primary && { color: theme.colors.money }]}>{value}</Text>
+				{delta ? (
+					<View style={[styles.delta, { backgroundColor: `${color}1A` }]}>
+						<Ionicons color={color} name={tone === "bad" ? "arrow-down" : "arrow-up"} size={10} />
+						<Text style={[styles.deltaText, { color }]}>{delta}</Text>
+					</View>
+				) : null}
 			</View>
+			{sub ? <Text style={styles.tileSub}>{sub}</Text> : null}
 		</View>
 	);
 };
@@ -324,6 +338,11 @@ const styles = StyleSheet.create((theme) => ({
 		flexDirection: "row",
 		flexWrap: "wrap",
 		gap: 6,
+		marginTop: 2,
+	},
+	tileSub: {
+		color: theme.colors.mutedForeground,
+		fontSize: 11,
 		marginTop: 2,
 	},
 	tileValue: {

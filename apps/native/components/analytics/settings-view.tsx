@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { Alert, ScrollView, Switch, Text, TouchableOpacity, View } from "react-native";
 import { StyleSheet, useUnistyles } from "react-native-unistyles";
 
+import { BooksLink, DeleteAccountSection } from "@/components/analytics/account-actions";
 import { AccountsSection } from "@/components/analytics/accounts-section";
 import { Panel, PanelBody } from "@/components/analytics/ui";
 import { NotificationsSection, PlanSection } from "@/components/push-settings";
@@ -315,9 +316,7 @@ export const SettingsView = () => {
 			style={{ backgroundColor: theme.colors.background }}
 		>
 			<Text style={styles.pageTitle}>Settings</Text>
-			<Text style={styles.pageSub}>
-				Connected to your revklik account — live data from klikapa-db
-			</Text>
+			<Text style={styles.pageSub}>Connected to your RevKlik account</Text>
 
 			<Panel title="Account">
 				<Row label="Name" value={user?.name ?? "—"} />
@@ -326,6 +325,7 @@ export const SettingsView = () => {
 			</Panel>
 
 			<AccountsSection />
+			<BooksLink />
 
 			<NotificationsSection />
 			<PlanSection />
@@ -353,6 +353,8 @@ export const SettingsView = () => {
 					variant="outline"
 				/>
 			</Panel>
+
+			<DeleteAccountSection />
 		</ScrollView>
 	);
 };

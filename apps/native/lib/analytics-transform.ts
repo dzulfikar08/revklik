@@ -48,7 +48,8 @@ const parseProps = (raw: string | null): [string, string][] => {
 	}
 };
 
-export const stepToEvent = (s: JourneyStep): VisitorEvent | null => {
+/** `currency` is the dashboard response's ISO code; USD when absent. */
+export const stepToEvent = (s: JourneyStep, currency?: string): VisitorEvent | null => {
 	if (s.event_type === "pageview") {
 		return { kind: "view", page: s.path, time: s.timestamp };
 	}
@@ -58,7 +59,7 @@ export const stepToEvent = (s: JourneyStep): VisitorEvent | null => {
 			event: s.name ?? "conversion",
 			kind: "conversion",
 			props: p.length ? p : undefined,
-			revenue: s.revenue ? money(s.revenue) : undefined,
+			revenue: s.revenue ? money(s.revenue, currency) : undefined,
 			time: s.timestamp,
 		};
 	}
@@ -103,12 +104,16 @@ export const stepToEvent = (s: JourneyStep): VisitorEvent | null => {
 	};
 };
 
-export const profileToVisitor = (p: VisitorProfile, journeys: VisitorJourney[]): Visitor => {
+export const profileToVisitor = (
+	p: VisitorProfile,
+	journeys: VisitorJourney[],
+	currency?: string,
+): Visitor => {
 	const mine = journeys
 		.filter((j) => j.visitor_id === p.visitor_id)
 		.sort((a, b) => a.started_at.localeCompare(b.started_at));
 	const events = mine
-		.flatMap((j) => j.steps.map(stepToEvent))
+		.flatMap((j) => j.steps.map((step) => stepToEvent(step, currency)))
 		.filter((e): e is VisitorEvent => e !== null)
 		.sort((a, b) => a.time.localeCompare(b.time));
 	const source = mine[0]?.utm_source ?? hostOf(mine[0]?.referrer) ?? "direct";
@@ -141,7 +146,7 @@ export const profileToVisitor = (p: VisitorProfile, journeys: VisitorJourney[]):
 		os: p.os,
 		params: [],
 		source,
-		spent: p.total_revenue > 0 ? money(p.total_revenue) : null,
+		spent: p.total_revenue > 0 ? money(p.total_revenue, currency) : null,
 		tags: parseTags(p.tags),
 		visitorId: p.visitor_id,
 	};

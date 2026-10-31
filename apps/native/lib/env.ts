@@ -29,3 +29,28 @@ export const WEB_URL: string = new URL(API_URL).origin;
 export const DEV_TOKEN: string | undefined = __DEV__
 	? process.env.EXPO_PUBLIC_REVKLIK_DEV_TOKEN?.trim() || undefined
 	: undefined;
+
+/** The hosted product's API origin; only it has a RevKlik Books client registered. */
+const HOSTED_ORIGIN = "https://app.revklik.com";
+const HOSTED_BOOKS_URL = "https://books.revklik.com";
+
+/** Path on Books that starts "Masuk dengan RevKlik" (OAuth against this app's /oauth/authorize). */
+const BOOKS_SIGN_IN_PATH = "/auth/revklik/start";
+
+const booksBase = (): string => {
+	const configured = process.env.EXPO_PUBLIC_REVKLIK_BOOKS_URL?.trim();
+	if (configured) {
+		return configured;
+	}
+	return WEB_URL === HOSTED_ORIGIN ? HOSTED_BOOKS_URL : "";
+};
+
+/**
+ * Link target of the account section's "RevKlik Books" row, same destination as
+ * the web account menu. Null on a self-hosted install (no Books client registered)
+ * unless EXPO_PUBLIC_REVKLIK_BOOKS_URL points at one.
+ */
+export const BOOKS_URL: string | null = ((): string | null => {
+	const base = booksBase();
+	return base ? `${base.replace(/\/+$/u, "")}${BOOKS_SIGN_IN_PATH}` : null;
+})();

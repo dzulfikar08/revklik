@@ -4,6 +4,7 @@
  * the production API (see lib/klikapa/api.ts).
  */
 import { nameFromVisitorId } from "./identity";
+import { numberLocale } from "./i18n";
 
 /* --------------------------------- types ----------------------------------- */
 
@@ -63,14 +64,40 @@ export interface Visitor {
 
 /* -------------------------------- formats ---------------------------------- */
 
-export const nf = new Intl.NumberFormat("en-US");
+export const nf = new Intl.NumberFormat(numberLocale);
 export const fmt = (v: number): string => nf.format(Math.round(v));
-const nfc = new Intl.NumberFormat("en-US", {
+const nfc = new Intl.NumberFormat(numberLocale, {
 	maximumFractionDigits: 1,
 	notation: "compact",
 });
 export const fmtC = (v: number): string => nfc.format(Math.round(v));
-export const money = (v: number): string => `$${nf.format(Math.round(v))}`;
+
+const moneyFormats = new Map<string, Intl.NumberFormat | null>();
+const moneyFormat = (code: string): Intl.NumberFormat | null => {
+	if (!moneyFormats.has(code)) {
+		try {
+			moneyFormats.set(
+				code,
+				new Intl.NumberFormat(code === "IDR" ? "id-ID" : numberLocale, {
+					currency: code,
+					maximumFractionDigits: 0,
+					minimumFractionDigits: 0,
+					style: "currency",
+				}),
+			);
+		} catch {
+			moneyFormats.set(code, null);
+		}
+	}
+	return moneyFormats.get(code) ?? null;
+};
+
+/** Revenue in `currency` (ISO 4217, USD when absent), whole units, like the web dashboard. */
+export const money = (v: number, currency?: string | null): string => {
+	const code = currency?.toUpperCase() || "USD";
+	const formatter = moneyFormat(code) ?? moneyFormat("USD");
+	return formatter ? formatter.format(Math.round(v)) : `$${Math.round(v)}`;
+};
 export const fmtPct = (v: number): string => `${v >= 0 ? "+" : ""}${v.toFixed(1)}%`;
 export const duration = (s: number): string =>
 	`${Math.floor(s / 60)}m ${String(Math.round(s % 60)).padStart(2, "0")}s`;

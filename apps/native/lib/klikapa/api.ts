@@ -9,6 +9,8 @@ import { fetch as expoFetch } from "expo/fetch";
 import { AppState } from "react-native";
 
 import { API_URL, DEV_TOKEN } from "../env";
+import { lang, t } from "../i18n";
+import type { MessageKey } from "../i18n";
 import { clearTokenMap, forgetToken, listRememberedTokens, rememberToken } from "./account-tokens";
 
 export { API_URL };
@@ -82,8 +84,16 @@ export interface LegacyStats {
 	sessions: number;
 	bounceRate: number;
 	avgDuration: number;
+	/** Gross revenue in the site currency; refunds subtract. */
 	revenue: number;
+	/** Sales plus zero-revenue goal events. */
 	conversions: number;
+	/** Paid orders (revenue > 0). Absent on a Worker that predates the metric definitions. */
+	sales?: number;
+	/** Revenue after payment fees, same currency and window as `revenue`. */
+	netRevenue?: number;
+	/** True when some of `netRevenue` comes from fee rules instead of a stored net. */
+	netEstimated?: boolean;
 }
 
 export interface StatsChange {
@@ -99,7 +109,9 @@ export type CompareKey =
 	| "bounceRate"
 	| "avgDuration"
 	| "revenue"
-	| "conversions";
+	| "conversions"
+	| "sales"
+	| "netRevenue";
 
 export interface TimeSeriesPoint {
 	date: string;
@@ -268,6 +280,8 @@ export interface SiteWithStats {
 	sparkline: number[];
 	revenue: number;
 	revenue_sparkline: number[];
+	/** ISO currency of `revenue`. */
+	currency?: string;
 }
 
 export interface SiteDashboard {
@@ -288,6 +302,8 @@ export interface SiteDashboard {
 	exitPages: ExitPage[];
 	revenueByMethod: RevenueByPaymentMethod[];
 	revenueByProvider: RevenueByPaymentProvider[];
+	/** ISO currency of every revenue figure; USD when absent. */
+	currency?: string;
 }
 
 export type FilterOperator =
@@ -339,12 +355,60 @@ export const legacyLogout = (): void => {
 
 export class LegacyApiError extends Error {
 	status: number;
-	constructor(message: string, status: number) {
+	/** Machine code from the envelope's `error` (snake_case), when the Worker sent one. */
+	code: string | undefined;
+	constructor(message: string, status: number, code?: string) {
 		super(message);
 		this.name = "LegacyApiError";
 		this.status = status;
+		this.code = code;
 	}
 }
+
+/** snake_case error codes are for code paths, not for display. */
+const ERROR_CODE = /^[a-z]+(?:_[a-z]+)+$/u;
+
+const CODE_MESSAGES: Record<string, MessageKey> = {
+	billing_cancel_failed: "err.billingCancel",
+	confirm_email_mismatch: "err.emailMismatch",
+	current_password_invalid: "err.passwordInvalid",
+	recent_login_required: "err.recentLogin",
+	subscription_inactive: "err.subscription",
+	too_many_attempts: "err.rateLimited",
+};
+
+/**
+ * One user-facing sentence for a failed call: the Worker's prose when it sent
+ * some, a translated line for the codes and statuses it uses (403 role denial,
+ * 402 lapsed subscription, 429 rate limit, 5xx generic), else the status.
+ */
+const failure = (
+	status: number,
+	body: { error?: string } | null,
+	fallback?: string,
+): LegacyApiError => {
+	const raw = body?.error;
+	const code = raw && ERROR_CODE.test(raw) ? raw : undefined;
+	const prose = raw && !code ? raw : undefined;
+	let message: string;
+	const mapped = code ? CODE_MESSAGES[code] : undefined;
+	if (mapped) {
+		message = t(mapped);
+	} else if (status === 402) {
+		message = t("err.subscription");
+	} else if (status === 429) {
+		message = t("err.rateLimited");
+	} else if (status >= 500) {
+		message = t("err.server");
+	} else if (prose) {
+		message = prose;
+	} else if (status === 403) {
+		message = t("err.forbidden");
+	} else {
+		message = fallback ?? t("err.generic", { status });
+	}
+	return new LegacyApiError(message, status, code);
+};
 
 /**
  * Make `token` the active session for `user`, persist it and remember it in
@@ -375,7 +439,7 @@ const authRequest = async (path: string, body: Record<string, string>): Promise<
 		error?: string;
 	} | null;
 	if (!res.ok || !json?.success || !json.data) {
-		throw new LegacyApiError(json?.error || "Couldn't sign you in — please try again", res.status);
+		throw failure(res.status, json, "Couldn't sign you in — please try again");
 	}
 	await setLegacySession(json.data.token, json.data.user);
 	return json.data.user;
@@ -388,7 +452,7 @@ export const legacyRegister = (
 	name: string,
 	email: string,
 	password: string,
-): Promise<LegacyUser> => authRequest("/auth/register", { email, name, password });
+): Promise<LegacyUser> => authRequest("/auth/register", { email, lang, name, password });
 
 /** Deep link the Worker redirects to after Google OAuth (scheme registered in app.json). */
 export const GOOGLE_CALLBACK_URL = "revklik://auth/callback";
@@ -481,16 +545,13 @@ const authedRequest = async (path: string, opts?: RequestInit): Promise<Response
 /** Envelope endpoints: `{ success, data, error }`. */
 export const legacyFetch = async <T>(path: string, opts?: RequestInit): Promise<T> => {
 	const res = await authedRequest(path, opts);
-	if (!res.ok) {
-		throw new LegacyApiError(`Request failed (${res.status})`, res.status);
-	}
-	const json = (await res.json()) as {
+	const json = (await res.json().catch(() => null)) as {
 		success: boolean;
 		data?: T;
 		error?: string;
-	};
-	if (!json.success) {
-		throw new LegacyApiError(json.error || "Request failed", res.status);
+	} | null;
+	if (!res.ok || !json?.success) {
+		throw failure(res.status, json);
 	}
 	return json.data as T;
 };
@@ -500,7 +561,7 @@ export const bareFetch = async <T>(path: string, opts?: RequestInit): Promise<T>
 	const res = await authedRequest(path, opts);
 	const json = (await res.json().catch(() => null)) as (T & { error?: string }) | null;
 	if (!res.ok || json === null) {
-		throw new LegacyApiError(json?.error || `Request failed (${res.status})`, res.status);
+		throw failure(res.status, json);
 	}
 	return json;
 };
@@ -518,8 +579,12 @@ export const setActiveSiteId = (siteId: string): Promise<void> =>
 
 /* -------------------------------- endpoints ------------------------------- */
 
+/** East-positive UTC offset in minutes (WIB = 420): days are cut where the user's day starts. */
+const tzOffsetMinutes = (): number => -new Date().getTimezoneOffset();
+
 const rangeQuery = (p: URLSearchParams, range: string): URLSearchParams => {
 	p.set("range", range);
+	p.set("tz", String(tzOffsetMinutes()));
 	return p;
 };
 
@@ -553,11 +618,8 @@ export const fetchFunnel = (
 	return legacyFetch(`/analytics/funnel?${p}`);
 };
 
-/**
- * Campaign performance. The deployed worker predates this endpoint and
- * returns 404 — treat as "no campaigns" instead of an error.
- */
-export const fetchCampaigns = async (
+/** Campaign performance (GET /analytics/campaigns); revenue is in the site currency. */
+export const fetchCampaigns = (
 	siteId: string,
 	range: string,
 	filters: string,
@@ -566,14 +628,7 @@ export const fetchCampaigns = async (
 	if (filters) {
 		p.set("filters", filters);
 	}
-	try {
-		return await legacyFetch<CampaignPerformance[]>(`/analytics/campaigns?${p}`);
-	} catch (error) {
-		if (error instanceof LegacyApiError && error.status === 404) {
-			return [];
-		}
-		throw error;
-	}
+	return legacyFetch(`/analytics/campaigns?${p}`);
 };
 
 export const fetchGeo = (siteId: string, range: string, filters: string): Promise<GeoRow[]> => {

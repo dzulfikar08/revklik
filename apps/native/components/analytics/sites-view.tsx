@@ -147,8 +147,8 @@ const ExclusionsSection = ({
 	return (
 		<View style={[styles.exclusions, { borderColor: theme.colors.border }]}>
 			<Text style={styles.exclusionsHint}>
-				Exclude this device from tracking (fingerprint = IP + user-agent + language). Run once on
-				every device you develop from.
+				Exclude this device from tracking. It is matched by a one-way hash of IP, user-agent and
+				language, keyed per site. Run once on every device you develop from.
 			</Text>
 			<View style={styles.exclusionsActions}>
 				<Button
@@ -266,7 +266,7 @@ const SiteRow = ({
 					{site.name}
 					{site.visitors || site.pageviews
 						? ` · ${fmt(site.visitors)} visitors · ${fmt(site.pageviews)} views${
-								site.revenue ? ` · ${money(site.revenue)}` : ""
+								site.revenue ? ` · ${money(site.revenue, site.currency)}` : ""
 							}`
 						: ""}
 				</Text>

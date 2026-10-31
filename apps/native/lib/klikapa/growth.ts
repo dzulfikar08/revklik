@@ -1,7 +1,7 @@
 /**
  * Visitor deep-linking endpoint from apps/web/src/lib/legacy/growth.ts.
- * The remaining Growth-tier routes (heatmap, recordings, AI insights,
- * predictions) have no native surface yet and are intentionally not ported.
+ * The remaining Growth-tier routes (heatmap, recordings, AI insights, run-rate
+ * forecast) have no native surface and are intentionally not ported.
  */
 import type { VisitorJourney, VisitorProfile } from "./api";
 import { legacyFetch } from "./api";

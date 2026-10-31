@@ -8,16 +8,16 @@ import { CountBarRow, Panel, PanelBody } from "@/components/analytics/ui";
 import { DailyChart } from "@/components/earnings/daily-chart";
 import { Button } from "@/components/ui";
 import { agoLabel, fmt } from "@/lib/analytics-data";
+import { t } from "@/lib/i18n";
 import {
 	EARNINGS_CURRENCIES,
 	EARNINGS_PRESETS,
 	fetchEarnings,
-	fillDaily,
 	formatMoney,
-	presetRange,
 	railLabel,
 } from "@/lib/klikapa/earnings";
-import type { EarningsPreset } from "@/lib/klikapa/earnings";
+import { fillDaily, presetRange } from "@/lib/earnings-range";
+import type { EarningsPreset } from "@/lib/earnings-range";
 
 const TOP_ROWS = 8;
 
@@ -106,9 +106,9 @@ export const EarningsView = () => {
 			}
 			style={{ backgroundColor: theme.colors.background }}
 		>
-			<Text style={styles.pageTitle}>Earnings</Text>
+			<Text style={styles.pageTitle}>{t("earn.title")}</Text>
 			<Text style={styles.pageSub}>
-				{data ? `${data.from} → ${data.to} (UTC days) · all products` : "All products, net of fees"}
+				{data ? t("earn.subtitleRange", { from: data.from, to: data.to }) : t("earn.subtitleAll")}
 			</Text>
 
 			<ChipsRow items={EARNINGS_PRESETS} onChange={setPreset} value={preset} />
@@ -119,29 +119,24 @@ export const EarningsView = () => {
 			/>
 
 			{q.isError ? (
-				<Panel title="Couldn't load earnings">
+				<Panel title={t("earn.loadFailed")}>
 					<Text style={styles.errorText}>
 						{q.error instanceof Error ? q.error.message : "Request failed"}
 					</Text>
-					<Button label="Try again" onPress={() => q.refetch()} variant="outline" />
+					<Button label={t("common.tryAgain")} onPress={() => q.refetch()} variant="outline" />
 				</Panel>
 			) : null}
 
 			{data ? (
 				<>
 					<View style={styles.tileRow}>
-						<Tile
-							hero
-							label="Net"
-							sub={`after fees · ${cur}`}
-							value={formatMoney(data.totals.net, cur)}
-						/>
-						<Tile label="Gross" value={formatMoney(data.totals.gross, cur)} />
+						<Tile hero label={t("earn.net")} sub={cur} value={formatMoney(data.totals.net, cur)} />
+						<Tile label={t("earn.gross")} value={formatMoney(data.totals.gross, cur)} />
 					</View>
 					<View style={styles.tileRow}>
-						<Tile label="Sales" value={fmt(data.totals.sales)} />
+						<Tile label={t("earn.sales")} value={fmt(data.totals.sales)} />
 						<Tile
-							label="Refunds"
+							label={t("earn.refunds")}
 							sub={
 								data.totals.refunds > 0
 									? `−${formatMoney(data.totals.refund_amount, cur)}`
@@ -152,21 +147,18 @@ export const EarningsView = () => {
 					</View>
 
 					{empty ? (
-						<Panel title="No sales in this range">
-							<Text style={styles.empty}>
-								Sales and refunds from every product show up here as soon as they are forwarded to
-								RevKlik.
-							</Text>
+						<Panel title={t("earn.noSales")}>
+							<Text style={styles.empty}>{t("earn.noSalesBody")}</Text>
 						</Panel>
 					) : (
 						<>
-							<Panel title="Daily">
+							<Panel title={t("earn.daily")}>
 								<DailyChart currency={cur} days={days} />
 							</Panel>
 
-							<Panel title="By product">
+							<Panel title={t("earn.byProduct")}>
 								<PanelBody
-									emptyText="No product revenue."
+									emptyText={t("earn.noProduct")}
 									hasData={data.by_product.length > 0}
 									loading={false}
 								>
@@ -181,9 +173,9 @@ export const EarningsView = () => {
 								</PanelBody>
 							</Panel>
 
-							<Panel title="By payment rail">
+							<Panel title={t("earn.byRail")}>
 								<PanelBody
-									emptyText="No rail data."
+									emptyText={t("earn.noRail")}
 									hasData={data.by_rail.length > 0}
 									loading={false}
 								>
@@ -199,7 +191,7 @@ export const EarningsView = () => {
 								</PanelBody>
 							</Panel>
 
-							<Panel title="Recent sales">
+							<Panel title={t("earn.recent")}>
 								{data.recent.map((r) => {
 									const refund = r.revenue < 0;
 									return (
@@ -209,8 +201,8 @@ export const EarningsView = () => {
 													{r.product ?? r.site_name}
 												</Text>
 												<Text numberOfLines={1} style={styles.recentSub}>
-													{refund ? "Refund" : (r.name ?? "Sale")} · {railLabel(r.rail)} ·{" "}
-													{agoLabel(r.occurred_at)}
+													{refund ? t("earn.refund") : (r.name ?? t("earn.sale"))} ·{" "}
+													{railLabel(r.rail)} · {agoLabel(r.occurred_at)}
 												</Text>
 											</View>
 											<View style={styles.recentAmounts}>
@@ -223,7 +215,7 @@ export const EarningsView = () => {
 													{formatMoney(r.converted_gross, cur)}
 												</Text>
 												<Text style={styles.recentNet}>
-													net {formatMoney(r.converted_net, cur)}
+													{t("earn.netShort", { amount: formatMoney(r.converted_net, cur) })}
 												</Text>
 											</View>
 										</View>

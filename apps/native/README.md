@@ -25,10 +25,11 @@ bun run check-types              # tsc --noEmit
 
 Environment (build-time, inlined by Expo; see `lib/env.ts`):
 
-| Variable                        | Default                       | Meaning                                                                                                           |
-| ------------------------------- | ----------------------------- | ----------------------------------------------------------------------------------------------------------------- |
-| `EXPO_PUBLIC_REVKLIK_API_URL`   | `https://app.revklik.com/api` | Worker API base. Point it at your own deployment when self-hosting.                                               |
-| `EXPO_PUBLIC_REVKLIK_DEV_TOKEN` | unset                         | Dev builds only (`__DEV__`): use an existing session token instead of signing in. Compiled out of release builds. |
+| Variable                        | Default                                     | Meaning                                                                                                           |
+| ------------------------------- | ------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| `EXPO_PUBLIC_REVKLIK_API_URL`   | `https://app.revklik.com/api`               | Worker API base. Point it at your own deployment when self-hosting.                                               |
+| `EXPO_PUBLIC_REVKLIK_DEV_TOKEN` | unset                                       | Dev builds only (`__DEV__`): use an existing session token instead of signing in. Compiled out of release builds. |
+| `EXPO_PUBLIC_REVKLIK_BOOKS_URL` | unset (hosted: `https://books.revklik.com`) | RevKlik Books origin for the Settings "RevKlik Books" row. Hidden on a self-hosted API unless this is set.        |
 
 Sign-in: email and password, or Google (`WebBrowser.openAuthSessionAsync` on
 `/auth/google?redirect_to=revklik://auth/callback`, the Worker answers with `revklik://auth/callback#token=...`).
@@ -89,6 +90,14 @@ The iOS profile is created through the App Store Connect API (`scripts/ios/asc-c
 JoyoRogo), which also registers the bundle id and enables Push Notifications. The release IPA is built with the
 production APNs entitlement (`APS_ENVIRONMENT=production`) and the build checks it. Build numbers are minutes since
 2024-01-01 UTC (Android `versionCode`, iOS `CFBundleVersion`), so they only ever increase.
+
+## Updates
+
+The app does not use `expo-updates` (no `runtimeVersion`, no update channel), so a JavaScript change reaches users
+only through a new store build. Bump `version` in `app.json` and run the `release-mobile` workflow; build numbers
+come from the clock. Money figures, labels and day boundaries mirror the web dashboard: net after fees, gross,
+sales (paid orders), visitor to sale, in the site currency, and days cut at the device's local midnight (`tz`).
+Strings for those screens live in `lib/i18n.ts` (Bahasa Indonesia when the device language is `id`, else English).
 
 ## License
 

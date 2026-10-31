@@ -17,6 +17,7 @@ import {
 	StatTile,
 } from "@/components/analytics/ui";
 import { selectActiveSite, useActiveSite } from "@/lib/active-site";
+import { t } from "@/lib/i18n";
 import { RANGES, duration, fmt, fmtC, fmtPct, money, pointLabel } from "@/lib/analytics-data";
 import type { CountRow, RangeKey } from "@/lib/analytics-data";
 import { aggregateGeo, hostOf } from "@/lib/analytics-transform";
@@ -108,10 +109,12 @@ const BarList = ({
 	rows,
 	dir,
 	asMoney = false,
+	currency,
 }: {
 	rows: CountRow[];
 	dir: "asc" | "desc";
 	asMoney?: boolean;
+	currency?: string;
 }) => {
 	const total = rowsTotal(rows);
 	return (
@@ -123,7 +126,7 @@ const BarList = ({
 					glyph={r.flag ? <Text style={styles.barGlyph}>{r.flag}</Text> : undefined}
 					label={r.label}
 					share={(r.value / total) * 100}
-					value={asMoney ? money(r.value) : fmtC(r.value)}
+					value={asMoney ? money(r.value, currency) : fmtC(r.value)}
 				/>
 			))}
 		</View>
@@ -343,8 +346,6 @@ const RevenuePanel = ({
 	const [paymentView, setPaymentView] = useState<"method" | "provider">("method");
 	const campaignsQ = useQuery({
 		enabled: Boolean(siteId) && tab === "campaign",
-		// The worker predates this endpoint (404) — fetchCampaigns already
-		// degrades that to "no campaigns".
 		queryFn: () => fetchCampaigns(siteId, rangeKey, ""),
 		queryKey: ["legacy", "campaigns", siteId, rangeKey, ""],
 	});
@@ -412,11 +413,14 @@ const RevenuePanel = ({
 									{c.utm_campaign || "(none)"}
 								</Text>
 								<Text numberOfLines={1} style={styles.campaignMeta}>
-									{c.utm_source || "—"} · {c.utm_medium || "—"} · {c.conversionRate}% convert
+									{c.utm_source || "—"} · {c.utm_medium || "—"} ·{" "}
+									{t("dash.campaignConvert", { rate: c.conversionRate })}
 								</Text>
 							</View>
 							<Text style={styles.campaignVisitors}>{fmt(c.visitors)}</Text>
-							<Text style={[styles.campaignRevenue, { color: "#E1B850" }]}>{money(c.revenue)}</Text>
+							<Text style={[styles.campaignRevenue, { color: "#E1B850" }]}>
+								{money(c.revenue, dash?.currency)}
+							</Text>
 						</View>
 					))}
 				</PanelBody>
@@ -436,12 +440,12 @@ const RevenuePanel = ({
 						emptyText={
 							tab === "payment"
 								? "No payment data yet. This fills in when payments arrive from a connected payment provider or webhook."
-								: "No revenue in this range."
+								: t("dash.noRevenue")
 						}
 						hasData={rows.length > 0}
 						loading={loading}
 					>
-						<BarList asMoney dir={dir} rows={rows} />
+						<BarList asMoney currency={dash?.currency} dir={dir} rows={rows} />
 					</PanelBody>
 				</>
 			)}
@@ -486,46 +490,94 @@ const LivePanel = ({
 
 /* ------------------------------- stat tiles -------------------------------- */
 
-const StatTiles = ({
-	stats,
-	deltaPct,
-}: {
-	stats: SiteDashboard["stats"] | undefined;
-	deltaPct: (k: keyof NonNullable<SiteDashboard["compare"]>) => number;
-}) => (
-	<View style={styles.tilesGrid}>
-		<StatTile
-			delta={fmtPct(deltaPct("visitors"))}
-			label="Visitors"
-			tone={deltaPct("visitors") >= 0 ? "good" : "bad"}
-			value={stats ? fmt(stats.visitors) : "…"}
-		/>
-		<StatTile
-			delta={fmtPct(deltaPct("pageviews"))}
-			label="Pageviews"
-			tone={deltaPct("pageviews") >= 0 ? "good" : "bad"}
-			value={stats ? fmt(stats.pageviews) : "…"}
-		/>
-		<StatTile
-			delta={fmtPct(deltaPct("bounceRate"))}
-			label="Bounce rate"
-			tone={deltaPct("bounceRate") <= 0 ? "good" : "bad"}
-			value={stats ? `${stats.bounceRate.toFixed(1)}%` : "…"}
-		/>
-		<StatTile
-			delta={fmtPct(deltaPct("avgDuration"))}
-			label="Visit duration"
-			tone={deltaPct("avgDuration") >= 0 ? "good" : "bad"}
-			value={stats ? duration(stats.avgDuration) : "…"}
-		/>
-		<StatTile
-			delta={fmtPct(deltaPct("revenue"))}
-			label="Revenue"
-			tone={deltaPct("revenue") >= 0 ? "good" : "bad"}
-			value={stats ? money(stats.revenue) : "…"}
-		/>
-	</View>
-);
+type CompareMap = NonNullable<SiteDashboard["compare"]>;
+
+/**
+ * Same figures and labels as the web home: net after fees, gross, sales (paid
+ * orders, not goal events) and visitor-to-sale. A delta only shows when the
+ * earlier window had something to compare with.
+ */
+const StatTiles = ({ dash }: { dash: SiteDashboard | undefined }) => {
+	const stats = dash?.stats;
+	const compare = dash?.compare;
+	const currency = dash?.currency;
+	// A range with no traffic and no sales has nothing honest to compare.
+	const quiet = stats !== undefined && stats.pageviews === 0 && stats.revenue === 0;
+	const change = (
+		key: keyof CompareMap,
+		lowerIsBetter = false,
+	): { delta: string | undefined; tone: "good" | "bad" } => {
+		const c = quiet ? undefined : compare?.[key];
+		if (!c?.previous || c.changePct === null || !Number.isFinite(c.changePct)) {
+			return { delta: undefined, tone: "good" };
+		}
+		const good = lowerIsBetter ? c.changePct <= 0 : c.changePct >= 0;
+		return { delta: fmtPct(c.changePct), tone: good ? "good" : "bad" };
+	};
+	const hasNet = stats ? stats.netRevenue !== undefined : true;
+	// Sales are paid orders; goal events with no revenue are not sales.
+	const sales = stats ? (stats.sales ?? stats.conversions) : undefined;
+	const salesKey: keyof CompareMap = stats?.sales === undefined ? "conversions" : "sales";
+	const saleRate =
+		stats && sales !== undefined && stats.visitors > 0
+			? `${((sales / stats.visitors) * 100).toFixed(1)}%`
+			: "—";
+	const loading = "…";
+
+	return (
+		<View style={styles.tilesGrid}>
+			{hasNet ? (
+				<StatTile
+					primary
+					flag={stats?.netEstimated ? t("dash.est") : undefined}
+					label={t("dash.net")}
+					value={stats?.netRevenue === undefined ? loading : money(stats.netRevenue, currency)}
+					{...change("netRevenue")}
+				/>
+			) : null}
+			<StatTile
+				primary={!hasNet}
+				label={t("dash.gross")}
+				value={stats ? money(stats.revenue, currency) : loading}
+				{...change("revenue")}
+			/>
+			<StatTile
+				label={t("dash.sales")}
+				value={sales === undefined ? loading : fmt(sales)}
+				{...change(salesKey)}
+			/>
+			<StatTile
+				label={t("dash.visitorToSale")}
+				sub={
+					stats && stats.visitors > 0
+						? t("dash.visitorToSaleNote", { sales: fmt(sales ?? 0), visitors: fmt(stats.visitors) })
+						: undefined
+				}
+				value={saleRate}
+			/>
+			<StatTile
+				label={t("dash.visitors")}
+				value={stats ? fmt(stats.visitors) : loading}
+				{...change("visitors")}
+			/>
+			<StatTile
+				label={t("dash.pageviews")}
+				value={stats ? fmt(stats.pageviews) : loading}
+				{...change("pageviews")}
+			/>
+			<StatTile
+				label={t("dash.bounce")}
+				value={stats ? `${stats.bounceRate.toFixed(1)}%` : loading}
+				{...change("bounceRate", true)}
+			/>
+			<StatTile
+				label={t("dash.duration")}
+				value={stats ? duration(stats.avgDuration) : loading}
+				{...change("avgDuration")}
+			/>
+		</View>
+	);
+};
 
 /* --------------------------------- funnel ---------------------------------- */
 
@@ -634,11 +686,6 @@ export const DashboardView = () => {
 		[dash, hourly],
 	);
 
-	const stats = dash?.stats;
-	const cmp = dash?.compare;
-	const deltaPct = (k: keyof NonNullable<SiteDashboard["compare"]>): number =>
-		cmp?.[k]?.changePct ?? 0;
-
 	const firstError = [sitesQ.error, dashQ.error].find(Boolean);
 	const errorMsg = firstError instanceof Error ? firstError.message : "";
 
@@ -650,7 +697,7 @@ export const DashboardView = () => {
 	} else {
 		content = (
 			<>
-				<StatTiles deltaPct={deltaPct} stats={stats} />
+				<StatTiles dash={dash} />
 
 				<Panel>
 					<View style={styles.chartHead}>

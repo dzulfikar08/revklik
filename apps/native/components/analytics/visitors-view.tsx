@@ -457,8 +457,11 @@ export const VisitorsView = () => {
 	});
 
 	const visitors = useMemo(
-		() => (visitorsQ.data ?? []).map((p: VisitorProfile) => profileToVisitor(p, journeys)),
-		[visitorsQ.data, journeys],
+		() =>
+			(visitorsQ.data ?? []).map((p: VisitorProfile) =>
+				profileToVisitor(p, journeys, dashQ.data?.currency),
+			),
+		[visitorsQ.data, journeys, dashQ.data?.currency],
 	);
 	const filtered = useMemo(() => {
 		if (!value.trim() && op !== "exists" && op !== "not_exists") {
@@ -479,7 +482,7 @@ export const VisitorsView = () => {
 		}
 		try {
 			const res = await fetchVisitorProfile(v.visitorId, siteId);
-			setJourneyFor(profileToVisitor(res.profile, res.journeys));
+			setJourneyFor(profileToVisitor(res.profile, res.journeys, dashQ.data?.currency));
 		} catch {
 			// Keep the list row — profile info still renders without events.
 		}
