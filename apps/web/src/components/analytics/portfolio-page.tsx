@@ -78,13 +78,65 @@ const wholeMoney = (value: number, currency: string): string => {
 	}
 };
 
-/** "I made $X in the last N days" plus one "Site — $Y" line per site with revenue, biggest first. */
-const postText = (data: PortfolioRevenue, headline: string): string => {
-	const lines = data.by_site
-		.filter((s) => s.gross > 0)
-		.toSorted((a, b) => b.gross - a.gross)
-		.map((s) => `${s.site_name} — ${wholeMoney(s.gross, data.currency)}`);
+/** Sites with revenue, biggest first: the lines of the shareable post. */
+const postSites = (data: PortfolioRevenue): PortfolioRevenue["by_site"] =>
+	data.by_site.filter((s) => s.gross > 0).toSorted((a, b) => b.gross - a.gross);
+
+/** "I made $X in the last N days" plus one "🚀 Site — $Y" line per site with revenue. */
+const postText = (
+	data: PortfolioRevenue,
+	headline: string,
+	emojis: Readonly<Record<string, string>>,
+): string => {
+	const lines = postSites(data).map((s) => {
+		const emoji = emojis[s.site_id]?.trim();
+		const name = emoji ? `${emoji} ${s.site_name}` : s.site_name;
+		return `${name} — ${wholeMoney(s.gross, data.currency)}`;
+	});
 	return [headline, "", ...lines].join("\n");
+};
+
+const EMOJI_KEY = "kp_portfolio_emojis";
+
+const storedEmojis = (): Record<string, string> => {
+	try {
+		const parsed: unknown = JSON.parse(localStorage.getItem(EMOJI_KEY) ?? "{}");
+		return parsed && typeof parsed === "object" ? (parsed as Record<string, string>) : {};
+	} catch {
+		return {};
+	}
+};
+
+/** One emoji field per site in the post; kept in this browser only. */
+const PostEmojis = ({
+	sites,
+	emojis,
+	onChange,
+}: {
+	sites: PortfolioRevenue["by_site"];
+	emojis: Readonly<Record<string, string>>;
+	onChange: (siteId: string, emoji: string) => void;
+}) => {
+	const t = useT();
+	return (
+		<Panel title={t("portfolio.emojis")} hint={t("portfolio.emojisHint")}>
+			<div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+				{sites.map((s) => (
+					<label key={s.site_id} className="flex items-center gap-2 text-[13px]">
+						<Input
+							value={emojis[s.site_id] ?? ""}
+							onChange={(e) => onChange(s.site_id, e.target.value)}
+							maxLength={16}
+							placeholder="🚀"
+							aria-label={t("portfolio.emojiFor", { site: s.site_name })}
+							className="pointer-coarse:h-11 h-9 w-14 text-center text-base"
+						/>
+						<span className="truncate font-medium">{s.site_name}</span>
+					</label>
+				))}
+			</div>
+		</Panel>
+	);
 };
 
 const errMessage = (e: unknown, fallback: string): string =>
@@ -448,6 +500,16 @@ const PortfolioPage = () => {
 	const navigate = useNavigate();
 	const [days, setDays] = useState<number>(30);
 	const [choice, setChoice] = useState<string | null>(storedCurrency);
+	const [emojis, setEmojis] = useState<Record<string, string>>(storedEmojis);
+	const setEmoji = (siteId: string, emoji: string) => {
+		const next = { ...emojis, [siteId]: emoji };
+		setEmojis(next);
+		try {
+			localStorage.setItem(EMOJI_KEY, JSON.stringify(next));
+		} catch {
+			// Not persisted; still applies for this page view.
+		}
+	};
 	const range = useMemo(() => rangeFor(days), [days]);
 	const activeSite = lastActiveSite() ?? undefined;
 
@@ -550,7 +612,7 @@ const PortfolioPage = () => {
 									days,
 								});
 								try {
-									await navigator.clipboard.writeText(postText(data, headline));
+									await navigator.clipboard.writeText(postText(data, headline, emojis));
 									toast.success(t("portfolio.copied"));
 								} catch {
 									toast.error(t("portfolio.copyFailed"));
@@ -710,6 +772,9 @@ const PortfolioPage = () => {
 										</table>
 									</div>
 								</Panel>
+								{data && postSites(data).length > 0 ? (
+									<PostEmojis sites={postSites(data)} emojis={emojis} onChange={setEmoji} />
+								) : null}
 							</>
 						)}
 					</>
