@@ -14,7 +14,7 @@ import {
 	SelectValue,
 } from "@revklik/ui/components/select";
 import { useNavigate } from "@tanstack/react-router";
-import { Loader2, Plus, RotateCcw } from "lucide-react";
+import { Copy, Loader2, Plus, RotateCcw } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 
@@ -63,6 +63,28 @@ const money = (value: number, currency: string): string => {
 	} catch {
 		return `${currency} ${value.toFixed(2)}`;
 	}
+};
+
+/** Whole units, for a shareable post: "$42,531", not "$42,531.17". */
+const wholeMoney = (value: number, currency: string): string => {
+	try {
+		return new Intl.NumberFormat(currency === "IDR" || getLocale() === "id" ? "id-ID" : "en-US", {
+			currency,
+			maximumFractionDigits: 0,
+			style: "currency",
+		}).format(value);
+	} catch {
+		return `${currency} ${Math.round(value)}`;
+	}
+};
+
+/** "I made $X in the last N days" plus one "Site — $Y" line per site with revenue, biggest first. */
+const postText = (data: PortfolioRevenue, headline: string): string => {
+	const lines = data.by_site
+		.filter((s) => s.gross > 0)
+		.toSorted((a, b) => b.gross - a.gross)
+		.map((s) => `${s.site_name} — ${wholeMoney(s.gross, data.currency)}`);
+	return [headline, "", ...lines].join("\n");
 };
 
 const errMessage = (e: unknown, fallback: string): string =>
@@ -515,6 +537,29 @@ const PortfolioPage = () => {
 							))}
 						</div>
 						<CurrencyPicker value={currency} options={currencyOptions} onChange={pickCurrency} />
+						<Button
+							variant="outline"
+							className="pointer-coarse:min-h-11 h-9 rounded-full text-[13px]"
+							disabled={!data || data.totals.gross <= 0}
+							onClick={async () => {
+								if (!data) {
+									return;
+								}
+								const headline = t("portfolio.postHeadline", {
+									amount: wholeMoney(data.totals.gross, data.currency),
+									days,
+								});
+								try {
+									await navigator.clipboard.writeText(postText(data, headline));
+									toast.success(t("portfolio.copied"));
+								} catch {
+									toast.error(t("portfolio.copyFailed"));
+								}
+							}}
+						>
+							<Copy aria-hidden />
+							{t("portfolio.copyPost")}
+						</Button>
 					</div>
 				</div>
 
