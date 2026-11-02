@@ -31,24 +31,44 @@ import { ErrorBlock } from "./panel-state";
 import { railLabel } from "./payment-labels";
 import { Panel, StatTile } from "./ui";
 
-const PORTFOLIO_RANGES = [
-	{ days: 7, label: "7d" },
-	{ days: 30, label: "30d" },
-	{ days: 90, label: "90d" },
-] as const;
+type RangeKey = "thisMonth" | "lastMonth" | "7d" | "30d" | "90d";
 
-const MS_PER_DAY = 86_400_000;
+const DAY_RANGES = { "30d": 30, "7d": 7, "90d": 90 } as const;
+const RANGE_KEYS: readonly RangeKey[] = ["lastMonth", "thisMonth", "7d", "30d", "90d"];
+
 const BPS_PER_PERCENT = 100;
 const CHART_W = 640;
 const CHART_H = 120;
 
-const isoDay = (ms: number): string => new Date(ms).toISOString().slice(0, 10);
+/** YYYY-MM-DD of a local calendar date; the API cuts days at the viewer's midnight (`tz`). */
+const localDay = (d: Date): string =>
+	`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 
-/** Inclusive UTC range ending today. */
-const rangeFor = (days: number): { from: string; to: string } => {
-	const now = Date.now();
-	return { from: isoDay(now - (days - 1) * MS_PER_DAY), to: isoDay(now) };
+/**
+ * Inclusive local-day range. Months run from the 1st 00:00 to the last day 23:59;
+ * this month stops at today. Day ranges end today.
+ */
+const rangeFor = (key: RangeKey): { from: string; to: string; month?: Date; days?: number } => {
+	const now = new Date();
+	const y = now.getFullYear();
+	const m = now.getMonth();
+	if (key === "thisMonth") {
+		return { from: localDay(new Date(y, m, 1)), month: new Date(y, m, 1), to: localDay(now) };
+	}
+	if (key === "lastMonth") {
+		// Day 0 of this month is the last day of the previous one.
+		return {
+			from: localDay(new Date(y, m - 1, 1)),
+			month: new Date(y, m - 1, 1),
+			to: localDay(new Date(y, m, 0)),
+		};
+	}
+	const days = DAY_RANGES[key];
+	return { days, from: localDay(new Date(y, m, now.getDate() - days + 1)), to: localDay(now) };
 };
+
+const monthName = (d: Date, opts: Intl.DateTimeFormatOptions): string =>
+	new Intl.DateTimeFormat(getLocale() === "id" ? "id-ID" : "en-US", opts).format(d);
 
 /** Currency with cents: portfolio sales are often a few dollars, which whole-unit rounding would blur. */
 const money = (value: number, currency: string): string => {
@@ -78,22 +98,34 @@ const wholeMoney = (value: number, currency: string): string => {
 	}
 };
 
-/** Sites with revenue, biggest first: the lines of the shareable post. */
-const postSites = (data: PortfolioRevenue): PortfolioRevenue["by_site"] =>
-	data.by_site.filter((s) => s.gross > 0).toSorted((a, b) => b.gross - a.gross);
+interface PostSite {
+	site_id: string;
+	site_name: string;
+	gross: number;
+}
 
-/** "I made $X in the last N days" plus one "🚀 Site — $Y" line per site with revenue. */
+/** Every site, $0 ones included, biggest first: the lines of the shareable post. */
+const postSites = (data: PortfolioRevenue, sites: readonly SiteWithStats[]): PostSite[] => {
+	const earned = new Set(data.by_site.map((s) => s.site_id));
+	const idle = sites
+		.filter((s) => !earned.has(s.id))
+		.map((s) => ({ gross: 0, site_id: s.id, site_name: s.name }));
+	return [...data.by_site, ...idle].toSorted((a, b) => b.gross - a.gross);
+};
+
+/** Headline plus one "🚀 Site — $Y" line per site. */
 const postText = (
-	data: PortfolioRevenue,
+	lines: readonly PostSite[],
+	currency: string,
 	headline: string,
 	emojis: Readonly<Record<string, string>>,
 ): string => {
-	const lines = postSites(data).map((s) => {
+	const body = lines.map((s) => {
 		const emoji = emojis[s.site_id]?.trim();
 		const name = emoji ? `${emoji} ${s.site_name}` : s.site_name;
-		return `${name} — ${wholeMoney(s.gross, data.currency)}`;
+		return `${name} — ${wholeMoney(s.gross, currency)}`;
 	});
-	return [headline, "", ...lines].join("\n");
+	return [headline, "", ...body].join("\n");
 };
 
 const EMOJI_KEY = "kp_portfolio_emojis";
@@ -113,7 +145,7 @@ const PostEmojis = ({
 	emojis,
 	onChange,
 }: {
-	sites: PortfolioRevenue["by_site"];
+	sites: readonly PostSite[];
 	emojis: Readonly<Record<string, string>>;
 	onChange: (siteId: string, emoji: string) => void;
 }) => {
@@ -498,7 +530,7 @@ const PortfolioPage = () => {
 	const t = useT();
 	const locale = useLocale();
 	const navigate = useNavigate();
-	const [days, setDays] = useState<number>(30);
+	const [rangeKey, setRangeKey] = useState<RangeKey>("thisMonth");
 	const [choice, setChoice] = useState<string | null>(storedCurrency);
 	const [emojis, setEmojis] = useState<Record<string, string>>(storedEmojis);
 	const setEmoji = (siteId: string, emoji: string) => {
@@ -510,7 +542,7 @@ const PortfolioPage = () => {
 			// Not persisted; still applies for this page view.
 		}
 	};
-	const range = useMemo(() => rangeFor(days), [days]);
+	const range = useMemo(() => rangeFor(rangeKey), [rangeKey]);
 	const activeSite = lastActiveSite() ?? undefined;
 
 	// The site list names the owner's currency; waiting for it avoids fetching the portfolio twice.
@@ -553,6 +585,10 @@ const PortfolioPage = () => {
 	const data = q.data;
 	const shownCurrency = data?.currency ?? currency;
 	const fees = data ? data.totals.gross - data.totals.net : undefined;
+	const shareSites = useMemo(
+		() => (data ? postSites(data, sitesQ.data ?? []) : []),
+		[data, sitesQ.data],
+	);
 	const loading = q.isPending && !q.error;
 
 	return (
@@ -576,43 +612,51 @@ const PortfolioPage = () => {
 						<h1 className="text-xl font-semibold tracking-tight">{t("portfolio.title")}</h1>
 						<p className="text-muted-foreground text-[13px]">{t("portfolio.subtitle")}</p>
 					</div>
-					<div className="flex w-full items-center gap-2 sm:w-auto">
+					<div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
 						<div
 							role="group"
 							aria-label={t("overview.rangeLabel")}
 							className="bg-muted/70 flex flex-1 rounded-full p-1 sm:flex-none"
 						>
-							{PORTFOLIO_RANGES.map((r) => (
-								<button
-									key={r.days}
-									type="button"
-									aria-pressed={days === r.days}
-									onClick={() => setDays(r.days)}
-									className={`focus-visible:outline-ring pointer-coarse:min-h-11 min-h-8 flex-1 rounded-full px-3 text-[13px] font-medium tabular-nums outline-offset-2 transition-colors duration-150 focus-visible:outline-2 sm:flex-none ${
-										days === r.days
-											? "bg-card text-foreground ring-foreground/10 shadow-xs ring-1"
-											: "text-muted-foreground hover:text-foreground"
-									}`}
-								>
-									{r.label}
-								</button>
-							))}
+							{RANGE_KEYS.map((key) => {
+								const month = rangeFor(key).month;
+								return (
+									<button
+										key={key}
+										type="button"
+										aria-pressed={rangeKey === key}
+										onClick={() => setRangeKey(key)}
+										className={`focus-visible:outline-ring pointer-coarse:min-h-11 min-h-8 flex-1 rounded-full px-3 text-[13px] font-medium tabular-nums outline-offset-2 transition-colors duration-150 focus-visible:outline-2 sm:flex-none ${
+											rangeKey === key
+												? "bg-card text-foreground ring-foreground/10 shadow-xs ring-1"
+												: "text-muted-foreground hover:text-foreground"
+										}`}
+									>
+										{month ? monthName(month, { month: "short" }) : key}
+									</button>
+								);
+							})}
 						</div>
 						<CurrencyPicker value={currency} options={currencyOptions} onChange={pickCurrency} />
 						<Button
 							variant="outline"
 							className="pointer-coarse:min-h-11 h-9 rounded-full text-[13px]"
-							disabled={!data || data.totals.gross <= 0}
+							disabled={!data}
 							onClick={async () => {
 								if (!data) {
 									return;
 								}
-								const headline = t("portfolio.postHeadline", {
-									amount: wholeMoney(data.totals.gross, data.currency),
-									days,
-								});
+								const amount = wholeMoney(data.totals.gross, data.currency);
+								const headline = range.month
+									? t("portfolio.postHeadlineMonth", {
+											amount,
+											month: monthName(range.month, { month: "long", year: "numeric" }),
+										})
+									: t("portfolio.postHeadline", { amount, days: range.days ?? 0 });
 								try {
-									await navigator.clipboard.writeText(postText(data, headline, emojis));
+									await navigator.clipboard.writeText(
+										postText(shareSites, data.currency, headline, emojis),
+									);
 									toast.success(t("portfolio.copied"));
 								} catch {
 									toast.error(t("portfolio.copyFailed"));
@@ -772,8 +816,8 @@ const PortfolioPage = () => {
 										</table>
 									</div>
 								</Panel>
-								{data && postSites(data).length > 0 ? (
-									<PostEmojis sites={postSites(data)} emojis={emojis} onChange={setEmoji} />
+								{shareSites.length > 0 ? (
+									<PostEmojis sites={shareSites} emojis={emojis} onChange={setEmoji} />
 								) : null}
 							</>
 						)}

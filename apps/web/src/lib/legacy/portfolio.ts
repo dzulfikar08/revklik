@@ -2,7 +2,7 @@
  * Client for the klikapa Worker's cross-product revenue endpoints:
  * GET /portfolio/revenue and GET/PUT /fee-rules.
  */
-import { legacyFetch } from "./api";
+import { legacyFetch, tzParam } from "./api";
 
 export interface PortfolioTotals {
 	gross: number;
@@ -67,7 +67,7 @@ export const fetchPortfolio = (
 	to: string,
 	currency?: string,
 ): Promise<PortfolioRevenue> => {
-	const p = new URLSearchParams({ from, to });
+	const p = new URLSearchParams({ from, to, tz: tzParam() });
 	if (currency) {
 		p.set("currency", currency);
 	}

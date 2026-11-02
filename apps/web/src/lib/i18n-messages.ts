@@ -303,6 +303,7 @@ const en = {
 	"portfolio.copied": "Copied to clipboard",
 	"portfolio.copyFailed": "Could not copy",
 	"portfolio.postHeadline": "I made {amount} in the last {days} days",
+	"portfolio.postHeadlineMonth": "I made {amount} in {month}",
 	"portfolio.emojis": "Post emojis",
 	"portfolio.emojisHint": "Shown before each site when you copy as post. Saved in this browser.",
 	"portfolio.emojiFor": "Emoji for {site}",
@@ -663,6 +664,7 @@ const id: Record<BaseKey, string> = {
 	"portfolio.copied": "Tersalin ke clipboard",
 	"portfolio.copyFailed": "Gagal menyalin",
 	"portfolio.postHeadline": "Saya menghasilkan {amount} dalam {days} hari terakhir",
+	"portfolio.postHeadlineMonth": "Saya menghasilkan {amount} di {month}",
 	"portfolio.emojis": "Emoji postingan",
 	"portfolio.emojisHint":
 		"Tampil di depan tiap situs saat disalin sebagai postingan. Disimpan di browser ini.",
