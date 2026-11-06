@@ -11,6 +11,7 @@ import {
 } from "../lib/gsc-service-account";
 import { checkSiteAccess, requireSiteAccess } from "../lib/site-access";
 import { signOAuthState, verifyOAuthState } from "../lib/oauth-state";
+import { syncGscIntegration } from "../lib/gsc-sync";
 
 export const gscRoutes = new Hono<Env>();
 
@@ -43,32 +44,6 @@ gscRoutes.use("/sync/*", gscAuth);
 gscRoutes.use("/service-account/*", gscAuth);
 gscRoutes.use("/auth-url", gscAuth);
 
-// Helper: refresh access token using refresh token
-async function refreshAccessToken(
-	refreshToken: string,
-	clientId: string,
-	clientSecret: string,
-): Promise<string> {
-	const res = await fetch("https://oauth2.googleapis.com/token", {
-		method: "POST",
-		headers: { "Content-Type": "application/x-www-form-urlencoded" },
-		body: new URLSearchParams({
-			refresh_token: refreshToken,
-			client_id: clientId,
-			client_secret: clientSecret,
-			grant_type: "refresh_token",
-		}),
-	});
-	const data = (await res.json()) as {
-		access_token?: string;
-		error?: string;
-		error_description?: string;
-	};
-	if (!res.ok) throw new Error(`Token refresh failed: ${data.error_description || data.error}`);
-	if (!data.access_token) throw new Error("Token refresh failed: no access_token in response");
-	return data.access_token;
-}
-
 // Helper: get integration config for GSC
 async function getGSCIntegration(db: Kysely<KlikapaDatabase>, siteId: string) {
 	return db
@@ -97,48 +72,6 @@ function gscSiteMatchesDomain(siteUrl: string, domain: string): boolean {
 	if (host === bareDomain) return true;
 	// Domain properties cover all subdomains
 	return bareDomain.endsWith(`.${host}`);
-}
-
-// Helper: fetch search analytics from Google Search Console API
-async function fetchSearchAnalytics(
-	accessToken: string,
-	siteUrl: string,
-	startDate: string,
-	endDate: string,
-) {
-	const res = await fetch(
-		`https://www.googleapis.com/webmasters/v3/sites/${encodeURIComponent(siteUrl)}/searchAnalytics/query`,
-		{
-			method: "POST",
-			headers: {
-				Authorization: `Bearer ${accessToken}`,
-				"Content-Type": "application/json",
-			},
-			body: JSON.stringify({
-				startDate,
-				endDate,
-				dimensions: ["query"],
-				rowLimit: 1000,
-			}),
-		},
-	);
-	if (!res.ok) {
-		const err = (await res.json()) as {
-			error?: { message?: string } | string;
-		};
-		throw new Error(
-			`GSC API error: ${(typeof err.error === "object" && err.error?.message) || res.status}`,
-		);
-	}
-	return (await res.json()) as {
-		rows?: Array<{
-			keys: string[];
-			clicks: number;
-			impressions: number;
-			ctr: number;
-			position: number;
-		}>;
-	};
 }
 
 // POST /auth-url - Start the Google OAuth flow for GSC. Authenticated: the consent
@@ -419,133 +352,43 @@ gscRoutes.get("/queries", async (c) => {
 	return c.json({ data: rows, success: true });
 });
 
-// POST /sync - Force sync last 7 days of search console data
+// POST /sync - Sync search console data now: the last `days` days (default 7, max 45), ending 2 days ago.
 gscRoutes.post("/sync", async (c) => {
 	const db = c.get("db");
 	if (!db) return c.json({ error: "DB unavailable", success: false }, 503);
 
 	const siteId = c.req.query("site_id");
 	if (!siteId) return c.json({ error: "site_id required", success: false }, 400);
+	const days = Math.min(45, Math.max(1, Number.parseInt(c.req.query("days") ?? "7", 10) || 7));
 
 	const access = await requireSiteAccess(c, siteId, "write");
 	if (access instanceof Response) return access;
 
-	// Get GSC integration config
-	const integration = await getGSCIntegration(db, siteId);
+	const integration = await db
+		.selectFrom("integrations")
+		.select(["id", "config", "site_id", "synced_through"])
+		.where("site_id", "=", siteId)
+		.where("type", "=", "google_search_console")
+		.executeTakeFirst();
 	if (!integration)
 		return c.json(
-			{
-				error: "Google Search Console not connected. Please authorize first.",
-				success: false,
-			},
+			{ error: "Google Search Console not connected. Please authorize first.", success: false },
 			404,
 		);
 
-	const clientId = c.env.GOOGLE_CLIENT_ID || "";
-	const clientSecret = c.env.GOOGLE_CLIENT_SECRET || "";
-	const config = JSON.parse((integration.config as string) || "{}");
-	const { refresh_token, google_site_url } = config;
-	const serviceAccount = config.auth === "service_account";
-
-	if (!google_site_url || (!serviceAccount && !refresh_token)) {
-		return c.json(
-			{
-				error: "Missing GSC credentials. Please re-authorize.",
-				success: false,
-			},
-			400,
-		);
-	}
-
-	// Refresh access token (OAuth) or mint one from the service account key
-	let accessToken: string;
 	try {
-		accessToken = serviceAccount
-			? await fetchServiceAccountAccessToken(parseServiceAccountKey(config))
-			: await refreshAccessToken(refresh_token, clientId, clientSecret);
-	} catch (err) {
-		return c.json(
-			{
-				error: err instanceof Error ? err.message : "Token refresh failed",
-				success: false,
-			},
-			401,
+		const r = await syncGscIntegration(
+			db,
+			integration,
+			{ clientId: c.env.GOOGLE_CLIENT_ID, clientSecret: c.env.GOOGLE_CLIENT_SECRET },
+			{ budget: { n: 0, max: 48 }, days },
 		);
-	}
-
-	// Sync last 7 days, querying day-by-day for proper date attribution
-	// GSC data has a ~2-day delay, so we sync up to 2 days ago
-	const effectiveEnd = new Date(Date.now() - 2 * 86400000);
-	const startDate = new Date(Date.now() - 9 * 86400000); // 9 days ago to get 7 full days of data
-
-	let synced = 0;
-	try {
-		// Query each day individually for proper date attribution
-		for (let d = new Date(startDate); d <= effectiveEnd; d.setDate(d.getDate() + 1)) {
-			const dateStr = d.toISOString().split("T")[0] ?? "";
-
-			const result = await fetchSearchAnalytics(accessToken, google_site_url, dateStr, dateStr);
-			const rows = result.rows || [];
-
-			for (const row of rows) {
-				const query = row.keys[0] || "";
-
-				// Upsert: check existing, then insert or update
-				const existing = await db
-					.selectFrom("search_console_data")
-					.select(["id"])
-					.where("site_id", "=", siteId)
-					.where("date", "=", dateStr)
-					.where("query", "=", query)
-					.executeTakeFirst();
-
-				if (existing) {
-					await db
-						.updateTable("search_console_data")
-						.set({
-							clicks: row.clicks,
-							impressions: row.impressions,
-							ctr: row.ctr,
-							position: row.position,
-							fetched_at: new Date().toISOString(),
-						})
-						.where("id", "=", existing.id)
-						.execute();
-				} else {
-					await db
-						.insertInto("search_console_data")
-						.values({
-							id: generateId(),
-							site_id: siteId,
-							date: dateStr,
-							query,
-							clicks: row.clicks,
-							impressions: row.impressions,
-							ctr: row.ctr,
-							position: row.position,
-							fetched_at: new Date().toISOString(),
-						})
-						.execute();
-				}
-				synced++;
-			}
-		}
+		return c.json({
+			data: { synced: r.rows, days: r.days_synced, synced_through: r.synced_through, budget_exhausted: r.budget_exhausted },
+			success: true,
+		});
 	} catch (err) {
-		return c.json(
-			{
-				error: err instanceof Error ? err.message : "GSC sync failed",
-				success: false,
-			},
-			502,
-		);
+		const message = err instanceof Error ? err.message : "GSC sync failed";
+		return c.json({ error: message, success: false }, message.startsWith("GSC API error") ? 502 : 401);
 	}
-
-	// Update integration last_sync
-	await db
-		.updateTable("integrations")
-		.set({ last_sync: new Date().toISOString() })
-		.where("id", "=", integration.id)
-		.execute();
-
-	return c.json({ data: { synced }, success: true });
 });

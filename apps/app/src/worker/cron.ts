@@ -10,6 +10,7 @@ import { checkIngestHealth } from "./lib/ingest-watchdog";
 import { purgeExpiredRows, scrubLegacyFingerprints } from "./lib/purge";
 import { pruneOutbox, runPushCron } from "./lib/push";
 import { syncAllPolar } from "./lib/polar-sync";
+import { syncAllGsc } from "./lib/gsc-sync";
 import { carryOverPakasirOrders } from "./migrations";
 import type { Bindings } from "./types";
 
@@ -63,6 +64,14 @@ export function jobsFor(cron: string, env: Bindings): CronJob[] {
 				["bot-reclassify", () => reclassifyRecentBots(d1)],
 				["ingest-health", () => checkIngestHealth(env)],
 				["polar-sync", () => syncAllPolar(createDb(d1), env)],
+				[
+					"gsc-sync",
+					async () =>
+						void (await syncAllGsc(createDb(d1), {
+							clientId: env.GOOGLE_CLIENT_ID,
+							clientSecret: env.GOOGLE_CLIENT_SECRET,
+						})),
+				],
 			];
 		case CRON_APP_STORE:
 			return [["app-store-sync", () => syncAllAppStoreConnect(createDb(d1))]];
