@@ -81,7 +81,7 @@ export async function reportFailures(
 				subject: `RevKlik cron failed: ${due.map((o) => o.name).join(", ")}`,
 				text: `Scheduled run "${cron}" had failing jobs. The other jobs of the run were not affected.\n\n${lines.join("\n")}\n\n${url}`,
 				html: `<p>Scheduled run <code>${cron}</code> had failing jobs. The other jobs of the run were not affected.</p><ul>${due
-					.map((o) => `<li><code>${o.name}</code>: ${escapeHtml(o.error ?? "unknown error")}</li>`)
+					.map((o) => `<li><code>${o.name}</code>: ${escapeHtml(o.error ?? "unknown error").replace(/\n/g, "<br>")}</li>`)
 					.join("")}</ul><p><a href="${url}">${url}</a></p>`,
 			},
 			env.EMAIL,

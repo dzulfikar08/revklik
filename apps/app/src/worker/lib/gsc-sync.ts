@@ -1,7 +1,7 @@
 import type { Kysely } from "kysely";
 import type { KlikapaDatabase } from "@revklik/shared";
 import { generateId } from "../utils";
-import { fetchServiceAccountAccessToken, parseServiceAccountKey } from "./gsc-service-account";
+import { GOOGLE_FETCH_TIMEOUT_MS, fetchServiceAccountAccessToken, parseServiceAccountKey } from "./gsc-service-account";
 
 /** Days of history the first sync of an integration pulls (GSC keeps about 16 months). */
 export const GSC_BACKFILL_DAYS = 90;
@@ -49,6 +49,7 @@ export async function refreshAccessToken(refreshToken: string, clientId: string,
 			client_secret: clientSecret,
 			grant_type: "refresh_token",
 		}),
+		signal: AbortSignal.timeout(GOOGLE_FETCH_TIMEOUT_MS),
 	});
 	const data = (await res.json()) as { access_token?: string; error?: string; error_description?: string };
 	if (!res.ok) throw new Error(`Token refresh failed: ${data.error_description || data.error}`);
@@ -63,6 +64,7 @@ export async function fetchSearchAnalytics(accessToken: string, siteUrl: string,
 			method: "POST",
 			headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
 			body: JSON.stringify({ startDate, endDate, dimensions: ["query"], rowLimit: 1000 }),
+			signal: AbortSignal.timeout(GOOGLE_FETCH_TIMEOUT_MS),
 		},
 	);
 	if (!res.ok) {
@@ -168,6 +170,15 @@ export async function syncGscIntegration(
 	return result;
 }
 
+/** The property URL (e.g. sc-domain:example.com) with the site id, for failure reports. */
+function gscSiteLabel(integration: GscIntegration): string {
+	try {
+		const url = (JSON.parse(integration.config || "{}") as { google_site_url?: unknown }).google_site_url;
+		if (typeof url === "string" && url) return `${url} (${integration.site_id})`;
+	} catch {}
+	return integration.site_id;
+}
+
 /**
  * Cron: sync every enabled GSC integration that is behind or due for a refresh, least recently synced first, within
  * one shared budget. A failing site is logged and skipped so the others still sync.
@@ -192,6 +203,7 @@ export async function syncAllGsc(
 		return !i.last_sync || now - Date.parse(i.last_sync) >= GSC_REFRESH_HOURS * 3_600_000;
 	});
 	const results: GscSyncResult[] = [];
+	// Workers logs are off, so the cron mail is the only record of why a site failed.
 	const failed: string[] = [];
 	for (const integration of due) {
 		if (budget.n >= budget.max) break;
@@ -203,9 +215,9 @@ export async function syncAllGsc(
 			results.push(r);
 		} catch (err) {
 			console.error(`GSC sync site=${integration.site_id} failed:`, err);
-			failed.push(integration.site_id);
+			failed.push(`${gscSiteLabel(integration)}: ${err instanceof Error ? err.message : String(err)}`);
 		}
 	}
-	if (failed.length) throw new Error(`GSC sync failed for site(s): ${failed.join(", ")}`);
+	if (failed.length) throw new Error(`GSC sync failed for ${failed.length} site(s):\n${failed.join("\n")}`);
 	return results;
 }

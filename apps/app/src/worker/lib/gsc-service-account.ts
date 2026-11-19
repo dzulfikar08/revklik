@@ -6,6 +6,8 @@
 
 export const GSC_SCOPE = "https://www.googleapis.com/auth/webmasters.readonly";
 const DEFAULT_TOKEN_URI = "https://oauth2.googleapis.com/token";
+/** A Google call that hangs would otherwise hold the whole cron invocation. */
+export const GOOGLE_FETCH_TIMEOUT_MS = 20_000;
 
 export class GscServiceAccountError extends Error {}
 
@@ -114,6 +116,7 @@ export async function fetchServiceAccountAccessToken(
 			grant_type: "urn:ietf:params:oauth:grant-type:jwt-bearer",
 			assertion,
 		}),
+		signal: AbortSignal.timeout(GOOGLE_FETCH_TIMEOUT_MS),
 	});
 	const data = (await res.json()) as {
 		access_token?: string;

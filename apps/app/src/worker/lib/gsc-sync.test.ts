@@ -105,4 +105,15 @@ describe("GSC sync", () => {
 		const r = await syncAllGsc(stale, creds, { now: NOW });
 		expect(r[0]?.days_synced).toBe(4); // the settling window only
 	});
+
+	it("names the property and the error of each failed site", async () => {
+		const db = await setup();
+		globalThis.fetch = (async (input: RequestInfo | URL) =>
+			String(input).startsWith("https://oauth2.googleapis.com/token")
+				? new Response(JSON.stringify({ access_token: "at" }), { status: 200 })
+				: new Response(JSON.stringify({ error: { message: "Quota exceeded" } }), { status: 429 })) as typeof fetch;
+		await expect(syncAllGsc(db, creds, { now: NOW })).rejects.toThrow(
+			"GSC sync failed for 1 site(s):\nsc-domain:example.com (s1): GSC API error: Quota exceeded",
+		);
+	});
 });
