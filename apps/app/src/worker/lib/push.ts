@@ -46,6 +46,12 @@ const RECEIPT_ROWS = 200;
 /** Stays below D1's 100 bound-parameter ceiling. */
 const ID_CHUNK = 50;
 const NET_EPSILON = 0.005;
+/**
+ * Sales dated further back than this are history being imported (an App Store sales-report
+ * backfill, a replayed webhook), not news: they are booked without an alert. Apple's daily
+ * reports land about a day after the sale, so the window has room for that.
+ */
+export const ALERT_MAX_AGE_MS = 3 * 24 * 3_600_000;
 const NO_DECIMAL_CURRENCIES = new Set(["IDR"]);
 
 function chunks<T>(items: T[], size: number): T[][] {
@@ -125,6 +131,7 @@ export async function deliverSaleEvent(env: PushEnv, event: SaleEventRef): Promi
 				"events.revenue as revenue",
 				"events.net_revenue as net_revenue",
 				"events.currency as currency",
+				"events.timestamp as timestamp",
 				"sites.name as site_name",
 				"sites.revenue_currency as site_currency",
 			])
@@ -132,6 +139,8 @@ export async function deliverSaleEvent(env: PushEnv, event: SaleEventRef): Promi
 			.where("events.site_id", "=", event.siteId)
 			.executeTakeFirst();
 		if (!row || row.revenue === null || row.revenue === 0) return;
+		const occurred = Date.parse(row.timestamp);
+		if (Number.isFinite(occurred) && Date.now() - occurred > ALERT_MAX_AGE_MS) return;
 		const isRefund = row.revenue < 0;
 
 		// Owner and accepted team members that have a phone registered; a missing prefs

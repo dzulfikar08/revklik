@@ -250,6 +250,17 @@ describe("sale alerts", () => {
 		expect((t.db.query("SELECT COUNT(*) AS n FROM push_outbox").get() as { n: number }).n).toBe(1);
 	});
 
+	it("books old sales without an alert, but alerts a report from yesterday", async () => {
+		const { t, owner, writer } = await setup();
+		await register(t, owner, tokenA);
+		const daysAgo = (d: number) => new Date(Date.now() - d * 24 * 3_600_000).toISOString();
+		const old = await postSale(t, writer, { external_id: "tx-old", occurred_at: daysAgo(120) });
+		expect(await old.json()).toMatchObject({ success: true, duplicate: false });
+		expect(sends).toHaveLength(0);
+		await postSale(t, writer, { external_id: "tx-new", occurred_at: daysAgo(1.5) });
+		expect(sends).toHaveLength(1);
+	});
+
 	it("honours the refunds and sales toggles", async () => {
 		const { t, owner, writer } = await setup();
 		await register(t, owner, tokenA);
