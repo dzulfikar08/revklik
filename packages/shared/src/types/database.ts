@@ -275,6 +275,18 @@ export interface AscDailyCountryTable {
 	synced_at: string;
 }
 
+export interface AscDailySourceTable {
+	id: string;
+	site_id: string;
+	app_id: string;
+	date: string;
+	/** Apple's source type: App Store Search, App Store Browse, Web Referrer, App Referrer, ... */
+	source: string;
+	impressions: number;
+	page_views: number;
+	synced_at: string;
+}
+
 export interface KlikapaDatabase {
 	events: EventTable;
 	sessions: SessionTable;
@@ -305,6 +317,7 @@ export interface KlikapaDatabase {
 	search_console_data: SearchConsoleDataTable;
 	asc_daily_metrics: AscDailyMetricTable;
 	asc_daily_country: AscDailyCountryTable;
+	asc_daily_sources: AscDailySourceTable;
 	marketplace_orders: MarketplaceOrderTable;
 	affiliates: AffiliateTable;
 	referrals: ReferralTable;

@@ -4,6 +4,7 @@ import type { KlikapaDatabase, WhoamiResponse } from "@revklik/shared";
 import { sql } from "../db";
 import type { PublicApiEnv } from "../middleware/public-auth";
 import { getDateRange } from "../utils";
+import { appStoreSummary } from "./appstoreconnect";
 import {
 	DEFAULT_SCOPE,
 	executePlan,
@@ -708,6 +709,22 @@ export async function queryGscQueries(
 		first_date: String(r.first_date),
 		last_date: String(r.last_date),
 	}));
+}
+
+// --- App Store ---
+
+/** Per-app App Store downloads, proceeds, impressions, page views and sources for a range. */
+export async function queryAppStore(ctx: PublicApiCtx, siteId: string | undefined, range: string) {
+	const id = await guardSite(ctx, siteId);
+	const { start, end } = getDateRange(range);
+	// The window is half-open; App Store rows are whole UTC days.
+	const last = new Date(end.getTime() - 1);
+	return appStoreSummary(
+		ctx.db,
+		id,
+		start.toISOString().slice(0, 10),
+		last.toISOString().slice(0, 10),
+	);
 }
 
 // --- Export ---

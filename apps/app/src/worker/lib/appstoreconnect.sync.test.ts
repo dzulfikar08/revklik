@@ -52,17 +52,22 @@ const salesTsv = () => {
 		"Provider\tProvider Country\tSKU\tDesignated SKU Supported\tDeveloper Proceeds\tBegin Date\tEnd Date\tCustomer Currency\tCountry Code\tCurrency of Proceeds\tUnits\tDeveloper Proceeds Extended\tCustomer Price\tProduct Type Identifier\tApple Identifier\tVendor Identifier",
 		row(1, "US", 1, "0.70", "0.70", "2.99"),
 		row(2, "US", 1, "0.70", "0.70", "0.99"),
-		row(2, "US", 3, "0.35", "1.05", "1.99", "F"),
+		row(2, "US", 3, "0.35", "1.05", "1.99", "IA1"),
 		row(2, "DE", 1, "0.70", "0.70", "1.09"),
 		row(2, "US", 9, "0.70", "6.30", "0.99", "1", "987654321"),
 	].join("\n");
 };
 
-const engagementCsv = () =>
+// "App Store Discovery and Engagement Standard" segment (tab-separated).
+const engagementTsv = () =>
 	[
-		"Date,App,App Name,Impressions,Page Views,Downloads,Proceeds,Paying Users",
-		`${apple(1)},${APP_ID},KlikApa,100,50,1,"USD 12,345",4`,
+		"Date\tApp Name\tApp Apple Identifier\tEvent\tPage Type\tSource Type\tEngagement Type\tDevice\tPlatform Version\tTerritory\tCounts\tUnique Counts",
+		`${iso(1)}\tKlikApa\t${APP_ID}\tImpression\tNo page\tApp Store Search\t\tDesktop\tmacOS 26\tUS\t70\t60`,
+		`${iso(1)}\tKlikApa\t${APP_ID}\tImpression\tNo page\tApp Store Browse\t\tDesktop\tmacOS 26\tUS\t30\t25`,
+		`${iso(1)}\tKlikApa\t${APP_ID}\tPage view\tProduct page\tApp Store Search\t\tDesktop\tmacOS 26\tUS\t9\t8`,
 	].join("\n");
+
+const gzip = (text: string) => new Uint8Array(Bun.gzipSync(text));
 
 /** Install a mock Apple API + local file server; returns captured requests. */
 function mockApple() {
@@ -74,32 +79,35 @@ function mockApple() {
 			seen.push({ url, auth });
 			const path = url.split("appstoreconnect.apple.com")[1];
 			if (path.startsWith("/v1/salesReports")) {
-				return new Response(salesTsv(), { status: 200 });
+				// Apple's report body is a gzip file.
+				return new Response(gzip(salesTsv()), { status: 200 });
+			}
+			if (path === `/v1/apps/${APP_ID}?fields[apps]=sku`) {
+				return Response.json({ data: { attributes: { sku: "klikapa01" } } });
+			}
+			if (path === `/v1/apps/${APP_ID}/analyticsReportRequests`) {
+				return Response.json({ data: [{ id: "req1", attributes: { accessType: "ONGOING" } }] });
 			}
 			if (
-				path === "/v1/apps/123456789/analyticsReportRequests" &&
-				(!init?.method || init.method === "GET")
+				path ===
+				"/v1/analyticsReportRequests/req1/reports?filter[name]=App%20Store%20Discovery%20and%20Engagement%20Standard"
 			) {
-				return Response.json({ data: [] });
-			}
-			if (path === "/v1/analyticsReportRequests" && init?.method === "POST") {
-				return Response.json({ data: { id: "req1" } });
-			}
-			if (path.startsWith("/v1/analyticsReportRequests/req1/reports")) {
 				return Response.json({ data: [{ id: "rep1" }] });
 			}
-			if (path === "/v1/analyticsReports/rep1/instances") {
-				return Response.json({ data: [{ id: "inst1", attributes: { granularity: "DAILY" } }] });
+			if (path === "/v1/analyticsReports/rep1/instances?filter[granularity]=DAILY&limit=200") {
+				return Response.json({
+					data: [{ id: "inst1", attributes: { granularity: "DAILY", processingDate: iso(1) } }],
+				});
 			}
 			if (path === "/v1/analyticsReportInstances/inst1/segments") {
 				return Response.json({
-					data: [{ id: "seg1", attributes: { url: "http://local/engagement.csv" } }],
+					data: [{ id: "seg1", attributes: { url: "http://local/engagement.gz" } }],
 				});
 			}
 			return new Response("not found", { status: 404 });
 		}
-		if (url === "http://local/engagement.csv") {
-			return new Response(engagementCsv(), { status: 200 });
+		if (url === "http://local/engagement.gz") {
+			return new Response(gzip(engagementTsv()), { status: 200 });
 		}
 		return new Response("unexpected fetch", { status: 500 });
 	};
@@ -144,6 +152,10 @@ describe("syncAppStoreConnect", () => {
 				last_sync: null,
 			};
 
+			await db
+				.insertInto("integrations")
+				.values({ ...integration, type: "appstoreconnect", name: "ASC", enabled: 1 } as never)
+				.execute();
 			const result = await syncAppStoreConnect(db, integration, { days: 3 });
 			expect(result.days_synced).toBe(3);
 
@@ -159,7 +171,14 @@ describe("syncAppStoreConnect", () => {
 			expect(day2?.iap_units).toBe(3);
 			// Engagement layered onto day 1 without touching sales figures.
 			expect(day1?.impressions).toBe(100);
-			expect(day1?.paying_users).toBe(4);
+			expect(day1?.page_views).toBe(9);
+			const sources = await db.selectFrom("asc_daily_sources").selectAll().execute();
+			expect(sources.find((r) => r.source === "App Store Search")).toMatchObject({
+				impressions: 70,
+				page_views: 9,
+			});
+			expect(sources.find((r) => r.source === "App Store Browse")?.impressions).toBe(30);
+			expect(result.analytics_days).toBe(1);
 
 			// Country rows carry the charged tier prices.
 			const countries = await db.selectFrom("asc_daily_country").selectAll().execute();
@@ -175,12 +194,20 @@ describe("syncAppStoreConnect", () => {
 			expect(annotations[0].date).toBe(iso(1));
 
 			// …and a second sync must not duplicate it (idempotent upserts).
-			const result2 = await syncAppStoreConnect(db, integration, { days: 3 });
+			const stored = await db
+				.selectFrom("integrations")
+				.select(["id", "site_id", "user_id", "config", "last_sync"])
+				.where("id", "=", "i1")
+				.executeTakeFirstOrThrow();
+			const result2 = await syncAppStoreConnect(db, stored, { days: 3 });
 			const annotations2 = await db.selectFrom("annotations").selectAll().execute();
 			expect(annotations2).toHaveLength(1);
 			const metrics2 = await db.selectFrom("asc_daily_metrics").selectAll().execute();
 			expect(metrics2).toHaveLength(2);
 			expect(result2.days_synced).toBe(3);
+			// The stored report instance is not downloaded again.
+			expect(result2.analytics_days).toBe(0);
+			expect(mock.requests.filter((r) => r.url.includes("/segments"))).toHaveLength(1);
 
 			// JWT reaching Apple is ES256 with our key id — verify the signature.
 			const jwt = mock.requests[0].auth.replace("Bearer ", "");

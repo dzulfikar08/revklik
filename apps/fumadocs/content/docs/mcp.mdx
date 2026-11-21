@@ -71,8 +71,9 @@ the token as a Bearer `Authorization` header.
 
 ## Tools
 
-Fourteen read-only tools, mirroring the REST API one to one (`gsc_queries` is
-backed by the GSC endpoint `/api/gsc/queries`, which predates v1):
+Fifteen read-only tools, mirroring the REST API one to one (`gsc_queries` is
+backed by the GSC endpoint `/api/gsc/queries`, which predates v1, and `app_store`
+by `/api/appstoreconnect/summary`):
 
 | Tool                   | Returns                                                           | Scope              |
 | ---------------------- | ----------------------------------------------------------------- | ------------------ |
@@ -89,6 +90,7 @@ backed by the GSC endpoint `/api/gsc/queries`, which predates v1):
 | `campaigns`            | UTM campaigns with conversions, revenue, and conversion rate      | `analytics:read`   |
 | `visitor_journeys`     | Recent sessions with step-by-step journeys and known profiles     | `analytics:read`   |
 | `gsc_queries`          | Google Search Console queries: clicks, impressions, CTR, position | `analytics:read`   |
+| `app_store`            | Per app: downloads, proceeds, impressions, page views, sources    | `analytics:read`   |
 | `export_events`        | Raw rows (events, visitors, or sessions) as JSON or CSV           | `analytics:export` |
 
 Shared arguments:

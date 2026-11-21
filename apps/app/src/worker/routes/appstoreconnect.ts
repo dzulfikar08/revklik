@@ -6,9 +6,12 @@ import { requireSiteAccess } from "../lib/site-access";
 import {
 	AscAuthError,
 	AscConfigError,
+	appStoreSummary,
 	latestCountryPrices,
 	syncAppStoreConnect,
+	type AscSyncResult,
 } from "../lib/appstoreconnect";
+import { getDateRange } from "../utils";
 
 type Variables = { db: Kysely<KlikapaDatabase>; userId: string };
 
@@ -103,6 +106,24 @@ ascRoutes.get("/metrics", async (c) => {
 	return c.json({ data, success: true });
 });
 
+// GET /summary?site_id=&range=30d — per-app downloads, proceeds, impressions, page views and
+// sources (the MCP app_store tool reads the same lib/appstoreconnect.ts appStoreSummary).
+ascRoutes.get("/summary", async (c) => {
+	const siteId = c.req.query("site_id");
+	if (!siteId) return c.json({ error: "site_id required", success: false }, 400);
+	const access = await requireSiteAccess(c, siteId, "read");
+	if (access instanceof Response) return access;
+	const { start, end } = getDateRange(c.req.query("range") ?? "30d");
+	const last = new Date(end.getTime() - 1);
+	const data = await appStoreSummary(
+		c.get("db"),
+		siteId,
+		start.toISOString().slice(0, 10),
+		last.toISOString().slice(0, 10),
+	);
+	return c.json({ data, success: true });
+});
+
 // GET /prices?site_id= — current tier price per country (from charged prices).
 ascRoutes.get("/prices", async (c) => {
 	const db = c.get("db");
@@ -131,14 +152,15 @@ ascRoutes.post("/sync", async (c) => {
 	const access = await requireSiteAccess(c, site_id, "write");
 	if (access instanceof Response) return access;
 
-	const integration = await db
+	// One integration per app: a site with several apps syncs them all.
+	const integrations = await db
 		.selectFrom("integrations")
 		.select(["id", "site_id", "user_id", "config", "last_sync"])
 		.where("site_id", "=", site_id)
 		.where("type", "=", "appstoreconnect")
 		.where("enabled", "=", 1)
-		.executeTakeFirst();
-	if (!integration) {
+		.execute();
+	if (!integrations.length) {
 		return c.json(
 			{ error: "No enabled App Store Connect integration for this site", success: false },
 			404,
@@ -146,10 +168,18 @@ ascRoutes.post("/sync", async (c) => {
 	}
 
 	try {
-		const result = await syncAppStoreConnect(db, integration, {
-			days: typeof days === "number" ? days : undefined,
-		});
-		return c.json({ data: result, success: true });
+		const results: AscSyncResult[] = [];
+		// One subrequest budget for the whole request, as the cron does.
+		const budget = { n: 0, max: 45 };
+		for (const integration of integrations) {
+			results.push(
+				await syncAppStoreConnect(db, integration, {
+					days: typeof days === "number" ? days : undefined,
+					budget,
+				}),
+			);
+		}
+		return c.json({ data: results.length === 1 ? results[0] : results, success: true });
 	} catch (err) {
 		if (err instanceof AscConfigError) {
 			return c.json({ error: err.message, success: false }, 400);

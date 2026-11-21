@@ -19,6 +19,7 @@ export const CANONICAL_TOOL_NAMES = [
 	"campaigns",
 	"visitor_journeys",
 	"gsc_queries",
+	"app_store",
 	"export_events",
 ] as const;
 
@@ -179,6 +180,13 @@ export const TOOL_DEFS: ToolDef[] = [
 			"Stored Google Search Console queries for a site, aggregated per query over the stored ~30d window (sync refreshes the last 7d): clicks, impressions, CTR, average position. REST: GET /api/gsc/queries",
 		scope: "analytics:read",
 		inputSchema: siteArgs({ limit: limitProperty(20) }, ["site_id"]),
+	},
+	{
+		name: "app_store",
+		description:
+			"App Store Connect figures per app for a site and range: first-time downloads, proceeds (USD), in-app purchases, impressions, product page views, page conversion, impressions/page views by source (App Store Search, Browse, Web/App Referrer), downloads by country, and a daily series. Impressions stay null until Apple's engagement reports cover the range. REST: GET /api/appstoreconnect/summary",
+		scope: "analytics:read",
+		inputSchema: siteArgs(),
 	},
 	{
 		name: "export_events",

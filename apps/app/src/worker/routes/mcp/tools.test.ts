@@ -9,7 +9,7 @@ import { CANONICAL_TOOL_NAMES, TOOL_DEFS } from "./tools";
 describe("tool registry", () => {
 	test("registry matches CANONICAL_TOOL_NAMES exactly, in order", () => {
 		expect(TOOL_DEFS.map((d) => d.name)).toEqual([...CANONICAL_TOOL_NAMES]);
-		expect(TOOL_DEFS).toHaveLength(14);
+		expect(TOOL_DEFS).toHaveLength(15);
 	});
 
 	test("all tool names are snake_case", () => {
@@ -33,13 +33,14 @@ describe("tool registry", () => {
 		}
 	});
 
-	test("site_id is required exactly for the 11 site-scoped analytics tools", () => {
+	test("site_id is required exactly for the 12 site-scoped analytics tools", () => {
 		const required: string[] = TOOL_DEFS.filter((d) => d.inputSchema.required?.includes("site_id"))
 			.map((d) => d.name)
 			.sort();
 		const expected: string[] = [
 			"analytics_overview",
 			"analytics_timeseries",
+			"app_store",
 			"campaigns",
 			"device_breakdown",
 			"export_events",

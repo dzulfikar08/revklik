@@ -26,6 +26,7 @@ export const SITE_SCOPED_TABLES = [
 	"marketplace_orders",
 	"asc_daily_metrics",
 	"asc_daily_country",
+	"asc_daily_sources",
 	"team_members",
 	"api_keys",
 ] as const;

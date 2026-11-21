@@ -7,7 +7,7 @@ import { newSiteSalt, SALTED_FINGERPRINT_PREFIX, saltFingerprint } from "./lib/v
  * Version the live schema must reach. Bump it whenever a step is appended to
  * VERSIONED_STEPS; a DB already at this version costs one SELECT per isolate.
  */
-export const SCHEMA_VERSION = 27;
+export const SCHEMA_VERSION = 28;
 
 const migrated = new WeakSet<D1Database>();
 
@@ -145,7 +145,30 @@ const VERSIONED_STEPS: MigrationStep[] = [
 		// Single-use authorization codes of the first-party SSO client (lib/oauth-provider.ts).
 		run: oauthCodesSchema,
 	},
+	{
+		version: 28,
+		// App Store impressions / product page views per day and source (lib/appstoreconnect.ts).
+		run: ascSourcesSchema,
+	},
 ];
+
+async function ascSourcesSchema(d1: D1Database): Promise<void> {
+	for (const statement of [
+		`CREATE TABLE IF NOT EXISTS asc_daily_sources (
+      id TEXT PRIMARY KEY,
+      site_id TEXT NOT NULL,
+      app_id TEXT NOT NULL,
+      date TEXT NOT NULL,
+      source TEXT NOT NULL,
+      impressions INTEGER NOT NULL DEFAULT 0,
+      page_views INTEGER NOT NULL DEFAULT 0,
+      synced_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )`,
+		"CREATE UNIQUE INDEX IF NOT EXISTS idx_asc_s_unique ON asc_daily_sources(site_id, app_id, date, source)",
+	]) {
+		await runDdl(d1, statement);
+	}
+}
 
 /** Nullable metadata-only ALTERs: legacy rows keep NULL and convert at today's rate. */
 async function fxStampSchema(d1: D1Database): Promise<void> {

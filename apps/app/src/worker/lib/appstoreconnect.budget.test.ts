@@ -87,7 +87,8 @@ describe("App Store sync: days cut off by the fetch budget are not marked synced
 	it("advances the cursor only over fetched days and resumes where the budget ended", async () => {
 		const { kysely, integration, cursor } = await setup();
 		const requested = mockApple();
-		const first: FetchBudget = { n: 0, max: 5 };
+		// One fetch reads the app's SKU (kept for later runs), five fetch sales days.
+		const first: FetchBudget = { n: 0, max: 6 };
 
 		const run1 = await syncAppStoreConnect(kysely, await integration("i1"), {
 			days: 10,

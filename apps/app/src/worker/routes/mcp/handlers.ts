@@ -9,6 +9,7 @@ import {
 	eventsRowsForCsv,
 	eventsRowsToJson,
 	exportRows,
+	queryAppStore,
 	queryCampaigns,
 	queryDevices,
 	queryGeo,
@@ -122,6 +123,8 @@ export const TOOL_HANDLERS: Record<ToolName, ToolHandler> = {
 		),
 	gsc_queries: async (ctx, a) =>
 		queryGscQueries(ctx, resolveSiteId(ctx, a.site_id), intArg(a, "limit", 20, 100)),
+	app_store: async (ctx, a) =>
+		queryAppStore(ctx, resolveSiteId(ctx, a.site_id), strArg(a, "range") ?? "7d"),
 	export_events: async (ctx, a) => {
 		const siteId = resolveSiteId(ctx, a.site_id);
 		const range = strArg(a, "range") ?? "30d";

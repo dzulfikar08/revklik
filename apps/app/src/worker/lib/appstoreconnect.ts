@@ -2,16 +2,19 @@
  * App Store Connect integration — sales-report sync + price-change detection.
  *
  * Auth: ASC API keys (JWT ES256 signed with the account .p8) — no OAuth.
- * Data source of truth: `GET /v1/salesReports` DAILY SALES SUMMARY (TSV),
- * which carries per-country units and per-unit prices for the last 13 months.
+ * Data source of truth: `GET /v1/salesReports` DAILY SALES SUMMARY (version 1_1,
+ * gzipped TSV), which carries per-country units and per-unit prices for the last
+ * 13 months. Proceeds arrive in each storefront's currency and are stored in USD.
  * The per-unit Customer Price is the tier price actually charged that day, so
  * consecutive-day diffs double as price-change history — no separate price
- * polling needed. App Store Engagement analytics (impressions / page views /
- * paying users) is layered on when its report request has finished generating.
+ * polling needed. Impressions and product page views (total and per source) come
+ * from the Analytics Reports API "App Store Discovery and Engagement Standard"
+ * report, once Apple has generated it for the app's report requests.
  */
 import type { Kysely } from "kysely";
 import type { AscDailyCountryTable, IntegrationTable, KlikapaDatabase } from "@revklik/shared";
 import { generateId } from "../utils";
+import { convertAmount, loadUsdRates, usdRates, type FxRates } from "./fx";
 
 const ASC_API = "https://api.appstoreconnect.apple.com";
 
@@ -23,6 +26,10 @@ export interface AscConfig {
 	vendor_number: string;
 	/** First-sync lookback in days (max 90). Default 30. */
 	backfill_days?: string;
+	/** The app's SKU (in-app purchase rows reference it). Written by the sync. */
+	app_sku?: string;
+	/** Per analytics report request: newest report instance (processingDate) stored. Written by the sync. */
+	engagement_cursor?: Record<string, string>;
 }
 
 export class AscConfigError extends Error {}
@@ -106,6 +113,8 @@ export interface AscSalesRow {
 	customerCurrency: string;
 	isIap: boolean;
 	appleId: string;
+	/** SKU of the app an in-app purchase belongs to ("Parent Identifier"). */
+	parentSku: string;
 }
 
 /** "09/07/2026" (Apple's Begin/End Date format) → "2026-09-07". */
@@ -116,11 +125,20 @@ export function appleDateToIso(raw: string): string | null {
 }
 
 /**
- * Parse a SALES / SUMMARY / DAILY (version 1_3) TSV report. Column positions
+ * Parse a SALES / SUMMARY / DAILY (version 1_1) TSV report. Column positions
  * vary between report versions, so the header row is indexed by name.
  * "Developer Proceeds Extended" (row total) is preferred over the per-unit
  * "Developer Proceeds" when present.
  */
+/**
+ * Apple product type identifiers. First-time app downloads: 1 (iPhone/iOS), 1F
+ * (universal), 1T (iPad), F1 (Mac), 1E/1EP/1EU (custom apps). Updates (7, 7F, 7T,
+ * F7) and re-downloads (3, 3F, 3T, F3) are not sales. In-app purchases and
+ * subscriptions start with IA (iOS) or FI (Mac).
+ */
+const APP_DOWNLOAD_TYPE = /^(1|1F|1T|F1|1E|1EP|1EU)$/;
+const IAP_TYPE = /^(IA|FI)/;
+
 export function parseSalesReportTsv(tsv: string): AscSalesRow[] {
 	const lines = tsv.split(/\r?\n/).filter((l) => l.length > 0);
 	if (lines.length < 2) return [];
@@ -137,6 +155,7 @@ export function parseSalesReportTsv(tsv: string): AscSalesRow[] {
 		customerPrice: col("Customer Price"),
 		customerCurrency: col("Customer Currency"),
 		productType: col("Product Type Identifier"),
+		parent: col("Parent Identifier"),
 	};
 	if (idx.beginDate < 0 || idx.country < 0 || idx.units < 0) return [];
 
@@ -147,11 +166,8 @@ export function parseSalesReportTsv(tsv: string): AscSalesRow[] {
 		if (!date) continue;
 		const units = Number.parseInt(cells[idx.units] ?? "0", 10) || 0;
 		const productType = (cells[idx.productType] ?? "").trim();
-		// Download-like types: 1 (paid/free download), 7 (update), 8
-		// (re-download), 3-6 (Mac/TV variants). Anything containing "F" is an
-		// in-app purchase or subscription event.
-		const isIap = /F/.test(productType);
-		if (!isIap && !/^[1345678]$/.test(productType)) continue;
+		const isIap = IAP_TYPE.test(productType);
+		if (!isIap && !APP_DOWNLOAD_TYPE.test(productType)) continue;
 		const proceeds =
 			Number.parseFloat(cells[idx.proceedsExt] ?? "") ||
 			units * (Number.parseFloat(cells[idx.proceedsUnit] ?? "") || 0);
@@ -166,6 +182,7 @@ export function parseSalesReportTsv(tsv: string): AscSalesRow[] {
 			customerCurrency: (cells[idx.customerCurrency] ?? "").trim(),
 			isIap,
 			appleId: (cells[idx.appleId] ?? "").trim(),
+			parentSku: idx.parent >= 0 ? (cells[idx.parent] ?? "").trim() : "",
 		});
 	}
 	return rows;
@@ -189,11 +206,34 @@ export interface AscCountryAgg {
 	customerCurrency: string | null;
 }
 
+/**
+ * Per-day and per-country totals for one app. In-app purchase rows carry their own
+ * Apple Identifier, so they are matched to the app by its SKU (their Parent
+ * Identifier). Proceeds are converted to USD: one report mixes every storefront's
+ * currency. Customer prices stay in the customer's currency (price-change detection).
+ */
 export function aggregateSalesRows(
 	rows: AscSalesRow[],
 	appleId?: string,
+	opts: { appSku?: string; rates?: FxRates } = {},
 ): { days: AscDayAgg[]; countries: AscCountryAgg[] } {
-	const filtered = appleId ? rows.filter((r) => !r.appleId || r.appleId === appleId) : rows;
+	const rates = opts.rates ?? usdRates();
+	const filtered = (
+		appleId
+			? rows.filter(
+					(r) =>
+						!r.appleId ||
+						r.appleId === appleId ||
+						(r.isIap && !!opts.appSku && r.parentSku === opts.appSku),
+				)
+			: rows
+	).map((r) => ({
+		...r,
+		proceeds: r.proceedsCurrency
+			? convertAmount(r.proceeds, r.proceedsCurrency, "USD", rates)
+			: r.proceeds,
+		proceedsCurrency: r.proceedsCurrency ? "USD" : r.proceedsCurrency,
+	}));
 	const days = new Map<string, AscDayAgg>();
 	const countries = new Map<string, AscCountryAgg>();
 	for (const r of filtered) {
@@ -289,32 +329,16 @@ export function priceChangeAnnotationText(ch: AscPriceChange): string {
 
 /* --------------------------- App Store Engagement -------------------------- */
 
-export interface AscEngagementDay {
+/** Report rows are split by source; "" is the whole day. */
+export interface AscEngagementRow {
 	date: string;
-	impressions: number | null;
-	pageViews: number | null;
-	payingUsers: number | null;
+	source: string;
+	impressions: number;
+	pageViews: number;
 }
 
-/** Parse "USD 1,234" / "USD 1.234,56" / "USD 12,34" style amounts. */
-export function parseMoneyCurrency(raw: string): { currency: string; amount: number } | null {
-	const m = /^([A-Z]{3})\s*([\d.,\u00A0\u202F'\s-]+)$/.exec(raw.trim());
-	if (!m) return null;
-	let num = m[2].replace(/[\u00A0\u202F\s'-]/g, "");
-	if (num.includes(",") && num.includes(".")) {
-		num =
-			num.lastIndexOf(",") > num.lastIndexOf(".")
-				? num.replace(/\./g, "").replace(",", ".")
-				: num.replace(/,/g, "");
-	} else if (num.includes(",")) {
-		num = /,\d{3}(?:\D|$)/.test(num) ? num.replace(/,/g, "") : num.replace(",", ".");
-	}
-	const amount = Number.parseFloat(num);
-	return Number.isFinite(amount) ? { currency: m[1], amount } : null;
-}
-
-/** Minimal CSV reader (handles quoted fields with commas/newlines). */
-export function parseCsv(text: string): string[][] {
+/** Minimal delimited-text reader (quoted fields with delimiters/newlines). Comma by default. */
+export function parseCsv(text: string, delimiter = ","): string[][] {
 	const rows: string[][] = [];
 	let row: string[] = [];
 	let field = "";
@@ -329,7 +353,7 @@ export function parseCsv(text: string): string[][] {
 				} else inQuotes = false;
 			} else field += ch;
 		} else if (ch === '"') inQuotes = true;
-		else if (ch === ",") {
+		else if (ch === delimiter) {
 			row.push(field);
 			field = "";
 		} else if (ch === "\n" || ch === "\r") {
@@ -346,49 +370,49 @@ export function parseCsv(text: string): string[][] {
 }
 
 /**
- * Parse an "App Store Engagement" DAILY CSV into per-day metrics. Columns are
- * matched by header name — Apple adds columns across report versions.
+ * Parse an "App Store Discovery and Engagement Standard" report segment: one row
+ * per date, app, event (Impression, Page view, Tap, ...), page type, source type,
+ * device, territory..., with a "Counts" column. Apple ships it as tab-separated
+ * text; commas are accepted too. Columns are found by header name. Returns one
+ * row per date with source "" (the day's total) plus one per date and source.
  */
-export function parseEngagementCsv(text: string, appleId: string): AscEngagementDay[] {
-	const rows = parseCsv(text);
+export function parseEngagementReport(text: string, appleId: string): AscEngagementRow[] {
+	const firstLine = text.slice(0, text.search(/\r?\n|$/));
+	const rows = parseCsv(text, firstLine.includes("\t") ? "\t" : ",");
 	if (rows.length < 2) return [];
 	const header = rows[0].map((h) => h.trim().toLowerCase());
-	const find = (...names: RegExp[]) => {
-		for (const re of names) {
-			const i = header.findIndex((h) => re.test(h));
-			if (i >= 0) return i;
-		}
-		return -1;
-	};
+	const col = (...names: string[]) => header.findIndex((h) => names.includes(h));
 	const idx = {
-		date: find(/^date$/),
-		app: find(/^(apple identifier|app)$/, /^app id$/),
-		impressions: find(/^impressions/),
-		pageViews: find(/^(page views|product page views)/),
-		paying: find(/^paying users?$/),
-		proceeds: find(/^proceeds/),
+		date: col("date"),
+		app: col("app apple identifier", "apple identifier", "app id"),
+		event: col("event"),
+		source: col("source type"),
+		counts: col("counts"),
 	};
-	if (idx.date < 0) return [];
-	const intAt = (cells: string[], i: number) =>
-		i >= 0 ? Number.parseInt((cells[i] ?? "").replace(/[^\d-]/g, ""), 10) || null : null;
+	if (idx.date < 0 || idx.event < 0 || idx.counts < 0) return [];
 
-	const days = new Map<string, AscEngagementDay>();
+	const out = new Map<string, AscEngagementRow>();
+	const add = (date: string, source: string, kind: "impressions" | "pageViews", n: number) => {
+		const key = `${date}|${source}`;
+		const row = out.get(key) ?? { date, source, impressions: 0, pageViews: 0 };
+		row[kind] += n;
+		out.set(key, row);
+	};
 	for (const cells of rows.slice(1)) {
 		if (idx.app >= 0 && (cells[idx.app] ?? "").trim() !== appleId) continue;
-		const date = appleDateToIso(cells[idx.date] ?? "") ?? (cells[idx.date] ?? "").trim();
+		const rawDate = (cells[idx.date] ?? "").trim();
+		const date = appleDateToIso(rawDate) ?? rawDate;
 		if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) continue;
-		const money = idx.proceeds >= 0 ? parseMoneyCurrency(cells[idx.proceeds] ?? "") : null;
-		if (money === null && idx.impressions < 0 && idx.pageViews < 0 && idx.paying < 0) continue;
-		const d = days.get(date) ?? { date, impressions: null, pageViews: null, payingUsers: null };
-		const imp = intAt(cells, idx.impressions);
-		const pv = intAt(cells, idx.pageViews);
-		const pay = intAt(cells, idx.paying);
-		if (imp !== null) d.impressions = (d.impressions ?? 0) + imp;
-		if (pv !== null) d.pageViews = (d.pageViews ?? 0) + pv;
-		if (pay !== null) d.payingUsers = (d.payingUsers ?? 0) + pay;
-		days.set(date, d);
+		const event = (cells[idx.event] ?? "").trim().toLowerCase();
+		const kind =
+			event === "impression" ? "impressions" : event === "page view" ? "pageViews" : null;
+		if (!kind) continue;
+		const n = Number.parseInt((cells[idx.counts] ?? "").replace(/[^\d-]/g, ""), 10) || 0;
+		add(date, "", kind, n);
+		const source = idx.source >= 0 ? (cells[idx.source] ?? "").trim() : "";
+		if (source) add(date, source, kind, n);
 	}
-	return [...days.values()];
+	return [...out.values()];
 }
 
 /* --------------------------------- API I/O --------------------------------- */
@@ -413,45 +437,64 @@ async function ascFetch(path: string, token: string, budget: FetchBudget): Promi
 	return res;
 }
 
-async function ensureEngagementReportRequest(
+/** Apple serves reports as gzip files (on top of any transport encoding fetch already undid). */
+export async function readReportText(res: Response): Promise<string> {
+	const bytes = new Uint8Array(await res.arrayBuffer());
+	if (bytes[0] === 0x1f && bytes[1] === 0x8b) {
+		const stream = new Blob([bytes]).stream().pipeThrough(new DecompressionStream("gzip"));
+		return await new Response(stream).text();
+	}
+	return new TextDecoder().decode(bytes);
+}
+
+const ENGAGEMENT_REPORT = "App Store Discovery and Engagement Standard";
+
+/**
+ * The app's analytics report requests: the ONGOING one (daily data from now on) and,
+ * when present, a ONE_TIME_SNAPSHOT (history). Only an Admin key may create them, so
+ * a missing ONGOING request is created when the key allows it; otherwise the sync
+ * logs that someone with Admin access has to create it once.
+ */
+async function engagementRequestIds(
 	cfg: AscConfig,
 	token: string,
 	budget: FetchBudget,
-): Promise<string | null> {
+): Promise<string[]> {
 	const listRes = await ascFetch(`/v1/apps/${cfg.app_id}/analyticsReportRequests`, token, budget);
 	const list = (await listRes.json().catch(() => null)) as {
-		data?: Array<{ id: string; attributes?: { name?: string; state?: string } }>;
+		data?: Array<{
+			id: string;
+			attributes?: { accessType?: string; stoppedDueToInactivity?: boolean };
+		}>;
 	} | null;
-	const existing = list?.data?.find((r) => r.attributes?.name === "App Store Engagement");
-	if (existing) {
-		return existing.attributes?.state === "ORPHANED" || existing.attributes?.state === "DELETED"
-			? null
-			: existing.id;
+	const live = (list?.data ?? []).filter((r) => !r.attributes?.stoppedDueToInactivity);
+	const ongoing = live.filter((r) => r.attributes?.accessType === "ONGOING");
+	const snapshots = live.filter((r) => r.attributes?.accessType === "ONE_TIME_SNAPSHOT");
+	if (!ongoing.length && budget.n < budget.max) {
+		budget.n++;
+		const createRes = await fetch(`${ASC_API}/v1/analyticsReportRequests`, {
+			method: "POST",
+			headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+			body: JSON.stringify({
+				data: {
+					type: "analyticsReportRequests",
+					attributes: { accessType: "ONGOING" },
+					relationships: { app: { data: { type: "apps", id: cfg.app_id } } },
+				},
+			}),
+		});
+		if (createRes.ok) {
+			const created = (await createRes.json().catch(() => null)) as {
+				data?: { id?: string };
+			} | null;
+			if (created?.data?.id) ongoing.push({ id: created.data.id });
+		} else {
+			console.log(
+				`ASC analytics: no report request for app ${cfg.app_id} and this key cannot create one (HTTP ${createRes.status}); create it once with an Admin key`,
+			);
+		}
 	}
-	const createRes = await fetch(`${ASC_API}/v1/analyticsReportRequests`, {
-		method: "POST",
-		headers: {
-			Authorization: `Bearer ${token}`,
-			"Content-Type": "application/json",
-		},
-		body: JSON.stringify({
-			data: {
-				type: "analyticsReportRequests",
-				attributes: { accessType: "ONGOING", name: "App Store Engagement" },
-				relationships: { app: { data: { type: "apps", id: cfg.app_id } } },
-			},
-		}),
-	});
-	if (!createRes.ok) {
-		// 409 = already requested; anything else (403 = role too weak) is fatal
-		// for this section but must not fail the sales sync.
-		console.log(`ASC analytics request create: HTTP ${createRes.status}`);
-		return null;
-	}
-	const created = (await createRes.json().catch(() => null)) as {
-		data?: { id?: string };
-	} | null;
-	return created?.data?.id ?? null;
+	return [...snapshots, ...ongoing].map((r) => r.id);
 }
 
 /* ---------------------------------- sync ---------------------------------- */
@@ -620,6 +663,182 @@ export function ascDayComplete(status: number, daysAgo: number): boolean {
 	return true;
 }
 
+/** Apple's only valid version for SALES / SUMMARY / DAILY (1_3 is rejected with HTTP 400). */
+const SALES_REPORT_VERSION = "1_1";
+
+/**
+ * Store new engagement report instances: impressions and page views per day (on the
+ * sales row, without touching its sales figures) and per source. Each report request
+ * keeps its own cursor (newest processingDate stored) in the integration config, so a
+ * history snapshot that arrives after the daily request still gets read. An instance
+ * counts as done only when all its segments were fetched. Returns days stored.
+ */
+async function syncEngagement(
+	db: Kysely<KlikapaDatabase>,
+	integration: Pick<IntegrationTable, "id" | "site_id">,
+	cfg: AscConfig,
+	token: string,
+	budget: FetchBudget,
+): Promise<number> {
+	const cursors: Record<string, string> = { ...cfg.engagement_cursor };
+	let stored = 0;
+	let changed = false;
+	outer: for (const reqId of await engagementRequestIds(cfg, token, budget)) {
+		if (budget.n >= budget.max) break;
+		const reportsRes = await ascFetch(
+			`/v1/analyticsReportRequests/${reqId}/reports?filter[name]=${encodeURIComponent(ENGAGEMENT_REPORT)}`,
+			token,
+			budget,
+		);
+		const reports = (await reportsRes.json().catch(() => null)) as {
+			data?: Array<{ id: string }>;
+		} | null;
+		const reportId = reports?.data?.[0]?.id;
+		if (!reportId || budget.n >= budget.max) continue;
+		const instRes = await ascFetch(
+			`/v1/analyticsReports/${reportId}/instances?filter[granularity]=DAILY&limit=200`,
+			token,
+			budget,
+		);
+		const instances = (
+			(
+				(await instRes.json().catch(() => null)) as {
+					data?: Array<{ id: string; attributes?: { processingDate?: string } }>;
+				} | null
+			)?.data ?? []
+		)
+			.map((x) => ({ id: x.id, date: x.attributes?.processingDate ?? "" }))
+			.filter((x) => x.date && x.date > (cursors[reqId] ?? ""))
+			.sort((a, b) => a.date.localeCompare(b.date));
+
+		for (const inst of instances) {
+			if (budget.n >= budget.max) break outer;
+			const segRes = await ascFetch(
+				`/v1/analyticsReportInstances/${inst.id}/segments`,
+				token,
+				budget,
+			);
+			const segments = (
+				(
+					(await segRes.json().catch(() => null)) as {
+						data?: Array<{ attributes?: { url?: string } }>;
+					} | null
+				)?.data ?? []
+			).filter((seg) => seg.attributes?.url);
+			if (budget.n + segments.length > budget.max) break outer;
+			const rows: AscEngagementRow[] = [];
+			for (const seg of segments) {
+				budget.n++;
+				const res = await fetch(seg.attributes!.url!);
+				if (!res.ok) continue outer; // retried next run: the cursor stays before this instance
+				rows.push(...parseEngagementReport(await readReportText(res), cfg.app_id));
+			}
+			stored += await upsertEngagement(db, integration.site_id, cfg.app_id, mergeEngagement(rows));
+			cursors[reqId] = inst.date;
+			changed = true;
+		}
+	}
+	if (changed) await patchConfig(db, integration.id, { engagement_cursor: cursors });
+	return stored;
+}
+
+/** Merge keys into an integration's stored config (re-read, so concurrent edits survive). */
+async function patchConfig(
+	db: Kysely<KlikapaDatabase>,
+	integrationId: string,
+	patch: Record<string, unknown>,
+): Promise<void> {
+	const row = await db
+		.selectFrom("integrations")
+		.select("config")
+		.where("id", "=", integrationId)
+		.executeTakeFirst();
+	if (!row) return;
+	const fresh = JSON.parse(row.config || "{}") as Record<string, unknown>;
+	await db
+		.updateTable("integrations")
+		.set({ config: JSON.stringify({ ...fresh, ...patch }) })
+		.where("id", "=", integrationId)
+		.execute();
+}
+
+/** Sum rows of the same date and source (an instance may span several segments). */
+function mergeEngagement(rows: AscEngagementRow[]): AscEngagementRow[] {
+	const out = new Map<string, AscEngagementRow>();
+	for (const r of rows) {
+		const key = `${r.date}|${r.source}`;
+		const m = out.get(key) ?? { date: r.date, source: r.source, impressions: 0, pageViews: 0 };
+		m.impressions += r.impressions;
+		m.pageViews += r.pageViews;
+		out.set(key, m);
+	}
+	return [...out.values()];
+}
+
+async function upsertEngagement(
+	db: Kysely<KlikapaDatabase>,
+	siteId: string,
+	appId: string,
+	rows: AscEngagementRow[],
+): Promise<number> {
+	const totals = rows.filter((r) => r.source === "");
+	const bySource = rows.filter((r) => r.source !== "");
+	const now = new Date().toISOString();
+	if (totals.length) {
+		await db
+			.insertInto("asc_daily_metrics")
+			.values(
+				totals.map((d) => ({
+					id: generateId(),
+					site_id: siteId,
+					app_id: appId,
+					date: d.date,
+					units: 0,
+					proceeds: 0,
+					iap_units: 0,
+					iap_proceeds: 0,
+					proceeds_currency: null,
+					impressions: d.impressions,
+					page_views: d.pageViews,
+					synced_at: now,
+				})),
+			)
+			// Must not clobber the sales figures already stored for the same day.
+			.onConflict((oc) =>
+				oc.columns(["site_id", "app_id", "date"]).doUpdateSet((eb) => ({
+					impressions: eb.ref("excluded.impressions"),
+					page_views: eb.ref("excluded.page_views"),
+				})),
+			)
+			.execute();
+	}
+	if (bySource.length) {
+		await db
+			.insertInto("asc_daily_sources")
+			.values(
+				bySource.map((d) => ({
+					id: generateId(),
+					site_id: siteId,
+					app_id: appId,
+					date: d.date,
+					source: d.source,
+					impressions: d.impressions,
+					page_views: d.pageViews,
+					synced_at: now,
+				})),
+			)
+			.onConflict((oc) =>
+				oc.columns(["site_id", "app_id", "date", "source"]).doUpdateSet((eb) => ({
+					impressions: eb.ref("excluded.impressions"),
+					page_views: eb.ref("excluded.page_views"),
+					synced_at: eb.ref("excluded.synced_at"),
+				})),
+			)
+			.execute();
+	}
+	return totals.length;
+}
+
 /**
  * Sync one appstoreconnect integration: sales reports for the lookback window
  * (see ascWindowDays), price-change annotations from per-unit price diffs, then
@@ -661,13 +880,24 @@ export async function syncAppStoreConnect(
 	const allCountries: AscCountryAgg[] = [];
 	let completedThrough: string | null = null;
 	let gapFree = true;
+	const rates = await loadUsdRates(db);
+	// In-app purchase rows name their app by SKU, not Apple ID. Read once, then kept in the config.
+	let appSku = cfg.app_sku;
+	if (!appSku && budget.n < budget.max) {
+		const appRes = await ascFetch(`/v1/apps/${cfg.app_id}?fields[apps]=sku`, token, budget);
+		const app = (await appRes.json().catch(() => null)) as {
+			data?: { attributes?: { sku?: string } };
+		} | null;
+		appSku = app?.data?.attributes?.sku;
+		if (appSku) await patchConfig(db, integration.id, { app_sku: appSku });
+	}
 
 	for (let i = windowDays - 1; i >= 0; i--) {
 		const date = isoDaysAgo(i);
 		let res: Response;
 		try {
 			res = await ascFetch(
-				`/v1/salesReports?filter[reportType]=SALES&filter[reportSubType]=SUMMARY&filter[frequency]=DAILY&filter[reportDate]=${date}&filter[version]=1_3&filter[vendorNumber]=${encodeURIComponent(cfg.vendor_number)}`,
+				`/v1/salesReports?filter[reportType]=SALES&filter[reportSubType]=SUMMARY&filter[frequency]=DAILY&filter[reportDate]=${date}&filter[version]=${SALES_REPORT_VERSION}&filter[vendorNumber]=${encodeURIComponent(cfg.vendor_number)}`,
 				token,
 				budget,
 			);
@@ -685,8 +915,11 @@ export async function syncAppStoreConnect(
 			if (gapFree) completedThrough = date;
 			continue;
 		}
-		const tsv = await res.text();
-		const { days, countries } = aggregateSalesRows(parseSalesReportTsv(tsv), cfg.app_id);
+		const tsv = await readReportText(res);
+		const { days, countries } = aggregateSalesRows(parseSalesReportTsv(tsv), cfg.app_id, {
+			appSku,
+			rates,
+		});
 		await upsertDays(db, integration.site_id, cfg.app_id, days);
 		await upsertCountries(db, integration.site_id, cfg.app_id, countries);
 		allCountries.push(...countries);
@@ -701,86 +934,11 @@ export async function syncAppStoreConnect(
 		detectPriceChanges(allCountries),
 	);
 
-	// Engagement metrics (impressions / page views / paying users). Best-effort:
-	// the report request takes 1-2 days to activate after first sync.
+	// Impressions and page views. Best-effort: Apple generates the first reports a day or
+	// two after a report request is created, and they must never fail the sales sync.
 	if (budget.n < budget.max) {
 		try {
-			const reqId = await ensureEngagementReportRequest(cfg, token, budget);
-			if (reqId) {
-				const since = isoDaysAgo(windowDays);
-				const reportsRes = await ascFetch(
-					`/v1/analyticsReportRequests/${reqId}/reports?filter[reportType]=App%20Store%20Engagement`,
-					token,
-					budget,
-				);
-				const reports = (await reportsRes.json().catch(() => null)) as {
-					data?: Array<{ id: string }>;
-				} | null;
-				for (const report of reports?.data ?? []) {
-					if (budget.n >= budget.max) break;
-					const instRes = await ascFetch(
-						`/v1/analyticsReports/${report.id}/instances`,
-						token,
-						budget,
-					);
-					const instances = (await instRes.json().catch(() => null)) as {
-						data?: Array<{ id: string; attributes?: { granularity?: string } }>;
-					} | null;
-					for (const inst of (instances?.data ?? []).filter(
-						(x) => !x.attributes?.granularity || x.attributes.granularity === "DAILY",
-					)) {
-						if (budget.n >= budget.max) break;
-						const segRes = await ascFetch(
-							`/v1/analyticsReportInstances/${inst.id}/segments`,
-							token,
-							budget,
-						);
-						const segments = (await segRes.json().catch(() => null)) as {
-							data?: Array<{ id: string; attributes?: { url?: string } }>;
-						} | null;
-						for (const seg of segments?.data ?? []) {
-							if (!seg.attributes?.url || budget.n >= budget.max) continue;
-							budget.n++;
-							const csvRes = await fetch(seg.attributes.url);
-							if (!csvRes.ok) continue;
-							const csv = await csvRes.text();
-							const days = parseEngagementCsv(csv, cfg.app_id).filter((d) => d.date >= since);
-							if (days.length) {
-								await db
-									.insertInto("asc_daily_metrics")
-									.values(
-										days.map((d) => ({
-											id: generateId(),
-											site_id: integration.site_id,
-											app_id: cfg.app_id,
-											date: d.date,
-											units: 0,
-											proceeds: 0,
-											iap_units: 0,
-											iap_proceeds: 0,
-											proceeds_currency: null,
-											impressions: d.impressions,
-											page_views: d.pageViews,
-											paying_users: d.payingUsers,
-											synced_at: new Date().toISOString(),
-										})),
-									)
-									// Engagement update must not clobber sales figures
-									// already stored for the same day.
-									.onConflict((oc) =>
-										oc.columns(["site_id", "app_id", "date"]).doUpdateSet((eb) => ({
-											impressions: eb.ref("excluded.impressions"),
-											page_views: eb.ref("excluded.page_views"),
-											paying_users: eb.ref("excluded.paying_users"),
-										})),
-									)
-									.execute();
-								result.analytics_days += days.length;
-							}
-						}
-					}
-				}
-			}
+			result.analytics_days = await syncEngagement(db, integration, cfg, token, budget);
 		} catch (err) {
 			console.log("ASC engagement sync skipped:", err instanceof Error ? err.message : err);
 		}
@@ -856,4 +1014,129 @@ export async function latestCountryPrices(
 		seen.add(r.country);
 		return true;
 	});
+}
+
+/* --------------------------------- reading --------------------------------- */
+
+export interface AscAppSummary {
+	app_id: string;
+	/** First-time downloads (paid units for a paid app). */
+	downloads: number;
+	proceeds_usd: number;
+	iap_units: number;
+	iap_proceeds_usd: number;
+	/** Null until Apple's engagement reports cover the range. */
+	impressions: number | null;
+	page_views: number | null;
+	/** downloads / page_views. */
+	page_conversion: number | null;
+	by_source: { source: string; impressions: number; page_views: number }[];
+	by_country: { country: string; downloads: number; proceeds_usd: number }[];
+	daily: {
+		date: string;
+		downloads: number;
+		proceeds_usd: number;
+		impressions: number | null;
+		page_views: number | null;
+	}[];
+}
+
+/** Per-app App Store figures stored for a site between two ISO dates (inclusive). */
+export async function appStoreSummary(
+	db: Kysely<KlikapaDatabase>,
+	siteId: string,
+	from: string,
+	to: string,
+): Promise<{ from: string; to: string; apps: AscAppSummary[]; last_sync: string | null }> {
+	const [days, sources, countries, integrations] = await Promise.all([
+		db
+			.selectFrom("asc_daily_metrics")
+			.selectAll()
+			.where("site_id", "=", siteId)
+			.where("date", ">=", from)
+			.where("date", "<=", to)
+			.orderBy("date", "asc")
+			.execute(),
+		db
+			.selectFrom("asc_daily_sources")
+			.select([
+				"app_id",
+				"source",
+				(eb) => eb.fn.sum<number>("impressions").as("impressions"),
+				(eb) => eb.fn.sum<number>("page_views").as("page_views"),
+			])
+			.where("site_id", "=", siteId)
+			.where("date", ">=", from)
+			.where("date", "<=", to)
+			.groupBy(["app_id", "source"])
+			.execute(),
+		db
+			.selectFrom("asc_daily_country")
+			.select([
+				"app_id",
+				"country",
+				(eb) => eb.fn.sum<number>("units").as("units"),
+				(eb) => eb.fn.sum<number>("proceeds").as("proceeds"),
+			])
+			.where("site_id", "=", siteId)
+			.where("date", ">=", from)
+			.where("date", "<=", to)
+			.groupBy(["app_id", "country"])
+			.execute(),
+		db
+			.selectFrom("integrations")
+			.select(["config", "last_sync"])
+			.where("site_id", "=", siteId)
+			.where("type", "=", "appstoreconnect")
+			.execute(),
+	]);
+	const round = (n: number) => Math.round(n * 100) / 100;
+	const appIds = new Set<string>(days.map((d) => d.app_id));
+	for (const i of integrations) {
+		const id = (JSON.parse(i.config || "{}") as { app_id?: string }).app_id;
+		if (id) appIds.add(id);
+	}
+	const apps = [...appIds].sort().map((appId): AscAppSummary => {
+		const mine = days.filter((d) => d.app_id === appId);
+		const sum = (pick: (d: (typeof mine)[number]) => number | null) =>
+			mine.reduce((a, d) => a + (pick(d) ?? 0), 0);
+		const hasEngagement = mine.some((d) => d.impressions !== null || d.page_views !== null);
+		const downloads = sum((d) => d.units);
+		const pageViews = hasEngagement ? sum((d) => d.page_views) : null;
+		return {
+			app_id: appId,
+			downloads,
+			proceeds_usd: round(sum((d) => d.proceeds)),
+			iap_units: sum((d) => d.iap_units),
+			iap_proceeds_usd: round(sum((d) => d.iap_proceeds)),
+			impressions: hasEngagement ? sum((d) => d.impressions) : null,
+			page_views: pageViews,
+			page_conversion: pageViews ? Math.round((downloads / pageViews) * 10000) / 10000 : null,
+			by_source: sources
+				.filter((s) => s.app_id === appId)
+				.map((s) => ({
+					source: s.source,
+					impressions: Number(s.impressions),
+					page_views: Number(s.page_views),
+				}))
+				.sort((a, b) => b.impressions - a.impressions),
+			by_country: countries
+				.filter((c) => c.app_id === appId && Number(c.units) !== 0)
+				.map((c) => ({
+					country: c.country,
+					downloads: Number(c.units),
+					proceeds_usd: round(Number(c.proceeds)),
+				}))
+				.sort((a, b) => b.downloads - a.downloads),
+			daily: mine.map((d) => ({
+				date: d.date,
+				downloads: d.units,
+				proceeds_usd: round(d.proceeds),
+				impressions: d.impressions,
+				page_views: d.page_views,
+			})),
+		};
+	});
+	const syncs = integrations.map((i) => i.last_sync).filter(Boolean) as string[];
+	return { from, to, apps, last_sync: syncs.sort().at(-1) ?? null };
 }

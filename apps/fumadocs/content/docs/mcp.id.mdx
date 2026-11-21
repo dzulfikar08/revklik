@@ -71,8 +71,9 @@ token sebagai header `Authorization` Bearer.
 
 ## Tool
 
-Empat belas tool baca-saja, mencerminkan REST API satu lawan satu (`gsc_queries`
-didukung endpoint GSC `/api/gsc/queries`, yang lebih tua dari v1):
+Lima belas tool baca-saja, mencerminkan REST API satu lawan satu (`gsc_queries`
+didukung endpoint GSC `/api/gsc/queries`, yang lebih tua dari v1, dan `app_store`
+oleh `/api/appstoreconnect/summary`):
 
 | Tool                   | Mengembalikan                                                      | Cakupan            |
 | ---------------------- | ------------------------------------------------------------------ | ------------------ |
@@ -89,6 +90,7 @@ didukung endpoint GSC `/api/gsc/queries`, yang lebih tua dari v1):
 | `campaigns`            | Kampanye UTM dengan konversi, pendapatan, dan tingkat konversi     | `analytics:read`   |
 | `visitor_journeys`     | Sesi terbaru dengan perjalanan langkah demi langkah dan profil yang dikenal | `analytics:read` |
 | `gsc_queries`          | Kueri Google Search Console: klik, impresi, CTR, posisi            | `analytics:read`   |
+| `app_store`            | Per aplikasi: unduhan, hasil penjualan, impresi, tampilan halaman, sumber | `analytics:read` |
 | `export_events`        | Baris mentah (event, pengunjung, atau sesi) sebagai JSON atau CSV  | `analytics:export` |
 
 Argumen bersama:
