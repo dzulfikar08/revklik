@@ -31,10 +31,11 @@ import { ErrorBlock } from "./panel-state";
 import { railLabel } from "./payment-labels";
 import { Panel, StatTile } from "./ui";
 
-type RangeKey = "thisMonth" | "lastMonth" | "7d" | "30d" | "90d";
+type PresetKey = "thisMonth" | "lastMonth" | "7d" | "30d" | "90d";
+type RangeKey = PresetKey | "custom";
 
 const DAY_RANGES = { "30d": 30, "7d": 7, "90d": 90 } as const;
-const RANGE_KEYS: readonly RangeKey[] = ["lastMonth", "thisMonth", "7d", "30d", "90d"];
+const RANGE_KEYS: readonly PresetKey[] = ["lastMonth", "thisMonth", "7d", "30d", "90d"];
 
 const BPS_PER_PERCENT = 100;
 const CHART_W = 640;
@@ -48,7 +49,7 @@ const localDay = (d: Date): string =>
  * Inclusive local-day range. Months run from the 1st 00:00 to the last day 23:59;
  * this month stops at today. Day ranges end today.
  */
-const rangeFor = (key: RangeKey): { from: string; to: string; month?: Date; days?: number } => {
+const rangeFor = (key: PresetKey): { from: string; to: string; month?: Date; days?: number } => {
 	const now = new Date();
 	const y = now.getFullYear();
 	const m = now.getMonth();
@@ -65,6 +66,16 @@ const rangeFor = (key: RangeKey): { from: string; to: string; month?: Date; days
 	}
 	const days = DAY_RANGES[key];
 	return { days, from: localDay(new Date(y, m, now.getDate() - days + 1)), to: localDay(now) };
+};
+
+/** "21 Nov 2026" in the viewer's language, for a custom range in the shareable post. */
+const dayLabel = (day: string): string => {
+	const [y, m, d] = day.split("-").map(Number);
+	return monthName(new Date(y ?? 1970, (m ?? 1) - 1, d ?? 1), {
+		day: "numeric",
+		month: "short",
+		year: "numeric",
+	});
 };
 
 const monthName = (d: Date, opts: Intl.DateTimeFormatOptions): string =>
@@ -531,6 +542,10 @@ const PortfolioPage = () => {
 	const locale = useLocale();
 	const navigate = useNavigate();
 	const [rangeKey, setRangeKey] = useState<RangeKey>("thisMonth");
+	const [custom, setCustom] = useState(() => {
+		const { from, to } = rangeFor("thisMonth");
+		return { from, to };
+	});
 	const [choice, setChoice] = useState<string | null>(storedCurrency);
 	const [emojis, setEmojis] = useState<Record<string, string>>(storedEmojis);
 	const setEmoji = (siteId: string, emoji: string) => {
@@ -542,7 +557,21 @@ const PortfolioPage = () => {
 			// Not persisted; still applies for this page view.
 		}
 	};
-	const range = useMemo(() => rangeFor(rangeKey), [rangeKey]);
+	const range: ReturnType<typeof rangeFor> = useMemo(
+		() => (rangeKey === "custom" ? custom : rangeFor(rangeKey)),
+		[rangeKey, custom],
+	);
+	const today = rangeFor("thisMonth").to;
+	/** Keeps from <= to: moving one end past the other drags the other along. */
+	const setCustomEnd = (end: "from" | "to", value: string) => {
+		if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+			return;
+		}
+		setCustom((prev) => {
+			const next = { ...prev, [end]: value };
+			return next.from > next.to ? { from: value, to: value } : next;
+		});
+	};
 	const activeSite = lastActiveSite() ?? undefined;
 
 	// The site list names the owner's currency; waiting for it avoids fetching the portfolio twice.
@@ -636,7 +665,42 @@ const PortfolioPage = () => {
 									</button>
 								);
 							})}
+							<button
+								type="button"
+								aria-pressed={rangeKey === "custom"}
+								onClick={() => setRangeKey("custom")}
+								className={`focus-visible:outline-ring pointer-coarse:min-h-11 min-h-8 flex-1 rounded-full px-3 text-[13px] font-medium outline-offset-2 transition-colors duration-150 focus-visible:outline-2 sm:flex-none ${
+									rangeKey === "custom"
+										? "bg-card text-foreground ring-foreground/10 shadow-xs ring-1"
+										: "text-muted-foreground hover:text-foreground"
+								}`}
+							>
+								{t("portfolio.custom")}
+							</button>
 						</div>
+						{rangeKey === "custom" ? (
+							<div className="flex w-full items-center gap-2 sm:w-auto">
+								<Input
+									type="date"
+									aria-label={t("portfolio.customFrom")}
+									value={custom.from}
+									max={today}
+									onChange={(e) => setCustomEnd("from", e.target.value)}
+									className="pointer-coarse:min-h-11 h-9 flex-1 rounded-full text-[13px] tabular-nums sm:w-40 sm:flex-none"
+								/>
+								<span aria-hidden className="text-muted-foreground text-[13px]">
+									→
+								</span>
+								<Input
+									type="date"
+									aria-label={t("portfolio.customTo")}
+									value={custom.to}
+									max={today}
+									onChange={(e) => setCustomEnd("to", e.target.value)}
+									className="pointer-coarse:min-h-11 h-9 flex-1 rounded-full text-[13px] tabular-nums sm:w-40 sm:flex-none"
+								/>
+							</div>
+						) : null}
 						<CurrencyPicker value={currency} options={currencyOptions} onChange={pickCurrency} />
 						<Button
 							variant="outline"
@@ -652,7 +716,13 @@ const PortfolioPage = () => {
 											amount,
 											month: monthName(range.month, { month: "long", year: "numeric" }),
 										})
-									: t("portfolio.postHeadline", { amount, days: range.days ?? 0 });
+									: range.days
+										? t("portfolio.postHeadline", { amount, days: range.days })
+										: t("portfolio.postHeadlineRange", {
+												amount,
+												from: dayLabel(range.from),
+												to: dayLabel(range.to),
+											});
 								try {
 									await navigator.clipboard.writeText(
 										postText(shareSites, data.currency, headline, emojis),

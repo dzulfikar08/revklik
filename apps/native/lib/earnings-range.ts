@@ -11,7 +11,13 @@ export interface EarningsDaily {
 	sales: number;
 }
 
-export type EarningsPreset = "today" | "7d" | "month" | "30d";
+export type EarningsPreset = "today" | "7d" | "month" | "30d" | "custom";
+
+/** An inclusive YYYY-MM-DD range in local days. */
+export interface DayRange {
+	from: string;
+	to: string;
+}
 
 const MS_PER_DAY = 86_400_000;
 const isoDay = (ms: number): string => new Date(ms).toISOString().slice(0, 10);
@@ -24,7 +30,7 @@ export const presetRange = (
 	preset: EarningsPreset,
 	nowMs = Date.now(),
 	tzOffset = deviceTzOffset(),
-): { from: string; to: string } => {
+): DayRange => {
 	const local = nowMs + tzOffset * 60_000;
 	const to = isoDay(local);
 	switch (preset) {
@@ -53,4 +59,42 @@ export const fillDaily = (daily: EarningsDaily[], from: string, to: string): Ear
 		out.push(byDate.get(date) ?? { date, gross: 0, net: 0, sales: 0 });
 	}
 	return out;
+};
+
+/**
+ * The month grid of a calendar: weeks starting Monday, `null` for the blank cells
+ * before the 1st and after the last day. `month` is 1-12.
+ */
+export const monthGrid = (year: number, month: number): (string | null)[][] => {
+	const first = Date.UTC(year, month - 1, 1);
+	const daysInMonth = new Date(Date.UTC(year, month, 0)).getUTCDate();
+	const lead = (new Date(first).getUTCDay() + 6) % 7;
+	const cells: (string | null)[] = Array.from({ length: lead }, () => null);
+	for (let d = 0; d < daysInMonth; d++) cells.push(isoDay(first + d * MS_PER_DAY));
+	while (cells.length % 7 !== 0) cells.push(null);
+	const weeks: (string | null)[][] = [];
+	for (let i = 0; i < cells.length; i += 7) weeks.push(cells.slice(i, i + 7));
+	return weeks;
+};
+
+/** Year and month (1-12) `delta` months away from the given one. */
+export const shiftMonth = (year: number, month: number, delta: number): [number, number] => {
+	const index = year * 12 + (month - 1) + delta;
+	return [Math.floor(index / 12), (index % 12) + 1];
+};
+
+/**
+ * Two-tap range picking: the first tap starts a new range on that day, the second
+ * closes it (in either direction). `pending` is true while only the start is set.
+ */
+export const pickDay = (
+	current: DayRange,
+	pending: boolean,
+	day: string,
+): { range: DayRange; pending: boolean } => {
+	if (!pending) return { pending: true, range: { from: day, to: day } };
+	return {
+		pending: false,
+		range: day < current.from ? { from: day, to: current.from } : { from: current.from, to: day },
+	};
 };

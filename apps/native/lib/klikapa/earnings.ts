@@ -56,6 +56,7 @@ export const EARNINGS_PRESETS: readonly { key: EarningsPreset; label: string }[]
 	{ key: "7d", label: "7d" },
 	{ key: "month", label: t("earn.month") },
 	{ key: "30d", label: "30d" },
+	{ key: "custom", label: t("earn.custom") },
 ];
 
 /** `undefined` = let the server pick the user's most common site currency. */

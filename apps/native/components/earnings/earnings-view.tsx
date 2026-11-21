@@ -6,6 +6,7 @@ import { StyleSheet, useUnistyles } from "react-native-unistyles";
 
 import { CountBarRow, Panel, PanelBody } from "@/components/analytics/ui";
 import { DailyChart } from "@/components/earnings/daily-chart";
+import { dayLabel, RangeCalendar } from "@/components/earnings/range-calendar";
 import { Button } from "@/components/ui";
 import { agoLabel, fmt } from "@/lib/analytics-data";
 import { t } from "@/lib/i18n";
@@ -17,7 +18,7 @@ import {
 	railLabel,
 } from "@/lib/klikapa/earnings";
 import { fillDaily, presetRange } from "@/lib/earnings-range";
-import type { EarningsPreset } from "@/lib/earnings-range";
+import type { DayRange, EarningsPreset } from "@/lib/earnings-range";
 
 const TOP_ROWS = 8;
 
@@ -79,7 +80,31 @@ export const EarningsView = () => {
 	const [preset, setPreset] = useState<EarningsPreset>("7d");
 	const [currencyKey, setCurrencyKey] = useState<string>(AUTO_KEY);
 	const currency = currencyKey === AUTO_KEY ? undefined : currencyKey;
-	const range = useMemo(() => presetRange(preset), [preset]);
+	const [custom, setCustom] = useState<DayRange | null>(null);
+	const [picking, setPicking] = useState(false);
+	const range = useMemo(
+		() => (preset === "custom" && custom ? custom : presetRange(preset)),
+		[preset, custom],
+	);
+	const presets = useMemo(
+		() =>
+			EARNINGS_PRESETS.map((p) =>
+				p.key === "custom" && custom
+					? {
+							...p,
+							label:
+								custom.from === custom.to
+									? dayLabel(custom.from)
+									: `${dayLabel(custom.from)} – ${dayLabel(custom.to)}`,
+						}
+					: p,
+			),
+		[custom],
+	);
+	const choosePreset = (key: EarningsPreset) => {
+		if (key === "custom") setPicking(true);
+		else setPreset(key);
+	};
 
 	const q = useQuery({
 		queryFn: () => fetchEarnings(range.from, range.to, currency),
@@ -111,7 +136,19 @@ export const EarningsView = () => {
 				{data ? t("earn.subtitleRange", { from: data.from, to: data.to }) : t("earn.subtitleAll")}
 			</Text>
 
-			<ChipsRow items={EARNINGS_PRESETS} onChange={setPreset} value={preset} />
+			<ChipsRow items={presets} onChange={choosePreset} value={preset} />
+			{picking ? (
+				<RangeCalendar
+					initial={range}
+					onApply={(next) => {
+						setCustom(next);
+						setPreset("custom");
+						setPicking(false);
+					}}
+					onClose={() => setPicking(false)}
+					today={presetRange("today").to}
+				/>
+			) : null}
 			<ChipsRow
 				items={EARNINGS_CURRENCIES.map((c) => ({ key: c.code ?? AUTO_KEY, label: c.label }))}
 				onChange={setCurrencyKey}
