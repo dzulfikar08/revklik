@@ -427,7 +427,8 @@ async function ascFetch(path: string, token: string, budget: FetchBudget): Promi
 	if (budget.n >= budget.max) throw new AscAuthError("__budget__");
 	budget.n++;
 	const res = await fetch(`${ASC_API}${path}`, {
-		headers: { Authorization: `Bearer ${token}` },
+		// Sales reports answer 406 unless the gzip file type is acceptable.
+		headers: { Authorization: `Bearer ${token}`, Accept: "application/a-gzip, application/json" },
 	});
 	if (res.status === 401 || res.status === 403) {
 		throw new AscAuthError(

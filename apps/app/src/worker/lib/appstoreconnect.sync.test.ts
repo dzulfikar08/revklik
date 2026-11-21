@@ -79,6 +79,8 @@ function mockApple() {
 			seen.push({ url, auth });
 			const path = url.split("appstoreconnect.apple.com")[1];
 			if (path.startsWith("/v1/salesReports")) {
+				const accept = (init?.headers as Record<string, string>)?.Accept ?? "";
+				if (!accept.includes("application/a-gzip")) return new Response("", { status: 406 });
 				// Apple's report body is a gzip file.
 				return new Response(gzip(salesTsv()), { status: 200 });
 			}
